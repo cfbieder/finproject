@@ -435,3 +435,14 @@
   text-align: center;
   font-weight: 600;
 }
+
+/* A result that no longer describes what is on screen says so, rather than being redrawn. */
+.fc-sensitivity .fc-sens-stale {
+  background: var(--warning-subtle);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warning);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  color: var(--ink);
+}

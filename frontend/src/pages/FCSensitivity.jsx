@@ -66,6 +66,7 @@ export default function FCSensitivity() {
   });
   const [metricKey, setMetricKey] = useState(METRICS[0].key);
   const [openRow, setOpenRow] = useState(null);
+  const [ranSignature, setRanSignature] = useState(null);
 
   const { start, state, result, error, startCombined, combined, combinedState } =
     useSensitivityRun();
@@ -179,11 +180,37 @@ export default function FCSensitivity() {
       .filter((g) => g.modules.length > 0);
   }, [catalogue]);
 
+  /**
+   * ⚠️ A RESULT BELONGS TO THE RUN THAT PRODUCED IT.
+   *
+   * Changing the scenario cleared the selection but NOT the result, while `shared` (period start,
+   * base-year values, the opening balance sheet) rebuilt for the NEW scenario — so the old run's
+   * entries were re-ranked against the new scenario's base year, and the drift banner named the
+   * new scenario while quoting the old run's variance and telling the owner to regenerate it. A
+   * number belonging to no scenario in the plan, asserted about a named one.
+   */
+  const wrongScenario = Boolean(result) && result.scenario !== scenario;
+
+  /**
+   * The selection has moved on, but the bars are still a true picture of the run that made them.
+   *
+   * The signature is recorded when the run is FIRED rather than reconstructed from the result —
+   * the server's `knobId` and the picker's key are different strings, and matching them by
+   * substring is the kind of comparison that works until a module is renamed.
+   */
+  const currentSignature = selected
+    .map((k) => `${keyOf(k)}@${k.band}`)
+    .sort()
+    .join(";");
+  const staleSelection = Boolean(result) && !wrongScenario
+    && ranSignature !== null && ranSignature !== currentSignature;
+
   const ranked = useMemo(() => {
-    if (!result || !shared) return null;
+    // Refuse to rank rather than rank a hybrid of two plans.
+    if (!result || !shared || wrongScenario) return null;
     const metric = METRICS.find((m) => m.key === metricKey);
     return { metric, ...rankKnobs(result, metricKey, shared) };
-  }, [result, metricKey, shared]);
+  }, [result, metricKey, shared, wrongScenario]);
 
   const drift = useMemo(
     () => (result && shared ? storedDrift(result, shared) : null),
@@ -232,7 +259,15 @@ export default function FCSensitivity() {
           ))}
         </div>
 
-        <button type="button" className="fc-sens-run" disabled={!canRun} onClick={() => start(scenario, selected)}>
+        <button
+          type="button"
+          className="fc-sens-run"
+          disabled={!canRun}
+          onClick={() => {
+            setRanSignature(currentSignature);
+            start(scenario, selected);
+          }}
+        >
           {state.status === "running"
             ? `Building ${state.done}/${state.total}…`
             : `Run ${selected.length} knob${selected.length === 1 ? "" : "s"}`}
@@ -348,6 +383,21 @@ export default function FCSensitivity() {
         </aside>
 
         <main className="fc-sens-result">
+          {wrongScenario && state.status !== "running" && (
+            <p className="fc-sens-stale">
+              These bars are from a run on <strong>{result.scenario}</strong>. Pick knobs and run
+              again to rank <strong>{scenario}</strong>.
+            </p>
+          )}
+
+          {staleSelection && state.status !== "running" && (
+            <p className="fc-sens-stale">
+              The selection has changed since this run. The bars still describe the
+              {" "}{result.knobs?.length} knob{result.knobs?.length === 1 ? "" : "s"} that were
+              actually built — run again to rank what is selected now.
+            </p>
+          )}
+
           {!result && state.status !== "running" && (
             <p className="fc-sens-note">
               Pick the assumptions you are least sure about, then run. Each one is moved down and
@@ -358,7 +408,7 @@ export default function FCSensitivity() {
           {drift && (
             /* §6 layer 2 — free, and it never blocks a ranking. */
             <p className="fc-sens-drift">
-              The saved forecast for <strong>{scenario}</strong> is out of step with a fresh build
+              The saved forecast for <strong>{result?.scenario}</strong> is out of step with a fresh build
               by {Math.round(drift.delta).toLocaleString()}. These bars use the fresh build;
               regenerate the scenario to see the same numbers on Review.
             </p>
@@ -387,6 +437,7 @@ export default function FCSensitivity() {
             combined={combined}
             combinedState={combinedState}
             interaction={interaction}
+            metric={ranked?.metric}
           />
 
           {ranked?.incomparable?.length > 0 && (

@@ -878,3 +878,63 @@ Four changes, all in the picker:
 This is the same family as the six defects above — state that exists, produces no visible sign, and
 therefore reads as absent — but it is the first one where what was invisible was **the reader's own
 input** rather than the engine's output.
+
+## 20. A four-lens UI review, and the three wrong numbers it found (2026-08-23)
+
+Owner-requested: *"can you get a team of UI experts to see if we can improve the look and feel of
+this page and develop a plan?"* Four reviewers ran in parallel — visual design/dataviz, information
+architecture, interaction/state, accessibility — each reading the code **and the rendered
+screenshots** in both themes.
+
+**Every claim below was verified against the running app before being acted on**, and two were
+wrong: the sticky Selected panel *is* holding (measured 13px from the picker top at scrollTop 0,
+300, 900 and 2000 — the reviewer was reading captures that predate it), and `band = 0` is already
+refused server-side by `bandsOf`.
+
+### ⚠️ Tier 0 — the page was reporting three wrong things, and all three were mine
+
+**A. Two currencies in one row, unlabelled.** A knob moves the module's OWN-currency column, so
+`United Beverages · Market value` printed **15,000,000 — PLN** beside a **USD** impact. The reader
+computes "±50% of 15,000,000 moved the plan $4.1M", about 27%; the truth is $4.1M against
+**$4,175,595**, nearly all of it. **Wrong by 3.6×**, on the ratio the whole page exists to support.
+The same class as CR054. Fixed by carrying `currency` and the USD twin through the run and printing
+USD first with the typed native beneath — `$4,175,595 / PLN 15,000,000`, and `at $3,758,036 · PLN
+13,500,000`.
+
+**B. The tornado and the trajectory used OPPOSITE colour rules.** §4.2 says colour follows the
+metric, never the side. The bars obeyed it; `knobTrajectory` did not (`side === "low" ? adverse :
+favourable`). `Car Expenses · Amount` down is **+$256.5K** and drew **blue** in the bar — cutting an
+expense helps — and **red** one click later in its own trajectory. On the shortfall metric, where
+down is the good direction, every knob inverted.
+
+**C. A result outlived the scenario that produced it.** Changing scenario cleared the selection but
+not the result, while `shared` (period start, base-year values, opening balance sheet) rebuilt for
+the *new* scenario — so the old run's entries were re-ranked against the new scenario's base year,
+and the drift banner **named the new scenario while quoting the old run's variance** and telling the
+owner to regenerate it. A number belonging to no scenario in the plan, asserted about a named one.
+The page now refuses to rank across a scenario change and says which run the bars are from; a
+changed *selection* keeps the bars (they are still true of the run that made them) behind a notice.
+
+### Tier 1 — dead or misleading
+
+- **Clicking a bar did nothing.** recharts passes the datum first and the index *second*; reading
+  `d.index` gave `rows[-1]`. Verified dead in a browser, then fixed and verified alive.
+- **The combined modal showed "could not be rebuilt" for the whole of its normal 3-build wait**,
+  directly beneath its own progress counter — the happy path telling the owner it had failed.
+- **A knob that moved nothing is no longer ranked.** It drew an empty 46px lane and a `$0 / $0`
+  table row; it now goes to **Not ranked** with the reason. That is the CR's defining defect
+  reaching the page for the seventh time, and `Not ranked` has existed for it since §17.
+
+### Still open, and recorded rather than done
+
+Tier 2 (accessibility: no visible focus ring app-wide at **1.18:1**, the band input invisible in
+dark, toggles without `aria-pressed` at a 1.06:1 active state, three light-mode contrast failures
+including the `⚠ not symmetric` flag at **2.79:1**), and Tier 3 — the IA recommendation that this
+page has **two modes it renders simultaneously at half width each**: *compose* wants width and a
+search over 179 knobs, *read* wants the full width for the table and the trajectory.
+
+**Multi-band knobs (owner-chosen: nested bars) have their server half built** — a knob carries a
+list of bands, the cap moved from knobs to **builds** (`MAX_BUILDS = 50`), and the first real run
+found `Barkeria · Market value` moving **−201,268 / −409,228 / −1,324,512** at ±10/20/50%: the
+downside is **6.58× the ±10% impact for a 5× band**, non-linear, and invisible at a single band. The
+nested-bar chart is deliberately held until Tier 3 settles the layout.

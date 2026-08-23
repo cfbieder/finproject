@@ -38,10 +38,39 @@ const knobs = require('./sensitivityKnobs');
 
 const { KnobError } = knobs;
 
-/** ≤8 knobs ⇒ at most 17 builds ⇒ ~8s. The knob cap binds first; a build cap would be dead text. */
+/** ≤8 knobs, still — past that the ranking stops being readable whatever the chart does. */
 const MAX_KNOBS = 8;
 
+/**
+ * ⚠️ THE BUILD CAP NOW BINDS, and §5.1 predicted exactly this: *"a build cap is stated in P2,
+ * where a sweep can exceed this; in P1 the knob cap binds first and a second cap would be dead
+ * text."* A knob may now carry SEVERAL bands — ±10% and ±20% and ±50% — and each band is two more
+ * real engine builds, so 8 knobs × 3 bands is 49 builds where 8 knobs × 1 band was 17.
+ *
+ * At ~0.5s a build that is ~25s, which is the outer edge of a foreground wait. The run is REFUSED
+ * past it rather than truncated: a ranking that quietly dropped a band would be a ranking of
+ * whatever survived.
+ */
+const MAX_BUILDS = 50;
+
 class SensitivityError extends Error {}
+
+/**
+ * A knob's bands, always as a list. `bands: [10, 20, 50]` is the multi-band form; a plain `band`
+ * (or nothing) is the single-band case written as a list of one, so callers and the run loop have
+ * one shape rather than two.
+ *
+ * Sorted ascending and de-duplicated: the chart draws them nested, and two identical bands would
+ * be two identical builds and one invisible bar.
+ */
+function bandsOf(knob) {
+  const raw = Array.isArray(knob.bands) && knob.bands.length
+    ? knob.bands
+    : [knob.band ?? knob.lowBand ?? knob.highBand];
+  const clean = [...new Set(raw.map(Number).filter((n) => Number.isFinite(n) && n > 0))];
+  if (!clean.length) throw new SensitivityError('a knob needs at least one band');
+  return clean.sort((a, b) => a - b);
+}
 
 // ---------------------------------------------------------------------------
 // Layer 1 — the fidelity gate
@@ -182,6 +211,19 @@ async function runSensitivity({ scenarioName, knobs: knobList, onProgress = () =
     );
   }
 
+  // Each knob is a list of BANDS. One band is the ordinary case and is written as a list of one,
+  // so the loop below has a single shape.
+  const withBands = knobList.map((k) => ({ ...k, bands: bandsOf(k) }));
+  const plannedBuilds = withBands.reduce((n, k) => n + k.bands.length * 2, 1);
+  if (plannedBuilds > MAX_BUILDS) {
+    throw new SensitivityError(
+      `That is ${plannedBuilds} forecast builds (about ${Math.round(plannedBuilds * 0.5)}s) and the ` +
+      `cap is ${MAX_BUILDS}. Every band on every knob is two more real builds. Drop a band or a ` +
+      `knob — the run is refused rather than shortened, because a ranking missing a band silently ` +
+      `would be a ranking of whatever happened to fit.`
+    );
+  }
+
   const source = await repo.findScenarioByName(scenarioName);
   if (!source) throw new SensitivityError(`Scenario "${scenarioName}" not found`);
 
@@ -194,7 +236,10 @@ async function runSensitivity({ scenarioName, knobs: knobList, onProgress = () =
   await sweepStaleScratch(60);
 
   const scenarioRate = await scenarioTaxRate(scenarioName);
-  const totalBuilds = knobList.length * 2 + 1;
+  // ⚠️ Counted from the BANDS, not from the knob count. The old `knobs * 2 + 1` was right only
+  // while every knob had exactly one band; with three it reported "build 7/3" — a progress
+  // indicator that overshoots its own total tells the reader the run is broken.
+  const totalBuilds = plannedBuilds;
   let done = 0;
 
   return withScratchScenario(source.id, async ({ id: scratchId, build }) => {
@@ -207,19 +252,24 @@ async function runSensitivity({ scenarioName, knobs: knobList, onProgress = () =
     const fingerprint = await inputFingerprint(scratchId);
 
     const points = [];
-    for (const knob of knobList) {
-      for (const side of ['low', 'high']) {
-        const { restore, value, before } = await knobs.applyKnob(
-          db, scratchId, knob, side, { scenarioRate }
+    for (const knob of withBands) {
+      for (const band of knob.bands) {
+        for (const side of ['low', 'high']) {
+        const { restore, value, before, valueUsd, beforeUsd } = await knobs.applyKnob(
+          db, scratchId, { ...knob, band, lowBand: band, highBand: band }, side, { scenarioRate }
         );
         try {
           await build();
           points.push({
-            knobId: knobs.knobId(knob), side,
+            knobId: knobs.knobId(knob), side, band,
             // What the knob was actually moved TO, and from. "±0.25×" on a growth of 0.8 is
             // unreadable without them.
             appliedValue: value == null ? null : String(value),
             beforeValue: before == null ? null : String(before),
+            // The same figures in USD, where the column has a USD twin — the impacts are USD and
+            // the knob's own value is not.
+            appliedValueUsd: valueUsd == null ? null : String(valueUsd),
+            beforeValueUsd: beforeUsd == null ? null : String(beforeUsd),
             entries: await readEntries(scratchId),
             shortfall: await totalShortfall(scratchId),
           });
@@ -232,20 +282,22 @@ async function runSensitivity({ scenarioName, knobs: knobList, onProgress = () =
         if (after !== fingerprint) {
           throw new SensitivityError(
             `The throwaway copy did not return to its starting state after moving ` +
-            `"${knobs.knobId(knob)}" (${side}). Every later bar would measure that knob plus a ` +
-            `residue, so the run stops here rather than returning a ranking it cannot stand behind.`
+            `"${knobs.knobId(knob)}" (${side}, ±${band}). Every later bar would measure that knob ` +
+            `plus a residue, so the run stops here rather than returning a ranking it cannot ` +
+            `stand behind.`
           );
         }
 
-        // Let the event loop drain: 17 sequential builds otherwise hold it for ~8s and every
-        // other request in the process waits.
+        // Let the event loop drain: dozens of sequential builds otherwise hold it for the whole
+        // run and every other request in the process waits.
         await new Promise((r) => setImmediate(r));
+        }
       }
     }
 
     return {
       scenario: scenarioName,
-      knobs: knobList.map((k) => ({ ...k, knobId: knobs.knobId(k) })),
+      knobs: withBands.map((k) => ({ ...k, knobId: knobs.knobId(k) })),
       anchor,
       points,
       builds: totalBuilds,
@@ -278,15 +330,22 @@ async function scenarioTaxRate(scenarioName) {
 async function feasibilityPass(scratchId, knobList, scenarioRate) {
   const problems = [];
   for (const knob of knobList) {
-    for (const side of ['low', 'high']) {
-      try {
-        await db.transaction(async (client) => {
-          await knobs.applyKnob(client, scratchId, knob, side, { scenarioRate });
-          throw new Rollback();          // never keep it: this is a probe, not a change
-        });
-      } catch (err) {
-        if (err instanceof Rollback) continue;
-        problems.push(`${knobs.knobId(knob)} (${side}): ${err.message}`);
+    // EVERY band is probed, not just the first: ±10% on a 0.5% selling cost is legal and ±50% is
+    // not, and finding that out on build 30 of 49 wastes the whole run.
+    for (const band of bandsOf(knob)) {
+      for (const side of ['low', 'high']) {
+        try {
+          await db.transaction(async (client) => {
+            await knobs.applyKnob(
+              client, scratchId, { ...knob, band, lowBand: band, highBand: band }, side,
+              { scenarioRate }
+            );
+            throw new Rollback();        // never keep it: this is a probe, not a change
+          });
+        } catch (err) {
+          if (err instanceof Rollback) continue;
+          problems.push(`${knobs.knobId(knob)} (${side}, ±${band}): ${err.message}`);
+        }
       }
     }
   }
@@ -332,7 +391,12 @@ function startSensitivityJob(params) {
   const jobId = `sens_${Date.now()}_${++jobSeq}`;
   const job = {
     status: 'running', startedAt: Date.now(), scenario: params.scenarioName, done: 0,
-    total: (params.knobs?.length ?? 0) * 2 + 1,
+    // Best-effort until the run reports its own count; same band-aware arithmetic so the first
+    // poll does not show a total the run immediately exceeds.
+    total: (params.knobs || []).reduce((n, k) => {
+      const bands = Array.isArray(k.bands) && k.bands.length ? k.bands.length : 1;
+      return n + bands * 2;
+    }, 1),
   };
   jobs.set(jobId, job);
 
@@ -516,6 +580,9 @@ async function listKnobs(scenarioName, client = db) {
       entity: spec.entity, field: spec.field, kind: spec.kind, label: spec.label,
       band: knobs.DEFAULT_BAND[spec.kind],
       module: moduleRow.name, moduleType: moduleRow.module_type, target,
+      // A knob moves the module's OWN-currency column. Without the currency the picker and the
+      // results table print a bare number that a reader will compare against a USD impact.
+      currency: moduleRow.currency || 'USD',
       // Asset · liability · income · expense, decided server-side from what the ENGINE branches
       // on. The frontend must not re-derive it from `module_type`, which is free text.
       group: knobs.knobGroup(spec, row, moduleRow, streams),
@@ -577,6 +644,8 @@ module.exports = {
   inputFingerprint,
   totalShortfall,
   MAX_KNOBS,
+  MAX_BUILDS,
+  bandsOf,
   SensitivityError,
   KnobError,
 };

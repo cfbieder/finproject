@@ -102,7 +102,9 @@ export function rankKnobs(result, metricKey, shared) {
     // can print "±0.25× · at 0.55" instead of a band nobody can resolve.
     if (!applied.has(p.knobId)) applied.set(p.knobId, {});
     applied.get(p.knobId)[p.side] = p.appliedValue;
+    applied.get(p.knobId)[`${p.side}Usd`] = p.appliedValueUsd;
     applied.get(p.knobId).before = p.beforeValue;
+    applied.get(p.knobId).beforeUsd = p.beforeValueUsd;
   }
 
   const rows = [];
@@ -121,14 +123,29 @@ export function rankKnobs(result, metricKey, shared) {
     const dHigh = hi - anchor;
     const span = Math.max(Math.abs(dLow), Math.abs(dHigh));
 
+    // ⚠️ A knob that moved NOTHING is surfaced, not ranked. A zero-length bar in a ranked chart
+    // reads "this assumption does not matter"; an empty 46px lane and a `$0 / $0` table row read
+    // the same way. That is CR085's defining defect and it kept reaching the page. `Not ranked`
+    // already exists for exactly this and carries the reason with it.
+    if (span < ZERO_IMPACT) {
+      incomparable.push({ knob, reason: "moved the plan by nothing measurable" });
+      continue;
+    }
+
     const vals = applied.get(knob.knobId) || {};
     rows.push({
       knobId: knob.knobId,
-      knob: { ...knob, currentValue: vals.before ?? knob.currentValue },
+      knob: {
+        ...knob,
+        currentValue: vals.before ?? knob.currentValue,
+        currentValueUsd: vals.beforeUsd ?? null,
+      },
       low: dLow,
       high: dHigh,
       lowValue: vals.low,
       highValue: vals.high,
+      lowValueUsd: vals.lowUsd ?? null,
+      highValueUsd: vals.highUsd ?? null,
       span,
       regimeChange: isRegimeChange(dLow, dHigh),
     });
@@ -151,6 +168,9 @@ export function rankKnobs(result, metricKey, shared) {
  * threshold would flag every knob and mean nothing.
  */
 export const REGIME_CHANGE_RATIO = 0.5;
+
+/** Below a dollar either way, the knob did not move the plan. */
+export const ZERO_IMPACT = 1;
 
 export function isRegimeChange(dLow, dHigh) {
   const a = Math.abs(dLow);
@@ -200,19 +220,25 @@ export function storedDrift(result, shared) {
  *
  * @returns {{years: number[], series: Array<{name, values, color, strokeWidth}>}}
  */
-export function knobTrajectory(result, knobId, shared, metricKey, colors, mode = "absolute") {
+export function knobTrajectory(result, knobId, shared, metricKey, colors, mode = "absolute", row = null, metric = null) {
   if (!result) return { years: [], series: [] };
 
   const runs = [
     { key: "base", label: "base", entries: result.anchor?.entries, width: 2, color: colors.base, dash: BASE_DASH },
     ...["low", "high"].map((side) => {
       const p = (result.points || []).find((x) => x.knobId === knobId && x.side === side);
+      // ⚠️ COLOUR FOLLOWS THE METRIC, NEVER THE SIDE — the same rule §4.2 sets for the bars.
+      // This used to be `side === "low" ? adverse : favourable`, so the tornado and this chart
+      // used OPPOSITE rules: `Car Expenses · Amount` down is +$256.5K and draws BLUE in the bar
+      // (cutting an expense helps) and RED here, one click apart. On the shortfall metric, where
+      // down is the good direction, every knob inverted.
+      const adverseSide = row && metric ? adverseSideFor(row, metric) : "low";
       return {
         key: side,
         label: side === "low" ? "down" : "up",
         entries: p?.entries,
         width: 1.75,
-        color: side === "low" ? colors.adverse : colors.favourable,
+        color: side === adverseSide ? colors.adverse : colors.favourable,
       };
     }),
   ].filter((r) => Array.isArray(r.entries) && r.entries.length);
@@ -308,6 +334,32 @@ export function formatKnobValue(kind, value) {
   return Math.abs(n) >= 1000
     ? n.toLocaleString(undefined, { maximumFractionDigits: 0 })
     : String(Number(n.toFixed(2)));
+}
+
+/**
+ * A knob's value as the table should print it: USD first where the module is not USD, with the
+ * typed native figure beneath.
+ *
+ * ⚠️ THIS IS A CORRECTNESS FIX, NOT FORMATTING. A knob moves the module's OWN-currency column, so
+ * `United Beverages · Market value` reads 15,000,000 — which is PLN — while every impact on the
+ * same row is USD. Printed side by side with nothing to tell them apart, the reader computes
+ * "±50% of 15,000,000 moved the plan $4.1M", about 27%, when the truth is $4.1M against
+ * $4,175,595 — nearly all of it. Wrong by 3.6×, and that ratio is the judgement the page exists
+ * to support. Same class as CR054.
+ *
+ * @returns {{primary: string, secondary: string|null}}
+ */
+export function knobValuePair(kind, currency, value, valueUsd) {
+  const native = formatKnobValue(kind, value);
+  const isMoney = kind === "level";
+  const foreign = isMoney && currency && currency !== "USD";
+  if (!foreign || valueUsd == null) {
+    return { primary: isMoney && value != null ? `$${native}` : native, secondary: null };
+  }
+  return {
+    primary: `$${formatKnobValue(kind, valueUsd)}`,
+    secondary: `${currency} ${native}`,
+  };
 }
 
 /**

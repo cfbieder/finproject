@@ -310,7 +310,16 @@ async function applyKnob(client, scenarioId, knob, side, { scenarioRate = 0 } = 
     await writeRow(client, spec, row.id, cols, restoreVals);
   };
 
-  return { restore, value, before };
+  // ⚠️ The USD twin is REPORTED, not just written. The knob moves the module's OWN-currency
+  // column, so `value` is PLN on a PLN module while every impact the page prints is USD. Shown
+  // side by side with nothing to distinguish them, a reader forms the ratio "±50% of 15,000,000
+  // moved the plan $4.1M" — about 27% — when the truth is $4.1M against $4,175,595, nearly all of
+  // it. Wrong by 3.6×, and that ratio is the whole judgement this page supports.
+  return {
+    restore, value, before,
+    valueUsd: spec.usdTwin ? (vals[1] ?? null) : null,
+    beforeUsd: spec.usdTwin ? (beforeTwin ?? null) : null,
+  };
 }
 
 /** Every column name here is a key of the closed catalogue above, never caller input. */

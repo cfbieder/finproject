@@ -24,7 +24,7 @@ import useTheme from "../../hooks/useTheme.js";
 import { formatKpiValue } from "../../components/KpiCards.jsx";
 
 export default function FCSensitivityTrajectoryModal({
-  open, onClose, result, row, shared, combined, combinedState, interaction,
+  open, onClose, result, row, shared, combined, combinedState, interaction, metric: rankMetric,
 }) {
   const { theme } = useTheme();
   const [metric, setMetric] = useState(TRAJECTORY_METRICS[0].key);
@@ -41,7 +41,7 @@ export default function FCSensitivityTrajectoryModal({
   const { years, series } = (() => {
     if (!shared) return { years: [], series: [] };
     if (isCombined) return combinedTrajectory(combined, shared, metric, colors);
-    return row ? knobTrajectory(result, row.knobId, shared, metric, colors, mode)
+    return row ? knobTrajectory(result, row.knobId, shared, metric, colors, mode, row, rankMetric)
       : { years: [], series: [] };
   })();
 
@@ -88,6 +88,10 @@ export default function FCSensitivityTrajectoryModal({
           <p className="fc-sens-error">{combinedState.error}</p>
         )}
 
+        {/* ⚠️ The else-branch is gated on the run being FINISHED. It used to render
+            "could not be rebuilt" for the whole of the combined run's normal 3-build wait,
+            directly beneath its own progress counter — the happy path telling the owner it had
+            failed, which is how the last two rounds of "I do not see it" started. */}
         {series.length > 0 ? (
           <FCTrajectoryChart
             title=""
@@ -97,11 +101,12 @@ export default function FCSensitivityTrajectoryModal({
             onMetricChange={setMetric}
             height={340}
           />
-        ) : (
+        ) : (!isCombined || combinedState?.status === "done") ? (
           <p className="fc-sens-note">
-            This knob&apos;s runs could not be rebuilt into a trajectory.
+            {isCombined ? "This combination" : "This knob's runs"} could not be rebuilt into a
+            trajectory.
           </p>
-        )}
+        ) : null}
 
         {/* ⚠️ THE SUM APPEARS ONLY AS THE THING THE MEASUREMENT IS COMPARED AGAINST.
             §5.4 forbids displaying a sum of impacts on its own, because the model is
@@ -158,4 +163,6 @@ FCSensitivityTrajectoryModal.propTypes = {
   combined: PropTypes.object,
   combinedState: PropTypes.object,
   interaction: PropTypes.object,
+  /** The RANKING metric, so the lines follow the same favourable/adverse rule as the bars. */
+  metric: PropTypes.object,
 };

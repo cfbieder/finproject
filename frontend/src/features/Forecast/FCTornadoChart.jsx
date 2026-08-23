@@ -22,7 +22,7 @@ import {
 } from "recharts";
 import useTheme from "../../hooks/useTheme.js";
 import { chartChrome, tooltipStyle, tornadoColors } from "./utils/fcSeriesPalette.js";
-import { bandLabel, formatKnobValue } from "./utils/fcSensitivityUtils.js";
+import { bandLabel, knobValuePair } from "./utils/fcSensitivityUtils.js";
 import { formatKpiValue } from "../../components/KpiCards.jsx";
 
 const ROW_HEIGHT = 46;
@@ -82,11 +82,12 @@ export default function FCTornadoChart({ rows, metric, anchor, onSelect, onCombi
     high: r.high,
     regimeChange: r.regimeChange,
     kind: r.knob.kind,
-    // ⚠️ The band alone is unreadable. "±0.25×" on a growth of 0.8 does not tell anyone it lands
-    // at 0.55 and 1.05, and "±50%" on a market value says nothing at all without the value.
-    now: r.knob.currentValue,
-    lowValue: r.lowValue,
-    highValue: r.highValue,
+    // ⚠️ The band alone is unreadable ("±0.25×" on a growth of 0.8 does not say it lands at 0.55),
+    // and the value alone is worse than unreadable when the module is not USD — see
+    // `knobValuePair`.
+    now: knobValuePair(r.knob.kind, r.knob.currency, r.knob.currentValue, r.knob.currentValueUsd),
+    lowAt: knobValuePair(r.knob.kind, r.knob.currency, r.lowValue, r.lowValueUsd),
+    highAt: knobValuePair(r.knob.kind, r.knob.currency, r.highValue, r.highValueUsd),
   }));
 
   // A symmetric domain, so a bar's LENGTH is comparable left to right. An auto domain would make
@@ -157,7 +158,10 @@ export default function FCTornadoChart({ rows, metric, anchor, onSelect, onCombi
             barSize={13}
             radius={[4, 4, 4, 4]}
             isAnimationActive={false}
-            onClick={(d) => onSelect?.(rows[d?.index ?? -1])}
+            // ⚠️ recharts passes the datum FIRST and the index SECOND. Reading `d.index` gave
+            // `undefined` → `rows[-1]` → `undefined`, so every bar click was a no-op while
+            // `cursor: pointer` promised otherwise. Verified dead in a browser before this fix.
+            onClick={(_d, i) => onSelect?.(rows[i])}
             cursor={onSelect ? "pointer" : undefined}
           >
             {data.map((d) => (
@@ -170,7 +174,10 @@ export default function FCTornadoChart({ rows, metric, anchor, onSelect, onCombi
             barSize={13}
             radius={[4, 4, 4, 4]}
             isAnimationActive={false}
-            onClick={(d) => onSelect?.(rows[d?.index ?? -1])}
+            // ⚠️ recharts passes the datum FIRST and the index SECOND. Reading `d.index` gave
+            // `undefined` → `rows[-1]` → `undefined`, so every bar click was a no-op while
+            // `cursor: pointer` promised otherwise. Verified dead in a browser before this fix.
+            onClick={(_d, i) => onSelect?.(rows[i])}
             cursor={onSelect ? "pointer" : undefined}
           >
             {data.map((d) => (
@@ -213,15 +220,24 @@ export default function FCTornadoChart({ rows, metric, anchor, onSelect, onCombi
                   </button>
                 ) : d.label}
               </th>
-              <td className="fc-tornado-now">{formatKnobValue(d.kind, d.now)}</td>
+              <td className="fc-tornado-now">
+                {d.now.primary}
+                {d.now.secondary && <span className="fc-tornado-at">{d.now.secondary}</span>}
+              </td>
               <td>{d.band}</td>
               <td>
                 {formatKpiValue(d.low)}
-                <span className="fc-tornado-at">at {formatKnobValue(d.kind, d.lowValue)}</span>
+                <span className="fc-tornado-at">
+                  at {d.lowAt.primary}
+                  {d.lowAt.secondary && <> · {d.lowAt.secondary}</>}
+                </span>
               </td>
               <td>
                 {formatKpiValue(d.high)}
-                <span className="fc-tornado-at">at {formatKnobValue(d.kind, d.highValue)}</span>
+                <span className="fc-tornado-at">
+                  at {d.highAt.primary}
+                  {d.highAt.secondary && <> · {d.highAt.secondary}</>}
+                </span>
               </td>
               <td>
                 {d.regimeChange && (

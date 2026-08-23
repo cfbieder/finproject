@@ -195,6 +195,33 @@ dbDescribe('sensitivity run internals (DB)', () => {
     });
   });
 
+  describe('bands', () => {
+    it('normalises to a sorted, de-duplicated list', () => {
+      // The chart draws them nested, so two identical bands would be two identical builds and
+      // one invisible bar.
+      expect(sens.bandsOf({ bands: [50, 10, 20, 10] })).toEqual([10, 20, 50]);
+    });
+
+    it('treats a single `band` as a list of one, so the run loop has ONE shape', () => {
+      expect(sens.bandsOf({ band: 10 })).toEqual([10]);
+      expect(sens.bandsOf({ lowBand: 0.25 })).toEqual([0.25]);
+    });
+
+    it('refuses a knob with no usable band rather than silently running none', () => {
+      expect(() => sens.bandsOf({ bands: [0, -5, NaN] })).toThrow(/at least one band/);
+    });
+
+    it('⚠️ REFUSES a run past the build cap rather than shortening it', () => {
+      // Every band on every knob is two more REAL engine builds: 8 knobs × 3 bands is 49 where
+      // 8 × 1 was 17. A ranking that quietly dropped a band would be a ranking of whatever fit.
+      const many = Array.from({ length: 8 }, () => ({
+        entity: 'module', target: { module: ASSET }, field: 'growth_rate', bands: [1, 2, 3, 4],
+      }));
+      return expect(sens.runSensitivity({ scenarioName: SRC, knobs: many }))
+        .rejects.toThrow(/forecast builds .* and the cap is/);
+    });
+  });
+
   describe('the caps', () => {
     it('refuses more knobs than the cap, and says runs compose', async () => {
       const many = Array.from({ length: sens.MAX_KNOBS + 1 }, () => ({
