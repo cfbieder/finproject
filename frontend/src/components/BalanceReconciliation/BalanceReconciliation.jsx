@@ -415,6 +415,7 @@ export default function BalanceReconciliation() {
             <th className="num">Bank (expected)</th>
             <th className="num">Drift</th>
             <th>Feed date</th>
+            <th>Last calibrated</th>
             <th>Status</th>
             <th></th>
           </tr>
@@ -530,6 +531,38 @@ export default function BalanceReconciliation() {
                     );
                   })()}
                   <ConnectionHealth health={a.feed_health} />
+                </td>
+                {/* CR087 P0a — when this account's opening_balance was last
+                    re-anchored, and by how much. `calibrate()` shifts EVERY
+                    historical date by one constant and left no record until
+                    migration 074; this is the first surface that shows it.
+                    ⚠️ The trail starts EMPTY and fills forward, so "no record"
+                    is NOT "never calibrated" and must not be rendered as a
+                    date, a zero, or a dash that implies either. */}
+                <td className="bfd-muted">
+                  {a.last_calibrated_at ? (
+                    <>
+                      <div>{String(a.last_calibrated_at).slice(0, 10)}</div>
+                      {a.last_calibrated_delta != null && (
+                        <div style={{ fontSize: "0.7rem" }}>
+                          moved {fmtNum(a.last_calibrated_delta, 2)}
+                          {a.currency ? ` ${a.currency}` : ""}
+                        </div>
+                      )}
+                      {a.calibrations_90d >= 3 && (
+                        <div
+                          style={{ fontSize: "0.7rem", color: "var(--danger)", fontWeight: 600 }}
+                          title="Repeated re-anchoring is a symptom, not a fix — each one silently shifts every historical date on this account. CR080's fabricated loss came from exactly this."
+                        >
+                          {a.calibrations_90d}× in 90d
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <span title="No re-anchor recorded since the audit trail began (migration 074, 2026-08-23). This is not the same as never calibrated — history before that was not recorded.">
+                      no record yet
+                    </span>
+                  )}
                 </td>
                 <td>
                   {a.reconciled == null ? (

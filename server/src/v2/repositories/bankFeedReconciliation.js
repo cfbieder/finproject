@@ -214,7 +214,25 @@ async function balanceReconcile({ asOf = null, tolerance = 0.01 } = {}) {
                 - f.feed_balance * COALESCE(m.feed_sign, CASE WHEN c.account_type = 'liability' THEN -1 ELSE 1 END), 2)
       END AS drift,
       COALESCE(st.imbalance, 0) AS transfer_imbalance,
-      COALESCE(st.unpaired_legs, 0) AS transfer_unpaired_legs
+      COALESCE(st.unpaired_legs, 0) AS transfer_unpaired_legs,
+    -- CR087 P0a: when this account's opening_balance was last re-anchored, and
+    -- by how much. Sourced from audit_log (migration 074's trigger), NOT from
+    -- accounts.last_calibrated_at — that column has been stale since 2026-06-03
+    -- and nothing writes it; 074 COMMENTs it as superseded for the same reason.
+    -- The trail starts empty and fills forward, so NULL here means "not since
+    -- 074", not "never calibrated". The UI must say so.
+    (SELECT al.created_at::text FROM audit_log al
+      WHERE al.table_name = 'accounts' AND al.record_id = c.account_id
+        AND al.action = 'opening_balance'
+      ORDER BY al.id DESC LIMIT 1) AS last_calibrated_at,
+    (SELECT (al.new_values->>'delta') FROM audit_log al
+      WHERE al.table_name = 'accounts' AND al.record_id = c.account_id
+        AND al.action = 'opening_balance'
+      ORDER BY al.id DESC LIMIT 1) AS last_calibrated_delta,
+    (SELECT COUNT(*) FROM audit_log al
+      WHERE al.table_name = 'accounts' AND al.record_id = c.account_id
+        AND al.action = 'opening_balance'
+        AND al.created_at >= NOW() - INTERVAL '90 days') AS calibrations_90d
     FROM computed c
     JOIN mapped m ON m.account_id = c.account_id
     LEFT JOIN feed f ON f.account_id = c.account_id
@@ -241,6 +259,11 @@ async function balanceReconcile({ asOf = null, tolerance = 0.01 } = {}) {
       transfer_imbalance: Number(r.transfer_imbalance || 0),
       transfer_unpaired_legs: Number(r.transfer_unpaired_legs || 0),
       transfer_balanced: Number(r.transfer_unpaired_legs || 0) === 0,
+      // CR087 P0a. `last_calibrated_at` NULL = no re-anchor recorded since
+      // migration 074, which is not the same as never — say that, don't imply it.
+      last_calibrated_delta:
+        r.last_calibrated_delta != null ? Number(r.last_calibrated_delta) : null,
+      calibrations_90d: Number(r.calibrations_90d || 0),
     }))
     .sort((a, b) => Math.abs(b.drift || 0) - Math.abs(a.drift || 0));
 
