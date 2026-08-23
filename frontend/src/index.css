@@ -33,9 +33,26 @@
   /* Financial Semantic Colors - Softer variants.
      CR042 U1 green split: "money up" is a saturated EMERALD, deliberately
      distinct from the desaturated sage brand (--primary/--accent #6B8E6B) so
-     brand chrome and gains never read as the same green. */
-  --success: #1A9E74;
-  --success-strong: #14805E;
+     brand chrome and gains never read as the same green.
+
+     ⚠️ CR086 §3, 2026-08-23 — DARKENED FOR CONTRAST, light mode only.
+     Measured over 37 rendered routes, these two token families carried
+     1,056 of 2,364 light-mode contrast failures — 44.7%, the largest single
+     cause in the app — because every money figure is coloured from them:
+       --success        #1A9E74 -> #0F7A57   (2.92 -> 4.58 on its worst surface)
+       --success-strong #14805E -> #0B6247   (4.22 -> 6.34; it was FAILING and,
+                                              after the change above, would have
+                                              been LIGHTER than its own base)
+       --danger         #C0504D -> #A43F3C   (4.02 -> 5.39)
+       --danger-strong  #A43F3C -> #8A342F   (kept BELOW --danger so the two
+                                              danger->danger-strong gradients
+                                              do not render flat)
+     The green split survives: #0F7A57 is still emerald, still nothing like the
+     sage brand. --*-light / --*-lighter are background tints, not text, and are
+     unchanged. DARK IS UNCHANGED and needs no change — measured 4.96-8.80.
+     White on the new fills improves too: 3.39 -> 5.33 and 4.67 -> 6.26. */
+  --success: #0F7A57;
+  --success-strong: #0B6247;
   --success-light: #3DB88E;
   --success-lighter: #7FD0B4;
   --success-subtle: #E3F4EE;
@@ -46,8 +63,8 @@
   --warning-lighter: #E4C078;
   --warning-subtle: #FBF4E4;
 
-  --danger: #C0504D;
-  --danger-strong: #A43F3C;
+  --danger: #A43F3C;
+  --danger-strong: #8A342F;
   --danger-light: #D06360;
   --danger-lighter: #E08885;
   --danger-subtle: #FBEAE9;
@@ -70,8 +87,8 @@
   --on-accent: #ffffff;
 
   /* Financial Data Visualization - Organic palette */
-  --growth-positive: #1A9E74; /* emerald — see green-split note above */
-  --growth-negative: #C0504D;
+  --growth-positive: #0F7A57; /* emerald — see green-split note above (CR086 §3 darkened) */
+  --growth-negative: #A43F3C;
   --neutral: #808E9B;
   --chart-navy: #5B7B9A;
   --chart-emerald: #6B8E6B;
