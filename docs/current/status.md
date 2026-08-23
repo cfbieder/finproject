@@ -20,50 +20,26 @@ valuation + N first-class **streams***. Shipped since 2026-08-05 and not restate
 when the warning's figures change**) · [CR075](../cr/cr-075-base-year-is-the-budget.md) (**year −2
 is ACTUAL, year −1 is the BUDGET**, read from `budget_entries`; one budget ⇒ one base year).
 
-**[CR085](../cr/cr-085-forecast-sensitivity.md) is COMPLETE (v3.32.0 + v3.33.0, migration 073).**
-`/forecast-sensitivity` ranks **which assumption the plan rests on** — every bar a real engine build
-on CR084's scratch harness — and clicking one opens the **trajectory** behind it, because the bar
-ranks on the final year and cannot say *when* the damage lands. It also closed two defects that
-predate it: a scratch scenario was visible in all seven pickers, and `copyScenario` still had two
-hand-kept child column lists (the class that once made a copy read ~890K better than its original).
+**[CR085](../cr/cr-085-forecast-sensitivity.md) is COMPLETE, with no unbuilt scope** (v3.32.0 →
+v3.37.1, migration 073). `/forecast-sensitivity` ranks **which assumption the plan rests on** —
+every bar a real engine build on CR084's scratch harness. **Measured on `2026 Base`: 154 knobs —
+143 move the plan, 8 do not, 0 can kill a run.** That count is a fact about the DATA, not the page:
+prod offers 153, because one disposal there carries no selling cost and the schema-floor gate
+correctly withholds it. As-built detail is §17–§25 of the CR; the release
+notes are in the [roadmap](project-roadmap.md).
 
-⚠️ **Building it has produced TEN defects of ONE shape, and that is the durable lesson** — state
-that exists, renders, and produces no visible effect, so it reads as absent. In the engine it is a
-knob that writes, builds and **moves nothing**, drawing a zero-length bar that reads *"this
-assumption does not matter"* in a chart whose entire claim is that the bars are ranked: an
-`exclude`d module · valuation-gated fields (**109 of 300 knobs**) · `tax_rate_override` on an
-expense-only module, which [§18](../cr/cr-085-forecast-sensitivity.md) had explicitly argued was
-safe to leave ungated · `growth_mult` on a **yield** stream, found by the owner's first click on
-dev. In the UI it is the same failure in different clothes: a negative-width bar label printing
-inside its own fill · P2's trajectory shipped behind an affordance too subtle to find, and its
-*fix* then left committed-but-undeployed · a picker that could not say **which** knobs were
-selected · and the custom-band marker whose dashes were painted the colour of the chip's own fill.
-⚠️ **Nine of the ten were found by a person looking at the output; ONE was caught by a gate** — and
-the owner found four of them personally. **That half is now closed:
-`Scripts/sweep-sensitivity-knobs.js` applies every knob the picker offers, rebuilds for real and
-hashes the entries, so a knob that moves nothing is measured rather than reasoned about.** Its first
-run took the catalogue 175 → 141, cut dead knobs 15 → 9, and found something worse that nobody had
-noticed: **28 knobs could not be APPLIED, and one of those among eight ticked knobs aborted the
-whole run** with a Postgres constraint name for a message. That is now 0. It also caught one of its
-own fixes hiding **five working knobs**, and then caught the SECOND version of the same fix too —
-which is the check a precondition list cannot do for itself, and the reason it is a script.
-
-⚠️ **And the last two things CR085 deferred both turned out to matter more than the CR thought.**
-The `forecast_stream_changes` **schedules** (§4.1, deferred through P2 and never built) include
-`Fidelity Fixed Income · Spread %`, which moves the plan **−$1.5M / +$1.6M at ±1pp** — on the very
-stream where the owner's first dev click found a dead knob. And §15 cut 5's **starting set** opens
-the picker on the five biggest numbers in the plan, captioned as a fact about the balance sheet and
-**not** a ranking — which the first cold run immediately vindicated: `Living Expenses · Amount` at
-**$127,372** ranks FIRST at **−$1.1M**, above `United Beverages · Market value` at **$4,175,595**.
-**Size and sensitivity are different things, and a 33× size gap inverted says so.**
-
-⚠️ **An ELEVENTH instance surfaced within the hour, and it was the same defect one level down.** A
-knob probed at three bands had **all six runs built**, charged for, tabulated and drawn as nested
-rectangles — and the trajectory plotted **two of them**, while the tornado's tooltip paired the
-*widest* band's figure with the *smallest* band's label (**"$6.0M (±0.25×)"** for a ±1× result).
-Fixed in v3.37.1: one line per band per side, told apart by weight and opacity rather than a new
-hue, and a tooltip that lists every band with its own numbers. **The owner has now found five of
-the eleven.**
+⚠️ **Its durable lesson is a DEFECT CLASS, not a feature: state that exists, renders, and produces
+no visible effect, so it reads as absent.** In the engine that is a knob which writes, builds and
+moves nothing, drawing a zero-length bar that says *"this assumption does not matter"* in a chart
+whose whole claim is that the bars are ranked. In the UI it is a control too subtle to find, a
+picker that cannot say what is selected, a marker painted the colour of its own fill, or six
+measurements built and two drawn. **ELEVEN instances. TEN were found by a person looking at the
+page; ONE by a gate.** The engine half now HAS a gate —
+`Scripts/sweep-sensitivity-knobs.js` ([§22](../cr/cr-085-forecast-sensitivity.md)) applies every
+offered knob, rebuilds for real and hashes the entries, so a dead knob is measured rather than
+argued about; it caught two of its own author's fixes hiding working knobs. ⚠️ **The DISPLAY half
+still has none** — nothing checks that a chart draws everything it was handed — and that is where
+the owner found all but one of their instances.
 
 🔴 **[CR076](../cr/cr-076-forecast-model-review.md) — the five-reviewer model review; §8 COMPLETE
 across v3.20.0–v3.22.0.** It corrected **our own published figures** and moved numbers eight times.
@@ -145,19 +121,13 @@ the dev-first migration rule, and the fact that **an engine change moves nothing
 scenarios are REGENERATED**. It changes far less often than this file does.
 
 ## Next
-- **[CR085](../cr/cr-085-forecast-sensitivity.md) Tier 2 — accessibility, and most of it is NOT this
-  page:** there is **no visible focus ring anywhere in Fin** (`--shadow-focus` composites to
-  **1.18:1** light / 1.65:1 dark), which is ~15 minutes and the widest-reach fix on the list. Then
-  the band input invisible in dark, `aria-pressed` on the toggles, and three light-mode contrast
-  failures ([§20](../cr/cr-085-forecast-sensitivity.md)).
-- **[CR085](../cr/cr-085-forecast-sensitivity.md) Tier 3 — the page renders *compose* and *read*
-  simultaneously at half width each.** Compose wants a search over 179 knobs; read wants the full
-  width. **Do the multi-band nested bars in the same pass** (their server half is built) rather than
-  drawing a chart into a layout about to move.
-- **[CR085](../cr/cr-085-forecast-sensitivity.md) leftovers** — P0–P3 are all **live**; what is
-  still unbuilt is the `Spread %` (`forecast_stream_changes`) knobs, the assumption-list and binary
-  knobs cut at sign-off, and §15 cut 5's default knob set, so the picker opens **empty**. The SRQ
-  financing experiment was **declined** (owner, 2026-08-23).
+- ✅ **[CR085](../cr/cr-085-forecast-sensitivity.md) — everything it deferred is now BUILT.** Tier 2
+  (a token focus ring app-wide, replacing a default that composited to **1.18:1** — the widest-reach
+  fix on this list, and it was never really about this page) · Tier 3 (compose and read stop sharing
+  the page; a search over the catalogue; multi-band nested bars) · owner-typed bands · the knob
+  sweep · the `forecast_stream_changes` schedules · the starting set. **The one thing still worth
+  doing is not scope: nothing checks that a CHART draws everything it was handed** — every
+  display-side instance of this CR's defect class was found by the owner, not by a gate.
 - ~~Advisories~~ · ~~Real terms on Compare~~ **BOTH DONE** — all 15 advisories walked, **every one
   already deliberate, no model change** ([CR076 §13](../cr/cr-076-forecast-model-review.md)); two
   rules firing on streams **not in the plan** guarded, 17 → 15
@@ -200,7 +170,8 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   right for a draft, wrong for a frozen artefact; snapshotting it needs a migration **before**
   finalise. **Two review rounds falsified seven of the CR's own figures**, all recorded in its §16.
 - **Re-examine SRQ** — **−476,930**: funds itself 35 of 36 years, dry in the last. Marginal, not
-  hopeless. **Financing is the untested lever** (all cash, no rent, sells at 7%).
+  hopeless. Financing would be the untested lever (all cash, no rent, sells at 7%), and testing it
+  is **DECLINED** (owner, 2026-08-23) — so this is a judgement to make, not an experiment to run.
 - **`Retirement Home`** — ~**105,000**/yr today for two, reasonable for assisted living, but the plan
   **double-counts** `Living Expenses` on top (~83,000) while escalating care at general inflation.
   The two errors nearly cancel — by luck, not design.

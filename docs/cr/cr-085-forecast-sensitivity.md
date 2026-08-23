@@ -1,20 +1,29 @@
-# CR085 — Which assumption is load-bearing: sensitivity as a tornado — ✅ **COMPLETE (P0 · P1 · P2)**
+# CR085 — Which assumption is load-bearing: sensitivity as a tornado — ✅ **COMPLETE, NO UNBUILT SCOPE**
 
-**Status:** **COMPLETE and LIVE** — P0 + P1 as **v3.32.0** (migration 073), P2 as **v3.33.0**.
-**P1 and P2 were both built at owner instruction, over this CR's own sign-off defer (§15)**, with
-all five scope cuts kept. Every review pass is recorded rather than absorbed — pass 1 *revise*, five
-blocking (§14); pass 2 *GO on P0, DEFER P1*, five cuts (§15); a competitor review (§16); as-built
-§17 and §18.
+**Status:** **COMPLETE and LIVE**, v3.32.0 → **v3.37.1** (migration 073). P0 + P1 v3.32.0 · P2
+v3.33.0 (+v3.33.1) · P3 v3.34.0 (+v3.34.1) · a four-lens UI review and multi-band knobs v3.35.0 ·
+Tier 2/3 and owner-typed bands v3.36.0 · the knob sweep, the stream schedules and the starting set
+v3.37.0 · six-runs-two-plotted v3.37.1. **P1 and P2 were both built at owner instruction, over this
+CR's own sign-off defer (§15)**, with all five scope cuts kept. Every review pass is recorded rather
+than absorbed — pass 1 *revise*, five blocking (§14); pass 2 *GO on P0, DEFER P1*, five cuts (§15);
+a competitor review (§16); as-built **§17–§25**.
 
-⚠️ **The lesson this CR paid for, four times: a knob that writes, builds and moves NOTHING.** It
-draws a zero-length bar reading *"this assumption does not matter"* in a chart whose entire claim is
-that the bars are ranked. An `exclude`d module (§17) · a valuation-gated field, **109 of 300 knobs**
-(§18) · a negative-`width` bar label (§17) · and **this CR's own §4** filing `growth_rate` as a rate
-when the engine reads it as a *multiplier of inflation*. Three were caught by reading the engine;
-one only by rendering the page and looking at it.
+⚠️ **THE LESSON THIS CR PAID FOR ELEVEN TIMES — one defect class, not eleven bugs: state that
+exists, renders, and produces NO VISIBLE EFFECT, so it reads as absent.** In the engine that is a
+knob which writes, builds and moves nothing, drawing a zero-length bar reading *"this assumption
+does not matter"* in a chart whose entire claim is that the bars are ranked. In the UI it is a
+control too subtle to find, a picker that cannot say what is selected, a marker painted the colour
+of its own fill, or six measurements built and two drawn.
 
-**Still open and not built:** §15 cut 5's default knob set, so the picker opens empty. *(The **SRQ
-financing experiment** — §15's precondition — was **declined by the owner on 2026-08-23**; see §15.)*
+⚠️ **TEN of the eleven were found by a person looking at the page; ONE by a gate — and the owner
+found five personally.** The **engine** half now has a gate: `Scripts/sweep-sensitivity-knobs.js`
+(§22) measures every offered knob instead of reasoning about it, and caught two of its own author's
+fixes hiding working knobs. **The DISPLAY half still has none.** Nothing checks that a chart draws
+everything it was handed, and that is where all but one of the owner-found instances live. That is
+the honest open item, and it is not scope.
+
+**Nothing is open and unbuilt.** *(The **SRQ financing experiment** — §15's precondition — was
+**declined by the owner on 2026-08-23**; see §15. §6 layer 3's cut was **confirmed** the same day.)*
 [Roadmap](../current/project-roadmap.md#cr085)
 **Track:** v3 · **Migration:** 073 (`is_scratch`, additive and inert — **applied to dev 2026-08-19**)
 **Opened:** 2026-08-19
@@ -448,11 +457,18 @@ fresh DB enforces 007's CHECK that dev has auto-baselined away (Known Issue #18)
 | **P1** | The knob layer (module + stream knobs only), the two routes, the tornado page, two metrics | ✅ **LIVE v3.32.0** — §17. *Deferred at sign-off (§15), then built at owner instruction with all five cuts kept* |
 | **P2** | The trajectory behind a bar (`FCTrajectoryChart` in a modal) · knobs grouped by type | ✅ **LIVE v3.33.0** — §18; affordance fix v3.33.1 |
 | **P3** | Every change at once as a real build · what the ± lands on | ✅ **LIVE v3.34.0** — §19; picker-selection fix v3.34.1 |
-| **Not built** | The `forecast_stream_changes` (`Spread %`) list knobs (§4.1) · the assumption-list and binary knobs cut from P1 (§15 cuts 1 and 4) · §15 cut 5's default knob set, so the picker opens empty · §6 layer 3 (§15 cut 3) | open |
+| **UI review** | Four lenses over the code *and the rendered page*; three wrong numbers, then Tiers 2 and 3 | ✅ **LIVE v3.35.0 / v3.36.0** — §20 |
+| **Owner-typed bands** | The presets were never a contract; the guards they were incidentally providing, written down | ✅ **LIVE v3.36.0** — §21 |
+| **The knob sweep** | `Scripts/sweep-sensitivity-knobs.js` — measure every knob rather than reason about it | ✅ **LIVE v3.37.0** — §22 |
+| **Stream schedules** | The `forecast_stream_changes` list knobs — §4.1's last deferred item | ✅ **LIVE v3.37.0** — §23 |
+| **Starting set** | §15 cut 5's other half — the picker stops opening empty | ✅ **LIVE v3.37.0** — §24 |
+| **Not built** | The assumption-list and binary knobs cut from P1 (§15 cuts 1 and 4) — deliberately, and not revisited | closed by decision |
+| **§6 layer 3** | §15 cut 3 | ✅ **CLOSED** — the cut is CONFIRMED by the owner, 2026-08-23 (§13) |
 
-*⚠️ This table said "prod pending" and "DEFERRED" for three releases after those phases shipped —
-the class [documentation-standard](../documentation-standard.md) exists to prevent, and the reason
-a phases table is worth keeping in exactly one place.*
+*⚠️ This table said "prod pending" and "DEFERRED" for three releases after those phases shipped, and
+then went stale AGAIN — carrying `Spread %`, the default knob set and layer 3 under "Not built"
+after all three had shipped or been closed. Same class both times: the row that records what is
+LEFT is the row nobody updates when something stops being left. It is checked at `/close` now.*
 
 ## 13. Open
 
@@ -583,8 +599,8 @@ decisions match it, arrived at independently:
 |---|---|
 | Magnitude baked into the lever's own label | Decision 5 — one global sort, **every bar labelled with its own ±** |
 | Upside and adverse stress-tests in one row | §4.2 — low/high defined **on the metric, never the field** |
-| Never opens empty | §15 cut 5 — ship a default knob set (top-N modules by magnitude). ⚠️ **NOT BUILT in P1** — the picker still opens with nothing selected (§17) |
-| Non-linear response | §5.4 — regime-change detection (threshold still open, §13.2) |
+| Never opens empty | §15 cut 5 — ship a default knob set. ✅ **BUILT v3.37.0** ([§24](#24-15-cut-5s-other-half--the-picker-stops-opening-empty-2026-08-23)) — and captioned as the biggest NUMBERS, not a ranking, which the first cold run vindicated by putting a $127K knob above a $4.2M one |
+| Non-linear response | §5.4 — regime-change detection (threshold **still open**, §13.2) · plus multi-band nested bars and one trajectory line per band (§20, §25) |
 
 *Not adopted from them:* Odyssey's **0–100 readiness score** and Boldin's **Chance of Success %** —
 composites that hide which scenario and which assumption produced them, which is the restatement
@@ -706,6 +722,9 @@ switcher beyond the two metrics, and layer 3. P2 is untouched.
 first is in the UI copy; **the second is not built — the picker opens with nothing selected.** It
 stays open rather than being quietly dropped, because §16's competitor review lists "never opens
 empty" as a pattern all three products share and this CR claimed to match.
+*(✅ **CLOSED in v3.37.0** — [§24](#24-15-cut-5s-other-half--the-picker-stops-opening-empty-2026-08-23).
+It stayed open for five releases, which is exactly what "stays open rather than being quietly
+dropped" is for.)*
 
 ## 18. As built — P2 (2026-08-21)
 
