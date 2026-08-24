@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-08-24 · **Live version:** **v3.39.0** (see `VERSION` / git tags) — **CR086 §3 (the money colours) + CR087's P0 COMPLETE: P0a the `opening_balance` audit trail (migration 074) · P0b two ways a variance could be wrong · P0c the preview and its 409**; — **CR085 COMPLETE with NO unbuilt scope** (tornado + trajectory + multi-band + owner-typed bands + the knob sweep + stream schedules + a starting set, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
+**Last updated:** 2026-08-24 · **Live version:** **v3.40.0** (see `VERSION` / git tags) — **CR086 §3 (the money colours) + CR087's P0 COMPLETE (P0a the `opening_balance` audit trail, migration 074 · P0b two ways a variance could be wrong · P0c the preview and its 409) + P1's reconcile half (the queue speaks currency)**; — **CR085 COMPLETE with NO unbuilt scope** (tornado + trajectory + multi-band + owner-typed bands + the knob sweep + stream schedules + a starting set, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -148,8 +148,12 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   writes nothing if they moved. ⚠️ **The preview was not read-only** until now (the route synced and
   upserted before `dryRun` was consulted), and the 409 exposed an **infinite loop** caught on dev: the
   preview does not sync, the apply does, so *"Preview again"* would have re-staled forever — it now shows
-  the server's fresh figures instead. **Next: P1** — currency on `/balance-calibration` (frontend-only;
-  `f.currency` is already in the payload), `<Money>`, and `resetOpeningBalance` under the same preview.
+  the server's fresh figures instead. **P1's reconcile half (v3.40.0)** labelled the currency on every row
+  and fixed a sort that was **wrong on half the queue** — it ranked raw `|drift|` across currencies, so
+  **2,394 PLN ($650) outranked $848.77**, and 10 of the 20 live calibrate accounts are non-USD. It converts
+  through the shared `fx.rateAsOf`, which returns **null rather than 1:1** on an unconvertible currency.
+  **Next: `<Money>`** (fenced — CR087's own two surfaces; the 22-call-site sweep stays in CR086),
+  `resetOpeningBalance` under the P0c preview, and §2's deferred `BalanceReport` `Local` column.
 - ~~Advisories~~ · ~~Real terms on Compare~~ **BOTH DONE** — all 15 advisories walked, **every one
   already deliberate, no model change** ([CR076 §13](../cr/cr-076-forecast-model-review.md)); two
   rules firing on streams **not in the plan** guarded, 17 → 15
