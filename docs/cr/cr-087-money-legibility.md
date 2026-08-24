@@ -1,6 +1,6 @@
 # CR087 — Money legibility: the currency, the column, and the write with no record
 
-**Status:** **OPEN** — designed, nothing built.
+**Status:** **IN-PROGRESS** — **P0a BUILT and SHIPPED v3.38.0 (2026-08-24), migration 074.** P0b, P0c and P1 designed, not built.
 **Track:** v3
 **Migration:** **074** (071–073 taken) — the `accounts` audit trigger. Book Health needs a **second**
 migration for its own dismissals table (CR074's is FK-bound to `forecast_scenarios`).
@@ -349,7 +349,7 @@ column when the period includes today. It removes the single most common misread
 
 | Step | What | Why here |
 |---|---|---|
-| **P0a** | **Migration 074 (the `accounts` audit trigger) + ONE READER** — the `Last calibrated` column | Needs **no owner design decision, no CR086 dependency, no modal**. Covers all three app writers plus five scripts plus manual `psql` — coverage no UI change can reach — and gives `calibrate()` an undo path for the first time (`old_values` holds the prior anchor). ⚠️ **Applying 074 to prod ahead of any code is strictly beneficial**: it starts recording calibrations before the preview exists. ⚠️ **It must ship WITH the reader** — a trigger writing rows nobody looks at is invisible state that renders nothing, which is [CR085](cr-085-forecast-sensitivity.md)'s named defect class. Resolves the `last_calibrated_at` question (revive or retire) as part of it. |
+| **P0a** ✅ **BUILT v3.38.0** | **Migration 074 (the `accounts` audit trigger) + ONE READER** — the `Last calibrated` column | Needs **no owner design decision, no CR086 dependency, no modal**. Covers all three app writers plus five scripts plus manual `psql` — coverage no UI change can reach — and gives `calibrate()` an undo path for the first time (`old_values` holds the prior anchor). ⚠️ **Applying 074 to prod ahead of any code is strictly beneficial**: it starts recording calibrations before the preview exists. ⚠️ **It must ship WITH the reader** — a trigger writing rows nobody looks at is invisible state that renders nothing, which is [CR085](cr-085-forecast-sensitivity.md)'s named defect class. Resolves the `last_calibrated_at` question (revive or retire) as part of it. |
 | **P0b** | §4c **both directions** + §4b's branch deletion + the five-surface test | Independent files, no dependency on P0a, safe in parallel |
 | **P0c** | The preview + the **409-on-drift** apply + `resetOpeningBalance` under the same confirm | ⚠️ **Must land before [CR086](cr-086-ui-visual-system.md) Phase 1.3** (see the ConfirmModal note below) |
 | **P1** | `/balance-calibration` currency + the USD-equivalent sort + **`<Money>`** | |
@@ -485,3 +485,39 @@ alone and see if the owner asks for the rest. And **this CR's index row is ~1,00
 own *"keep descriptions to a single line"* — CR083's and CR086's rows are the same. The roll-up is becoming a
 second spec, which is the restatement failure this project pays for most often. Worth a separate cleanup
 pass, not a blocker.
+
+
+---
+
+## 11. P0a as built (v3.38.0, migration 074)
+
+**Migration 074** — `fn_audit_account_opening_balance()` + `trg_audit_account_opening_balance`, an
+**AFTER UPDATE OF `opening_balance`, `opening_balance_date` ON accounts** trigger writing old / new /
+**delta** / account name / currency into the existing **`audit_log`**. Additive and inert; one
+`DROP TRIGGER` reverses it. Owner chose the trigger over a per-service insert (§10 P3), deliberately
+reversing migration 072's *"exactly one non-internal trigger"* convention — 072 was declining a trigger
+that would **enforce an invariant**, and this one only observes.
+
+**The reader ships with it, and that was the condition.** The reconcile table gains a **`Last
+calibrated`** column: the date, the amount moved **with its currency**, and a red **`N× in 90d`** when an
+account has been re-anchored three or more times — the symptom §3 exists to surface. `balanceReconcile`
+returns `last_calibrated_at`, `last_calibrated_delta` and `calibrations_90d`, all sourced from
+`audit_log`. ⚠️ It renders **"no record yet"**, never a dash or a zero: the trail starts empty and fills
+forward, so an empty trail is **not** the same as never calibrated and the UI must not imply it is.
+
+**`accounts.last_calibrated_at` was left in place and COMMENTed as superseded** (§10, owner decision).
+It is stale since 2026-06-03 and nothing writes it, but its 67 populated rows are historical evidence.
+
+**Verified.** 10 tests in `openingBalanceAudit.test.js` against a real DB — a no-op UPDATE writes
+nothing, an unrelated column writes nothing, a date-only change fires, deltas are signed correctly, the
+old→new chain is **walkable** (an undo path, not disconnected facts), `SET LOCAL app.actor` is captured,
+and the write still lands. The 47-test `bankFeedImport` suite still passes. End-to-end through the API,
+a real re-anchor surfaced as `moved -250.00 USD` with `90d=2`. Re-apply through the runner verified
+idempotent.
+
+⚠️ **Two notes for whoever builds P0b/P0c.**
+1. **`SET LOCAL app.actor` works**, verified inside `db.transaction()`. The three services can start
+   recording *which path* wrote with **no second migration** — the trigger already reads it.
+2. **074 was first applied by hand with `psql -f`, which does NOT write `schema_migrations`** — the exact
+   trap migration 057's registry row records. Re-run through `npm run migrate`. *Apply through the
+   runner, not `psql -f`.*

@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-08-23 · **Live version:** **v3.37.1** (see `VERSION` / git tags) — **CR085 COMPLETE with NO unbuilt scope** (tornado + trajectory + multi-band + owner-typed bands + the knob sweep + stream schedules + a starting set, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
+**Last updated:** 2026-08-24 · **Live version:** **v3.38.0** (see `VERSION` / git tags) — **CR086 §3 (the money colours) + CR087 P0a (the `opening_balance` audit trail, migration 074)**; — **CR085 COMPLETE with NO unbuilt scope** (tornado + trajectory + multi-band + owner-typed bands + the knob sweep + stream schedules + a starting set, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -128,33 +128,18 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   sweep · the `forecast_stream_changes` schedules · the starting set. **The one thing still worth
   doing is not scope: nothing checks that a CHART draws everything it was handed** — every
   display-side instance of this CR's defect class was found by the owner, not by a gate.
-- 🔄 **[CR086](../cr/cr-086-ui-visual-system.md) §3 SHIPPED v3.37.2 (2026-08-23) — light contrast
-  failures 2,364 → 1,227 (−48%), dark byte-identical, delta ties to prediction within one element.
-  [CR087](../cr/cr-087-money-legibility.md) unbuilt but **pass-2 APPROVED for build — P0a is next**:
-  migration **074**, an `accounts` audit trigger, plus one reader. `calibrate()` re-anchors
-  `opening_balance` across **20 accounts monthly** with no record, and freeze-on-file protects only the
-  16 filed FBAR lines. ⚠️ Two owner calls first: **072 argues this repo keeps exactly one non-internal
-  trigger**, and **CR087's preview lands in the `ConfirmModal` CR086 measured as unfit**. Both from a
-  whole-app UI review, designed 2026-08-23, nothing built.** CR086 answers the line above: its §8
-  commits `Scripts/check-ui-render.sh`, **the display-half gate** — headless Chromium over all 37
-  routes in both themes, asserting no light surface in dark, real computed contrast, no horizontal
-  overflow, one `<h1>` per route. That live pass **falsified four claims of the static passes that
-  preceded it** (dark mode is *not* broadly broken — 32/37 routes are clean; "698 rgba" was a
-  filtered count, it is **877 and has never moved**), which is the same lesson as CR085's: a grep
-  reasons about the output, a render measures it. **The finding that matters:** over v3.28.3 →
-  v3.37.1 the frontend added **+2,161 CSS lines with zero new `rgba()` and zero new hex** — the
-  colour guard held perfectly — **and 93 new `font-size` declarations at zero token adoption**,
-  because nothing measures that scale. **Six token values are 92% of every contrast failure**, and
-  **45% of those are the two money colours** — the app's contrast problem *is* a money-legibility
-  problem. Mostly fixable by repointing onto `--primary-strong` / `--danger-strong`, both of which
-  already exist. ⚠️ **Pass 1 returned REVISE on both CRs** and falsified 12 + 10 claims, including a
-  **sampling bug in the audit rig itself** (it truncated to 25 rows/route while reporting true totals);
-  corrections recorded in [CR086 §12](../cr/cr-086-ui-visual-system.md) and
-  [CR087 §9](../cr/cr-087-money-legibility.md), not patched over.
-  **CR087 is the carve-out and holds the P0:** `calibrate()` rewrites `opening_balance` across every
-  historical date with **no preview and no audit row**, and the dry-run that would fix it already
-  exists and is never called — the mechanism behind
-  [CR080](../cr/cr-080-feed-accrual-reconcile-mode.md)'s fabricated −32.56 loss.
+- 🔄 **[CR086](../cr/cr-086-ui-visual-system.md) §3 + [CR087](../cr/cr-087-money-legibility.md) P0a SHIPPED
+  v3.38.0.** From a whole-app UI review whose **live render pass falsified its own instrument** (the rig
+  sampled 25 rows/route while reporting true totals) and then had **22 more claims falsified by two review
+  passes** — all recorded in [CR086 §12](../cr/cr-086-ui-visual-system.md) / [CR087 §9](../cr/cr-087-money-legibility.md).
+  **Six tokens are 92% of every contrast failure and 44.7% of those are the two MONEY colours**, so the
+  contrast problem *is* a money-legibility problem: light failures **2,364 → 1,227 (−48%)**, dark
+  byte-identical, delta ties to prediction within one element. **P0a** gives `opening_balance` an audit
+  trail — it is re-anchored on **20 accounts monthly** and left no record, which is how
+  [CR080](../cr/cr-080-feed-accrual-reconcile-mode.md)'s fabricated −32.56 loss cost three migrations to
+  undo. ⚠️ **A trigger, reversing 072's convention** (owner). **Next: P0b** (the variance that reads
+  100% favourable when a fetch fails) **and P0c** (the preview + a 409-on-drift apply, built on `<Modal>`,
+  not `ConfirmModal` — which CR086 measured as unfit).
 - ~~Advisories~~ · ~~Real terms on Compare~~ **BOTH DONE** — all 15 advisories walked, **every one
   already deliberate, no model change** ([CR076 §13](../cr/cr-076-forecast-model-review.md)); two
   rules firing on streams **not in the plan** guarded, 17 → 15
