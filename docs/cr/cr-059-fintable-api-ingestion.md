@@ -1580,6 +1580,72 @@ splitting upstream into workspaces would add a merge step to solve a problem we 
 
 Recorded so nobody re-derives *"Fintable cannot do this"* in a year. **No CR, no action.**
 
+## 25. Plaid Liabilities — offered by the upstream, unreachable from the API, and worthless to us anyway (2026-08-24)
+
+Fintable emailed offering **Plaid Liabilities** — statement balances, payment due dates, minimum
+payments and interest rates — for the two connections that were linked before they supported it:
+**American Express** (3 cards) and **Barclays - Cards** (1). Enabling it is a per-connection
+**reconnect** through the bank's site, re-approving scope, then a sync.
+
+**The answer is no, on three independent grounds, and the first one alone settles it.**
+
+### 25.1 The API does not carry it — probed live, not read off the docs
+
+Ingest has been API-exclusive since the 2026-08-10 cutover (§21), so anything the API does not serve
+does not exist as far as bank-feed and fin are concerned. Measured against the live V2 API with our
+read token, 2026-08-24:
+
+| Probe | Result |
+|---|---|
+| `GET /liabilities` | **404** — `"The route api/v2/liabilities could not be found."` |
+| `GET /accounts` (31 rows) | 16 fields — `balance`, `balance_available`, `type`, `currency`, `sync_start_date`, `last_tx_date`, `description_parts…` — **no statement balance, due date, minimum payment or APR** |
+| `GET /accounts?include=raw` | `raw` **silently ignored** on accounts (unlike `/transactions`, where it is honoured) — no provider passthrough to mine |
+| `GET /accounts/{id}` (Black Card) | the same fields plus description-sampling extras; nothing liability-shaped |
+| `GET /connections` (13 rows) | `provider`, `institution_name`, `healthy`, `needs_reconnect`, `sync_status` — nothing |
+
+Their published docs list no liabilities endpoint either. **This is a feature of Fintable's own
+destinations, not of their API.** Reconnecting would light it up in their dashboard and change
+nothing in bank-feed or fin.
+
+### 25.2 The headline fields describe money we do not spend
+
+Even granting an API that served it: the cards are paid in full. **Zero interest or finance-charge
+rows on all six US cards in 2026** — `Amazon Visa` 314 transactions, `LUXURY CARD` 375,
+`Delta SkyMiles Reserve` 209, `Hilton Honors` 76, `Marriot Visa` 45, `Bonvoy Amex` 27, and **0**
+matching `interest|finance charge` across every one of them. So **APR and minimum payment have no
+consumer**, and would be fields that exist, render and mean nothing — the CR085 defect class.
+Statement balance and due date are a ~30-day cash-timing signal; fin's forecast horizon is years and
+its cash-health warnings are annual, so there is no surface today that would render them. Building
+one is a CR, not a setting.
+
+### 25.3 The reconnect itself is the only part with consequences
+
+Four **fed** accounts sit behind those two connections — Amex → `Delta SkyMiles Reserve Card`,
+`Bonvoy Amex Card`, `Hilton Honors Card`; Barclays → `LUXURY CARD`.
+
+**The good news is structural:** since P3a, fin's live mappings key on **fintable's account id**
+(`account_source_mappings` 442/445/446/447 carry `2125222118205134100`, `2779036839116781874`,
+`4845293972953545556`, `7814887570436791159`), and bank-feed keys `feed_accounts` on
+`(connection_id, external_id)` with the same id. **A re-consent that renames the product is
+therefore harmless** — which is exactly what §22.12 demonstrated when the upstream re-keyed every
+GoCardless `ext_id` and cost us nothing. The old **name**-keyed `pocketsmith`/`quicken` rows for
+these same cards would not have survived it.
+
+**The risk that remains is that fintable mints NEW account ids on reconnect.** Then those four
+mappings go dead and the cards **silently stop feeding** — a stale balance and no promotes, with no
+error anywhere. That is not hypothetical: §11/§16 found two Revolut wallets that a re-consent had
+**silently dropped**, unnoticed for seven weeks. Transaction re-booking is separately guarded by the
+content dedupe (§22.7), so the exposure is the mapping, not duplicates.
+
+**Decision: do nothing.** The 72-hour buttons may expire — the same settings are reachable from the
+Fintable dashboard whenever. The asymmetry decides it: no data reaches fin, no surface consumes it,
+and the reconnect can quietly break four working feeds. **If it is ever wanted, the single gating
+question is whether Plaid Liabilities is exposed on API v2 or planned** — one email to Fintable, and
+only a `yes` makes it a CR (three columns on `feed_accounts`, a `/v1/*` contract addition, and a
+decision about where a due date would actually appear in fin). Recorded so nobody re-derives
+*"Fintable cannot do this"* in a year — same reason as §24.
+
+
 ## Status
 
 P0 done (§11), P1 built and shadow-verified (§13), both §12 decisions settled, default still
