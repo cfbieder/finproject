@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-08-24 · **Live version:** **v3.38.1** (see `VERSION` / git tags) — **CR086 §3 (the money colours) + CR087 P0a (the `opening_balance` audit trail, migration 074) + P0b (two ways a variance could be wrong)**; — **CR085 COMPLETE with NO unbuilt scope** (tornado + trajectory + multi-band + owner-typed bands + the knob sweep + stream schedules + a starting set, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
+**Last updated:** 2026-08-24 · **Live version:** **v3.39.0** (see `VERSION` / git tags) — **CR086 §3 (the money colours) + CR087's P0 COMPLETE: P0a the `opening_balance` audit trail (migration 074) · P0b two ways a variance could be wrong · P0c the preview and its 409**; — **CR085 COMPLETE with NO unbuilt scope** (tornado + trajectory + multi-band + owner-typed bands + the knob sweep + stream schedules + a starting set, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -143,9 +143,13 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   state), and the sign was chosen by **substring-matching an owner-editable account name** in two files —
   verified on prod before deleting, since expenses are stored **negative on both sides** and the other
   branch was never correct for anything. ⚠️ Its source guard was **falsified before being trusted**.
-  **Next: P0c** — the preview + a 409-on-drift apply, built on `<Modal>`, **not** `ConfirmModal`, which
-  CR086 measured as unfit (no Esc, no focus trap, a white card in dark) on the confirm that gates
-  promote/calibrate/delete.
+  **P0c (v3.39.0) completes the P0**: Reconcile previews first — `old → new` with the delta **stated** —
+  on the Radix `<Modal>`, and the apply carries the approved figures so the server returns **409** and
+  writes nothing if they moved. ⚠️ **The preview was not read-only** until now (the route synced and
+  upserted before `dryRun` was consulted), and the 409 exposed an **infinite loop** caught on dev: the
+  preview does not sync, the apply does, so *"Preview again"* would have re-staled forever — it now shows
+  the server's fresh figures instead. **Next: P1** — currency on `/balance-calibration` (frontend-only;
+  `f.currency` is already in the payload), `<Money>`, and `resetOpeningBalance` under the same preview.
 - ~~Advisories~~ · ~~Real terms on Compare~~ **BOTH DONE** — all 15 advisories walked, **every one
   already deliberate, no model change** ([CR076 §13](../cr/cr-076-forecast-model-review.md)); two
   rules firing on streams **not in the plan** guarded, 17 → 15

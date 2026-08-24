@@ -1,6 +1,6 @@
 # CR087 — Money legibility: the currency, the column, and the write with no record
 
-**Status:** **IN-PROGRESS** — **P0a SHIPPED v3.38.0 (migration 074) · P0b SHIPPED v3.38.1 · P0c BUILT 2026-08-24, not yet released. THE P0 IS COMPLETE.** P1 designed, not built.
+**Status:** **IN-PROGRESS** — **THE P0 IS COMPLETE AND SHIPPED:** P0a v3.38.0 (migration 074) · P0b v3.38.1 · P0c v3.39.0 (2026-08-24). P1 designed, not built.
 **Track:** v3
 **Migration:** **074** (071–073 taken) — the `accounts` audit trigger. Book Health needs a **second**
 migration for its own dismissals table (CR074's is FK-bound to `forecast_scenarios`).
