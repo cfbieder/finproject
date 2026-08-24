@@ -306,25 +306,51 @@ router.post('/reconcile/:accountId', async (req, res, next) => {
     if (!Number.isInteger(accountId)) {
       return res.status(400).json({ error: 'invalid accountId' });
     }
-    const { asOf = null, dryRun = false, force = false, bookDate = null, balanceDate = null } = req.body || {};
+    const { asOf = null, dryRun = false, force = false, bookDate = null, balanceDate = null, expect = null } = req.body || {};
     validate.assertDateString(asOf, 'asOf', { optional: true });
     validate.assertDateString(bookDate, 'bookDate', { optional: true });
     // CR065 §11: which OBSERVATION to mark against, when it is not the one the
     // booking date would pick (the feed labels a balance with its sync date).
     validate.assertDateString(balanceDate, 'balanceDate', { optional: true });
+    const isDryRun = dryRun === true;
     // Sync-before-reconcile: pull fresh upstream data (best-effort) and refresh
     // fin's local balance cache so we reconcile on current, not morning-stale,
     // balances. Both steps are non-fatal — fall back to cached data on failure.
     // Ingest up to the booking date (an MTM may target a past period-end snapshot).
-    const synced = await refreshBankFeed.syncUpstream({ maxAgeMin: RECONCILE_SYNC_MAX_AGE_MIN });
-    try {
-      await refreshBankFeed.ingestBalances({ asOf: bookDate || asOf });
-    } catch (e) {
-      console.warn('[v2/bank-feed] pre-reconcile balance ingest failed (non-fatal):', e.message);
+    //
+    // ⚠️ CR087 P0c — SKIPPED ENTIRELY ON A DRY RUN. `ingestBalances` UPSERTS into
+    // `bankfeed_balances` and `syncUpstream` calls the bank-feed service, so the
+    // old unconditional form meant a *preview* hit the microservice and wrote to
+    // fin's database. A preview that writes is not a preview, and CR087 §3 said
+    // "no new server work" on the strength of it being free — which it was not.
+    let synced = null;
+    if (!isDryRun) {
+      synced = await refreshBankFeed.syncUpstream({ maxAgeMin: RECONCILE_SYNC_MAX_AGE_MIN });
+      try {
+        await refreshBankFeed.ingestBalances({ asOf: bookDate || asOf });
+      } catch (e) {
+        console.warn('[v2/bank-feed] pre-reconcile balance ingest failed (non-fatal):', e.message);
+      }
     }
-    const result = await reconcileToFeed(accountId, { asOf, dryRun: dryRun === true, force: force === true, bookDate, balanceDate });
-    res.json({ ...result, _synced: synced && !synced.error ? (synced.skipped ? 'fresh' : 'synced') : 'cached' });
+    const result = await reconcileToFeed(accountId, {
+      asOf, dryRun: isDryRun, force: force === true, bookDate, balanceDate,
+      // Only an apply carries an expectation; a preview has nothing to compare to.
+      expect: isDryRun ? null : expect,
+    });
+    res.json({
+      ...result,
+      // A dry run deliberately syncs nothing, so say `preview` rather than
+      // `cached`, which would imply a sync was attempted and fell back.
+      _synced: isDryRun ? 'preview' : (synced && !synced.error ? (synced.skipped ? 'fresh' : 'synced') : 'cached'),
+    });
   } catch (err) {
+    // CR087 P0c — a stale preview is not a bad request, it is a conflict: the
+    // client's view of the figures is out of date. 409 so the UI can tell the
+    // two apart and re-preview rather than reporting a generic failure.
+    if (err.code === 'PREVIEW_STALE') {
+      console.warn('[v2/bank-feed] apply refused, preview stale:', err.message);
+      return res.status(409).json({ error: err.message, code: 'PREVIEW_STALE', current: err.summary });
+    }
     console.error('[v2/bank-feed] reconcile failed:', err.message);
     res.status(400).json({ error: err.message });
   }

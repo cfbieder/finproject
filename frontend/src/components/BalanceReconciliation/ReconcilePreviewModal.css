@@ -1,0 +1,128 @@
+/* CR087 P0c — the reconcile preview.
+   Tokens only: no naked hex, no rgba() literals. Both themes come free. */
+
+.rpm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.rpm__account {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border);
+}
+
+.rpm__account-name {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.rpm__mode {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.rpm__loading {
+  margin: 0;
+  color: var(--muted);
+}
+
+.rpm__facts {
+  margin: 0;
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.rpm__facts > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.rpm__facts dt {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.rpm__facts dd {
+  margin: 0;
+}
+
+/* Money lines up or it cannot be compared by eye — which is the whole job here. */
+.rpm__num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.rpm__num--pos { color: var(--growth-positive); }
+.rpm__num--neg { color: var(--growth-negative); }
+
+/* The old -> new pair is the finding, so it gets its own block rather than
+   being another row in the list above. */
+.rpm__move {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.rpm__move-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.rpm__move-label {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.rpm__move-row--delta .rpm__num {
+  font-weight: 600;
+}
+
+.rpm__arrow {
+  color: var(--muted);
+}
+
+.rpm__refused,
+.rpm__stale,
+.rpm__error {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.rpm__refused {
+  border-left: 3px solid var(--warning);
+  background: var(--warning-subtle);
+  color: var(--ink);
+}
+
+.rpm__stale,
+.rpm__error {
+  border-left: 3px solid var(--danger);
+  background: var(--danger-subtle);
+  color: var(--ink);
+}
+
+.rpm__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+}

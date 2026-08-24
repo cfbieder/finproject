@@ -1,6 +1,6 @@
 # CR087 — Money legibility: the currency, the column, and the write with no record
 
-**Status:** **IN-PROGRESS** — **P0a SHIPPED v3.38.0 (migration 074) · P0b SHIPPED v3.38.1 (2026-08-24).** P0c and P1 designed, not built.
+**Status:** **IN-PROGRESS** — **P0a SHIPPED v3.38.0 (migration 074) · P0b SHIPPED v3.38.1 · P0c BUILT 2026-08-24, not yet released. THE P0 IS COMPLETE.** P1 designed, not built.
 **Track:** v3
 **Migration:** **074** (071–073 taken) — the `accounts` audit trigger. Book Health needs a **second**
 migration for its own dismissals table (CR074's is FK-bound to `forecast_scenarios`).
@@ -351,7 +351,7 @@ column when the period includes today. It removes the single most common misread
 |---|---|---|
 | **P0a** ✅ **BUILT v3.38.0** | **Migration 074 (the `accounts` audit trigger) + ONE READER** — the `Last calibrated` column | Needs **no owner design decision, no CR086 dependency, no modal**. Covers all three app writers plus five scripts plus manual `psql` — coverage no UI change can reach — and gives `calibrate()` an undo path for the first time (`old_values` holds the prior anchor). ⚠️ **Applying 074 to prod ahead of any code is strictly beneficial**: it starts recording calibrations before the preview exists. ⚠️ **It must ship WITH the reader** — a trigger writing rows nobody looks at is invisible state that renders nothing, which is [CR085](cr-085-forecast-sensitivity.md)'s named defect class. Resolves the `last_calibrated_at` question (revive or retire) as part of it. |
 | **P0b** ✅ **BUILT 2026-08-24** | §4c **both directions** + §4b's branch deletion + the five-surface test | Independent files, no dependency on P0a, safe in parallel |
-| **P0c** | The preview + the **409-on-drift** apply + `resetOpeningBalance` under the same confirm | ⚠️ **Must land before [CR086](cr-086-ui-visual-system.md) Phase 1.3** (see the ConfirmModal note below) |
+| **P0c** ✅ **BUILT 2026-08-24** | The preview + the **409-on-drift** apply | ⚠️ **Must land before [CR086](cr-086-ui-visual-system.md) Phase 1.3** (see the ConfirmModal note below) |
 | **P1** | `/balance-calibration` currency + the USD-equivalent sort + **`<Money>`** | |
 
 ⚠️ **The ConfirmModal collision, named here because neither CR contained it.** P0c writes a multi-line
@@ -560,3 +560,52 @@ passes. Gates: 582 frontend tests, eslint 0 errors, 5 ratchets at baseline.
 
 **Not swept:** `FCModulesStreams.jsx` and `CategorySelector.jsx` also substring-match `"income"`, but on
 `line_type` and a control value — **not** on an owner-editable account name, so they are not this defect.
+
+
+---
+
+## 13. P0c as built (2026-08-24) — the P0 is complete
+
+**The preview.** Clicking *Reconcile* now runs a **dry run first** and opens `ReconcilePreviewModal`
+showing the feed observation, what the bank reports, what fin expects, Σ transactions, and
+**`old → new` with the delta stated explicitly** — because making the reader subtract two long figures is
+how a wrong one gets approved. Built on the Radix **`<Modal>`**, per the owner decision, **not**
+`ConfirmModal`: CR086 §5 measured that component as having no Esc, no focus trap and a white card on a
+dark page, and `nested-modal.spec.js` records it as **dead to clicks** under an open Radix layer.
+⚠️ Reconcile was `ConfirmModal`'s only consumer on this page, so it is **gone from this component** — it
+is *not* retired app-wide; five consumers remain and CR086 owns that behind CR060.
+
+**The preview is now genuinely read-only, which it was not.** Pass 1's C3 found the route synced upstream
+and **upserted `bankfeed_balances` before `dryRun` was consulted**. Both are now skipped on a dry run, and
+the response says `_synced: "preview"` rather than `"cached"`, which would imply a sync was attempted.
+
+**The apply refuses on drift.** It carries the approved `new_opening` **and** `feed_date`; `calibrate()`
+recomputes and throws `PREVIEW_STALE` on either mismatch, which the route returns as **409 with the
+current figures**. Both fields matter — the same `new_opening` from a different feed row is a coincidence,
+not a match. `expect` is **opt-in**, so the cron and scripts are unaffected.
+
+⚠️ **A design bug this found on dev, before it shipped — and it would have been an infinite loop.**
+The preview deliberately does not sync; the apply does. So on any day the sync brings a newer feed row,
+the apply 409s — and the draft's *"Preview again"* button would have recomputed from the same un-synced
+cache and 409'd **forever**. Observed live: preview computed against feed `2026-08-23`, the apply synced
+and got `2026-08-24`. The 409 already carries `current`, so the modal now **shows the server's fresh
+figures** and offers **"Apply updated figures"**. One extra click on the first reconcile after a sync,
+and the owner sees exactly what moved. **The alternative — letting the preview sync — is what makes a
+preview write, which is the thing P0c exists to stop.**
+
+**Also fixed while looking at it:** `Rest` threw a bare `Error` with the status discarded, so a 409 was
+indistinguishable from a 400 app-wide and the UI could only say *"reconcile failed"*. It now carries
+`status`, `code` and `current` — additive, nothing read them before. And a **zero delta renders neutral,
+not green**: colouring `0.00` as a gain asserts something untrue about a re-anchor that moves nothing.
+
+**Verified.** 6 DB tests in `reconcilePreview.test.js` — a dry run leaves `opening_balance`
+**byte-identical with no audit row**; a matching apply writes and leaves **exactly one** audit row (P0a and
+P0c meeting: the preview shows the move, the trail records it happened); a moved `new_opening` **or** a
+moved `feed_date` is refused with nothing written; the refusal carries the current figures; and an apply
+with no expectation still writes. Plus **340 v2 service** and **233 route** tests green, 582 frontend, six
+guards at baseline, build clean, and the modal driven in a browser in **both themes**.
+
+⚠️ **Not in P0c, deliberately:** `reconcileManual.js:291`'s `resetOpeningBalance` → 0. §10 listed it here,
+but it is a **different page** (`/manual-calibration`) and a different service; folding it in would have
+meant a second preview surface in the same change. Migration 074's trigger **already audits it**, so it is
+recorded, not invisible. Carry it as the first item of P1.

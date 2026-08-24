@@ -70,7 +70,16 @@ export default class Rest {
         message = bodyText || "Unable to fetch data from the API";
       }
 
-      throw new Error(message || "Unable to fetch data from the API");
+      // CR087 P0c — carry the HTTP status and any server `code` onto the error.
+      // Without them every failure is an opaque string, so a 409 (the figures
+      // moved between preview and apply — NOTHING was written) is
+      // indistinguishable from a 400, and the UI can only report both as
+      // "reconcile failed". Additive: nothing read these before.
+      const err = new Error(message || "Unable to fetch data from the API");
+      err.status = response.status;
+      if (payload?.code) err.code = payload.code;
+      if (payload?.current) err.current = payload.current;
+      throw err;
     }
 
     // 204 No Content is a valid success response with no body — don't treat

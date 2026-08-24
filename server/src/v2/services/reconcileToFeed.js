@@ -78,7 +78,7 @@ function expectedFromFeed(m, feedVal) {
  * @param {boolean} [opts.dryRun] compute only, write nothing.
  * @returns {Promise<object>} action summary
  */
-async function reconcileToFeed(accountId, { asOf = null, dryRun = false, force = false, bookDate = null, balanceDate = null } = {}) {
+async function reconcileToFeed(accountId, { asOf = null, dryRun = false, force = false, bookDate = null, balanceDate = null, expect = null } = {}) {
   // Pre-flight (no transaction): load mapping, and for 'mtm' make sure the target
   // month-end balance is cached — the daily cron only caches recent snapshots, so
   // a month-end may be absent locally while the bank-feed service still has it.
@@ -138,7 +138,7 @@ async function reconcileToFeed(accountId, { asOf = null, dryRun = false, force =
       `opening_balance. Deploy the code that implements this mode, or set the mapping back.`
     );
   }
-  return db.transaction((client) => calibrate(client, accountId, m, asOfDate, dryRun));
+  return db.transaction((client) => calibrate(client, accountId, m, asOfDate, dryRun, expect));
 }
 
 /** Validate + normalize a YYYY-MM-DD string to a real date (throws on garbage). */
@@ -563,7 +563,7 @@ async function accrue(client, accountId, m, asOfDate, dryRun, force = false, bal
   return summary;
 }
 
-async function calibrate(client, accountId, m, asOfDate, dryRun) {
+async function calibrate(client, accountId, m, asOfDate, dryRun, expect = null) {
   const feed = (await client.query(
     `SELECT balance, balance_date::text AS balance_date FROM bankfeed_balances
      WHERE feed_account_external_id = $1 AND balance_date <= $2::date
@@ -585,6 +585,35 @@ async function calibrate(client, accountId, m, asOfDate, dryRun) {
     feed_date: feed.balance_date, feed_balance: feedVal, expected, sum_tx: sumTx,
     old_opening: Number(m.opening_balance), new_opening: newOpening, applied: false,
   };
+
+  // CR087 P0c — REFUSE AN APPLY THAT NO LONGER MATCHES ITS PREVIEW.
+  //
+  // The preview and the apply are two round trips, and the figure between them
+  // is not stable: the apply path re-syncs upstream and re-ingests balances
+  // (routes/bankFeed.js), so a feed row landing in that window changes
+  // `expected`, and any transaction written in it changes `sumTx`. Without this
+  // the owner approves one number and a different one is written — which is
+  // strictly worse than no preview, because it looks verified.
+  //
+  // `expect` is what the preview returned. Both fields matter: `new_opening` is
+  // the number approved, and `feed_date` is the observation it was computed
+  // from — the same `new_opening` derived from a different feed row is a
+  // coincidence, not a match.
+  if (!dryRun && expect) {
+    const drifted =
+      Number(expect.new_opening) !== newOpening ||
+      String(expect.feed_date) !== String(feed.balance_date);
+    if (drifted) {
+      const err = new Error(
+        `the figures moved since you previewed them: ` +
+        `${expect.new_opening} (feed ${expect.feed_date}) → ${newOpening} (feed ${feed.balance_date}). ` +
+        `Nothing was written. Preview again.`
+      );
+      err.code = 'PREVIEW_STALE';
+      err.summary = { ...summary, expected_by_client: { ...expect } };
+      throw err;
+    }
+  }
 
   if (!dryRun) {
     // Do NOT touch opening_balance_date. `sumTx` above is computed over ALL

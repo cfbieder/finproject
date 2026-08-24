@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import Rest from "../../js/rest.js";
-import ConfirmModal from "../ConfirmModal/ConfirmModal.jsx";
+import ReconcilePreviewModal from "./ReconcilePreviewModal.jsx";
 import ManualStatementUpload from "../ManualStatementUpload/ManualStatementUpload.jsx";
 import MtmDateControl, { lastMonthEndISO } from "../MtmDateControl.jsx";
 // Reuse the bank-feed diagnostic styles (bfd-* / num / generate-report-button)…
@@ -84,14 +84,19 @@ function ConnectionHealth({ health }) {
  * BalanceReconciliation (CR023 §4.C) — per fed account, fin's computed balance
  * vs the bank's reported `feed_balances`, sign-aware, with a "Reconcile to feed"
  * action (brokerage → month-end Unrealized-G/L MTM entry; cash → re-anchor
- * opening_balance). Confirmation goes through the shared ConfirmModal (no native
- * window.confirm). Self-contained: loads its own data on mount.
+ * opening_balance). ⚠️ Since CR087 P0c the action PREVIEWS first — a dry run
+ * computes the figures, `ReconcilePreviewModal` shows `old → new (Δ)` on the
+ * Radix `<Modal>`, and only then does the apply run, carrying the approved
+ * figures so the server can refuse (409) if they moved. Self-contained: loads
+ * its own data on mount.
  */
 export default function BalanceReconciliation() {
   const [balRecon, setBalRecon] = useState(null);
   const [reconcilingId, setReconcilingId] = useState(null);
+  // CR087 P0c — the preview is its own dialog state; `stale` marks a 409.
+  const [preview, setPreview] = useState(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
   const [reconcileMsg, setReconcileMsg] = useState(null);
-  const [confirm, setConfirm] = useState(null); // { account, title, message, confirmLabel } | null
   const [savingMode, setSavingMode] = useState(null);
   const [institutionFilter, setInstitutionFilter] = useState("all"); // feed/institution filter
   const [statusFilter, setStatusFilter] = useState("all"); // reconciliation-status filter
@@ -173,33 +178,51 @@ export default function BalanceReconciliation() {
       .catch(() => setPlCategories([]));
   }, []);
 
-  // Open the confirm dialog (the action WRITES, so confirm first).
-  const askReconcile = (a) => {
-    const action =
-      a.reconcile_mode === "mtm"
-        ? `post an Unrealized-G/L (MTM) entry for "${a.name}" as of ${bookDate}`
-        : a.reconcile_mode === "accrue"
-          ? `book the gap on "${a.name}" to ${a.accrual_category_name || "its accrual category"}, ` +
-            `dated the latest settled feed observation`
-          : `re-anchor opening_balance for "${a.name}" to the bank's reported balance`;
-    setConfirm({
-      account: a,
-      title: "Reconcile to feed",
-      message: `Reconcile to feed will ${action}.\n\nContinue?`,
-      confirmLabel: "Reconcile to feed",
-    });
+  // CR087 P0c — PREVIEW FIRST. The old flow confirmed a sentence with no figures
+  // in it and reported `old → new` in a toast AFTER the write, on an operation
+  // that shifts every historical date on the account by one constant.
+  const reconcileBody = (a, extra = {}) =>
+    a.reconcile_mode === "mtm"
+      ? { bookDate, ...(markBalanceDate ? { balanceDate: markBalanceDate } : {}), ...extra }
+      : { ...extra };
+
+  const runPreview = async (a) => {
+    setPreview({ account: a, data: null, error: null, stale: false });
+    setPreviewBusy(true);
+    try {
+      // dryRun computes and writes nothing — and since P0c it no longer syncs
+      // upstream or upserts `bankfeed_balances` either (routes/bankFeed.js).
+      const res = await Rest.post(
+        `/bank-feed/reconcile/${a.account_id}`,
+        reconcileBody(a, { dryRun: true })
+      );
+      setPreview({ account: a, data: res, error: null, stale: false });
+    } catch (err) {
+      setPreview({ account: a, data: null, error: err.message, stale: false });
+    } finally {
+      setPreviewBusy(false);
+    }
   };
 
+  const askReconcile = (a) => { runPreview(a); };
+
   const doReconcile = async () => {
-    const a = confirm?.account;
+    const a = preview?.account;
     if (!a) return;
+    setPreviewBusy(true);
     setReconcilingId(a.account_id);
     setReconcileMsg(null);
     try {
       // bookDate only affects MTM (entry date + balance as-of); calibrate ignores it.
-      const body = a.reconcile_mode === "mtm"
-        ? { dryRun: false, bookDate, ...(markBalanceDate ? { balanceDate: markBalanceDate } : {}) }
-        : { dryRun: false };
+      // CR087 P0c — carry the figures the owner just approved. The server
+      // recomputes and returns 409 if they moved, because the apply path
+      // re-syncs upstream and a feed row landing in that window silently
+      // changes the number that gets written.
+      const expect =
+        preview?.data && a.reconcile_mode !== "mtm" && a.reconcile_mode !== "accrue"
+          ? { new_opening: preview.data.new_opening, feed_date: preview.data.feed_date }
+          : null;
+      const body = reconcileBody(a, { dryRun: false, ...(expect ? { expect } : {}) });
       const res = await Rest.post(`/bank-feed/reconcile/${a.account_id}`, body);
       setReconcileMsg(
         res.mode === "mtm"
@@ -219,11 +242,32 @@ export default function BalanceReconciliation() {
             : `${a.name}: re-anchored opening balance ${fmtNum(res.old_opening)} → ${fmtNum(res.new_opening)}`
       );
       await loadBalanceRecon();
+      setPreview(null);
     } catch (err) {
-      setReconcileMsg(`${a.name}: reconcile failed — ${err.message}`);
+      // CR087 P0c — a 409 means the figures moved between preview and apply and
+      // NOTHING was written. That is a different outcome from a failure, and
+      // must not be reported as one: the dialog stays open offering a re-preview
+      // rather than closing on a message the owner has to interpret.
+      const isStale = err.status === 409 || err.code === "PREVIEW_STALE";
+      if (isStale) {
+        // ⚠️ Show the server's FRESH figures, do not re-preview. The preview
+        // deliberately does not sync (a preview must not write) while the apply
+        // does — so on any day the sync brings a newer feed row, re-previewing
+        // returns the SAME stale row and 409s again, forever. Found on dev
+        // before this shipped: preview computed against feed 2026-08-23, the
+        // apply synced and got 2026-08-24. The 409 already carries `current`,
+        // which is the number the server would write, so the owner approves
+        // THAT and applies again — one extra click, and they see what moved.
+        setPreview((p) =>
+          p ? { ...p, data: err.current || p.data, stale: true, error: err.message } : p
+        );
+      } else {
+        setReconcileMsg(`${a.name}: reconcile failed — ${err.message}`);
+        setPreview(null);
+      }
     } finally {
+      setPreviewBusy(false);
       setReconcilingId(null);
-      setConfirm(null);
     }
   };
 
@@ -608,11 +652,21 @@ export default function BalanceReconciliation() {
         <Link to="/manual-calibration">Manual Calibration →</Link>
       </p>
 
-      <ConfirmModal
-        state={confirm}
-        busy={reconcilingId != null}
-        onConfirm={doReconcile}
-        onCancel={() => setConfirm(null)}
+      {/* CR087 P0c — Reconcile now goes through a PREVIEW that shows the figures
+          before the write, so `ConfirmModal` has no remaining user on this page
+          and is gone from it. It is NOT retired app-wide — five other consumers
+          remain and CR086 owns that migration, behind CR060's rewrite of
+          RefreshFeeds.jsx. */}
+      <ReconcilePreviewModal
+        open={preview != null}
+        preview={preview?.data || null}
+        account={preview?.account || null}
+        busy={previewBusy}
+        error={preview?.error || null}
+        stale={preview?.stale === true}
+        fmtNum={fmtNum}
+        onCancel={() => setPreview(null)}
+        onApply={doReconcile}
       />
 
       {uploadAccount && (
