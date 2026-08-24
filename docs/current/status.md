@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-08-24 · **Live version:** **v3.38.0** (see `VERSION` / git tags) — **CR086 §3 (the money colours) + CR087 P0a (the `opening_balance` audit trail, migration 074)**; — **CR085 COMPLETE with NO unbuilt scope** (tornado + trajectory + multi-band + owner-typed bands + the knob sweep + stream schedules + a starting set, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
+**Last updated:** 2026-08-24 · **Live version:** **v3.38.1** (see `VERSION` / git tags) — **CR086 §3 (the money colours) + CR087 P0a (the `opening_balance` audit trail, migration 074) + P0b (two ways a variance could be wrong)**; — **CR085 COMPLETE with NO unbuilt scope** (tornado + trajectory + multi-band + owner-typed bands + the knob sweep + stream schedules + a starting set, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -137,9 +137,15 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   byte-identical, delta ties to prediction within one element. **P0a** gives `opening_balance` an audit
   trail — it is re-anchored on **20 accounts monthly** and left no record, which is how
   [CR080](../cr/cr-080-feed-accrual-reconcile-mode.md)'s fabricated −32.56 loss cost three migrations to
-  undo. ⚠️ **A trigger, reversing 072's convention** (owner). **Next: P0b** (the variance that reads
-  100% favourable when a fetch fails) **and P0c** (the preview + a 409-on-drift apply, built on `<Modal>`,
-  not `ConfirmModal` — which CR086 measured as unfit).
+  undo. ⚠️ **A trigger, reversing 072's convention** (owner). **P0b (v3.38.1)** closed two ways a variance
+  could be **wrong**: a failed actuals fetch rendered a page of **100%-favourable** variances with no error
+  (`—` now, never `$0.00` — ⚠️ the fix could not be a null check, since `null` was also the *loading*
+  state), and the sign was chosen by **substring-matching an owner-editable account name** in two files —
+  verified on prod before deleting, since expenses are stored **negative on both sides** and the other
+  branch was never correct for anything. ⚠️ Its source guard was **falsified before being trusted**.
+  **Next: P0c** — the preview + a 409-on-drift apply, built on `<Modal>`, **not** `ConfirmModal`, which
+  CR086 measured as unfit (no Esc, no focus trap, a white card in dark) on the confirm that gates
+  promote/calibrate/delete.
 - ~~Advisories~~ · ~~Real terms on Compare~~ **BOTH DONE** — all 15 advisories walked, **every one
   already deliberate, no model change** ([CR076 §13](../cr/cr-076-forecast-model-review.md)); two
   rules firing on streams **not in the plan** guarded, 17 → 15
