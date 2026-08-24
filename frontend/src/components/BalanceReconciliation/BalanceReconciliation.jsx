@@ -475,7 +475,27 @@ export default function BalanceReconciliation() {
               a.reconciled === true ? "bfd-ok" : isMtm || isAccrue ? "bfd-muted" : "bfd-danger";
             return (
               <tr key={a.account_id}>
-                <td>{a.name}</td>
+                <td>
+                  {a.name}
+                  {/* CR087 P1 — 10 of the 20 live calibrate accounts are non-USD
+                      (PLN 7 · EUR 3) and this table showed no currency at all,
+                      so EUR 1,409.25 sat in the same unlabelled column as USD
+                      1,166,089.24. One label per row, because COMPUTED, BANK and
+                      DRIFT are all in this currency. */}
+                  {a.currency && (
+                    <div className="recon-ccy" title={`Figures on this row are in ${a.currency}`}>
+                      {a.currency}
+                      {a.currency_mismatch && (
+                        <span
+                          className="recon-ccy__mismatch"
+                          title={`fin holds this account as ${a.account_currency} but the feed reports ${a.feed_currency}. The values agree and are simply in different units — no balance check can see that.`}
+                        >
+                          {" "}⚠ feed says {a.feed_currency}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </td>
                 <td className="bfd-muted">
                   <select
                     value={a.reconcile_mode || "calibrate"}

@@ -187,3 +187,22 @@
   color: var(--primary);
   font-weight: var(--font-weight-medium);
 }
+
+/* CR087 P1 — the currency the row's figures are in. One label per row: COMPUTED,
+   BANK (EXPECTED) and DRIFT all share it, so a column would repeat it three times
+   on a table that already scrolls. */
+.recon-ccy {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* fin's currency disagreeing with the feed's is the actuals twin of the
+   forecast's R11: the values agree and are simply in different units, which no
+   balance check can see. It fires on 0 accounts today — that is the point. */
+.recon-ccy__mismatch {
+  color: var(--danger);
+  font-weight: 600;
+}

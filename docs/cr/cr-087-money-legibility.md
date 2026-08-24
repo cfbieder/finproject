@@ -1,6 +1,6 @@
 # CR087 — Money legibility: the currency, the column, and the write with no record
 
-**Status:** **IN-PROGRESS** — **THE P0 IS COMPLETE AND SHIPPED:** P0a v3.38.0 (migration 074) · P0b v3.38.1 · P0c v3.39.0 (2026-08-24). P1 designed, not built.
+**Status:** **IN-PROGRESS** — **THE P0 IS COMPLETE AND SHIPPED:** P0a v3.38.0 (migration 074) · P0b v3.38.1 · P0c v3.39.0. **P1's reconcile-page half BUILT 2026-08-24**, not yet released; `<Money>` and `resetOpeningBalance` remain.
 **Track:** v3
 **Migration:** **074** (071–073 taken) — the `accounts` audit trigger. Book Health needs a **second**
 migration for its own dismissals table (CR074's is FK-bound to `forecast_scenarios`).
@@ -609,3 +609,38 @@ guards at baseline, build clean, and the modal driven in a browser in **both the
 but it is a **different page** (`/manual-calibration`) and a different service; folding it in would have
 meant a second preview surface in the same change. Migration 074's trigger **already audits it**, so it is
 recorded, not invisible. Carry it as the first item of P1.
+
+
+---
+
+## 14. P1 — the reconcile page speaks currency (built 2026-08-24)
+
+§2's **GO** half, and the cheaper one: `f.currency` was already in the `balanceReconcile` SELECT and
+spread to the client, so labelling the row was nearly free. Two things were not.
+
+**The queue was sorted in the wrong order, and it is half the queue.** It ranked on **raw `|drift|`
+across currencies**, so a 2,394 PLN drift outranked a $848.77 USD one — measured live on dev, the PLN row
+sat **3rd** and belongs **5th**. 10 of the 20 live calibrate accounts are non-USD (PLN 7 · EUR 3). Sorting
+now uses `drift_usd` via the **shared `fx.rateAsOf`**, and ⚠️ that helper returns **null rather than 1:1**
+on a currency it cannot convert — a silent 1:1 is the defect [§8](#8-not-in-scope) records in
+`reports.js`, and it would rank a foreign row on a number that is not money. An unconvertible row keeps
+its native magnitude for ordering and sets `drift_usd_known: false`, so *not converted* is
+distinguishable from *converted to zero*.
+
+**The account's currency and the feed's are now both exposed, not coalesced.** They agree on every live
+mapping — and where they disagree that is the actuals twin of the forecast's **R11**: the one shape no
+balance check can see, because the values agree and are simply in different units. `currency_mismatch`
+fires on **0** accounts today, which is the point; [§5](#5-provenance-the-forecast-has-a-model-the-actuals-do-not)
+kept exactly this rule and dropped the noisy ones.
+
+**Display:** one currency label per row rather than a column, because `COMPUTED`, `BANK (EXPECTED)` and
+`DRIFT` all share it and the table already scrolls (`.recon-table-wrap`; page `scrollWidth` still equals
+`clientWidth`).
+
+**5 DB tests** in `reconcileCurrency.test.js`, incl. the unconvertible-currency case and the mismatch
+flag. **838 v2 backend** + 582 frontend green, six guards at baseline.
+
+⚠️ **Still open in P1:** `<Money>` (with §10 P4's fence — CR087 builds it for its own two surfaces, the
+22-call-site `toLocaleString` sweep stays in CR086), `reconcileManual`'s `resetOpeningBalance` under the
+P0c preview, and §2's **deferred** `BalanceReport` `Local` column, which needs
+`ARRAY_AGG(DISTINCT t.currency)` plus a mixed marker plus migration 064's unanimity predicate.

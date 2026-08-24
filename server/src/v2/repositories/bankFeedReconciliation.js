@@ -19,6 +19,7 @@
  */
 
 const db = require('../db');
+const { rateAsOf } = require('../services/fx');
 
 /**
  * @param {object} opts
@@ -144,12 +145,15 @@ async function balanceReconcile({ asOf = null, tolerance = 0.01 } = {}) {
       WHERE m.source = 'bank-feed' AND m.ignored IS NOT TRUE AND m.account_id IS NOT NULL
     ),
     computed AS (
-      SELECT a.id AS account_id, a.name, a.account_type,
+      -- CR087 P1: the ACCOUNT's own currency, distinct from the feed's. They
+      -- agree on every live mapping today, and where they do not that is a real
+      -- finding rather than a display problem -- see currency_mismatch below.
+      SELECT a.id AS account_id, a.name, a.account_type, a.currency AS account_currency,
              ROUND(a.opening_balance + COALESCE(SUM(t.amount), 0), 2) AS computed_balance
       FROM accounts a
       LEFT JOIN transactions t ON t.account_id = a.id
       WHERE a.id IN (SELECT account_id FROM mapped)
-      GROUP BY a.id, a.name, a.account_type, a.opening_balance
+      GROUP BY a.id, a.name, a.account_type, a.currency, a.opening_balance
     ),
     -- CR065: the unpaired-leg check. A neutralized securities trade is two rows
     -- that cancel; paired_with_id records which two. An ACCEPTED row in the
@@ -196,7 +200,7 @@ async function balanceReconcile({ asOf = null, tolerance = 0.01 } = {}) {
       ) bb ON TRUE
     )
     SELECT
-      c.account_id, c.name, c.account_type, c.computed_balance,
+      c.account_id, c.name, c.account_type, c.computed_balance, c.account_currency,
       m.feed_uuid AS feed_external_id,
       ROUND(f.feed_balance, 2) AS feed_balance,
       f.feed_date::text AS feed_date,
@@ -264,8 +268,49 @@ async function balanceReconcile({ asOf = null, tolerance = 0.01 } = {}) {
       last_calibrated_delta:
         r.last_calibrated_delta != null ? Number(r.last_calibrated_delta) : null,
       calibrations_90d: Number(r.calibrations_90d || 0),
-    }))
-    .sort((a, b) => Math.abs(b.drift || 0) - Math.abs(a.drift || 0));
+      // CR087 P1 — the currency the figures on this row are IN.
+      //
+      // `f.currency` is the FEED's; `account_currency` is fin's own. They agree
+      // on every live mapping today, so the display value coalesces — but where
+      // they disagree that is a REAL finding, not a formatting choice: it is the
+      // actuals-side twin of the forecast's R11 rule (a module whose currency
+      // disagrees with its account), the one shape no balance check can see,
+      // because the values agree and are simply in different units. §5 kept
+      // exactly this rule and dropped the noisy ones.
+      currency: r.currency || r.account_currency || null,
+      account_currency: r.account_currency || null,
+      feed_currency: r.currency || null,
+      currency_mismatch:
+        Boolean(r.currency) && Boolean(r.account_currency) && r.currency !== r.account_currency,
+    }));
+
+  // CR087 P1 — SORT THE QUEUE ON USD-EQUIVALENT DRIFT.
+  //
+  // ⚠️ It sorted on raw |drift| across currencies, so a 5,000 PLN drift
+  // outranked a $3,000 USD one and the runbook worked the queue in the wrong
+  // order. 10 of the 20 live calibrate accounts are non-USD (PLN 7 · EUR 3),
+  // so this is half the queue, not an edge case.
+  //
+  // Uses the SHARED fx helper, which returns null rather than silently falling
+  // back to 1 — a 1:1 fallback on an unknown currency is the defect CR087 §8
+  // records on the actuals side of reports.js. A row we cannot convert keeps its
+  // native magnitude for ordering and says so, rather than being ranked on a
+  // number that is not money.
+  const asOfText = asOfRow.rows[0].as_of;
+  const rates = new Map();
+  for (const a of accounts) {
+    const ccy = a.currency || 'USD';
+    if (!rates.has(ccy)) rates.set(ccy, await rateAsOf(db, ccy, asOfText));
+  }
+  for (const a of accounts) {
+    const rate = rates.get(a.currency || 'USD');
+    a.drift_usd = a.drift != null && rate != null ? Math.round(a.drift * rate * 100) / 100 : null;
+    a.drift_usd_known = a.drift == null || rate != null;
+  }
+  accounts.sort(
+    (a, b) =>
+      Math.abs(b.drift_usd ?? b.drift ?? 0) - Math.abs(a.drift_usd ?? a.drift ?? 0)
+  );
 
   return {
     asOf: asOfRow.rows[0].as_of,
