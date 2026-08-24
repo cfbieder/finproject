@@ -235,36 +235,6 @@ const collectCollapsiblePaths = (nodes, path = [], accumulator = new Set()) => {
   return accumulator;
 };
 
-/**
- * Checks if a path represents an expense category
- * @param {Array} path - Category path
- * @returns {boolean} True if expense path
- */
-const isExpensePath = (path) => {
-  if (!Array.isArray(path) || path.length === 0) {
-    return false;
-  }
-  const topLevel = path[0];
-  return (
-    typeof topLevel === "string" && topLevel.toLowerCase().includes("expense")
-  );
-};
-
-/**
- * Checks if a path represents an income category
- * @param {Array} path - Category path
- * @returns {boolean} True if income path
- */
-const isIncomePath = (path) => {
-  if (!Array.isArray(path) || path.length === 0) {
-    return false;
-  }
-  const topLevel = path[0];
-  return (
-    typeof topLevel === "string" && topLevel.toLowerCase().includes("income")
-  );
-};
-
 const collectLeafCategoryNames = (node) => {
   if (!node || typeof node !== "object") {
     return [];
@@ -350,10 +320,25 @@ const renderCategoryRows = (
     const hasVarianceData = hasBudgetData || hasActualData;
     const budgetForVariance = hasBudgetData ? resolvedBudgetValue : 0;
     const actualForVariance = hasActualData ? resolvedActualValue : 0;
-    const varianceValue =
-      isExpensePath(currentPath) || isIncomePath(currentPath)
-        ? actualForVariance - budgetForVariance
-        : budgetForVariance - actualForVariance;
+    // CR087 §4b. ⚠️ This USED to pick the sign from a substring match on
+    // `currentPath[0]` — `.includes("expense") || .includes("income")` — so the
+    // same column carried OPPOSITE signs depending on an owner-editable account
+    // name, and renaming `Expenses` to `Spending` in COA Management would have
+    // flipped every variance under it silently. The name-as-key pattern the
+    // forecast rules already ban.
+    //
+    // The branch was not merely fragile, it was WRONG: expenses are stored
+    // NEGATIVE on both sides (measured on prod 2026-08-24 — expense
+    // `budget_entries` run min −71,968 / max 0 with 656 of 657 negative, and
+    // 2026 expense transactions sum −180,215.35), so `actual − budget` is
+    // already favourable-positive for income AND expense:
+    //   income  actual 400 vs budget 300 → +100 favourable
+    //   expense actual −80 vs budget −100 → +20 favourable (spent less)
+    // Any root that matched neither word was getting the inverted convention.
+    //
+    // This also aligns the four surfaces that already computed it unconditionally
+    // (`BudgetVariances`, `BudgetRealizationGraph` ×3, `MobileBudgetRealization`).
+    const varianceValue = actualForVariance - budgetForVariance;
     const varianceDisplay = hasVarianceData
       ? formatCurrencyValue(varianceValue)
       : "—";

@@ -162,15 +162,6 @@ export const exportBudgetRealization = (
 
   const headers = ["Category", "Budget", "Actual", "Variance"];
 
-  const isExpensePath = (path) => {
-    const top = path[0]?.toLowerCase?.() ?? "";
-    return top.includes("expense");
-  };
-  const isIncomePath = (path) => {
-    const top = path[0]?.toLowerCase?.() ?? "";
-    return top.includes("income");
-  };
-
   const flattenBudgetTree = (nodes, path = [], depth = 0) => {
     if (!Array.isArray(nodes)) return [];
     return nodes.flatMap((node) => {
@@ -180,10 +171,12 @@ export const exportBudgetRealization = (
       const budget = hasBudgetData && getBudgetValue ? getBudgetValue(node, pathKey) : 0;
       const actual = hasActualData && getActualValue ? getActualValue(node, pathKey) : 0;
       if (hasActualData && hasBudgetData && actual === 0 && budget === 0) return [];
-      const variance =
-        isExpensePath(currentPath) || isIncomePath(currentPath)
-          ? actual - budget
-          : budget - actual;
+      // CR087 §4b — the same substring-keyed sign branch that was in
+      // BudgetRealization.jsx lived here too, so fixing only the page would have
+      // left the screen and the exported workbook disagreeing about the sign of
+      // every variance. Expenses are stored NEGATIVE on both sides, so
+      // `actual − budget` is favourable-positive for income and expense alike.
+      const variance = actual - budget;
       const hasChildren = Array.isArray(node.children) && node.children.length > 0;
       const children = hasChildren
         ? flattenBudgetTree(node.children, currentPath, depth + 1)

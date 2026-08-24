@@ -16,8 +16,13 @@ const currencyFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
 
+// CR087 §4c — UNKNOWN and ZERO are different statements and this must not
+// conflate them. `null` reaches here when a fetch failed, and rendering it as
+// `$0.00` is what let a page of 100%-favourable variances look like real data.
+// A genuine 0 still renders `$0.00`.
 const formatCurrencyValue = (value) => {
-  const amount = Number.isFinite(Number(value)) ? Number(value) : 0;
+  if (value == null || !Number.isFinite(Number(value))) return "—";
+  const amount = Number(value);
   const formatted = currencyFormatter.format(Math.abs(amount));
   return amount < 0 ? `(${formatted})` : formatted;
 };
@@ -99,6 +104,12 @@ export default function BudgetVariances() {
   });
   const [leafActualTotals, setLeafActualTotals] = useState(null);
   const [leafBudgetTotals, setLeafBudgetTotals] = useState(null);
+  // CR087 §4c. ⚠️ `null` on the two maps above is OVERLOADED — it is set both
+  // when a fetch STARTS and when one FAILS. A banner keyed on null would flash
+  // on every load, so failure needs its own state. Without this the page showed
+  // a full table of 100%-favourable variances with no error anywhere.
+  const [actualsError, setActualsError] = useState(false);
+  const [budgetsError, setBudgetsError] = useState(false);
   const [entryDetail, setEntryDetail] = useState(null);
 
   const handlePeriodChange = useCallback((values) => {
@@ -132,6 +143,7 @@ export default function BudgetVariances() {
 
     let isActive = true;
     setLeafActualTotals(null);
+    setActualsError(false);
 
     const fetchActuals = async () => {
       try {
@@ -149,6 +161,7 @@ export default function BudgetVariances() {
         if (!isActive) return;
         console.error("[BudgetVariances] Failed to load actuals:", error);
         setLeafActualTotals(null);
+        setActualsError(true);
       }
     };
 
@@ -175,6 +188,7 @@ export default function BudgetVariances() {
 
     let isActive = true;
     setLeafBudgetTotals(null);
+    setBudgetsError(false);
 
     const fetchBudgets = async () => {
       try {
@@ -195,6 +209,7 @@ export default function BudgetVariances() {
           error
         );
         setLeafBudgetTotals(null);
+        setBudgetsError(true);
       }
     };
 
@@ -217,18 +232,30 @@ export default function BudgetVariances() {
       for (const name of leafActualTotals.keys()) allNames.add(name);
     }
 
+    // CR087 §4c. ⚠️ Two DIFFERENT reasons a figure can be absent, and conflating
+    // them is the defect: a category missing FROM A LOADED MAP genuinely has 0
+    // (nothing budgeted, nothing spent), while a map that never loaded means the
+    // figure is UNKNOWN. The old code coalesced both with `?? 0`, so a failed
+    // actuals fetch rendered every category at $0.00 actual and reported the
+    // full budget as a FAVOURABLE variance, with no error anywhere on the page.
+    const budgetsUnknown = !leafBudgetTotals;
+    const actualsUnknown = !leafActualTotals;
+
     const rows = [];
     for (const name of allNames) {
-      const budget = leafBudgetTotals?.get(name) ?? 0;
-      const actual = leafActualTotals?.get(name) ?? 0;
-      const variance = actual - budget;
+      const budget = budgetsUnknown ? null : (leafBudgetTotals.get(name) ?? 0);
+      const actual = actualsUnknown ? null : (leafActualTotals.get(name) ?? 0);
+      // A variance derived from a missing operand is not a number.
+      const variance = budget == null || actual == null ? null : actual - budget;
       if (budget === 0 && actual === 0) continue;
       rows.push({
         name,
         budget,
         actual,
         variance,
-        absVariance: Math.abs(variance),
+        // Unknown sorts last rather than as zero, which would bury it among the
+        // genuinely-unchanged rows.
+        absVariance: variance == null ? -1 : Math.abs(variance),
       });
     }
 
@@ -253,14 +280,21 @@ export default function BudgetVariances() {
 
   // ========== Computed: Totals ==========
   const totals = useMemo(() => {
-    let budget = 0;
-    let actual = 0;
+    // CR087 §4c — a total over a column with an unknown operand is itself
+    // unknown. Summing `null` as 0 would restate the same defect in the one row
+    // most likely to be read.
+    let budget = leafBudgetTotals ? 0 : null;
+    let actual = leafActualTotals ? 0 : null;
     for (const row of varianceRows) {
-      budget += row.budget;
-      actual += row.actual;
+      if (budget != null) budget += row.budget;
+      if (actual != null) actual += row.actual;
     }
-    return { budget, actual, variance: actual - budget };
-  }, [varianceRows]);
+    return {
+      budget,
+      actual,
+      variance: budget == null || actual == null ? null : actual - budget,
+    };
+  }, [varianceRows, leafBudgetTotals, leafActualTotals]);
 
   // ========== Render ==========
   return (
@@ -278,6 +312,36 @@ export default function BudgetVariances() {
             </p>
           </div>
         </div>
+
+        {/* CR087 §4c — say so when a side did not load. Without this the page
+            renders a full table of 100%-favourable variances and looks like a
+            good month. Keyed on an explicit error flag, NOT on the maps being
+            null, because null is also the loading state and would flash. */}
+        {(actualsError || budgetsError) && (
+          <div
+            role="alert"
+            style={{
+              margin: "0 0 1rem",
+              padding: "0.75rem 1rem",
+              border: "1px solid var(--danger)",
+              borderLeft: "3px solid var(--danger)",
+              borderRadius: "var(--radius-sm)",
+              background: "var(--danger-subtle)",
+              color: "var(--ink)",
+              fontSize: "0.875rem",
+            }}
+          >
+            <strong>
+              {actualsError && budgetsError
+                ? "Neither actuals nor budgets could be loaded."
+                : actualsError
+                  ? "Actuals could not be loaded."
+                  : "Budgets could not be loaded."}
+            </strong>{" "}
+            Variances are shown as <code>—</code> rather than computed against a
+            missing figure. Reload to try again.
+          </div>
+        )}
 
         {/* Toolbar */}
         <section className="realization-toolbar" aria-label="Report filters">

@@ -1,6 +1,6 @@
 # CR087 — Money legibility: the currency, the column, and the write with no record
 
-**Status:** **IN-PROGRESS** — **P0a BUILT and SHIPPED v3.38.0 (2026-08-24), migration 074.** P0b, P0c and P1 designed, not built.
+**Status:** **IN-PROGRESS** — **P0a SHIPPED v3.38.0 (migration 074); P0b BUILT 2026-08-24, not yet released.** P0c and P1 designed, not built.
 **Track:** v3
 **Migration:** **074** (071–073 taken) — the `accounts` audit trigger. Book Health needs a **second**
 migration for its own dismissals table (CR074's is FK-bound to `forecast_scenarios`).
@@ -350,7 +350,7 @@ column when the period includes today. It removes the single most common misread
 | Step | What | Why here |
 |---|---|---|
 | **P0a** ✅ **BUILT v3.38.0** | **Migration 074 (the `accounts` audit trigger) + ONE READER** — the `Last calibrated` column | Needs **no owner design decision, no CR086 dependency, no modal**. Covers all three app writers plus five scripts plus manual `psql` — coverage no UI change can reach — and gives `calibrate()` an undo path for the first time (`old_values` holds the prior anchor). ⚠️ **Applying 074 to prod ahead of any code is strictly beneficial**: it starts recording calibrations before the preview exists. ⚠️ **It must ship WITH the reader** — a trigger writing rows nobody looks at is invisible state that renders nothing, which is [CR085](cr-085-forecast-sensitivity.md)'s named defect class. Resolves the `last_calibrated_at` question (revive or retire) as part of it. |
-| **P0b** | §4c **both directions** + §4b's branch deletion + the five-surface test | Independent files, no dependency on P0a, safe in parallel |
+| **P0b** ✅ **BUILT 2026-08-24** | §4c **both directions** + §4b's branch deletion + the five-surface test | Independent files, no dependency on P0a, safe in parallel |
 | **P0c** | The preview + the **409-on-drift** apply + `resetOpeningBalance` under the same confirm | ⚠️ **Must land before [CR086](cr-086-ui-visual-system.md) Phase 1.3** (see the ConfirmModal note below) |
 | **P1** | `/balance-calibration` currency + the USD-equivalent sort + **`<Money>`** | |
 
@@ -521,3 +521,42 @@ idempotent.
 2. **074 was first applied by hand with `psql -f`, which does NOT write `schema_migrations`** — the exact
    trap migration 057's registry row records. Re-run through `npm run migrate`. *Apply through the
    runner, not `psql -f`.*
+
+
+---
+
+## 12. P0b as built (2026-08-24)
+
+**§4c — a failed fetch no longer reads as a good month.**
+⚠️ The fix could not be a null check: `null` was set both when a fetch **starts** and when one **fails**,
+so a banner keyed on it would flash on every load. `BudgetVariances` now carries explicit
+`actualsError` / `budgetsError` state, set in each `catch` and cleared at each fetch start.
+**And UNKNOWN is now distinguished from ZERO at three levels**, because conflating them *was* the defect:
+a category absent from a **loaded** map genuinely has 0; a map that never loaded means the figure is
+unknown. So the row yields `null` (not `?? 0`), `variance` is `null` whenever either operand is,
+`formatCurrencyValue(null)` renders **`—`** rather than `$0.00`, and the totals row refuses to sum an
+unknown column. Unknown rows sort last rather than as zero. A `role="alert"` banner names which side
+failed.
+
+**Verified by failing the fetch in a browser:** with actuals blocked, the page renders the real budget
+(`$2,000.00`), actual **`—`**, variance **`—`**, and the banner *"Actuals could not be loaded."* A
+genuinely-zero budget still renders `$0.00`, so the distinction holds. Before the change that same state
+rendered actual `$0.00` and reported the full budget as a **favourable** variance with no error anywhere.
+
+**§4b — the branch is deleted, in both files.**
+⚠️ **The claim was verified on prod before anything was deleted**, since this is a sign change on money:
+expense `budget_entries` run **min −71,968 / max 0 with 656 of 657 negative**, and 2026 expense
+transactions sum **−180,215.35**. Expenses are stored negative on both sides, so `actual − budget` is
+favourable-positive for income **and** expense, and the `budget − actual` branch was never correct for
+anything — including the two prod roots that match neither substring (`Realized Gain (Historical)`,
+`Margin Interest`), which were silently taking it. Both helpers are gone; the identical rule in
+`excelExporter.js` went with them, so the screen and the exported workbook cannot disagree.
+
+**16 tests** in `varianceSign.test.js`: the convention as arithmetic, the old branch kept as a **witness**
+(the same underspend it called −20 the convention calls +20), and a **source guard** across all five
+surfaces that no file computes `budget − actual` or keys a sign on an account-name substring.
+⚠️ **The guard was falsified before being trusted** — reintroducing the branch fails it, restoring it
+passes. Gates: 582 frontend tests, eslint 0 errors, 5 ratchets at baseline.
+
+**Not swept:** `FCModulesStreams.jsx` and `CategorySelector.jsx` also substring-match `"income"`, but on
+`line_type` and a control value — **not** on an owner-editable account name, so they are not this defect.
