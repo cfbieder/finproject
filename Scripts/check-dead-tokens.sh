@@ -23,7 +23,7 @@ SRC="$ROOT/frontend/src"
 
 # Tokens set at RUNTIME from a JSX inline style (style={{ "--x": n }}) rather than in a
 # stylesheet — they have no CSS declaration by design, so they are not dangling.
-ALLOWLIST_RE='^--(tw-|radix-|swiper-|balance-indent-level|cashflow-indent-level|budget-va-indent-level)$'
+ALLOWLIST_RE='^--(tw-|radix-|swiper-|report-indent-level)$'
 
 referenced() {
   grep -rhoE 'var\(--[A-Za-z0-9_-]+' "$SRC" --include=*.css --include=*.jsx --include=*.js \

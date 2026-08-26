@@ -452,7 +452,7 @@ const renderCategoryRows = (nodes, ctx, level = 0, path = []) => {
       <tr key={pathKey} data-level={level}>
         <td
           className="balance-report-table__name"
-          style={{ "--budget-va-indent-level": level }}
+          style={{ "--report-indent-level": level }}
         >
           <button
             type="button"

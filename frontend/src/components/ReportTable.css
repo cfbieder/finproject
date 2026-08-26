@@ -1,0 +1,373 @@
+/*
+ * ReportTable — CR088 P3. The one place the report-table look lives.
+ *
+ * Opt in by adding `report-table` beside whatever scope class a report already
+ * carries. Four surfaces do, covering seven pages:
+ *
+ *   .budget-va report-table          /budget-vs-actual  (Realization)
+ *   .cash-flow-report report-table   /budget-vs-actual  (Variances)
+ *   .balance-report report-table     /cash-flow         (Summary · By Period · By Account)
+ *   .balance-report report-table     /balances          (Summary · Periods)
+ *
+ * ⚠️ WHY THIS FILE EXISTS. P1 deliberately scoped the restyle to ONE page,
+ * because `CashFlowReport.css` is imported by four and an edit in place would
+ * have restyled three reports nobody had asked about. The owner then asked for
+ * exactly those (2026-08-26: *"use the same for Cash Flow and Balances"*), so
+ * the right move is to LIFT the rules here and have every report opt in —
+ * not to copy `BudgetVaTable.css` three times, and not to reach back into the
+ * per-page files and re-scatter it.
+ *
+ * ⚠️ WHAT WAS WRONG, not merely different. `CashFlowReport.css` drew hierarchy
+ * in COLOUR and OPACITY: five per-level `!important` backgrounds, hardcoded
+ * `rgba(148,163,184,…)` borders, and `opacity: 0.7 / 0.6 / 0.55` applied to the
+ * VALUE cells — money at just over half opacity three levels down, which is the
+ * contrast failure CR086 §3 spent a release cutting 2,364 → 1,227. Those blocks
+ * are DELETED at the source rather than overridden here, so no dead rule is
+ * left for the next reader to wonder about.
+ *
+ * The rule is LEGrid.css's, quoted because it is the load-bearing one:
+ *   "Depth is carried by indentation and weight, not by colour — a tinted
+ *    'level' scale is the thing that inverts in dark mode."
+ *
+ * Tokens only. Every colour is defined at BOTH `:root` and
+ * `:root[data-theme="dark"]` in index.css, so there is no theme-specific block
+ * here to fall out of sync — the shape of all 12 defects the CR026 dark audit
+ * found.
+ *
+ * ⚠️ THE FROZEN COLUMN IS THE HAZARD IN THIS FILE. These reports scroll
+ * horizontally over 8–13 period columns behind a sticky first column, and both
+ * totals rows live in `<tfoot>`. Every background below is therefore re-asserted
+ * OPAQUE on `td:first-child` for every row state — striped, hovered,
+ * highlighted, tbody and tfoot. A semi-transparent fill there lets scrolling
+ * figures bleed through the account name, which is CR054 exactly.
+ */
+
+/* ---- the table ---------------------------------------------------------- */
+
+.report-table .balance-report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+/* `thead th` / `tbody td` rather than a bare `th, td`: PageLayout.css styles the
+   same elements at equal specificity through `.realization-table-section
+   .balance-report-table td` and friends, so an equal-specificity override here
+   would depend on CSS import ORDER — a Vite implementation detail, not
+   something to bet a layout on. */
+.report-table .balance-report-table thead th,
+.report-table .balance-report-table tbody td,
+.report-table .balance-report-table tfoot td,
+.report-table .balance-report-table tfoot th {
+  padding: 0.3rem 0.5rem;
+  /* PageLayout.css sizes these cells at 0.9375rem through a bare
+     `.balance-report-table td`. Sizing the TABLE alone is not enough — measured
+     15px against a 12.8px table, which is how P1's first cut still rendered at
+     the old row height while claiming 0.8rem. */
+  font-size: inherit;
+  border-bottom: 1px solid var(--border);
+  border-left: none;
+}
+
+.report-table .balance-report-table thead th {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--surface-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.report-table .balance-report-table thead th.balance-report-table__category {
+  text-align: left;
+}
+
+/* BalanceReport.css gives the sticky head a light-mode gradient. Flatten it to
+   the same ground as every other header cell, or the frozen corner reads as a
+   different surface from the row of headers it sits in. */
+.report-table .balance-report-table__head {
+  background: var(--surface-muted);
+}
+
+/* ---- ground ------------------------------------------------------------- */
+
+/* One flat ground, no zebra. PageLayout.css stripes even rows with an
+   `rgba(248, 250, 254, 0.35)` literal — a light-mode colour that in dark mode
+   lays a pale film over a dark surface. Rows are told apart by their rule and
+   their indent, which is what LEGrid does and what survives a theme swap. */
+.report-table .balance-report-table tbody td,
+.report-table .balance-report-table tbody tr:nth-child(even) td {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.report-table .balance-report-table tbody tr:hover td,
+.report-table .balance-report-table tbody tr:nth-child(even):hover td {
+  background: var(--surface-muted);
+}
+
+/* The frozen column, opaque in every state — see the header note. */
+.report-table .balance-report-table tbody td:first-child,
+.report-table .balance-report-table tbody tr:nth-child(even) td:first-child {
+  background: var(--surface);
+}
+
+.report-table .balance-report-table tbody tr:hover td:first-child,
+.report-table .balance-report-table tbody tr:nth-child(even):hover td:first-child {
+  background: var(--surface-muted);
+}
+
+/* ---- figures ------------------------------------------------------------ */
+
+.report-table .balance-report-table__value {
+  text-align: right;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  /* Weight comes from the row's depth (below), not from being a number. */
+  font-weight: inherit;
+}
+
+/* Colour carries the sign; weight does not. The base rule bumps negatives to
+   700, which made every expense row heavier than every income row and read as
+   emphasis rather than as sign. */
+.report-table .balance-report-table td.balance-report-table__value--negative,
+.report-table .balance-report-table th.balance-report-table__value--negative {
+  color: var(--growth-negative);
+  font-weight: inherit;
+}
+
+/* ---- hierarchy: indentation and weight only ----------------------------- */
+
+.report-table {
+  --report-indent-unit: 1.1rem;
+}
+
+.report-table .balance-report-table__name {
+  padding-left: calc(0.5rem + var(--report-indent-level, 0) * var(--report-indent-unit));
+  text-align: left;
+  white-space: nowrap;
+  color: var(--ink);
+}
+
+.report-table .balance-report-table__name-text {
+  cursor: pointer;
+}
+
+/* Depth 0 — Income / Expense, Assets / Liabilities. A rule above it and weight;
+   no band, no caps. The uppercase, letter-spaced, `--primary`-coloured green
+   band the old styling used is what made two rows shout over the hundred that
+   carry the detail. */
+.report-table .balance-report-table tbody tr[data-level="0"] td {
+  border-top: 1px solid var(--border-strong);
+  font-weight: 700;
+}
+
+.report-table .balance-report-table tbody tr[data-level="0"] .balance-report-table__name-text {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* Depth 1 — rollups. */
+.report-table .balance-report-table tbody tr[data-level="1"] td {
+  font-weight: 600;
+}
+
+/* Depth 2+ — leaves. Regular weight, FULL opacity, full-contrast ink. The old
+   rules faded these to 0.7 / 0.6 / 0.55 and greyed the label to `--muted`; they
+   are the rows the report exists to show. */
+.report-table .balance-report-table tbody tr[data-level="2"] td,
+.report-table .balance-report-table tbody tr[data-level="3"] td,
+.report-table .balance-report-table tbody tr[data-level="4"] td,
+.report-table .balance-report-table tbody tr[data-level="5"] td {
+  font-weight: 400;
+  opacity: 1;
+}
+
+/* ---- the expand/collapse controls --------------------------------------- */
+
+/* LEGrid has none; every report here keeps them — the owner's one stated
+   exception to "make it look like the LE grid". The control sits INSIDE the
+   indent rather than displacing it, so a row's name still starts at its depth's
+   left edge and the indent still reads as the hierarchy.
+   Three classes because three components grew their own. */
+.report-table .budget-va__toggle,
+.report-table .cash-flow-report__toggle-button,
+.report-table .balance-report__toggle-button {
+  margin-right: 0.35rem;
+  padding: 0;
+  min-width: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: none;
+}
+
+.report-table .budget-va__toggle:hover:not(:disabled),
+.report-table .cash-flow-report__toggle-button:hover:not(:disabled),
+.report-table .balance-report__toggle-button:hover:not(:disabled) {
+  color: var(--primary);
+  background: none;
+}
+
+.report-table .budget-va__toggle:focus-visible,
+.report-table .cash-flow-report__toggle-button:focus-visible,
+.report-table .balance-report__toggle-button:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.report-table .budget-va__toggle:disabled,
+.report-table .cash-flow-report__toggle-button:disabled,
+.report-table .balance-report__toggle-button:disabled {
+  cursor: default;
+  color: transparent;
+}
+
+/* ---- the totals row ------------------------------------------------------ */
+
+/* Three names for one idea, because three components grew their own:
+   `__totals-row` (Budget vs Actual, in <tbody>), `__net-cash-flow` (Cash Flow,
+   in <tfoot>) and `__net-worth` (Balance Sheet, in <tfoot>).
+   PageLayout/BalanceReport give these a gradient or a semi-transparent tint,
+   1.25rem padding and 1.05rem type — three times the surrounding row height.
+   LEGrid's total is a rule, a muted ground and weight 600, at the same size as
+   everything else.
+
+   ⚠️ `tbody`/`tfoot` are in these selectors on purpose. The Budget total lives
+   INSIDE <tbody>, so the generic ground rule above is both later in the file
+   and equally specific — it won, and the row measured as `--surface` rather
+   than `--surface-muted`. Found by a DOM probe, not by reading the cascade;
+   CR054 got the same tie wrong twice by reasoning about it. */
+.report-table .balance-report-table tbody .balance-report-table__totals-row td,
+.report-table .balance-report-table tbody .balance-report-table__totals-row td:first-child,
+.report-table .balance-report-table tfoot .balance-report-table__net-cash-flow td,
+.report-table .balance-report-table tfoot .balance-report-table__net-cash-flow td:first-child,
+.report-table .balance-report-table tfoot .balance-report-table__net-worth td,
+.report-table .balance-report-table tfoot .balance-report-table__net-worth td:first-child {
+  background: var(--surface-muted);
+  border-top: 2px solid var(--border-strong);
+  border-bottom: none;
+  padding: 0.45rem 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* The label: same size and case as the rest of the table, and STILL FROZEN.
+   CR054's defect was this exact cell — it sat in <tfoot>, missed the more
+   specific half of the frozen-column selector, and scrolled its label away from
+   its own figures. Re-assert sticky here rather than trusting inheritance. */
+.report-table .balance-report-table__totals-row .balance-report-table__name,
+.report-table .balance-report-table__net-cash-flow .balance-report-table__name,
+.report-table .balance-report-table__net-worth .balance-report-table__name {
+  position: sticky;
+  left: 0;
+  z-index: 7;
+  padding-left: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--ink);
+}
+
+.report-table .balance-report-table__name-text--bold,
+.report-table .balance-report-table__value--bold {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* ---- the highlighted row ------------------------------------------------- */
+
+/* Kept as a feature, repointed off two hardcoded hexes and an `!important`
+   rgba. `--primary-subtle` is defined in both themes, so the one rule replaces
+   the light value, the dark override and the opaque frozen-cell patch that
+   existed only because the tint was semi-transparent.
+
+   ⚠️ THE `:nth-child(even)` AND `:hover` VARIANTS ARE NOT PADDING. The zebra
+   and hover rules above carry pseudo-classes, so
+   `…tbody tr:nth-child(even):hover td` scores (0,4,3) and beat a plain
+   `…tr.--highlighted td` at (0,3,3): a marked row on an even line, or under the
+   cursor, silently reverted to the ordinary ground. MEASURED — the row came
+   back `--surface-muted`, not `--primary-subtle` — because reading the cascade
+   is what got CR054 wrong twice. A marked row must stay marked while hovered,
+   so every combination is spelled out. */
+.report-table .balance-report-table tbody tr.balance-report-table__row--highlighted td,
+.report-table .balance-report-table tbody tr.balance-report-table__row--highlighted td:first-child,
+.report-table .balance-report-table tbody tr.balance-report-table__row--highlighted:hover td,
+.report-table .balance-report-table tbody tr.balance-report-table__row--highlighted:hover td:first-child,
+.report-table .balance-report-table tbody tr:nth-child(even).balance-report-table__row--highlighted td,
+.report-table .balance-report-table tbody tr:nth-child(even).balance-report-table__row--highlighted td:first-child,
+.report-table .balance-report-table tbody tr:nth-child(even).balance-report-table__row--highlighted:hover td,
+.report-table .balance-report-table tbody tr:nth-child(even).balance-report-table__row--highlighted:hover td:first-child {
+  background: var(--primary-subtle);
+  font-weight: 600;
+}
+
+/* ---- the trailing Total column (CR054, Cash Flow By Account) ------------- */
+
+.report-table .cash-flow-report__total-cell {
+  border-left: 2px solid var(--border-strong);
+  font-weight: 600;
+}
+
+.report-table thead .cash-flow-report__total-cell {
+  color: var(--muted);
+}
+
+/* ---- responsive ---------------------------------------------------------- */
+
+@media (max-width: 768px) {
+  .report-table {
+    --report-indent-unit: 0.85rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .report-table {
+    --report-indent-unit: 0.65rem;
+  }
+}
+
+/* ---- print --------------------------------------------------------------- */
+
+/* Browsers print the live DOM, so a dark-mode `--ink` of #E2E8F0 lands
+   near-invisible on white paper — the reason LEGrid.css and TaxFbar.css both
+   force #000. */
+@media print {
+  .report-table .balance-report-table thead th,
+  .report-table .balance-report-table tbody td,
+  .report-table .balance-report-table tfoot td,
+  .report-table .balance-report-table__totals-row td,
+  .report-table .balance-report-table__net-cash-flow td,
+  .report-table .balance-report-table__net-worth td {
+    background: none;
+  }
+
+  .report-table .balance-report-table,
+  .report-table .balance-report-table th,
+  .report-table .balance-report-table td,
+  .report-table .balance-report-table__value,
+  .report-table .balance-report-table td.balance-report-table__value--negative {
+    color: #000;
+  }
+
+  .report-table .budget-va__toggle,
+  .report-table .cash-flow-report__toggle-button,
+  .report-table .balance-report__toggle-button { display: none; }
+
+  .report-table .balance-report-table tr { page-break-inside: avoid; }
+  .report-table .balance-report-table thead { display: table-header-group; }
+}

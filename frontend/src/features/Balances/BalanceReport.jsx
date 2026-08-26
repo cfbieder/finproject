@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import PropTypes from "prop-types";
 import "./BalanceReport.css";
+import "../../components/ReportTable.css";
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
@@ -70,14 +71,18 @@ const renderAccountRows = (
       (map) => map?.get(pathKey) ?? 0
     );
     const isHighlighted = highlightedPaths.has(pathKey);
-    const highlightBackground = "rgba(87, 188, 103, 1)";
-    const highlightedCellStyle = isHighlighted
-      ? { backgroundColor: highlightBackground }
-      : undefined;
-    const nameCellStyle = {
-      "--balance-indent-level": level,
-      ...(highlightedCellStyle || {}),
-    };
+    // CR088 P3: the highlight fill used to be an INLINE `rgba(87, 188, 103, 1)`
+    // spread onto every cell of the row. Inline beats CSS, so the stylesheet
+    // could only reach it with `!important` — which BalanceReport.css did, for
+    // the frozen first cell only, in two hand-maintained literal hexes (one for
+    // light, one for dark). The result was a row whose first cell was pale and
+    // whose remaining cells were a saturated opaque green, by accident rather
+    // than design, with three colour literals keeping it that way.
+    //
+    // The class alone now carries it, painted from `--primary-subtle` in
+    // `ReportTable.css` — one rule, one token, defined in both themes, shared
+    // with the Cash Flow report which only ever set the class anyway.
+    const nameCellStyle = { "--report-indent-level": level };
 
     const row = (
       <tr
@@ -107,9 +112,23 @@ const renderAccountRows = (
           >
             {hasChildren ? (isCollapsed ? "+" : "−") : "\u00a0"}
           </button>
+          {/* ⚠️ `stopPropagation` is load-bearing, and its absence was a live
+              defect until CR088 P3. The enclosing <td> ALSO calls
+              `onToggleHighlight(pathKey)`, so a click on the label fired both
+              handlers and toggled the same key twice — on, then off — and
+              clicking an account name did visibly nothing. Only the cell's
+              empty padding worked, which nobody would find on purpose.
+              `.balance-report-table__name-text` even carries `cursor: pointer`,
+              so it advertised an affordance it did not have: CR085's named
+              defect class, state that renders and produces no visible effect.
+              The Cash Flow report's identical span has always stopped
+              propagation here; this one had drifted. */}
           <span
             className="balance-report-table__name-text"
-            onClick={() => onToggleHighlight(pathKey)}
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleHighlight(pathKey);
+            }}
           >
             {account.name}
           </span>
@@ -120,7 +139,6 @@ const renderAccountRows = (
               ? "balance-report-table__value--negative"
               : ""
           }`}
-          style={highlightedCellStyle}
         >
           {formatCurrency(account.totalUSD)}
         </td>
@@ -130,8 +148,7 @@ const renderAccountRows = (
             className={`balance-report-table__value ${
               value < 0 ? "balance-report-table__value--negative" : ""
             }`}
-            style={highlightedCellStyle}
-          >
+            >
             {formatCurrency(value)}
           </td>
         ))}
@@ -245,7 +262,7 @@ export default function BalanceReport({
               Balance Sheet
             </p>
           </section>
-          <div className="balance-report">
+          <div className="balance-report report-table">
             <div className="balance-report__table-wrapper">
               <table className="balance-report-table" ref={tableRef}>
                 <caption className="balance-report-table__caption">

@@ -1,6 +1,24 @@
-.balance-report {
-  --balance-indent-unit: 1.25rem;
-}
+/*
+ * BalanceReport — what is left after CR088 P3.
+ *
+ * The table look — type scale, row height, hierarchy by indentation and weight,
+ * the frozen column's opaque fills, the totals row, the highlighted row and the
+ * expand/collapse control — moved to `components/ReportTable.css`, which this
+ * report opts into with `report-table` beside `.balance-report`. Removed here
+ * rather than overridden there, so nothing dead is left behind.
+ *
+ * Three specific things went with it and are worth naming, because each was a
+ * defect and not merely a style:
+ *   - the `NET WORTH` label was uppercase, letter-spaced, 0.95rem and
+ *     `--primary` green over a semi-transparent tint, so the one row that sums
+ *     the report shouted over the rows that explain it;
+ *   - the highlighted-row fill was `rgba(87,188,103,0.15) !important` plus TWO
+ *     hardcoded hexes (`#e6f5e8` light, `#25372c` dark) kept in sync by hand —
+ *     the exact shape of all 12 CR026 dark-audit defects. It is now one
+ *     `--primary-subtle`, which is defined in both themes;
+ *   - the sticky head carried a light-mode-only gradient, so the frozen corner
+ *     read as a different surface from the header row it sits in.
+ */
 
 .balance-report__title {
   justify-content: center;
@@ -12,97 +30,12 @@
   content: none;
 }
 
-.balance-report .balance-report-table__name {
-  padding-left: calc(
-    0.95rem + var(--balance-indent-level, 0) * var(--balance-indent-unit)
-  );
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.balance-report__toggle-button {
-  margin-right: 0.5rem;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0.25rem;
-  font-size: 1rem;
-  color: var(--primary);
-  line-height: 1;
-  min-width: 1.5rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 0.25rem;
-  transition: background 0.15s ease;
-}
-
-.balance-report__toggle-button:hover:not(:disabled) {
-  background: rgba(107, 142, 107, 0.08);
-}
-
-.balance-report__toggle-button:disabled {
-  cursor: default;
-  color: transparent;
-}
-
-.balance-report-table__head {
-  position: sticky;
-  top: 0;
-  z-index: 11;
-  background: linear-gradient(to bottom, var(--surface), var(--surface-muted));
-}
-
 .balance-report-table__name-text {
   cursor: pointer;
   transition: color 0.15s ease;
 }
 
 .balance-report-table__name-text:hover {
-  color: var(--primary);
-}
-
-.balance-report .balance-report-table tbody tr.balance-report-table__row--highlighted td:first-child {
-  z-index: 10;
-}
-
-.balance-report .balance-report-table tbody tr.balance-report-table__row--highlighted td {
-  background-color: rgba(87, 188, 103, 0.15) !important;
-  font-weight: 600;
-}
-
-/* Frozen ACCOUNT column needs an OPAQUE highlight fill (the rule above is
-   semi-transparent), otherwise scrolling year values bleed through it. */
-.balance-report .balance-report-table tbody tr.balance-report-table__row--highlighted td:first-child {
-  background-color: #e6f5e8 !important;
-}
-
-:root[data-theme="dark"] .balance-report .balance-report-table tbody tr.balance-report-table__row--highlighted td:first-child {
-  background-color: #25372c !important;
-}
-
-.balance-report-table__net-worth td {
-  font-weight: 700;
-  border-top: 2px solid var(--primary);
-  background: rgba(107, 142, 107, 0.04);
-  color: var(--ink);
-  padding-top: 0.75rem;
-  padding-bottom: 0.75rem;
-}
-
-/* Net Worth tint (above) is semi-transparent; keep the frozen first cell opaque
-   so scrolling year values don't show through the sticky column. */
-.balance-report-table__net-worth td:first-child,
-.balance-report-table__net-worth .balance-report-table__name {
-  background: var(--surface);
-}
-
-.balance-report-table__net-worth .balance-report-table__name {
-  padding-left: 0.95rem;
-  font-size: 0.95rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   color: var(--primary);
 }
 
@@ -126,20 +59,3 @@
   color: var(--primary);
 }
 
-@media (max-width: 768px) {
-  .balance-report {
-    --balance-indent-unit: 0.85rem;
-  }
-}
-
-@media (max-width: 640px) {
-  .balance-report {
-    --balance-indent-unit: 0.65rem;
-  }
-
-  .balance-report__toggle-button {
-    min-width: 1.25rem;
-    padding: 0.15rem;
-    font-size: 0.85rem;
-  }
-}

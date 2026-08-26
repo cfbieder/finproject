@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-08-26 · **Live version:** **v3.43.0** (see `VERSION` / git tags) — **[CR088](../cr/cr-088-budget-vs-actual-le-table.md) COMPLETE: `/budget-vs-actual` takes the LE grid's typography — the old page drew hierarchy in colour and OPACITY, dimming money — and its budget column gains a three-state comparison, `vs Actual` · `vs LE` · `Both`**; — **[CR054](../cr/cr-054-cash-flow-by-account.md): the By-Account totals row rejoins the frozen column, the report grows a `Total`, and its account chips gain [CR008](../cr/cr-008-hierarchy-filter.md)'s `multiGroup` so a selection can span two groups**; — **CR086 §3 (the money colours) + CR087's P0 COMPLETE (P0a the `opening_balance` audit trail, migration 074 · P0b two ways a variance could be wrong · P0c the preview and its 409) + P1's reconcile half (the queue speaks currency)**; — **CR085 COMPLETE with NO unbuilt scope** (tornado + trajectory + multi-band + owner-typed bands + the knob sweep + stream schedules + a starting set, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
+**Last updated:** 2026-08-26 · **Live version:** **v3.44.0** (see `VERSION` / git tags) — **[CR088](../cr/cr-088-budget-vs-actual-le-table.md) COMPLETE: SEVEN report tables now share one stylesheet and the LE grid's typography — they drew hierarchy in colour and OPACITY, dimming money — and `/budget-vs-actual`'s budget column gains a three-state comparison, `vs Actual` · `vs LE` · `Both`**; — **[CR054](../cr/cr-054-cash-flow-by-account.md): the By-Account totals row rejoins the frozen column, the report grows a `Total`, and its account chips gain [CR008](../cr/cr-008-hierarchy-filter.md)'s `multiGroup` so a selection can span two groups**; — **CR086 §3 (the money colours) + CR087's P0 COMPLETE (P0a the `opening_balance` audit trail, migration 074 · P0b two ways a variance could be wrong · P0c the preview and its 409) + P1's reconcile half (the queue speaks currency)**; — **CR085 COMPLETE with NO unbuilt scope** (tornado + trajectory + multi-band + owner-typed bands + the knob sweep + stream schedules + a starting set, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -199,7 +199,7 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   **remaining** months are wrong. ⚠️ **Finalise/recut NOT built, and `BUDGET FY` is read live** —
   right for a draft, wrong for a frozen artefact; snapshotting it needs a migration **before**
   finalise. **Two review rounds falsified seven of the CR's own figures**, all recorded in its §16.
-- ✅ **[CR088](../cr/cr-088-budget-vs-actual-le-table.md) — COMPLETE, v3.43.0.** The owner asked
+- ✅ **[CR088](../cr/cr-088-budget-vs-actual-le-table.md) — COMPLETE, v3.43.0 + v3.44.0.** The owner asked
   for `/budget-vs-actual` to read like the LE grid, and the restyle was **not only cosmetic**: the page
   drew hierarchy in colour and opacity — five `!important` per-level backgrounds and
   `opacity: 0.7 / 0.6 / 0.55` **on the money cells** — which is [CR086](../cr/cr-086-ui-visual-system.md)
@@ -212,7 +212,17 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   columns that agree by construction read as corroboration. Past the cut it is real signal: 17 of 57
   categories carry typed estimates. **Two more instances of the CR054 cascade lesson** — a cell font-size
   and the totals-row ground both lost silently and were settled by a **DOM probe**, not by reasoning
-  about specificity.
+  about specificity. **P3 (v3.44.0) then put the look on EVERY report table** — lifted into
+  `components/ReportTable.css`, opted into by four surfaces over seven pages, deleted at source
+  rather than overridden. ⚠️ **It exposed two defects neither of which was cosmetic:** clicking an
+  account name on the Balance Sheet did **nothing** (the `<td>` and its `<span>` both toggled the
+  same key, so one click turned the highlight on and straight off — only the empty padding worked,
+  while the label carried `cursor: pointer`; Cash Flow's identical span had always stopped
+  propagation and this one had drifted), and the highlight fill was **three colour literals kept in
+  sync by hand**. ⚠️ **Three more cascade losses, all measured not reasoned** — including two
+  components that got the class but not the import, so they styled correctly **only if the user had
+  visited Cash Flow first**, a defect that depends on navigation order and never reproduces on a
+  direct load.
 - **Re-examine SRQ** — **−476,930**: funds itself 35 of 36 years, dry in the last. Marginal, not
   hopeless. Financing would be the untested lever (all cash, no rent, sells at 7%), and testing it
   is **DECLINED** (owner, 2026-08-23) — so this is a judgement to make, not an experiment to run.

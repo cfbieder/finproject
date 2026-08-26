@@ -3,6 +3,7 @@ import PropTypes from "prop-types";
 import Rest from "../../js/rest.js";
 import TransactionModal from "./TransactionModal.jsx";
 import "./CashFlowReport.css";
+import "../../components/ReportTable.css";
 
 // Build a currency/decimal formatter. A currency code (e.g. "USD", "PLN")
 // formats with that symbol; null formats a plain decimal — used when an
@@ -130,7 +131,7 @@ const renderCashFlowRows = (
       >
         <td
           className="balance-report-table__name"
-          style={{ "--cashflow-indent-level": level }}
+          style={{ "--report-indent-level": level }}
           onClick={() => onToggleHighlight(pathKey)}
         >
           <button
@@ -376,7 +377,7 @@ export default function CashFlowReport({
               Cash Flow Comparison
             </p>
           </section>
-          <div className="balance-report">
+          <div className="balance-report report-table">
             <div className="balance-report__table-wrapper">
               <table className="balance-report-table" ref={tableRef}>
                 <caption className="balance-report-table__caption"></caption>

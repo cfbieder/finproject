@@ -3,6 +3,7 @@ import { DollarSign, TrendingUp, TrendingDown, Target, ChevronDown, ChevronUp } 
 import PeriodSelector from "../../components/PeriodSelector/PeriodSelector.jsx";
 import { KpiCard, KpiCardRow } from "../../components/KpiCards.jsx";
 import FyLandingStrip from "./FyLandingStrip.jsx";
+import "../../components/ReportTable.css";
 import "./BudgetVaTable.css";
 
 const COMPARE_MODES = [
@@ -197,7 +198,7 @@ function BudgetRealizationContent({
       <div className="budget-realization-scroll">
         <section className="realization-table-section budget-va-section">
           <div className="budget-realization-table__wrapper">
-            <div className="budget-va">
+            <div className="budget-va report-table">
               <table className="balance-report-table">
                 <thead className="balance-report-table__head">
                   <tr>

@@ -1,6 +1,6 @@
 # CR088 — The Budget vs Actual table: the LE grid's typography, and a comparison it can switch
 
-**Status:** **COMPLETE** — ***Released v3.43.0 (2026-08-26)***, P1 and P2 both. Frontend + one new endpoint, **no migration**. As-built notes and the four things that turned out differently are §6; what was deliberately not built is §8.
+**Status:** **COMPLETE** — P1 + P2 ***released v3.43.0 (2026-08-26)***; P3 ***released v3.44.0 (2026-08-26)***. Frontend + one new endpoint, **no migration**. As-built notes are §6, what was deliberately not built is §8, and P3 — the shared stylesheet and the two defects it exposed — is §9.
 **Track:** v3
 **Migration:** none. `budget_le_lines` (migration 072) already carries everything P2 reads.
 **Depends on:** [CR083](cr-083-budget-latest-estimate.md) for the LE itself · shares a defect class with
@@ -235,3 +235,96 @@ rediscovered as a bug.
   superseded excluded). There is exactly one LE per budget year today; if that stops being true this
   needs a control, and a year with no LE hides the toggle entirely rather than offering an empty
   column.
+
+## 9. P3 — every other report table (owner request, 2026-08-26)
+
+> *"I think that font structure is much better — use the same for Cash Flow and Balances."*
+
+### 9.1 One stylesheet, four opt-ins, seven pages
+
+P1 scoped the look to one page **on purpose**, because `CashFlowReport.css` is imported by four and
+an edit in place would have restyled three reports nobody had asked about (§2.2). The owner has now
+asked for exactly those, so the rules were **lifted** into
+[`components/ReportTable.css`](../../frontend/src/components/ReportTable.css) and every report opts
+in by adding `report-table` beside its existing scope class — rather than copying
+`BudgetVaTable.css` three times.
+
+| Opt-in | Pages |
+|---|---|
+| `.balance-report report-table` ([CashFlowReport.jsx](../../frontend/src/features/CashFlow/CashFlowReport.jsx)) | `/cash-flow` — Summary · By Period · By Account |
+| `.balance-report report-table` ([BalanceReport.jsx](../../frontend/src/features/Balances/BalanceReport.jsx)) | `/balances` — Summary · Periods |
+| `.budget-va report-table` | `/budget-vs-actual` — Realization |
+| `.cash-flow-report report-table` ([BudgetVariances.jsx](../../frontend/src/pages/BudgetVariances.jsx)) | `/budget-vs-actual` — Variances |
+
+**Variances was not in the owner's ask and is included deliberately.** It hand-rolls the same
+`.cash-flow-report` + `.balance-report-table` markup, so deleting the level tints at their source
+would have left it half-restyled — worse than either extreme — and it is the sibling tab of the one
+already done. Excluding it would have been *more* work and *less* consistent.
+
+The old rules were **deleted at the source**, not overridden here, so no dead CSS is left behind.
+`CashFlowReport.css` went 220 → 30 lines and `BalanceReport.css` 145 → 61; between them they gave up
+five per-level `!important` backgrounds, the `opacity: 0.7 / 0.6 / 0.55` on money cells, the
+`rgba(148,163,184,…)` tree connectors, two uppercase-green totals labels and a light-mode-only
+sticky-head gradient.
+
+**Three indent custom properties became one.** `--cashflow-indent-level`, `--balance-indent-level`
+and `--budget-va-indent-level` were three names for one idea; they are now `--report-indent-level`,
+which shrank `check-dead-tokens.sh`'s runtime allowlist from five entries to two.
+
+### 9.2 ⚠️ Two defects the port exposed, neither of them cosmetic
+
+**(a) Clicking an account name on the Balance Sheet did nothing.** Both the `<td>` and the
+`<span>` inside it call `onToggleHighlight(pathKey)`, so one click on the label fired both handlers
+and toggled the same key twice — on, then straight off. Only the cell's empty padding worked, which
+nobody would find on purpose, while `.balance-report-table__name-text` carried `cursor: pointer` and
+advertised the affordance anyway. **The Cash Flow report's identical span has always called
+`event.stopPropagation()`; this one had drifted.** CR085's named defect class — state that renders
+and produces no visible effect — and it took clicking the row in a real browser to find, because
+nothing about the code reads as broken.
+
+**(b) The highlight fill was three colour literals kept in sync by hand.** It was applied as an
+**inline** `rgba(87, 188, 103, 1)` on every cell of the row; inline beats CSS, so the stylesheet
+could only reach it with `!important`, which `BalanceReport.css` used — for the frozen first cell
+only, in two hand-maintained hexes, one per theme. The row therefore had a pale first cell and
+saturated remaining cells **by accident rather than design**, and the light/dark pair was exactly the
+shape of all 12 CR026 dark-audit defects. The inline style is gone; one `--primary-subtle` rule now
+paints it in both themes, shared with the Cash Flow report, which only ever set the class.
+
+### 9.3 ⚠️ Where the cascade lost again, and how it was caught
+
+Three more instances of §6's lesson, all found by measuring the rendered DOM rather than reading the
+CSS:
+
+1. **`.report-table` was added to two components without importing the stylesheet.** Cash Flow and
+   Variances imported it; Balance Sheet and Budget vs Actual got the class only. CSS is global once
+   loaded, so both pages styled correctly **if and only if the user had visited Cash Flow first** —
+   a defect that depends on navigation order and would never reproduce on a direct page load.
+2. **The highlight lost to the zebra-hover rule.** `…tbody tr:nth-child(even):hover td` scores
+   (0,4,3) and beat a plain `…tr.--highlighted td` at (0,3,3), so a marked row on an even line, or
+   under the cursor, silently reverted to the ordinary ground. Measured coming back
+   `--surface-muted` instead of `--primary-subtle`; every odd/even × hover combination is now spelled
+   out.
+3. **A gate caught its own explanation.** `check-inline-hex.sh` failed on the two hex values quoted
+   *inside the comment* documenting their removal — it greps text and cannot tell code from prose.
+   Rewording was right; baselining would have permanently licensed two literals in that file.
+
+### 9.4 Verified
+
+- **All seven pages, both themes, measured in a real browser:** identical `12.8px` table and cell
+  type, `0.3rem 0.5rem` padding, `opacity: 1`, mono tabular figures, opaque grounds
+  (`--surface` / `--surface-muted`), and **0 console errors** on every page in every theme.
+- **The frozen column under horizontal scroll**, which is the hazard in these reports and was CR054's
+  actual defect. Both totals rows live in `<tfoot>`: after scrolling right, `Net Cash Flow` and
+  `Net Worth` both measured `position: sticky` with their label pinned exactly at the wrapper's left
+  edge, on fully opaque grounds in both themes. Nothing bleeds through.
+- **The highlight** toggles on click and paints `--primary-subtle` uniformly across the row, with no
+  inline style, in both themes.
+- All six CSS/API gates green; 582 frontend tests unchanged.
+
+### 9.5 Not touched
+
+- **`/balances` → Trends** renders `.balance-trends-table`, a different table that shares none of
+  this markup. It was not in the screenshots and is its own piece of work.
+- **`/balances` → Net Worth** is a chart.
+- **`/cash-flow` and `/balances` toolbars, KPI tiles and filter chips** — this is the table look
+  only.

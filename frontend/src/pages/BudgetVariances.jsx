@@ -3,6 +3,7 @@ import PeriodSelector from "../components/PeriodSelector/PeriodSelector.jsx";
 import BudgetDetailModal from "../features/Budgets/BudgetDetailModal.jsx";
 import Rest from "../js/rest.js";
 import "../features/CashFlow/CashFlowReport.css";
+import "../components/ReportTable.css";
 import "./PageLayout.css";
 
 // ============================================================================
@@ -357,7 +358,7 @@ export default function BudgetVariances() {
         <div className="budget-realization-scroll">
           <section className="realization-table-section">
             <div className="budget-realization-table__wrapper">
-              <div className="cash-flow-report">
+              <div className="cash-flow-report report-table">
                 <table className="balance-report-table">
                   <thead className="balance-report-table__head">
                     <tr>

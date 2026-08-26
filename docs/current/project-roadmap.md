@@ -11,7 +11,7 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 ### 1.1 Open / In-Progress
 
 <a id="cr088"></a>
-- **CR088 — The Budget vs Actual table: the LE grid's typography, and a comparison it can switch. ✅ COMPLETE — *Released v3.43.0 (2026-08-26); frontend + one new endpoint, NO migration.*** ([CR088](../cr/cr-088-budget-vs-actual-le-table.md))
+- **CR088 — The report tables: the LE grid's typography everywhere, and a comparison the budget column can switch. ✅ COMPLETE — *P1+P2 released v3.43.0, P3 released v3.44.0 (both 2026-08-26); frontend + one new endpoint, NO migration.*** ([CR088](../cr/cr-088-budget-vs-actual-le-table.md))
   **P1 — the restyle.** Owner-requested (*"the same format as [the LE grid] … much easier to read"*),
   and it turned out not to be only cosmetic. `/budget-vs-actual` drew hierarchy in **colour and
   opacity**: five per-level `!important` backgrounds, hardcoded `rgba(148,163,184,…)` borders, and
@@ -39,6 +39,32 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
   ([CR087](../cr/cr-087-money-legibility.md) P0b's rule). `renderCategoryRows` went from eleven
   positional parameters to a context object, which took `set-state-in-effect` debt 33 → 31.
   8 new backend tests, green on a fresh DB; 582 frontend tests unchanged.
+
+  **P3 (v3.44.0) — the same look on every report table, at the owner's request** (*"use the same for
+  Cash Flow and Balances"*). P1 had scoped the restyle to ONE page on purpose, because
+  `CashFlowReport.css` is imported by four; the rules are now LIFTED into
+  `components/ReportTable.css`, which four surfaces opt into with a `report-table` class, covering
+  **seven pages** — `/cash-flow` ×3, `/balances` ×2, `/budget-vs-actual` ×2. Deleted at source rather
+  than overridden: `CashFlowReport.css` 220 → 30 lines, `BalanceReport.css` 145 → 61, and three
+  per-page indent custom properties collapsed into one `--report-indent-level`.
+  ⚠️ **Two defects the port exposed, neither cosmetic.** (a) **Clicking an account name on the
+  Balance Sheet did nothing** — the `<td>` and its `<span>` both called `onToggleHighlight`, so one
+  click toggled the same key twice; only the cell's empty padding worked, while the label carried
+  `cursor: pointer` and advertised the affordance anyway. Cash Flow's identical span has always
+  called `stopPropagation()`; this one had drifted. CR085's named defect class, found by clicking the
+  row in a browser. (b) **The highlight fill was three colour literals kept in sync by hand** — an
+  inline `rgba()` that inline-beat CSS, reachable only by an `!important` carrying two hand-maintained
+  per-theme hexes, so the row had a pale first cell and saturated remaining cells by accident. Now one
+  `--primary-subtle` rule, both themes, both reports.
+  ⚠️ **Three more cascade losses, all caught by measuring the rendered DOM:** two components got the
+  class but not the stylesheet import (so they styled correctly *only if the user had visited Cash
+  Flow first* — a defect that depends on navigation order); the highlight lost to
+  `:nth-child(even):hover` on specificity and silently reverted to the ordinary ground; and
+  `check-inline-hex.sh` failed on two hex values quoted **inside the comment documenting their
+  removal** — reworded, because baselining would have licensed two literals in that file forever.
+  Verified across all seven pages in both themes, including the **frozen column under horizontal
+  scroll** (both totals rows are in `<tfoot>` — CR054's exact defect): labels stayed pinned on opaque
+  grounds, 0 console errors everywhere. Six gates green, 582 frontend tests unchanged.
 
 <a id="cr086"></a>
 - **CR086 — The visual system: six token values, three primitives, and a renderer that runs. 🔄 IN-PROGRESS — §3's money-colour repoint SHIPPED v3.37.2 (2026-08-23); the rest designed, not built.** ⚠️ **§3's money-colour repoint SHIPPED v3.37.2 (2026-08-23):** six token values, **light only**, taking light-mode contrast failures **2,364 → 1,227 (−48%)** with the two money colours and `--success-strong` now failing **zero** times and **dark byte-identical**; the delta ties to prediction within **one** element. Two traps a naive repoint would have hit, both found by deriving the ramp: `--success-strong` was **already failing** and would have ended up **lighter than its own base**, and `--danger-strong` was **already** the target value, so the two `--danger → --danger-strong` gradients would have rendered **flat**.  ([CR086](../cr/cr-086-ui-visual-system.md))
