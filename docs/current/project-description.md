@@ -199,7 +199,15 @@ All mounted at `/api/v2` (nginx rewrites legacy `/api/*`). Behavioural detail in
 `GET /le/:id` · `DELETE /le/:id` · `GET /le/:id/grid` (the shaped summary — **all money maths is
 server-side**; the frontend renders the sentence and never re-derives a figure) ·
 `GET /le/:id/deviations` (deterministic flags, **no LLM** — see below) ·
-`GET`/`PATCH /le/:id/category/:categoryId` (the month-by-month worksheet, and typed estimates).
+`GET`/`PATCH /le/:id/category/:categoryId` (the month-by-month worksheet, and typed estimates) ·
+**`GET /le/:id/cash-flow?fromDate&toDate&transfers`** ([CR088](../cr/cr-088-budget-vs-actual-le-table.md)
+P2 — the LE summed over an arbitrary month range, in the same `{ name, total, hasLe, children }`
+tree as `/budget/cash-flow`, through the same `getNestedTree` and the same transfer convention, so
+`/budget-vs-actual` keys it by leaf name into the same map as its other two columns and the
+hierarchy cannot diverge. `hasLe` distinguishes **absent from zero** — the LE materialises no line
+at all for transfers or `Unrealized G/L`, so those render `—`, never `$0.00`. ⚠️ Enveloped in
+`{ data }` unlike the `/budget/cash-flow` it otherwise mirrors: `check-api-envelope.sh` ratchets
+bare responses DOWN, and "bare because the endpoint beside it is" is the thing being ratcheted).
 Every literal segment registers **before** `/le/:id` or Express 5 binds it to the param.
 **`GET /budget/fy-landing?year=` (P0a)** is separate and needs no LE: it returns the cut, the two
 halves and the identity `landing = budget_FY + (actual_YTD − budget_YTD)`, on the LE's scope

@@ -3,15 +3,17 @@ import { DollarSign, TrendingUp, TrendingDown, Target, ChevronDown, ChevronUp } 
 import PeriodSelector from "../../components/PeriodSelector/PeriodSelector.jsx";
 import { KpiCard, KpiCardRow } from "../../components/KpiCards.jsx";
 import FyLandingStrip from "./FyLandingStrip.jsx";
+import "./BudgetVaTable.css";
+
+const COMPARE_MODES = [
+  { key: "actual", label: "vs Actual" },
+  { key: "le", label: "vs LE" },
+  { key: "both", label: "Both" },
+];
 
 function BudgetRealizationContent({
   filteredCategoryTree,
-  collapsedPaths,
-  onTogglePath,
-  leafActualTotals,
-  actualValueResolver,
-  leafBudgetTotals,
-  budgetValueResolver,
+  rowContext,
   showNetRow,
   netBudgetDisplay,
   netActualDisplay,
@@ -19,16 +21,22 @@ function BudgetRealizationContent({
   netBudgetCellClass,
   netActualCellClass,
   netVarianceCellClass,
+  netLeDisplay,
+  netLeVarianceDisplay,
+  netLeCellClass,
+  netLeVarianceCellClass,
   renderCategoryRows,
-  onBudgetCellDoubleClick,
-  onActualCellDoubleClick,
   periodProps,
   toggleProps,
+  compareProps,
   onExport,
   canExport = false,
   kpiData,
   fyLanding,
 }) {
+  const showActual = rowContext.showActual;
+  const showLe = rowContext.showLe;
+
   return (
     <div className="budget-realization-content">
       <div className="realization-toolbar-header">
@@ -67,6 +75,27 @@ function BudgetRealizationContent({
               />
               <span className="realization-toolbar__toggle-text">Transfers</span>
             </label>
+            {compareProps && compareProps.leAvailable && (
+              <div
+                className="budget-va__compare"
+                role="group"
+                aria-label="What the budget is compared against"
+              >
+                {COMPARE_MODES.map((m) => (
+                  <button
+                    key={m.key}
+                    type="button"
+                    className={`budget-va__compare-btn${
+                      compareProps.mode === m.key ? " budget-va__compare-btn--on" : ""
+                    }`}
+                    aria-pressed={compareProps.mode === m.key}
+                    onClick={() => compareProps.onChange(m.key)}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            )}
             <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={toggleProps.onExpandOneLayer} disabled={!toggleProps.hasCollapsiblePaths || toggleProps.isFullyExpanded} title="Expand one level"><ChevronDown size={16} /></button>
             <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={toggleProps.onCollapseOneLayer} disabled={!toggleProps.hasCollapsiblePaths || toggleProps.isFullyCollapsed} title="Collapse one level"><ChevronUp size={16} /></button>
             {canExport && onExport && (
@@ -83,6 +112,23 @@ function BudgetRealizationContent({
       )}
 
       <FyLandingStrip landing={fyLanding} />
+
+      {/* ⚠️ The one thing a reader must be told before trusting an LE column.
+          `budget_le_lines` carries the transactions verbatim for every month at
+          or before the cut, so over such a period the LE column is IDENTICAL to
+          the actual one — measured on prod, 0 of 111 leaves differ and the sums
+          tie to the cent. Two columns that agree by construction read as
+          corroboration, and they are not. The mode stays selectable (the owner
+          asked for an explicit toggle, not auto-hiding); the page says why. */}
+      {showLe && compareProps && compareProps.leCut && !compareProps.periodReachesPastCut && (
+        <p className="budget-va__cutnote" role="note">
+          <strong>The selected period ends on or before {compareProps.leName}&rsquo;s
+          cut ({compareProps.leCut}),</strong> where the Latest Estimate holds the
+          actual transactions themselves. <strong>LE will equal Actual on every
+          row.</strong> Choose a period reaching past the cut to see where the
+          estimate departs from the budget.
+        </p>
+      )}
 
       {kpiData && (
         <KpiCardRow>
@@ -149,9 +195,9 @@ function BudgetRealizationContent({
       )}
 
       <div className="budget-realization-scroll">
-        <section className="realization-table-section">
+        <section className="realization-table-section budget-va-section">
           <div className="budget-realization-table__wrapper">
-            <div className="cash-flow-report">
+            <div className="budget-va">
               <table className="balance-report-table">
                 <thead className="balance-report-table__head">
                   <tr>
@@ -159,22 +205,26 @@ function BudgetRealizationContent({
                       Category
                     </th>
                     <th scope="col">Budgeted</th>
-                    <th scope="col">Actuals</th>
-                    <th scope="col">Variance</th>
+                    {showActual && (
+                      <>
+                        <th scope="col">Actuals</th>
+                        <th scope="col">Variance</th>
+                      </>
+                    )}
+                    {showLe && (
+                      <>
+                        <th scope="col" className="budget-va__le-cell">
+                          {compareProps && compareProps.leName
+                            ? compareProps.leName
+                            : "LE"}
+                        </th>
+                        <th scope="col">Var vs LE</th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
-                  {renderCategoryRows(
-                    filteredCategoryTree,
-                    collapsedPaths,
-                    onTogglePath,
-                    leafActualTotals,
-                    actualValueResolver,
-                    leafBudgetTotals,
-                    budgetValueResolver,
-                    onBudgetCellDoubleClick,
-                    onActualCellDoubleClick
-                  )}
+                  {renderCategoryRows(filteredCategoryTree, rowContext)}
                   {showNetRow && (
                     <tr className="balance-report-table__totals-row">
                       <td className="balance-report-table__name">
@@ -183,10 +233,24 @@ function BudgetRealizationContent({
                         </span>
                       </td>
                       <td className={netBudgetCellClass}>{netBudgetDisplay}</td>
-                      <td className={netActualCellClass}>{netActualDisplay}</td>
-                      <td className={netVarianceCellClass}>
-                        {netVarianceDisplay}
-                      </td>
+                      {showActual && (
+                        <>
+                          <td className={netActualCellClass}>{netActualDisplay}</td>
+                          <td className={netVarianceCellClass}>
+                            {netVarianceDisplay}
+                          </td>
+                        </>
+                      )}
+                      {showLe && (
+                        <>
+                          <td className={`${netLeCellClass} budget-va__le-cell`}>
+                            {netLeDisplay}
+                          </td>
+                          <td className={netLeVarianceCellClass}>
+                            {netLeVarianceDisplay}
+                          </td>
+                        </>
+                      )}
                     </tr>
                   )}
                 </tbody>

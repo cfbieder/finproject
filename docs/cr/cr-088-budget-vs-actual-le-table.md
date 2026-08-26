@@ -1,0 +1,237 @@
+# CR088 — The Budget vs Actual table: the LE grid's typography, and a comparison it can switch
+
+**Status:** **COMPLETE** — ***Released v3.43.0 (2026-08-26)***, P1 and P2 both. Frontend + one new endpoint, **no migration**. As-built notes and the four things that turned out differently are §6; what was deliberately not built is §8.
+**Track:** v3
+**Migration:** none. `budget_le_lines` (migration 072) already carries everything P2 reads.
+**Depends on:** [CR083](cr-083-budget-latest-estimate.md) for the LE itself · shares a defect class with
+[CR086](cr-086-ui-visual-system.md) §3 and [CR087](cr-087-money-legibility.md).
+**Roadmap anchor:** [project-roadmap.md#cr088](../current/project-roadmap.md)
+**Origin:** Owner request, 2026-08-26 — *"use the same format as [the LE grid] as this one is much
+easier to read … only difference is that we continue to allow the expand and contract of details"*,
+plus *"Budget v Actual for period selected and Budget v LE for period selected"*.
+
+---
+
+## 1. The one-sentence shape
+
+> **`/budget-vs-actual` draws hierarchy in colour and opacity; the LE grid draws it in indentation
+> and weight. The owner finds the second legible and the first not — and the first is also a live
+> instance of the two defect classes CR086 §3 and CR087 just spent three releases closing.**
+
+## 2. P1 — the restyle
+
+### 2.1 What is actually wrong, not just different
+
+[CashFlowReport.css](../../frontend/src/features/CashFlow/CashFlowReport.css) gives each of five
+tree levels its own `!important` background, a hardcoded `rgba(148, 163, 184, …)` left border, and —
+for levels 2, 3 and 4 — `opacity: 0.7 / 0.6 / 0.55` applied to
+`.balance-report-table__value`. That last one is the problem worth naming: **it dims money.** A leaf
+figure three levels down renders at just over half opacity against its own tint, which is the
+contrast failure CR086 §3 measured 2,364 instances of and cut to 1,227. This page put some of them
+back by hand.
+
+[LEGrid.css:317](../../frontend/src/features/BudgetLE/LEGrid.css#L317) states the opposing rule in a
+comment, and it is the right one:
+
+> *Depth is carried by indentation and weight, not by colour — a tinted "level" scale is the thing
+> that inverts in dark mode.*
+
+So P1 is not a taste change dressed as a fix. It is the fix, and the owner's preference and the
+audit agree for once.
+
+### 2.2 ⚠️ The trap: `CashFlowReport.css` is not this page's stylesheet
+
+It is imported by **four** pages:
+
+| Importer | What it is |
+|---|---|
+| [CashFlowReport.jsx](../../frontend/src/features/CashFlow/CashFlowReport.jsx) | the real Cash Flow report |
+| [BudgetRealization.jsx](../../frontend/src/pages/BudgetRealization.jsx) | **this page** |
+| [BudgetRealizationGraph.jsx](../../frontend/src/pages/BudgetRealizationGraph.jsx) | the Chart tab |
+| [BudgetVariances.jsx](../../frontend/src/pages/BudgetVariances.jsx) | the Variances tab |
+
+Editing it in place restyles three other reports silently, on a page nobody asked about. **P1
+therefore adds a page-scoped class and does not touch the shared file.** The Cash Flow report keeps
+its current look until someone asks otherwise.
+
+### 2.3 What carries over from LEGrid, and what does not
+
+Carried: `0.8rem` body / `0.68rem` uppercase muted headers · `0.3rem 0.5rem` cell padding · tokens
+only, no `rgba()` literals, no `!important` · `--font-mono` + `font-variant-numeric: tabular-nums`
+on every figure · `var(--surface)` ground with a `var(--surface-muted)` hover · weight-by-depth
+(`d0` 700, rollup 600, leaf 400) with **no per-level background and no opacity**.
+
+**Not** carried — the owner's stated exception: LEGrid has no expand/collapse, this table keeps it.
+The toggle button lives *inside* the indent rather than displacing it, so a row's name still starts
+at its depth's left edge. LEGrid's deliberate absence of a scroll container and sticky column
+(a print constraint, [LEGrid.css:1-14](../../frontend/src/features/BudgetLE/LEGrid.css#L1-L14)) also
+does not carry: this table can reach six columns under P2 and already lives in a scroll wrapper.
+
+## 3. P2 — Budget vs LE for the selected period
+
+### 3.1 The toggle (owner decision, 2026-08-26)
+
+A three-state control in the toolbar. **The `BUDGET` column is always present**; the toggle chooses
+what it is compared against.
+
+| Mode | Columns |
+|---|---|
+| `Actual` | `CATEGORY · BUDGET · ACTUAL · VAR` — today's view, the default |
+| `LE` | `CATEGORY · BUDGET · LE · VAR` |
+| `Both` | `CATEGORY · BUDGET · ACTUAL · VAR · LE · VAR LE` |
+
+### 3.2 ⚠️ Before the cut, the LE *is* the actual — and the page must say so
+
+Measured on prod, 2026-08-26 (`LE-08-26`, `actual_through = 2026-07-31`):
+
+| `source` | rows | categories | months |
+|---|---:|---:|---|
+| `actual` | 525 | 93 | 2026-01 → 2026-07 |
+| `budget_carry` | 201 | 57 | 2026-08 → 2026-12 |
+| `manual` | 48 | 17 | 2026-08 → 2026-12 |
+
+`budget_le_lines` carries the transactions verbatim for every closed month. So for **any period
+ending on or before the cut, the `LE` column is byte-identical to `ACTUAL`** and `VAR LE` is
+byte-identical to `VAR`. Two columns that agree by construction read as corroboration; they are
+not. The mode stays selectable — the owner chose an explicit toggle over auto-hiding — but the page
+states the cut date and flags a period that does not reach past it.
+
+Where the comparison *does* carry information: past the cut, LE = budget carried forward, overwritten
+where the owner typed. **17 categories of 57** currently hold `manual` months for Aug–Dec, so a
+forward or full-year period shows a real, sparse, readable signal — which is exactly the question
+"where has my estimate departed from the budget I set".
+
+### 3.3 ⚠️ The scope tie, and why the endpoint is shaped the way it is
+
+The LE's own materialisation scope
+([budgetLe.js:36-42](../../server/src/v2/repositories/budgetLe.js#L36-L42)) hard-excludes transfers
+and `Unrealized G/L`, and rolls a parent's directly-posted amounts up. `/budget-vs-actual` **toggles**
+both and counts leaf categories only. That mismatch is what
+[FyLandingStrip.jsx](../../frontend/src/features/Budgets/FyLandingStrip.jsx) already has to state in
+words — *"does not tie to the table below"*. Side-by-side columns would turn one footnote into a
+per-row discrepancy.
+
+**The fix is structural, not a disclaimer.** The new endpoint returns the *same shape* as
+`GET /api/v2/budget/cash-flow` — a `Profit & Loss Accounts` tree of
+`{ name, total, hasLe, children }`, built through the same `getNestedTree` and the same transfer
+convention (`extractTransferCategories`, **imported from `budget.js` rather than re-implemented**;
+a second copy of a name-matching rule is what cost CR087 §4b a wrong variance sign) — so the
+frontend keys it by leaf name into the same `Map` as the other two columns and the hierarchy cannot
+diverge.
+
+One honest residual: **the LE holds no lines at all for transfer or `Unrealized G/L` categories**, so
+with either toggle ON those rows have no LE figure. They render `—`, never `$0.00`. That is
+CR087 P0b's rule, and it was learnt the expensive way: a failed fetch once rendered a page of
+100%-favourable variances that looked like good news.
+
+### 3.4 Endpoint
+
+`GET /api/v2/budget/le/:id/cash-flow?fromDate&toDate&transfers`
+
+Sums `budget_le_lines.base_amount` where `period_month` falls in `[fromDate, toDate]`, grouped by
+category name, then builds the tree with `buildLeCashFlowNode` — a near-mirror of
+`buildBudgetCashFlowNode` rather than a reuse of it, because that one has nowhere to put `hasLe`
+and widening it would change the two columns this feature must not disturb. No migration.
+
+`period_month` is the FIRST of each month, so a range is matched by containment of that
+first-of-month, not by overlap; the period selector's real bounds (`2026-08-01 .. 2026-12-31`)
+contain `2026-08-01 .. 2026-12-01`. A range outside the LE's budget year matches no lines and every
+row comes back absent, which is the truthful answer rather than an error.
+
+**Which LE?** There is exactly one non-superseded LE per budget year today. The page takes the head
+of `GET /api/v2/budget/le?budgetYear=` (`findAll` already orders newest first and excludes
+superseded). If the selected year has none, **the toggle is not rendered at all** and the mode falls
+back to `Actual` — a disabled control the owner cannot act on is the CR085 defect class, and an
+empty LE column would read as "the estimate is nothing".
+
+## 4. Not in scope
+
+- The Chart and Variances tabs keep their current look and their `Actual`-only comparison.
+- `/m/budget-realization` (the mobile view) is untouched.
+- The `includeUnrealizedGL` query param that
+  [budget.js:514](../../server/src/v2/routes/budget.js#L514) accepts and never reads — the frontend
+  filters `Unrealized G/L` client-side, so it is dead, not broken. Noted here so the next reader
+  does not re-discover it; removing it is a separate cleanup.
+
+## 5. Success criteria
+
+1. `/budget-vs-actual` renders no `!important` background, no `rgba()` literal and no `opacity` on a
+   money cell; every colour resolves from a token defined at both `:root` and `[data-theme="dark"]`.
+2. The other three importers of `CashFlowReport.css` render byte-identically to before.
+3. Expand/collapse, the one-layer buttons, the double-click detail modal and Export all still work.
+4. Both themes rendered and read — not asserted from the CSS. The lesson of
+   [CR082](cr-082-tax-section-fbar-114.md) is that no gate looks at the page.
+5. P2: with a period ending on or before the LE cut, `LE` equals `ACTUAL` on every row — verified,
+   and the page says why rather than leaving it to be noticed.
+
+## 6. As built — and the four things that turned out differently
+
+Everything in §2–§3 shipped as designed. These four did not, and each is the kind of thing that is
+cheaper to write down than to rediscover.
+
+### 6.1 Sizing the table is not sizing the cells
+
+The first cut of `BudgetVaTable.css` set `font-size: 0.8rem` on `.budget-va .balance-report-table`
+and stopped. The rows still rendered at the old height: PageLayout.css sizes the cells directly
+through a bare `.balance-report-table td`, which inherits nothing from the table rule. **Measured
+15px inside a 12.8px table.** Found by probing `getComputedStyle` in a real browser; it is invisible
+in the stylesheet and almost invisible in a screenshot.
+
+### 6.2 The totals row lost to its own ground rule
+
+`.budget-va .balance-report-table__totals-row td { background: var(--surface-muted) }` was beaten by
+`.budget-va .balance-report-table tbody td { background: var(--surface) }` — later in the file and
+one selector more specific, because the Net Cash Flow row lives **inside `<tbody>`**. It rendered on
+the wrong ground and looked deliberate.
+
+Both 6.1 and 6.2 are the CR054 shape: a cascade tie settled by **a DOM probe**, not by reading the
+CSS and reasoning about specificity. That reasoning was wrong twice in CR054 and would have been
+wrong twice here.
+
+### 6.3 The endpoint is enveloped; its sibling is not
+
+§3.4 planned to mirror `/budget/cash-flow` exactly, bare response included. `check-api-envelope.sh`
+refused it: bare responses are a **shrink-only ratchet** at 27, and the convention it exists to stop
+spreading is *"this endpoint returns its payload bare because the one beside it does"*. The gate was
+right and the CR was wrong. `GET /budget/le/:id/cash-flow` returns `{ data: … }`; the one caller is
+new and unwraps.
+
+### 6.4 A parent's own directly-posted lines do not show
+
+`buildLeCashFlowNode` sums children and never looks a non-leaf up in the totals map — so the two
+categories that post directly to a parent (`Car Expense`, `Children - Anna`) contribute nothing to
+their own row. This is **deliberate and shared**: `/budget/cash-flow` and `/reports/cash-flow` have
+the identical limitation, and the whole point of §3.3 is that the LE column must not disagree with
+the two beside it. It does mean the LE column here and the LE **grid** at `/budget-le` legitimately
+differ — the grid counts those lines (CR083 §2.1a). Pinned by a test rather than left to be
+rediscovered as a bug.
+
+## 7. What was verified, and how
+
+- **Both themes rendered in a real browser**, not asserted from the CSS — criterion §5.4. Light and
+  dark, collapsed and three levels deep, all three compare modes.
+- **The pre-cut identity, on prod data.** `/reports/cash-flow` and `/budget/le/17/cash-flow` over
+  2026-01-01..2026-07-31: **111 leaves, 0 differing, both sums 25,743.86**. Over
+  2026-08-01..2026-12-31: **66 leaves differ**. This is §3.2 measured rather than argued.
+- **Absent-vs-zero, in the DOM.** Transfers toggled ON, `Both` mode: **8 rows** render `—` in
+  `--muted` across both LE columns — the four `Transfer - *` leaves and their parent, plus
+  `Purchases - IT Costs` (budgeted, never estimated). None render `$0.00`.
+- **The interactions survived the refactor**: expand/collapse one layer (99 → 54 rows), the
+  double-click detail modal, Export. **0 console errors** in every run.
+- **Gates:** `check-dead-tokens` (the runtime indent token is allowlisted alongside the two that
+  already were), `check-inline-hex`, `check-modal-adoption`, `check-api-envelope` (back at baseline
+  27 after §6.3), `check-button-css` (re-baselined for the segmented control — the same judgement
+  LEGrid made for `.le-grid__catlink`: the shared `.btn` system would put three padded, bordered
+  controls in a toolbar that already carries eight), `check-lint-debt` (**33 → 31**, re-baselined).
+- **Tests:** 8 new backend tests, green on a from-scratch CI-shaped database
+  (`Scripts/test-fresh-db.sh`, 1099 total); 582 frontend tests unchanged.
+
+## 8. Not built
+
+- **Export does not carry the LE columns.** `exportBudgetRealization` still writes Budget / Actual /
+  Variance regardless of the selected mode. Small, and nobody asked; listed so the gap is known
+  rather than assumed absent.
+- **No LE picker.** The page takes the head of `GET /budget/le?budgetYear=` (newest first,
+  superseded excluded). There is exactly one LE per budget year today; if that stops being true this
+  needs a control, and a year with no LE hides the toggle entirely rather than offering an empty
+  column.

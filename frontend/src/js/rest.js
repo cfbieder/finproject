@@ -187,6 +187,39 @@ export default class Rest {
     return Rest.fetchJson(`/api/v2${path}`, { method: "DELETE" });
   }
 
+  /**
+   * CR088 P2 — the LE summed over the same period as the other two columns.
+   *
+   * Returns `{ nodes, le }`, not a bare tree: the caller needs the LE's cut date
+   * to say whether the selected period reaches past it, and a period that does
+   * not is one where the LE is the actual by construction.
+   */
+  static async fetchLeCashFlowReport({ leId, fromDate, toDate, transfers } = {}) {
+    if (!leId) return null;
+    const params = new URLSearchParams();
+    if (fromDate) params.set("fromDate", fromDate);
+    if (toDate) params.set("toDate", toDate);
+    if (transfers) params.set("transfers", transfers);
+
+    const query = params.toString();
+    const path = `/api/v2/budget/le/${encodeURIComponent(leId)}/cash-flow${query ? `?${query}` : ""}`;
+    // Enveloped, unlike the two cash-flow calls above it — see the note on the
+    // route. `unwrap` handles both shapes, so this stays correct either way.
+    const report = Rest.unwrap(await Rest.fetchJson(path));
+    return {
+      nodes: report?.["Profit & Loss Accounts"] ?? null,
+      le: report?.le ?? null,
+    };
+  }
+
+  /** CR088 P2 — the LEs for a budget year, newest first (see budgetLe.findAll). */
+  static async fetchBudgetLeList(budgetYear) {
+    const query = budgetYear ? `?budgetYear=${encodeURIComponent(budgetYear)}` : "";
+    const payload = await Rest.fetchJson(`/api/v2/budget/le${query}`);
+    const rows = Rest.unwrap(payload);
+    return Array.isArray(rows) ? rows : [];
+  }
+
   static async fetchBudgetCashFlowReport({
     fromDate,
     toDate,

@@ -10,6 +10,36 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.1 Open / In-Progress
 
+<a id="cr088"></a>
+- **CR088 — The Budget vs Actual table: the LE grid's typography, and a comparison it can switch. ✅ COMPLETE — *Released v3.43.0 (2026-08-26); frontend + one new endpoint, NO migration.*** ([CR088](../cr/cr-088-budget-vs-actual-le-table.md))
+  **P1 — the restyle.** Owner-requested (*"the same format as [the LE grid] … much easier to read"*),
+  and it turned out not to be only cosmetic. `/budget-vs-actual` drew hierarchy in **colour and
+  opacity**: five per-level `!important` backgrounds, hardcoded `rgba(148,163,184,…)` borders, and
+  `opacity: 0.7 / 0.6 / 0.55` **on the value cells** — a leaf three levels down rendering money at
+  just over half opacity, which is the contrast failure [CR086](../cr/cr-086-ui-visual-system.md) §3
+  spent a release cutting 2,364 → 1,227. It now follows LEGrid's rule (*"depth is carried by
+  indentation and weight, not by colour"*), tokens only, expand/collapse kept — the owner's one
+  stated exception. ⚠️ **The restyle could NOT be an edit to `CashFlowReport.css`:** that file is
+  imported by **four** pages, so the wrapper now carries `.budget-va` instead of `.cash-flow-report`
+  and the other three render byte-identically. ⚠️ **Two overrides silently lost the cascade and were
+  found by a DOM probe, not by reading the CSS** — cells kept PageLayout's `0.9375rem` because
+  sizing the *table* is not sizing the *cells* (measured 15px against a 12.8px table), and the Net
+  Cash Flow row lives in `<tbody>`, so the generic ground rule beat its own background. Same shape as
+  [CR054](../cr/cr-054-cash-flow-by-account.md)'s frozen-column tie, settled the same way.
+  **P2 — Budget vs LE for the selected period.** A three-state toolbar toggle (owner decision): the
+  **BUDGET column is always present** and the toggle chooses what it is compared against —
+  `vs Actual` (default) · `vs LE` · `Both` (six columns). New endpoint
+  `GET /budget/le/:id/cash-flow`, no migration. ⚠️ **The load-bearing fact, measured on prod:
+  before the LE's cut, the LE IS the actual** — `budget_le_lines` carries the transactions verbatim
+  for every closed month, so over Jan–Jul **0 of 111 leaves differ and the sums tie to the cent**.
+  The mode stays selectable and the page **says so** rather than letting a reader mistake two columns
+  that agree by construction for corroboration. Past the cut it is real, sparse signal: **17 of 57
+  categories** carry typed estimates for Aug–Dec. ⚠️ **Absent is not zero** — the LE materialises no
+  line for transfers or `Unrealized G/L`, so with either toggle ON those 8 rows render `—`
+  ([CR087](../cr/cr-087-money-legibility.md) P0b's rule). `renderCategoryRows` went from eleven
+  positional parameters to a context object, which took `set-state-in-effect` debt 33 → 31.
+  8 new backend tests, green on a fresh DB; 582 frontend tests unchanged.
+
 <a id="cr086"></a>
 - **CR086 — The visual system: six token values, three primitives, and a renderer that runs. 🔄 IN-PROGRESS — §3's money-colour repoint SHIPPED v3.37.2 (2026-08-23); the rest designed, not built.** ⚠️ **§3's money-colour repoint SHIPPED v3.37.2 (2026-08-23):** six token values, **light only**, taking light-mode contrast failures **2,364 → 1,227 (−48%)** with the two money colours and `--success-strong` now failing **zero** times and **dark byte-identical**; the delta ties to prediction within **one** element. Two traps a naive repoint would have hit, both found by deriving the ramp: `--success-strong` was **already failing** and would have ended up **lighter than its own base**, and `--danger-strong` was **already** the target value, so the two `--danger → --danger-strong` gradients would have rendered **flat**.  ([CR086](../cr/cr-086-ui-visual-system.md))
   Built on a **live headless-Chromium pass over all 37 nav-visible routes in both themes**, which

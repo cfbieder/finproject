@@ -1,0 +1,349 @@
+/*
+ * CR088 P1 — the Budget vs Actual table, restyled to the LE grid's typography.
+ *
+ * ⚠️ WHY THIS FILE EXISTS AT ALL, INSTEAD OF AN EDIT TO CashFlowReport.css:
+ * that stylesheet is imported by FOUR pages — the real Cash Flow report, this
+ * page, the Budget Chart tab and the Budget Variances tab. Editing it in place
+ * would have silently restyled three reports nobody asked about. So the wrapper
+ * on this page carries `.budget-va` INSTEAD OF `.cash-flow-report`, none of
+ * that file's rules reach here any more, and everything the table needs is
+ * below. If you are reading this while wondering where the tree connector
+ * lines went: they were `::before`/`::after` in CashFlowReport.css, LEGrid has
+ * none, and the owner asked for LEGrid.
+ *
+ * ⚠️ WHAT WAS WRONG, not merely different. The old rules drew hierarchy in
+ * COLOUR and OPACITY: five per-level `!important` backgrounds, hardcoded
+ * `rgba(148, 163, 184, …)` borders, and `opacity: 0.7 / 0.6 / 0.55` applied to
+ * the VALUE cells. That last one dims MONEY — a leaf three levels down rendered
+ * at just over half opacity against its own tint, which is the contrast failure
+ * CR086 §3 spent a release cutting from 2,364 to 1,227. This page had put some
+ * of them back by hand.
+ *
+ * The rule now is LEGrid.css's, quoted because it is the load-bearing one:
+ *   "Depth is carried by indentation and weight, not by colour — a tinted
+ *    'level' scale is the thing that inverts in dark mode."
+ *
+ * Tokens only. Every colour below is defined at BOTH `:root` and
+ * `:root[data-theme="dark"]` in index.css (verified, not assumed), so there is
+ * no theme-specific block here to fall out of sync — which is the exact shape
+ * of all 12 defects the CR026 dark audit found.
+ *
+ * Specificity note: several rules below are deliberately one level more
+ * specific than they look like they need to be (`thead th` rather than `th`,
+ * `.budget-va .balance-report-table__totals-row td`). PageLayout.css styles the
+ * same elements through `.realization-table-section .balance-report-table th`
+ * and friends, at equal specificity — so an equal-specificity override here
+ * would depend on CSS import ORDER, which is a Vite implementation detail and
+ * not something to bet a layout on. CR054 settled a frozen-column tie the same
+ * way and it took two wrong attempts to learn.
+ */
+
+/* ---- the table ---------------------------------------------------------- */
+
+.budget-va .balance-report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.budget-va .balance-report-table thead th,
+.budget-va .balance-report-table tbody td {
+  padding: 0.3rem 0.5rem;
+  /* PageLayout.css sizes these cells at 0.9375rem through a bare
+     `.balance-report-table td`. Sizing the TABLE alone is not enough — measured
+     15px against a 12.8px table, which is how the first cut of this file still
+     rendered at the old row height while claiming 0.8rem. */
+  font-size: inherit;
+  border-bottom: 1px solid var(--border);
+  border-left: none;
+}
+
+.budget-va .balance-report-table thead th {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--surface-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.budget-va .balance-report-table thead th.balance-report-table__category {
+  text-align: left;
+}
+
+/* ---- ground ------------------------------------------------------------- */
+
+/* One flat ground, no zebra. PageLayout.css stripes even rows with a
+   `rgba(248, 250, 254, 0.35)` literal — a light-mode colour that in dark mode
+   lays a pale film over a dark surface. Rows are told apart by their rule and
+   their indent, which is what LEGrid does and what survives a theme swap. */
+.budget-va .balance-report-table tbody td,
+.budget-va .balance-report-table tbody tr:nth-child(even) td {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.budget-va .balance-report-table tbody tr:hover td,
+.budget-va .balance-report-table tbody tr:nth-child(even):hover td {
+  background: var(--surface-muted);
+}
+
+/* The first column is sticky (PageLayout.css), so it must stay OPAQUE or the
+   scrolling figures show through it. Re-assert it for every row state. */
+.budget-va .balance-report-table tbody td:first-child,
+.budget-va .balance-report-table tbody tr:nth-child(even) td:first-child {
+  background: var(--surface);
+}
+
+.budget-va .balance-report-table tbody tr:hover td:first-child,
+.budget-va .balance-report-table tbody tr:nth-child(even):hover td:first-child {
+  background: var(--surface-muted);
+}
+
+/* ---- figures ------------------------------------------------------------ */
+
+.budget-va .balance-report-table__value {
+  text-align: right;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  /* Weight comes from the row's depth (below), not from being a number. */
+  font-weight: inherit;
+}
+
+/* Colour carries the sign; weight does not. The base rule bumps negatives to
+   700, which made every expense row heavier than every income row and read as
+   emphasis rather than sign. */
+.budget-va .balance-report-table td.balance-report-table__value--negative {
+  color: var(--growth-negative);
+  font-weight: inherit;
+}
+
+/* ---- hierarchy: indentation and weight only ----------------------------- */
+
+.budget-va {
+  --budget-va-indent-unit: 1.1rem;
+}
+
+.budget-va .balance-report-table__name {
+  padding-left: calc(0.5rem + var(--budget-va-indent-level, 0) * var(--budget-va-indent-unit));
+  text-align: left;
+  white-space: nowrap;
+  color: var(--ink);
+}
+
+.budget-va .balance-report-table__name-text {
+  cursor: pointer;
+}
+
+/* Depth 0 — Income / Expense. A rule above it and weight, no band, no caps.
+   The uppercase + letter-spaced + `--primary`-coloured green band the old
+   styling used is what made two rows shout over the 117 that carry the
+   detail. */
+.budget-va .balance-report-table tbody tr[data-level="0"] td {
+  border-top: 1px solid var(--border-strong);
+  font-weight: 700;
+}
+
+.budget-va .balance-report-table tbody tr[data-level="0"] .balance-report-table__name-text {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* Depth 1 — rollups. */
+.budget-va .balance-report-table tbody tr[data-level="1"] td {
+  font-weight: 600;
+}
+
+/* Depth 2+ — leaves. Regular weight, FULL opacity, full-contrast ink. The old
+   rules faded these to 0.7 / 0.6 / 0.55 and greyed the label to `--muted`;
+   they are the rows the report exists to show. */
+.budget-va .balance-report-table tbody tr[data-level="2"] td,
+.budget-va .balance-report-table tbody tr[data-level="3"] td,
+.budget-va .balance-report-table tbody tr[data-level="4"] td {
+  font-weight: 400;
+  opacity: 1;
+}
+
+/* ---- the expand/collapse control ---------------------------------------- */
+
+/* The owner's one stated exception to "make it look like LEGrid": LEGrid has no
+   expand/collapse and this table keeps it. The control sits INSIDE the indent
+   rather than displacing it, so a row's name still starts at its depth's left
+   edge and the indent still reads as the hierarchy. */
+.budget-va__toggle {
+  margin-right: 0.35rem;
+  padding: 0;
+  min-width: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.budget-va__toggle:hover:not(:disabled) {
+  color: var(--primary);
+}
+
+.budget-va__toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.budget-va__toggle:disabled {
+  cursor: default;
+  color: transparent;
+}
+
+/* ---- the Net Cash Flow row ---------------------------------------------- */
+
+/* PageLayout.css gives this row a 135deg gradient, 1.25rem padding and a
+   1.05rem type size — three times the surrounding row height. LEGrid's total is
+   a rule, a muted ground and weight 600, at the same size as everything else. */
+/* ⚠️ `tbody` is in this selector on purpose. The Net Cash Flow row lives INSIDE
+   <tbody>, so the generic ground rule above (`.budget-va .balance-report-table
+   tbody td`) is both later in the file and equally specific — it won, and the
+   totals row measured as `--surface` rather than `--surface-muted`. Same shape
+   as CR054's frozen-column tie, and found the same way: a DOM probe, not a
+   reading of the cascade. */
+.budget-va .balance-report-table tbody .balance-report-table__totals-row td,
+.budget-va .balance-report-table tbody .balance-report-table__totals-row td:first-child {
+  background: var(--surface-muted);
+  border-top: 2px solid var(--border-strong);
+  border-bottom: none;
+  padding: 0.45rem 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.budget-va .balance-report-table__totals-row .balance-report-table__name {
+  padding-left: 0.5rem;
+}
+
+.budget-va .balance-report-table__name-text--bold,
+.budget-va .balance-report-table__value--bold {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* ---- container ---------------------------------------------------------- */
+
+/* The section wrapper's 1.25rem/1.5rem padding and drop shadow were sized for
+   the old row height; at 0.8rem type they frame a table half the height. */
+.budget-va-section {
+  padding: 0.75rem;
+}
+
+.budget-va-section:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+@media (max-width: 640px) {
+  .budget-va {
+    --budget-va-indent-unit: 0.65rem;
+  }
+}
+
+/* ---- print -------------------------------------------------------------- */
+
+/* Browsers print the live DOM, so a dark-mode `--ink` of #E2E8F0 lands
+   near-invisible on white paper — the reason LEGrid.css and TaxFbar.css both
+   force #000. */
+@media print {
+  .budget-va .balance-report-table thead th,
+  .budget-va .balance-report-table tbody td,
+  .budget-va .balance-report-table__totals-row td {
+    background: none;
+  }
+
+  .budget-va .balance-report-table,
+  .budget-va .balance-report-table th,
+  .budget-va .balance-report-table td,
+  .budget-va .balance-report-table__value,
+  .budget-va .balance-report-table td.balance-report-table__value--negative {
+    color: #000;
+  }
+
+  .budget-va__toggle { display: none; }
+  .budget-va .balance-report-table tr { page-break-inside: avoid; }
+  .budget-va .balance-report-table thead { display: table-header-group; }
+}
+
+/* ---- CR088 P2: the comparison toggle and the LE columns ----------------- */
+
+/* A three-state segmented control: what the always-present BUDGET column is
+   compared against. Not the shared `.btn` system — that puts three padded,
+   bordered controls in a toolbar that already carries eight. */
+.budget-va__compare {
+  display: inline-flex;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.budget-va__compare-btn {
+  padding: 0.25rem 0.55rem;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  background: var(--surface);
+  border: 0;
+  border-left: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.budget-va__compare-btn:first-child { border-left: 0; }
+
+.budget-va__compare-btn:hover:not(.budget-va__compare-btn--on) {
+  color: var(--ink);
+  background: var(--surface-muted);
+}
+
+/* ⚠️ The selected state is a GROUND change plus full-contrast ink, not a tint
+   on the label. CR085's durable lesson is state that renders and produces no
+   visible effect — "a picker that cannot say what is selected" is on that list
+   by name, and a segmented control whose only signal is a slightly darker grey
+   is exactly it. `aria-pressed` carries the same fact for a screen reader. */
+.budget-va__compare-btn--on {
+  color: var(--surface);
+  background: var(--primary);
+}
+
+/* The seam: the LE half of the table is right of a 2px rule, the same signal
+   LEGrid uses to separate fact from estimate. */
+.budget-va .balance-report-table thead th.budget-va__le-cell,
+.budget-va .balance-report-table tbody td.budget-va__le-cell {
+  border-left: 2px solid var(--border-strong);
+}
+
+/* ABSENT, not zero — the LE carries no line for this category in this period.
+   Muted and rendered as `—` by the JSX; the class only carries the colour so
+   the em dash is not mistaken for a figure. */
+.budget-va .balance-report-table tbody td.budget-va__absent {
+  color: var(--muted);
+}
+
+.budget-va__cutnote {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-strong);
+  border-radius: 4px;
+}

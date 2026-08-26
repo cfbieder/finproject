@@ -9,7 +9,6 @@ import BudgetDetailModal from "../features/Budgets/BudgetDetailModal.jsx";
 import Rest from "../js/rest.js";
 import { useCoa } from "../hooks/useCoa.js";
 import { exportBudgetRealization } from "../utils/excelExporter.js";
-import "../features/CashFlow/CashFlowReport.css";
 import "./PageLayout.css";
 
 // ============================================================================
@@ -87,6 +86,31 @@ const buildLeafActualTotalsMap = (nodes, map = new Map()) => {
   }
 
   return map;
+};
+
+/**
+ * CR088 P2 — the set of leaf names the LE actually carries a line for.
+ *
+ * Separate from the totals map because the server's `hasLe` is the only way to
+ * tell "the LE estimates zero here" from "the LE has no line here at all", and
+ * the second must render `—`. Flattened the same way and keyed the same way, so
+ * it lines up with the totals map row for row.
+ */
+const buildLeafLePresenceSet = (nodes, set = new Set()) => {
+  if (!Array.isArray(nodes)) return set;
+
+  for (const node of nodes) {
+    if (!node || typeof node !== "object" || !node.name) continue;
+    const hasChildren =
+      Array.isArray(node.children) && node.children.length > 0;
+    if (hasChildren) {
+      buildLeafLePresenceSet(node.children, set);
+    } else if (node.hasLe) {
+      set.add(node.name);
+    }
+  }
+
+  return set;
 };
 
 /**
@@ -251,36 +275,39 @@ const collectLeafCategoryNames = (node) => {
 // ============================================================================
 
 /**
- * Renders category rows with budget, actual, and variance values
+ * Renders the category rows.
+ *
+ * CR088 P2 changed the signature from eleven positional parameters to
+ * `(nodes, ctx, level, path)`. It was already at nine and the LE columns needed
+ * five more; a call whose tenth argument is `undefined` by accident is not a
+ * mistake any reviewer catches.
+ *
  * @param {Array} nodes - Category tree nodes
- * @param {Set} collapsedPaths - Set of collapsed path keys
- * @param {Function} handleToggle - Toggle collapse handler
- * @param {Map} leafActualTotals - Map of actual totals
- * @param {Function} getActualValue - Actual value resolver
- * @param {Map} leafBudgetTotals - Map of budget totals
- * @param {Function} getBudgetValue - Budget value resolver
- * @param {Function} onBudgetCellDoubleClick - Callback for budget cell double click
- * @param {Function} onActualCellDoubleClick - Callback for actual cell double click
+ * @param {Object} ctx - Everything the rows need; see `rowContext` on the page
  * @param {number} level - Indentation level
  * @param {Array} path - Current path
  * @returns {Array} Array of React elements
  */
-const renderCategoryRows = (
-  nodes,
-  collapsedPaths,
-  handleToggle,
-  leafActualTotals,
-  getActualValue,
-  leafBudgetTotals,
-  getBudgetValue,
-  onBudgetCellDoubleClick,
-  onActualCellDoubleClick,
-  level = 0,
-  path = []
-) => {
+const renderCategoryRows = (nodes, ctx, level = 0, path = []) => {
   if (!Array.isArray(nodes) || nodes.length === 0) {
     return [];
   }
+
+  const {
+    collapsedPaths,
+    handleToggle,
+    leafActualTotals,
+    getActualValue,
+    leafBudgetTotals,
+    getBudgetValue,
+    leafLeTotals,
+    getLeValue,
+    getLePresent,
+    showActual,
+    showLe,
+    onBudgetCellDoubleClick,
+    onActualCellDoubleClick,
+  } = ctx;
 
   return nodes.flatMap((node) => {
     if (!node || typeof node !== "object" || !node.name) {
@@ -294,6 +321,7 @@ const renderCategoryRows = (
 
     const hasActualData = leafActualTotals !== null;
     const hasBudgetData = leafBudgetTotals !== null;
+    const hasLeData = showLe && leafLeTotals != null;
     const resolvedActualValue =
       hasActualData && typeof getActualValue === "function"
         ? getActualValue(node, pathKey)
@@ -302,11 +330,31 @@ const renderCategoryRows = (
       hasBudgetData && typeof getBudgetValue === "function"
         ? getBudgetValue(node, pathKey)
         : 0;
+    // ⚠️ ABSENT is not ZERO. The LE's materialisation scope carries no line at
+    // all for transfers or `Unrealized G/L`, so with either toggle ON those
+    // rows have no estimate — and `$0.00` there would claim the owner estimated
+    // nothing rather than that the LE has no view. CR087 P0b, which cost a page
+    // of 100%-favourable variances rendered from a failed fetch.
+    const leIsPresent =
+      hasLeData && typeof getLePresent === "function"
+        ? getLePresent(node, pathKey)
+        : false;
+    const resolvedLeValue =
+      hasLeData && typeof getLeValue === "function"
+        ? getLeValue(node, pathKey)
+        : 0;
+
+    // A row is dropped only when EVERY column on screen would read zero. The
+    // pre-CR088 rule tested budget and actual; with the LE shown, a category
+    // that has only an estimate must survive it.
+    const actualIsBlank = !showActual || resolvedActualValue === 0;
+    const leIsBlank = !showLe || !leIsPresent || resolvedLeValue === 0;
     if (
-      hasActualData &&
       hasBudgetData &&
-      resolvedActualValue === 0 &&
-      resolvedBudgetValue === 0
+      (hasActualData || !showActual) &&
+      resolvedBudgetValue === 0 &&
+      actualIsBlank &&
+      leIsBlank
     ) {
       return [];
     }
@@ -342,6 +390,14 @@ const renderCategoryRows = (
     const varianceDisplay = hasVarianceData
       ? formatCurrencyValue(varianceValue)
       : "—";
+
+    // Same convention, same direction: the LE is simply the other estimate of
+    // what the period holds, so `LE − budget` is favourable-positive on both
+    // sides exactly as `actual − budget` is.
+    const leDisplay = leIsPresent ? formatCurrencyValue(resolvedLeValue) : "—";
+    const leVarianceValue = resolvedLeValue - budgetForVariance;
+    const leVarianceDisplay =
+      leIsPresent && hasBudgetData ? formatCurrencyValue(leVarianceValue) : "—";
     const pathLabel = currentPath.join(" › ");
 
     const handleBudgetCellDoubleClick =
@@ -396,7 +452,7 @@ const renderCategoryRows = (
       <tr key={pathKey} data-level={level}>
         <td
           className="balance-report-table__name"
-          style={{ "--cashflow-indent-level": level }}
+          style={{ "--budget-va-indent-level": level }}
         >
           <button
             type="button"
@@ -405,14 +461,14 @@ const renderCategoryRows = (
               handleToggle(pathKey);
             }}
             disabled={!hasChildren}
-            className="cash-flow-report__toggle-button"
+            className="budget-va__toggle"
             aria-label={
               hasChildren
                 ? `${isCollapsed ? "Expand" : "Collapse"} ${node.name}`
                 : undefined
             }
           >
-            {hasChildren ? (isCollapsed ? "+" : "−") : "\u00a0"}
+            {hasChildren ? (isCollapsed ? "+" : "−") : " "}
           </button>
           <span className="balance-report-table__name-text">{node.name}</span>
         </td>
@@ -422,33 +478,47 @@ const renderCategoryRows = (
         >
           {budgetDisplay}
         </td>
-        <td
-          className={getValueCellClassName(resolvedActualValue, hasActualData)}
-          onDoubleClick={handleActualCellDoubleClick}
-        >
-          {actualDisplay}
-        </td>
-        <td className={getValueCellClassName(varianceValue, hasVarianceData)}>
-          {varianceDisplay}
-        </td>
+        {showActual && (
+          <>
+            <td
+              className={getValueCellClassName(resolvedActualValue, hasActualData)}
+              onDoubleClick={handleActualCellDoubleClick}
+            >
+              {actualDisplay}
+            </td>
+            <td className={getValueCellClassName(varianceValue, hasVarianceData)}>
+              {varianceDisplay}
+            </td>
+          </>
+        )}
+        {showLe && (
+          <>
+            <td
+              className={getValueCellClassName(
+                resolvedLeValue,
+                leIsPresent,
+                leIsPresent ? "budget-va__le-cell" : "budget-va__le-cell budget-va__absent"
+              )}
+            >
+              {leDisplay}
+            </td>
+            <td
+              className={getValueCellClassName(
+                leVarianceValue,
+                leIsPresent && hasBudgetData,
+                leIsPresent && hasBudgetData ? "" : "budget-va__absent"
+              )}
+            >
+              {leVarianceDisplay}
+            </td>
+          </>
+        )}
       </tr>
     );
 
     const childrenRows =
       hasChildren && !isCollapsed
-        ? renderCategoryRows(
-            node.children,
-            collapsedPaths,
-            handleToggle,
-            leafActualTotals,
-            getActualValue,
-            leafBudgetTotals,
-            getBudgetValue,
-            onBudgetCellDoubleClick,
-            onActualCellDoubleClick,
-            level + 1,
-            currentPath
-          )
+        ? renderCategoryRows(node.children, ctx, level + 1, currentPath)
         : [];
 
     return hasChildren ? [row, ...childrenRows] : [row];
@@ -525,6 +595,16 @@ export default function BudgetRealization() {
   const [leafActualTotals, setLeafActualTotals] = useState(null);
   const [leafBudgetTotals, setLeafBudgetTotals] = useState(null);
 
+  // ---- CR088 P2: the Latest Estimate as a third column --------------------
+  // `compareMode` chooses what the always-present BUDGET column is compared
+  // against: "actual" (the default, and the only mode before CR088), "le", or
+  // "both". `leafLePresent` is the ABSENT-vs-ZERO set — see the note in
+  // renderCategoryRows.
+  const [compareMode, setCompareMode] = useState("actual");
+  const [leHeader, setLeHeader] = useState(null);
+  const [leafLeTotals, setLeafLeTotals] = useState(null);
+  const [leafLePresent, setLeafLePresent] = useState(null);
+
   // ========== State: UI ==========
   // Tracks what the user has EXPANDED. `collapsedPaths` is DERIVED from it below.
   //
@@ -559,6 +639,32 @@ export default function BudgetRealization() {
       leafBudgetTotals ? createActualValueResolver(leafBudgetTotals) : null,
     [leafBudgetTotals]
   );
+
+  const leValueResolver = useMemo(
+    () => (leafLeTotals ? createActualValueResolver(leafLeTotals) : null),
+    [leafLeTotals]
+  );
+
+  // "Does the LE have a view on this node at all" — true if any leaf beneath it
+  // carries a line. Deliberately a separate resolver rather than a truthiness
+  // test on the total: an LE that estimates a category at exactly zero is a
+  // real answer, and must not render as `—`.
+  const lePresenceResolver = useMemo(() => {
+    if (!leafLePresent) return null;
+    const cache = new Map();
+    const resolve = (node, pathKey) => {
+      if (!node || !pathKey) return false;
+      if (cache.has(pathKey)) return cache.get(pathKey);
+      const hasChildren =
+        Array.isArray(node.children) && node.children.length > 0;
+      const present = hasChildren
+        ? node.children.some((child) => resolve(child, `${pathKey}>${child.name}`))
+        : leafLePresent.has(node.name);
+      cache.set(pathKey, present);
+      return present;
+    };
+    return resolve;
+  }, [leafLePresent]);
 
   // ========== Computed Values: Category Tree ==========
   // plTree from useCoa() is already in { name, children } shape
@@ -708,6 +814,44 @@ export default function BudgetRealization() {
     "balance-report-table__value--bold"
   );
 
+  // ---- CR088 P2: the LE's Net row -----------------------------------------
+  const showLe = compareMode === "le" || compareMode === "both";
+  const showActual = compareMode === "actual" || compareMode === "both";
+  const hasLeData = showLe && leafLeTotals !== null;
+
+  const netLeValue =
+    hasLeData && leValueResolver
+      ? computeIncomeExpenseTotal(filteredCategoryTree, leValueResolver)
+      : null;
+  const netLeDisplay = hasLeData ? formatCurrencyValue(netLeValue) : "—";
+  const netLeVarianceValue =
+    (hasLeData ? netLeValue : 0) - (hasBudgetData ? netBudgetValue : 0);
+  const netLeVarianceDisplay =
+    hasLeData && hasBudgetData ? formatCurrencyValue(netLeVarianceValue) : "—";
+
+  const netLeCellClass = getValueCellClassName(
+    netLeValue ?? 0,
+    hasLeData,
+    "balance-report-table__value--bold"
+  );
+  const netLeVarianceCellClass = getValueCellClassName(
+    netLeVarianceValue,
+    hasLeData && hasBudgetData,
+    "balance-report-table__value--bold"
+  );
+
+  // Whether the selected period reaches PAST the LE's cut. It is the whole
+  // point of the note the page renders: `budget_le_lines` carries the
+  // transactions verbatim for every closed month, so for a period ending on or
+  // before the cut the LE column is byte-identical to the actual one (measured
+  // on prod: 0 of 111 leaves differ over Jan–Jul, sums tie to the cent). Two
+  // columns that agree by construction read as corroboration and are not.
+  const periodReachesPastCut = useMemo(() => {
+    if (!leHeader || !leHeader.actualThrough || !actualPeriodRange) return false;
+    const end = formatDateParam(actualPeriodRange.end);
+    return Boolean(end) && end > leHeader.actualThrough;
+  }, [leHeader, actualPeriodRange]);
+
   // ========== Effects: Initialization ==========
 
   // ========== Effects: Data Fetching ==========
@@ -810,6 +954,93 @@ export default function BudgetRealization() {
       isActive = false;
     };
   }, [budgetPeriodRange, includeTransfers, includeUnrealized]);
+
+  // ---- CR088 P2: resolve the LE for the selected budget year --------------
+  // `findAll` already orders newest first and excludes superseded rows, so the
+  // head of the list is the LE to compare against. There is exactly one per
+  // budget year today; taking the head rather than adding a picker is the
+  // smaller thing that is also correct if that ever stops being true.
+  useEffect(() => {
+    if (!budgetYear) return undefined;
+    let isActive = true;
+
+    Rest.fetchBudgetLeList(budgetYear)
+      .then((rows) => {
+        if (!isActive) return;
+        const head = rows[0];
+        setLeHeader(
+          head
+            ? {
+                id: head.id,
+                name: head.name,
+                actualThrough: String(head.actual_through).slice(0, 10),
+              }
+            : null
+        );
+      })
+      .catch((error) => {
+        if (!isActive) return;
+        console.error("[BudgetRealization] Failed to load the LE list:", error);
+        setLeHeader(null);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [budgetYear]);
+
+  // A year with no LE cannot offer the comparison; fall back rather than render
+  // an empty column that looks like "the estimate is nothing".
+  useEffect(() => {
+    if (!leHeader && compareMode !== "actual") setCompareMode("actual");
+  }, [leHeader, compareMode]);
+
+  // Fetch the LE over the same period, with the same transfer convention, only
+  // when a mode that shows it is selected.
+  useEffect(() => {
+    if (!showLe || !leHeader || !budgetPeriodRange) {
+      setLeafLeTotals(null);
+      setLeafLePresent(null);
+      return undefined;
+    }
+
+    const fromDateParam = formatDateParam(budgetPeriodRange.start);
+    const toDateParam = formatDateParam(budgetPeriodRange.end);
+    if (!fromDateParam || !toDateParam) {
+      setLeafLeTotals(null);
+      setLeafLePresent(null);
+      return undefined;
+    }
+
+    let isActive = true;
+    const transfersMode = includeTransfers ? "include" : "exclude";
+
+    Rest.fetchLeCashFlowReport({
+      leId: leHeader.id,
+      fromDate: fromDateParam,
+      toDate: toDateParam,
+      transfers: transfersMode,
+    })
+      .then((report) => {
+        if (!isActive) return;
+        const nodes = Array.isArray(report && report.nodes) ? report.nodes : [];
+        setLeafLeTotals(buildLeafActualTotalsMap(nodes));
+        setLeafLePresent(buildLeafLePresenceSet(nodes));
+      })
+      .catch((error) => {
+        if (!isActive) return;
+        console.error("[BudgetRealization] Failed to load the LE:", error);
+        // ⚠️ null, never an empty map. An empty map resolves every row to 0 and
+        // renders a page of figures that look like real estimates of nothing —
+        // the exact failure CR087 P0b closed on the actuals side.
+        setLeafLeTotals(null);
+        setLeafLePresent(null);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [showLe, leHeader, budgetPeriodRange, includeTransfers]);
 
   // ========== Event Handlers ==========
 
@@ -974,6 +1205,53 @@ export default function BudgetRealization() {
     );
   }, [filteredCategoryTree, actualValueResolver, budgetValueResolver, hasActualData, hasBudgetData]);
 
+  // ========== Row context (CR088 P2) ==========
+  // One object instead of the eleven positional arguments `renderCategoryRows`
+  // used to take. Memoised because `BudgetRealizationContent` is `memo`'d and a
+  // fresh object every render would defeat that.
+  const rowContext = useMemo(
+    () => ({
+      collapsedPaths,
+      handleToggle: handleTogglePath,
+      leafActualTotals,
+      getActualValue: actualValueResolver,
+      leafBudgetTotals,
+      getBudgetValue: budgetValueResolver,
+      leafLeTotals,
+      getLeValue: leValueResolver,
+      getLePresent: lePresenceResolver,
+      showActual,
+      showLe: showLe && leafLeTotals !== null,
+      onBudgetCellDoubleClick: handleBudgetCellDoubleClick,
+      onActualCellDoubleClick: handleActualCellDoubleClick,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      collapsedPaths,
+      leafActualTotals,
+      actualValueResolver,
+      leafBudgetTotals,
+      budgetValueResolver,
+      leafLeTotals,
+      leValueResolver,
+      lePresenceResolver,
+      showActual,
+      showLe,
+    ]
+  );
+
+  const compareProps = useMemo(
+    () => ({
+      mode: compareMode,
+      onChange: setCompareMode,
+      leAvailable: Boolean(leHeader),
+      leName: leHeader ? leHeader.name : null,
+      leCut: leHeader ? leHeader.actualThrough : null,
+      periodReachesPastCut,
+    }),
+    [compareMode, leHeader, periodReachesPastCut]
+  );
+
   // ========== Render ==========
 
   return (
@@ -981,12 +1259,7 @@ export default function BudgetRealization() {
       <main className="budget-realization-main budget-realization-main--single">
         <BudgetRealizationContent
           filteredCategoryTree={filteredCategoryTree}
-          collapsedPaths={collapsedPaths}
-          onTogglePath={handleTogglePath}
-          leafActualTotals={leafActualTotals}
-          actualValueResolver={actualValueResolver}
-          leafBudgetTotals={leafBudgetTotals}
-          budgetValueResolver={budgetValueResolver}
+          rowContext={rowContext}
           showNetRow={showNetRow}
           netBudgetDisplay={netBudgetDisplay}
           netActualDisplay={netActualDisplay}
@@ -994,11 +1267,14 @@ export default function BudgetRealization() {
           netBudgetCellClass={netBudgetCellClass}
           netActualCellClass={netActualCellClass}
           netVarianceCellClass={netVarianceCellClass}
+          netLeDisplay={netLeDisplay}
+          netLeVarianceDisplay={netLeVarianceDisplay}
+          netLeCellClass={netLeCellClass}
+          netLeVarianceCellClass={netLeVarianceCellClass}
           renderCategoryRows={renderCategoryRows}
-          onBudgetCellDoubleClick={handleBudgetCellDoubleClick}
-          onActualCellDoubleClick={handleActualCellDoubleClick}
           periodProps={periodProps}
           toggleProps={toggleProps}
+          compareProps={compareProps}
           onExport={handleExport}
           canExport={hasActualData || hasBudgetData}
           kpiData={kpiData}

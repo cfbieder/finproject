@@ -379,6 +379,45 @@ router.get('/le/:id/grid', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// GET /api/v2/budget/le/:id/cash-flow — CR088 P2
+//
+// The LE summed over the period selector's own range, in the SAME tree shape as
+// GET /api/v2/budget/cash-flow, so /budget-vs-actual can key it by leaf name
+// into the same map as its other two columns.
+//
+// ⚠️ ENVELOPED in `{ data }`, unlike the `/budget/cash-flow` it otherwise
+// mirrors. Matching that sibling's bare response was the first instinct and it
+// is wrong: `check-api-envelope.sh` is a shrink-only ratchet at 27, and the
+// convention it is ratcheting DOWN is exactly "this endpoint returns its
+// payload bare because the one next to it does". A caller that guesses wrong
+// renders an empty page with no error (the Modify Transfer bug, v3.0.98). The
+// one client is new and unwraps.
+router.get('/le/:id/cash-flow', async (req, res, next) => {
+  try {
+    const { fromDate, toDate, transfers = 'exclude' } = req.query;
+
+    if (!fromDate || !toDate) {
+      return res.status(400).json({
+        error: "Missing required query parameters 'fromDate' and 'toDate'",
+      });
+    }
+    if (!budgetService.isValidDateString(fromDate) || !budgetService.isValidDateString(toDate)) {
+      return res.status(400).json({
+        error: "Invalid 'fromDate' or 'toDate'; expected valid dates in YYYY-MM-DD format",
+      });
+    }
+
+    const report = await budgetLeService.getCashFlow({
+      leId: parseInt(req.params.id, 10), fromDate, toDate, transfers,
+    });
+    if (!report) return res.status(404).json({ error: 'Latest Estimate not found' });
+    res.json({ data: report });
+  } catch (error) {
+    console.error('[v2/budget/le/:id/cash-flow] Failed:', error);
+    next(error);
+  }
+});
+
 // GET /api/v2/budget/le/:id/deviations — deterministic flags, no LLM
 router.get('/le/:id/deviations', async (req, res, next) => {
   try {

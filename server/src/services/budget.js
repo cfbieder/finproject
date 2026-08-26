@@ -793,6 +793,11 @@ async function getFyLanding({ year } = {}) {
 module.exports = {
   // helpers exported for the route layer's validation guards
   isValidDateString,
+  // CR088 P2: the LE cash-flow report has to apply the SAME transfer convention
+  // as this one or the two columns silently disagree about what a transfer is.
+  // Exported rather than re-implemented — a second copy of a name-matching rule
+  // is the pattern that already cost CR087 §4b a wrong variance sign.
+  extractTransferCategories,
   // entry orchestration
   createEntries,
   updateEntry,

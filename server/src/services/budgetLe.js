@@ -20,6 +20,9 @@ const db = require('../v2/db');
 const repo = require('../v2/repositories/budgetLe');
 const accountsRepo = require('../v2/repositories/accounts');
 const validate = require('../v2/utils/validate');
+// CR088 P2 — for `extractTransferCategories` only. `budget.js` does not require
+// this module, so there is no cycle.
+const budgetService = require('./budget');
 
 /** The last complete calendar month, from the database's own clock (§1.2). */
 async function defaultCut(budgetYear) {
@@ -608,6 +611,121 @@ async function create({ budgetYear, actualThrough, label, note }) {
   return repo.create({ budgetYear: year, actualThrough: cut, label, note });
 }
 
+// ---------------------------------------------------------------------------
+// The period-scoped LE cash flow — CR088 P2
+// ---------------------------------------------------------------------------
+
+/**
+ * The LE, summed over an arbitrary month range, in the SAME tree shape as
+ * `budgetService.getCashFlow` — `{ 'Profit & Loss Accounts': [{ name, total,
+ * hasLe, children }] }`.
+ *
+ * ⚠️ THE SHAPE IS THE POINT, not a convenience. `/budget-vs-actual` already
+ * renders two columns keyed by leaf NAME off `getNestedTree`; a third column
+ * derived any other way would disagree with them row by row, which is precisely
+ * the gap `FyLandingStrip` has to apologise for in words ("does not tie to the
+ * table below"). So this goes through the same tree, the same transfer
+ * convention (imported from `budget.js`, not re-implemented) and the same leaf
+ * keying, and the hierarchy cannot diverge.
+ *
+ * ⚠️ `hasLe` exists because ABSENT and ZERO are different answers. The LE's
+ * materialisation scope (`repo.SCOPE_SQL`) hard-excludes transfers and
+ * `Unrealized G/L`, so with either of this page's toggles ON those categories
+ * have no LE line AT ALL — and rendering that as `$0.00` would claim the owner
+ * estimated nothing there. CR087 P0b bought that lesson expensively: a failed
+ * actuals fetch once rendered a whole page of 100%-favourable variances. A
+ * parent is `hasLe` if any descendant is.
+ *
+ * Note there is no month/period validation beyond the caller's: a range outside
+ * the LE's budget year simply matches no lines and every row comes back absent,
+ * which is the truthful answer rather than an error.
+ */
+async function getCashFlow({ leId, fromDate, toDate, transfers = 'exclude' }) {
+  const le = await repo.findById(leId);
+  if (!le) return null;
+
+  const tree = await accountsRepo.getNestedTree({ section: 'profit_loss' });
+  if (!tree || tree.length === 0) return { 'Profit & Loss Accounts': [] };
+
+  const root = tree.find((n) => n.name === 'Profit & Loss Accounts');
+  const structure = root && root.children.length > 0 ? root.children : tree;
+
+  const transferCategories = budgetService.extractTransferCategories(structure);
+  const transferCategorySet = new Set(transferCategories.map((c) => c.toLowerCase()));
+
+  // `period_month` is the FIRST of each month (date_trunc at materialisation),
+  // so a range is matched by containment of that first-of-month, not by
+  // overlap. `fromDate`/`toDate` arrive as the period selector's real bounds
+  // (e.g. 2026-08-01 .. 2026-12-31), which contains 2026-08-01 .. 2026-12-01.
+  const { rows } = await db.query(
+    `SELECT a.name AS category_name, SUM(l.base_amount) AS total_amount
+     FROM budget_le_lines l
+     JOIN accounts a ON a.id = l.category_id
+     WHERE l.le_id = $1
+       AND l.period_month >= $2::date
+       AND l.period_month <= $3::date
+     GROUP BY a.name`,
+    [le.id, fromDate, toDate]
+  );
+
+  const leTotals = {};
+  for (const r of rows) {
+    const name = r.category_name;
+    const isTransfer = transferCategorySet.has(name.toLowerCase());
+    if (transfers === 'exclude' && isTransfer) continue;
+    if (transfers === 'only' && !isTransfer) continue;
+    leTotals[name] = Number(r.total_amount) || 0;
+  }
+
+  const nodes = [];
+  for (const item of structure) {
+    const node = buildLeCashFlowNode(item, leTotals, transfers, transferCategorySet);
+    if (node) nodes.push(node);
+  }
+
+  return {
+    'Profit & Loss Accounts': nodes,
+    le: {
+      id: le.id,
+      name: le.name,
+      budgetYear: le.budget_year,
+      actualThrough: String(le.actual_through).slice(0, 10),
+    },
+  };
+}
+
+/** Mirrors `buildBudgetCashFlowNode`, plus the absent-vs-zero flag. */
+function buildLeCashFlowNode(node, leTotals, transfers, transferCategorySet) {
+  if (!node || !node.name) return null;
+
+  const { name, children } = node;
+  const isLeaf = !children || children.length === 0;
+
+  if (isLeaf) {
+    const isTransfer = transferCategorySet.has(name.toLowerCase());
+    if (transfers === 'exclude' && isTransfer) return null;
+    if (transfers === 'only' && !isTransfer) return null;
+
+    const hasLe = Object.prototype.hasOwnProperty.call(leTotals, name);
+    return { name, total: hasLe ? leTotals[name] : 0, hasLe };
+  }
+
+  const childNodes = [];
+  let total = 0;
+  let hasLe = false;
+
+  for (const child of children) {
+    const childNode = buildLeCashFlowNode(child, leTotals, transfers, transferCategorySet);
+    if (childNode) {
+      childNodes.push(childNode);
+      total += childNode.total || 0;
+      hasLe = hasLe || childNode.hasLe;
+    }
+  }
+
+  return { name, total, hasLe, children: childNodes };
+}
+
 async function remove(id) {
   const { rowCount } = await db.query(`DELETE FROM budget_le WHERE id = $1`, [id]);
   return rowCount > 0;
@@ -616,4 +734,5 @@ async function remove(id) {
 module.exports = {
   defaultCut, getGrid, list, create, remove, budgetFyByCategory,
   getCategoryWorksheet, saveCategoryEstimates, getDeviations,
+  getCashFlow,
 };
