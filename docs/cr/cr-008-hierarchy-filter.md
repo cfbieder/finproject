@@ -10,7 +10,41 @@ Two-stage cascading filter component replacing `CategorySelector` + `AccountSele
 - **Stage 1:** Pill buttons for COA hierarchy groups (Categories: All / Income / Expense / Transfers; Accounts: BS COA sub-groups). Each pill shows item count.
 - **Stage 2:** Compact scrollable checklist of leaf items under the active group; right-click any item to solo-select.
 - Transfer Match Status toggle (All / Matched / Unmatched) appears contextually only when the Transfers group is active.
-- Used on: Actual Transactions, Budget Transactions, Budget Worksheet.
+- Used on: Actual Transactions, Budget Transactions, Budget Worksheet — and since, Balance
+  Trends, Ledger (`singleSelect`), the FC line drill-down (`initialGroupKey`) and Cash Flow
+  **By Account** ([CR054](cr-054-cash-flow-by-account.md)).
+
+### Extended v3.42.0 — `multiGroup`: a selection that spans groups
+
+The pills were **mutually exclusive** — `emitSelection` returned only the active group's
+leaves — so a selection could never span two groups (the owner's case: *Bank Accounts* **and**
+*PLN Credit Cards*). Opt-in `multiGroup` turns the pills into **toggles**: several groups stay
+active, the checklist stacks them under sticky sub-headers, and the emitted value is the
+**union** of the checked leaves. A summary line reports what the pills add up to, since
+otherwise a cross-group selection is only legible by clicking through every pill.
+
+⚠️ **Off by default, and that is the whole design constraint.** In the standard mode a second
+pill click **replaces** the selection, and **six** other surfaces depend on that — Ledger,
+TransActual, TransBudget, BalanceTrends, BudgetWorksheetV2 and the FC line drill-down. Flipping
+the semantics globally would have changed all six without being asked. Internally the single
+`activeGroup` became an ordered `activeKeys` list that holds **0 or 1 keys** in the standard
+mode, so those six render through the same code path they always did (sub-headers appear only
+at 2+ active groups). The union is safe because `buildAccountFilterGroups` emits **one chip per
+account-type node** — the groups are disjoint, so no leaf can be counted twice.
+
+Three semantics the mode had to settle, none of them obvious:
+
+- **"All" still means *no filter*, not *everything checked*** — it emits `[]`, as it always has.
+- **A group toggled back on starts fully checked**, matching what opening a group has always
+  done. (The pre-existing reset-on-open was load-bearing once selections accumulate.)
+- **Right-click-to-solo now clears every active group.** "Select only this item" has to mean
+  the emitted list is exactly that item, not that item plus another group's whole list.
+
+No server or API change: `GET /api/v2/cash-flow` has always taken `accounts` as a repeatable
+param and does `a.name = ANY(...)` — **a flat list of names with no concept of groups**
+([reports.js:72](../../server/src/v2/routes/reports.js#L72)). The restriction was created
+entirely by the component. Applied so far on the **Accounts** filter of Cash Flow By Account
+only; see [CR054](cr-054-cash-flow-by-account.md) for the ask and the open inconsistency.
 
 ## Outcome — Transaction page redesign
 

@@ -423,6 +423,7 @@ export default function CashFlowByAccount() {
               label="Accounts"
               groups={accountGroups}
               onSelectionChange={setSelectedAccounts}
+              multiGroup
             />
           </div>
           <div className="cash-flow-by-account__currency">

@@ -138,6 +138,43 @@
   background: var(--surface-elevated, #fff);
 }
 
+/* Stacked groups need more than the single-group 9rem before the sticky
+   headings are doing more scrolling than labelling. Scoped to multiGroup so
+   every other consumer keeps its height. */
+.hf--multi .hf__list {
+  max-height: 14rem;
+}
+
+/* multiGroup: one section per active group. The list is a column flexbox, so
+   the wrapper has to stack its own items. The heading sticks while the list
+   scrolls — with two groups stacked in 9rem, an unlabelled row is ambiguous. */
+.hf__section {
+  display: flex;
+  flex-direction: column;
+}
+
+.hf__section-heading {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  background: var(--surface-muted);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/* What the pills add up to, so a cross-group selection is legible without
+   clicking through every pill. */
+.hf__summary {
+  padding: 0.25rem 0.1rem 0;
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
 .hf__item {
   display: flex;
   align-items: center;

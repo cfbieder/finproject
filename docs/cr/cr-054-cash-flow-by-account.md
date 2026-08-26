@@ -1,7 +1,8 @@
 # CR-054 — Cash Flow "By Account" report (category/account filters + currency toggle)
 
 **Status:** SHIPPED v3.4.0 (2026-07-21); drill-down fixes v3.4.1–v3.4.2 (2026-07-21);
-**frozen-column fix + Total column v3.41.0 (2026-08-26, owner-found)** · **Track:** v3 ·
+**frozen-column fix + Total column v3.41.0 (2026-08-26, owner-found)**;
+**cross-group account selection v3.42.0 (2026-08-26, owner-asked)** · **Track:** v3 ·
 **Depends on:** CR008 (HierarchyFilter), CR042 U5 (CashFlowTabs consolidation).
 
 ## Problem
@@ -174,6 +175,42 @@ at 10. Rendered in **both themes**. 582 frontend tests green, eslint clean.
 frozen at the right edge, and the Excel export (`exportCashFlow(reports, periodLabels)`)
 still writes only the period columns — no Total.
 
+## v3.42.0 — selecting accounts from two groups at once (owner-asked, 2026-08-26)
+
+> *"I would like to select accounts from two places, Bank Accounts and PLN Credit Cards."*
+
+The Accounts chips were **mutually exclusive**: clicking a second group **replaced** the first,
+so the owner's Polish picture — PLN bank accounts **plus** PLN credit cards — could only be got
+by running the report twice and adding the columns by hand. The Accounts filter now uses
+`HierarchyFilter`'s new opt-in **`multiGroup`** mode: the pills toggle, the checklist stacks the
+active groups under sticky sub-headers, and the selection is the union. The mechanism, the fence
+that keeps the other six consumers on the old semantics, and the three semantics the mode had to
+settle live in [CR008](cr-008-hierarchy-filter.md#extended-v3420--multigroup-a-selection-that-spans-groups).
+
+**Nothing on the server changed.** `GET /api/v2/cash-flow` already took `accounts` as a
+repeatable param matched with `a.name = ANY(...)` — the wire has always been a **flat list of
+account names**, and the single-group limit existed only in the frontend component.
+
+**Verified in a browser against dev data.** Bank Accounts → 21 checked, no sub-headers,
+*"21 selected across 1 group"*; add PLN Credit Cards → both pills lit, both headings,
+**25 checked**, *"25 selected across 2 groups"*; uncheck one in each → 23. **The request carries
+23 names spanning both groups** (20 bank + 3 PLN cards), identical across all 8 period requests.
+The five reachable standard-mode consumers (`/trans-actual`, `/trans-budget`,
+`/budget-worksheet`, `/balance-trends`, `/ledger`) each report **one active pill after clicking
+two different pills** — replace semantics intact, no summary, no sub-headers, `hf--multi`
+absent; the FC line drill-down is covered by its unit test. Zero page errors on any route. Both
+themes. 582 frontend tests, eslint clean, three CSS gates at baseline.
+
+⚠️ **A known inconsistency this created, left for the owner.** The **Categories** filter sits
+beside Accounts on this same page and still **replaces**, so two adjacent controls now have
+different pill semantics. Enabling it is adding `multiGroup` to the Categories
+`<HierarchyFilter>` in `CashFlowByAccount.jsx` — deliberately not done, because the request was
+about accounts and it changes what category filtering does.
+
+**Side effect worth knowing:** in **Original** currency mode a cross-group selection is more
+likely to mix currencies, so the existing mixed-currency warning fires more often. That is the
+warning working, not a new defect.
+
 ## Open / follow-ups
 
 - Filters + currency are **Generate-driven** (not reactive), matching the other Cash Flow
@@ -183,3 +220,5 @@ still writes only the period columns — no Total.
   and **add it to the Excel export** — both deferred in v3.41.0, neither asked for.
 - **`showTotalColumn` on the By Period tab** — correct there (contiguous periods), just not
   requested.
+- **`multiGroup` on the Categories filter** — one prop; left off in v3.42.0, and until it is
+  flipped the two filters on this page behave differently from each other.
