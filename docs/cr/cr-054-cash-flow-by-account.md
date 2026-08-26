@@ -1,6 +1,7 @@
 # CR-054 — Cash Flow "By Account" report (category/account filters + currency toggle)
 
-**Status:** SHIPPED v3.4.0 (2026-07-21); drill-down fixes v3.4.1–v3.4.2 (2026-07-21) · **Track:** v3 ·
+**Status:** SHIPPED v3.4.0 (2026-07-21); drill-down fixes v3.4.1–v3.4.2 (2026-07-21);
+**frozen-column fix + Total column v3.41.0 (2026-08-26, owner-found)** · **Track:** v3 ·
 **Depends on:** CR008 (HierarchyFilter), CR042 U5 (CashFlowTabs consolidation).
 
 ## Problem
@@ -110,8 +111,75 @@ restriction, so Summary/By-Period are unaffected. The `/cash-flow/transactions` 
 already restricts to the category list it is given; the bug was passing it the unfiltered
 list.
 
+## v3.41.0 — the frozen column stopped at the total row, and a Total column (owner-found, 2026-08-26)
+
+Two changes to the same table, both raised by the owner scrolling the report sideways.
+
+### 1. `NET CASH FLOW` scrolled out from under its own label
+
+Scrolling the period columns right carried the **Net Cash Flow** row's label away with them
+while `CATEGORY`, `INCOME` and `EXPENSE` stayed frozen — so the totals row's figures sat
+under the wrong month headers.
+
+**Cause — a CSS specificity accident, not a missing rule.** The frozen first column comes
+from a two-part selector in
+[PageLayout.css:2573](../../frontend/src/pages/PageLayout.css#L2573):
+`.balance-report-table tbody td:first-child, .balance-report-table__name { position: sticky; left: 0 }`.
+The hierarchy tree-lines in
+[CashFlowReport.css:15](../../frontend/src/features/CashFlow/CashFlowReport.css#L15) set
+`position: relative` on `.cash-flow-report .balance-report-table__name` (0,2,0) to anchor
+their `::before`/`::after`. Body rows survive only because the **other** half of that
+selector — `tbody td:first-child` (0,2,2) — is more specific. The Net Cash Flow row is
+rendered in **`<tfoot>`**, so it never matched that half, fell back to `relative`, and
+scrolled. Fixed by re-asserting `position: sticky; left: 0; z-index: 7` on
+`.cash-flow-report .balance-report-table__net-cash-flow .balance-report-table__name` (0,3,0),
+and suppressing the tree-line pseudo-elements there — a total row is not a node in the tree.
+
+⚠️ **The first attempt shipped a worse bug and only a measurement caught it.** Scoping the
+tree-line rule to `tbody` instead reads as the cleaner fix, and it *silently unpinned the
+entire body column*: with `tbody` added, the two rules **tie at (0,2,2)** and the later
+import wins. Reasoning about the cascade produced the wrong answer twice; a DOM probe
+(`getBoundingClientRect().left` of the first cell against the scroll wrapper, at
+`scrollLeft = scrollWidth`) reported `bodyLeft: -324` and settled it. **The lesson is the
+project's own: measure the rendered page, do not argue about it.** Note that the Balance
+Sheet's `Net Worth` row — the same `<tfoot>` pattern in
+[BalanceReport.css](../../frontend/src/features/Balances/BalanceReport.css) — was never
+affected, because that page has no tree-line rule to collide with; the defect existed only
+where the two files met.
+
+### 2. A `Total` column after the months
+
+The report answers "what did this account spend by category **per month**" but could not
+answer it **for the range** without adding the columns by hand. A trailing `TOTAL` column now
+sums each row across the period columns, at every level of the category tree and on the
+`Net Cash Flow` footer row.
+
+**Opt-in via a `showTotalColumn` prop, and that is a correctness fence, not caution.**
+`CashFlowReport` is shared by all three tabs. On **By Account** and **By Period** the columns
+come from `getPeriods(from, to, frequency)` — contiguous and non-overlapping — so the sum is a
+genuine range total. The **Summary** tab's columns are arbitrary user-picked comparison
+ranges that may **overlap**, where the same transaction would be counted twice. Only
+`CashFlowByAccount` passes the prop; By Period is one prop away if the owner wants it.
+
+The footer row's per-period values were being computed inline mid-render, so they were
+collected into a `netValues` array first and the total reuses them — the total cannot
+disagree with the cells above it.
+
+**Verification** — driven in a browser against dev data, 8 monthly columns, **every** row
+expanded: **117 rows, 0 mismatches** between the sum of a row's period cells and its Total
+cell; `thead` `<th>` count, `<colgroup>` `<col>` count and every row's cell count all agree
+at 10. Rendered in **both themes**. 582 frontend tests green, eslint clean.
+
+⚠️ **Not done, deliberately:** the Total column **scrolls with the months** rather than being
+frozen at the right edge, and the Excel export (`exportCashFlow(reports, periodLabels)`)
+still writes only the period columns — no Total.
+
 ## Open / follow-ups
 
 - Filters + currency are **Generate-driven** (not reactive), matching the other Cash Flow
   tabs; only `frequency` auto-regenerates.
 - Possible later polish: a per-currency subtotal split in Original mode instead of a warning.
+- **Freeze the Total column** at the right edge so it stays visible while scrolling months,
+  and **add it to the Excel export** — both deferred in v3.41.0, neither asked for.
+- **`showTotalColumn` on the By Period tab** — correct there (contiguous periods), just not
+  requested.

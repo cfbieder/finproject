@@ -230,6 +230,34 @@
   color: var(--primary);
 }
 
+/* The tree-line rule near the top of this file sets `position: relative` on
+   every .balance-report-table__name. For body rows the frozen-column rule in
+   PageLayout.css (`tbody td:first-child`) is more specific and still wins, but
+   this row lives in <tfoot>, so `relative` won and the label scrolled away with
+   the period values. Re-assert the frozen column here, and drop the hierarchy
+   tree lines — the total row is not a node in the tree. */
+.cash-flow-report .balance-report-table__net-cash-flow .balance-report-table__name {
+  position: sticky;
+  left: 0;
+  z-index: 7;
+}
+
+.cash-flow-report .balance-report-table__net-cash-flow .balance-report-table__name::before,
+.cash-flow-report .balance-report-table__net-cash-flow .balance-report-table__name::after {
+  display: none;
+}
+
+/* ── Trailing Total column (opt-in via showTotalColumn) ── */
+
+.cash-flow-report .cash-flow-report__total-cell {
+  border-left: 2px solid var(--border);
+  font-weight: 700;
+}
+
+.cash-flow-report thead .cash-flow-report__total-cell {
+  color: var(--primary);
+}
+
 @media (max-width: 768px) {
   .cash-flow-report {
     --cashflow-indent-unit: 1.1rem;

@@ -73,7 +73,8 @@ const renderCashFlowRows = (
   onValueDoubleClick = () => {},
   highlightedPaths = new Set(),
   onToggleHighlight = () => {},
-  formatValue = formatCurrency
+  formatValue = formatCurrency,
+  showTotalColumn = false
 ) => {
   if (!Array.isArray(nodes) || nodes.length === 0) {
     return [];
@@ -90,6 +91,12 @@ const renderCashFlowRows = (
     const hasNonZeroValue =
       (node.total ?? 0) !== 0 ||
       comparisonValues.some((value) => (value ?? 0) !== 0);
+    // The periods are contiguous and non-overlapping (see showTotalColumn),
+    // so the row total is simply the sum across the period columns.
+    const rowTotal = comparisonValues.reduce(
+      (sum, value) => sum + (value ?? 0),
+      node.total ?? 0
+    );
     const isHighlighted = highlightedPaths.has(pathKey);
 
     const childrenRows =
@@ -104,7 +111,8 @@ const renderCashFlowRows = (
             onValueDoubleClick,
             highlightedPaths,
             onToggleHighlight,
-            formatValue
+            formatValue,
+            showTotalColumn
           )
         : [];
 
@@ -170,6 +178,15 @@ const renderCashFlowRows = (
             {formatValue(value)}
           </td>
         ))}
+        {showTotalColumn && (
+          <td
+            className={`balance-report-table__value cash-flow-report__total-cell ${
+              rowTotal < 0 ? "balance-report-table__value--negative" : ""
+            }`}
+          >
+            {formatValue(rowTotal)}
+          </td>
+        )}
       </tr>
     );
 
@@ -188,6 +205,7 @@ export default function CashFlowReport({
   filterAccounts = [],
   filterCategories = [],
   currencyMode = "usd",
+  showTotalColumn = false,
 }) {
   const formatValue = useMemo(
     () => makeValueFormatter(currencyCode),
@@ -368,6 +386,7 @@ export default function CashFlowReport({
                   {activeLabels.slice(1).map((_, index) => (
                     <col key={`cashflow-period-col-${index + 2}`} />
                   ))}
+                  {showTotalColumn && <col />}
                 </colgroup>
                 <thead>
                   <tr>
@@ -385,6 +404,9 @@ export default function CashFlowReport({
                         {label}
                       </th>
                     ))}
+                    {showTotalColumn && (
+                      <th className="cash-flow-report__total-cell">Total</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -400,7 +422,8 @@ export default function CashFlowReport({
                     handleValueDoubleClick,
                     highlightedRows,
                     toggleRowHighlight,
-                    formatValue
+                    formatValue,
+                    showTotalColumn
                   )}
                 </tbody>
                 <tfoot>
@@ -409,7 +432,22 @@ export default function CashFlowReport({
                       (n) => (n.name ?? "").toLowerCase() === "net cash flow"
                     );
                     if (!netNode) return null;
-                    const baseValue = netNode.total ?? 0;
+                    const netValues = [
+                      netNode.total ?? 0,
+                      ...comparisonMaps.map((_, index) => {
+                        const compReport = activeReports[index + 1];
+                        if (!Array.isArray(compReport)) return 0;
+                        const node = compReport.find(
+                          (n) =>
+                            (n.name ?? "").toLowerCase() === "net cash flow"
+                        );
+                        return node?.total ?? 0;
+                      }),
+                    ];
+                    const netTotal = netValues.reduce(
+                      (sum, value) => sum + value,
+                      0
+                    );
                     return (
                       <tr className="balance-report-table__net-cash-flow">
                         <td className="balance-report-table__name">
@@ -417,38 +455,29 @@ export default function CashFlowReport({
                             Net Cash Flow
                           </span>
                         </td>
-                        <td
-                          className={`balance-report-table__value ${
-                            baseValue < 0
-                              ? "balance-report-table__value--negative"
-                              : ""
-                          }`}
-                        >
-                          {formatValue(baseValue)}
-                        </td>
-                        {comparisonMaps.map((map, index) => {
-                          const val = (() => {
-                            const compReport = activeReports[index + 1];
-                            if (!Array.isArray(compReport)) return 0;
-                            const node = compReport.find(
-                              (n) =>
-                                (n.name ?? "").toLowerCase() === "net cash flow"
-                            );
-                            return node?.total ?? 0;
-                          })();
-                          return (
-                            <td
-                              key={`net-cash-flow-${index}`}
-                              className={`balance-report-table__value ${
-                                val < 0
-                                  ? "balance-report-table__value--negative"
-                                  : ""
-                              }`}
-                            >
-                              {formatValue(val)}
-                            </td>
-                          );
-                        })}
+                        {netValues.map((val, index) => (
+                          <td
+                            key={`net-cash-flow-${index}`}
+                            className={`balance-report-table__value ${
+                              val < 0
+                                ? "balance-report-table__value--negative"
+                                : ""
+                            }`}
+                          >
+                            {formatValue(val)}
+                          </td>
+                        ))}
+                        {showTotalColumn && (
+                          <td
+                            className={`balance-report-table__value cash-flow-report__total-cell ${
+                              netTotal < 0
+                                ? "balance-report-table__value--negative"
+                                : ""
+                            }`}
+                          >
+                            {formatValue(netTotal)}
+                          </td>
+                        )}
                       </tr>
                     );
                   })()}
@@ -484,4 +513,9 @@ CashFlowReport.propTypes = {
   filterAccounts: PropTypes.arrayOf(PropTypes.string),
   filterCategories: PropTypes.arrayOf(PropTypes.string),
   currencyMode: PropTypes.string,
+  // Adds a trailing "Total" column summing each row across the period columns.
+  // Only correct when the columns are contiguous and non-overlapping (the
+  // By Account / By Period tabs); the Summary tab's columns are arbitrary
+  // user-picked comparison ranges that may overlap, so it stays off there.
+  showTotalColumn: PropTypes.bool,
 };

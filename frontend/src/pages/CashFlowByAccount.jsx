@@ -477,6 +477,7 @@ export default function CashFlowByAccount() {
               filterAccounts={fetched.accounts}
               filterCategories={fetched.categories}
               currencyMode={fetched.currency}
+              showTotalColumn
             />
           </div>
         </div>

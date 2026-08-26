@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-08-24 · **Live version:** **v3.40.0** (see `VERSION` / git tags) — **CR086 §3 (the money colours) + CR087's P0 COMPLETE (P0a the `opening_balance` audit trail, migration 074 · P0b two ways a variance could be wrong · P0c the preview and its 409) + P1's reconcile half (the queue speaks currency)**; — **CR085 COMPLETE with NO unbuilt scope** (tornado + trajectory + multi-band + owner-typed bands + the knob sweep + stream schedules + a starting set, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
+**Last updated:** 2026-08-26 · **Live version:** **v3.41.0** (see `VERSION` / git tags) — **[CR054](../cr/cr-054-cash-flow-by-account.md): the By-Account totals row rejoins the frozen column, and the report grows a `Total`**; — **CR086 §3 (the money colours) + CR087's P0 COMPLETE (P0a the `opening_balance` audit trail, migration 074 · P0b two ways a variance could be wrong · P0c the preview and its 409) + P1's reconcile half (the queue speaks currency)**; — **CR085 COMPLETE with NO unbuilt scope** (tornado + trajectory + multi-band + owner-typed bands + the knob sweep + stream schedules + a starting set, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -39,7 +39,11 @@ page; ONE by a gate.** The engine half now HAS a gate —
 offered knob, rebuilds for real and hashes the entries, so a dead knob is measured rather than
 argued about; it caught two of its own author's fixes hiding working knobs. ⚠️ **The DISPLAY half
 still has none** — nothing checks that a chart draws everything it was handed — and that is where
-the owner found all but one of their instances.
+the owner found all but one of their instances. **v3.41.0 adds a TWELFTH, owner-found the same way**
+([CR054](../cr/cr-054-cash-flow-by-account.md)): the By-Account `Net Cash Flow` row sat in `<tfoot>`,
+missed the more-specific half of the frozen-column selector, and scrolled its label away from its own
+figures. ⚠️ **Its fix was got wrong twice by reasoning about the cascade and settled by a DOM probe** —
+the "clean" version tied on specificity and silently unpinned the whole body column.
 
 🔴 **[CR076](../cr/cr-076-forecast-model-review.md) — the five-reviewer model review; §8 COMPLETE
 across v3.20.0–v3.22.0.** It corrected **our own published figures** and moved numbers eight times.
