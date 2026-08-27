@@ -2,7 +2,6 @@ import { useCallback, useMemo, useState, useEffect } from "react";
 import PeriodSelector from "../components/PeriodSelector/PeriodSelector.jsx";
 import BudgetDetailModal from "../features/Budgets/BudgetDetailModal.jsx";
 import Rest from "../js/rest.js";
-import "../features/CashFlow/CashFlowReport.css";
 import "../components/ReportTable.css";
 import "./PageLayout.css";
 
@@ -302,12 +301,12 @@ export default function BudgetVariances() {
     <main className="budget-realization-main budget-realization-main--single">
       <div className="budget-realization-content">
         {/* Header */}
-        <div className="realization-toolbar-header">
-          <div className="realization-toolbar-header__text">
-            <h1 className="realization-toolbar-header__title">
+        <div className="report-toolbar-header">
+          <div className="report-toolbar-header__text">
+            <h1 className="report-toolbar-header__title">
               Budget Variances
             </h1>
-            <p className="realization-toolbar-header__description">
+            <p className="report-toolbar-header__description">
               Line items ranked by largest budget-to-actual variance for the
               selected period.
             </p>

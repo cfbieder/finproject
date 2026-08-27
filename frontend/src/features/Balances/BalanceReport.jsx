@@ -257,16 +257,15 @@ export default function BalanceReport({
     <section className="balance-content">
       {hasReport ? (
         <>
-          <section className="budget-region realization-header">
-            <p className="budget-region__label balance-report__title">
-              Balance Sheet
-            </p>
-          </section>
           <div className="balance-report report-table">
             <div className="balance-report__table-wrapper">
               <table className="balance-report-table" ref={tableRef}>
-                <caption className="balance-report-table__caption">
-                  <div className="balance-report-table__caption-row"></div>
+                {/* CR088 P4 — see the note in CashFlowReport.jsx. Here the banner
+                    was the worse of the two: it read "BALANCE SHEET" directly under
+                    an <h1> reading "Balance Sheet", the same words twice, in a card
+                    taller than the three rows beneath it. */}
+                <caption className="report-table__caption">
+                  Balance Sheet
                 </caption>
                 <colgroup>
                   <col style={{ width: `${categoryColumnWidth}px` }} />

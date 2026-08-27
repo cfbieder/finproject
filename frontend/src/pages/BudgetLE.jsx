@@ -103,10 +103,10 @@ function BudgetLE() {
 
   return (
     <main className="page-container">
-      <div className="realization-toolbar-header">
-        <div className="realization-toolbar-header__text">
-          <h1 className="realization-toolbar-header__title">Latest Estimate</h1>
-          <p className="realization-toolbar-header__description">
+      <div className="report-toolbar-header">
+        <div className="report-toolbar-header__text">
+          <h1 className="report-toolbar-header__title">Latest Estimate</h1>
+          <p className="report-toolbar-header__description">
             Where the year lands: actual months to the cut, plus an estimate for
             the rest. Click a category to open its month-by-month worksheet.
           </p>

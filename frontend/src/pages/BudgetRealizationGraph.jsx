@@ -6,7 +6,6 @@ import BudgetBalancePanel, {
 import BudgetGraphModal from "../features/Budgets/BudgetGraphModal.jsx";
 import Rest from "../js/rest.js";
 import { useCoa } from "../hooks/useCoa.js";
-import "../features/CashFlow/CashFlowReport.css";
 import "./PageLayout.css";
 import "./BudgetRealizationGraph.css";
 

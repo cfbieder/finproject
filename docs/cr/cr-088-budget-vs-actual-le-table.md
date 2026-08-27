@@ -1,6 +1,6 @@
 # CR088 — The Budget vs Actual table: the LE grid's typography, and a comparison it can switch
 
-**Status:** **COMPLETE** — P1 + P2 ***released v3.43.0 (2026-08-26)***; P3 ***released v3.44.0 (2026-08-26)***. Frontend + one new endpoint, **no migration**. As-built notes are §6, what was deliberately not built is §8, and P3 — the shared stylesheet and the two defects it exposed — is §9.
+**Status:** **COMPLETE** — P1 + P2 ***released v3.43.0***, P3 ***released v3.44.0***, P4 + the LE-column relabel ***released v3.45.0*** (all 2026-08-26). Frontend + one new endpoint, **no migration**. As-built notes are §6, what was deliberately not built is §8, P3 is §9, P4 (the chrome) is §10, and §11 is the owner falsifying a column header.
 **Track:** v3
 **Migration:** none. `budget_le_lines` (migration 072) already carries everything P2 reads.
 **Depends on:** [CR083](cr-083-budget-latest-estimate.md) for the LE itself · shares a defect class with
@@ -22,7 +22,7 @@ plus *"Budget v Actual for period selected and Budget v LE for period selected"*
 
 ### 2.1 What is actually wrong, not just different
 
-[CashFlowReport.css](../../frontend/src/features/CashFlow/CashFlowReport.css) gives each of five
+`CashFlowReport.css` (as it stood at v3.42.0 — **the file is deleted as of P4, §10.4**) gave each of five
 tree levels its own `!important` background, a hardcoded `rgba(148, 163, 184, …)` left border, and —
 for levels 2, 3 and 4 — `opacity: 0.7 / 0.6 / 0.55` applied to
 `.balance-report-table__value`. That last one is the problem worth naming: **it dims money.** A leaf
@@ -328,3 +328,99 @@ CSS:
 - **`/balances` → Net Worth** is a chart.
 - **`/cash-flow` and `/balances` toolbars, KPI tiles and filter chips** — this is the table look
   only.
+
+## 10. P4 — the chrome the dense tables left behind (owner request, 2026-08-26)
+
+> *"Can you harmonize the style of those reports a bit more in line with recent changes?"*
+
+P3 took the rows to `0.8rem`. Nothing around them moved, so the page furniture was suddenly out of
+proportion with the report it framed. Three things, all of them things that only look wrong **because**
+of the recent change, or that the change made visible.
+
+### 10.1 A banner card that repeated the page title
+
+Both report components opened with a `.budget-region` **card** — border, shadow, an accent bar and a
+`1.35rem` uppercase `--primary` line — containing one sentence. On `/cash-flow` it read *"Cash Flow
+Comparison"*; on `/balances` it read **"BALANCE SHEET" directly beneath an `<h1>` reading "Balance
+Sheet"** — the same words twice, in a card **taller than the three rows underneath it**.
+
+It is gone from both. **The words are kept, moved to where they belong:** a `<caption>` *is* a table's
+accessible name, so screen readers announce it and the print stylesheet renders it — it is simply not
+drawn on screen, because the page's own `<h1>` is already saying it. Clipped rather than
+`display: none`, which would drop it from the accessibility tree and defeat the point.
+
+### 10.2 One report of seven had its own title
+
+`/balances` → Summary was the outlier: `--font-heading` at `1.625rem` in `--ink`, sentence case,
+against the `1.35rem` uppercase `--primary` that `/cash-flow` ×3, `/balances` Periods and Trends,
+`/budget-vs-actual` ×2 and `/budget-le` all use. Nothing chose that — the page was built on its own
+and never reconciled. It now uses the shared header, and gained the one-line description its six
+siblings already had.
+
+**Nine report pages now render one title treatment**, measured rather than asserted: same class, same
+`21.6px`, same uppercase, same colour, **zero banners**, in both themes.
+
+### 10.3 Two class names, one style
+
+`.realization-toolbar-header*` was **byte-identical** to `.report-toolbar-header*` — same four
+declarations under a second name, so Budget vs Actual, Budget LE and Variances were styled by a copy
+rather than by the original. Collapsed into one; **two of the "six rival title treatments"
+[CR086](cr-086-ui-visual-system.md) counted were the same treatment twice.**
+
+### 10.4 What the removal left dead, and was removed too
+
+Deleting a thing is only finished when what fed it goes as well:
+
+- **`features/CashFlow/CashFlowReport.css` is deleted.** P3 had already cut it 220 → 30 lines; the
+  banner's two rules were the last things in it, so the file reached zero and its three imports went
+  with it. It began this CR as the stylesheet that governed four pages' entire look.
+- `.balance-report__title`, `.balance-report-table__caption`, `__caption-row` and `__caption h2` in
+  `PageLayout.css` — four blocks with no remaining consumer.
+- `.balance-report__title` in `BalanceReport.css`.
+
+### 10.5 Verified
+
+Nine report pages × both themes, measured in a real browser: one title class, one type size, one
+transform, one colour; `0` `.budget-region__label` elements anywhere; captions present in the
+accessibility tree and **not** visually rendered (`position: absolute`, clipped); **0 console errors
+on every page in both themes**. Six gates green, 582 frontend tests unchanged.
+
+### 10.6 Still not touched
+
+`/balances` → **Trends** (a transposed table with accounts as columns and native+USD per cell — its
+own structure, its own pass) and **Net Worth** (a chart, and one of the ten pages
+[CR086](cr-086-ui-visual-system.md) counted as rendering no `<h1>` at all).
+
+## 11. ⚠️ The LE variance column was named after the wrong benchmark
+
+**Owner, 2026-08-26, reading the shipped page:** *"if the methodology for LE is to take the actual
+for all months prior, why is this report showing a variance for vs LE?"*
+
+**The methodology was right, the figures were right, and the header was lying about what they were.**
+`VAR VS LE` computes **LE − BUDGET**. The name says the benchmark is the LE; it is not. On this page
+every comparison is against the budget — that is the frame — and the LE is a third **subject**
+alongside Actuals, not the thing being compared to.
+
+Measured on prod for the owner's exact period, 2026-01-01 → 2026-07-31 (entirely before the cut):
+
+| | Budget | Actual | LE | LE − Actual |
+|---|---:|---:|---:|---:|
+| Income | 318,784.02 | 360,920.09 | 360,920.09 | **0.00** |
+| Expense | (327,656.59) | (335,176.23) | (335,176.23) | **0.00** |
+
+**0 of 111 leaf rows differ between LE and Actual** — §3.2 holding exactly as designed. The
+42,136.07 on screen is *actual vs budget*, a real and useful figure, mislabelled.
+
+**This is [CR087](cr-087-money-legibility.md)'s defect class reproduced in a LABEL rather than a
+computation** — a column that can be read wrong. It is worth recording that §3.2 anticipated the
+confusion and still did not prevent it: the page already warned *"LE will equal Actual on every
+row"*, which is what made the variance look impossible rather than explained. **A note that states a
+fact the column header contradicts does not resolve the contradiction.** The owner found it by
+reading their own page, which is this project's most reliable instrument and the one no gate
+replaces.
+
+Fixed: the header is now **`LE vs Budget`** — subject and benchmark both named, unmisreadable — and
+the cut note says why a figure appears at all (*"it compares LE with the budget, not with actual —
+over this period it is the same number the Actual variance shows"*). In `Both` mode over a pre-cut
+period the page now makes the point itself: `Actuals` and `LE-08-26` render identical figures, and so
+do `Variance` and `LE vs Budget`.

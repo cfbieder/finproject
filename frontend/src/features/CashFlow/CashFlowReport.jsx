@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import PropTypes from "prop-types";
 import Rest from "../../js/rest.js";
 import TransactionModal from "./TransactionModal.jsx";
-import "./CashFlowReport.css";
 import "../../components/ReportTable.css";
 
 // Build a currency/decimal formatter. A currency code (e.g. "USD", "PLN")
@@ -372,15 +371,19 @@ export default function CashFlowReport({
     <section className="balance-content cash-flow-report">
       {hasReport ? (
         <>
-          <section className="budget-region realization-header">
-            <p className="budget-region__label cash-flow-report__title">
-              Cash Flow Comparison
-            </p>
-          </section>
           <div className="balance-report report-table">
             <div className="balance-report__table-wrapper">
               <table className="balance-report-table" ref={tableRef}>
-                <caption className="balance-report-table__caption"></caption>
+                {/* CR088 P4: this used to be a `.budget-region` CARD above the table —
+                    border, shadow, accent bar and a 1.35rem uppercase green line
+                    reading "Cash Flow Comparison", which is what the page's own
+                    <h1> already says. Once the rows dropped to 0.8rem the banner
+                    was heavier than the report it introduced. The words are kept
+                    where they belong: a <caption> is the table's accessible name,
+                    so screen readers and print still get it. */}
+                <caption className="report-table__caption">
+                  Cash Flow Comparison
+                </caption>
                 <colgroup>
                   <col style={{ width: `${categoryColumnWidth}px` }} />
                   <col />

@@ -207,8 +207,18 @@ export default function BalanceV2() {
   return (
     <div className="balv2">
       {/* ── Header ── */}
-      <div className="balv2-header">
-        <h1 className="balv2-header__title">Balance Sheet</h1>
+      {/* CR088 P4: this page was the ONE report of seven with its own title
+          treatment — `--font-heading` 1.625rem in `--ink`, sentence case, against
+          the 1.35rem uppercase `--primary` that /cash-flow ×3, /balances Periods
+          and Trends, and /budget-vs-actual all use. Nothing chose that; it was a
+          page built on its own and never reconciled. */}
+      <div className="report-toolbar-header">
+        <div className="report-toolbar-header__text">
+          <h1 className="report-toolbar-header__title">Balance Sheet</h1>
+          <p className="report-toolbar-header__description">
+            Assets, liabilities and net worth as of a chosen date.
+          </p>
+        </div>
       </div>
 
       {/* ── KPI Cards ── */}

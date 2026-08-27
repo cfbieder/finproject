@@ -126,8 +126,11 @@ under the wrong month headers.
 from a two-part selector in
 [PageLayout.css:2573](../../frontend/src/pages/PageLayout.css#L2573):
 `.balance-report-table tbody td:first-child, .balance-report-table__name { position: sticky; left: 0 }`.
-The hierarchy tree-lines in
-[CashFlowReport.css:15](../../frontend/src/features/CashFlow/CashFlowReport.css#L15) set
+The hierarchy tree-lines in `CashFlowReport.css` (⚠️ **that file no longer exists** — the
+tree-lines went and the file emptied to zero rules under
+[CR088](cr-088-budget-vs-actual-le-table.md) P3/P4; the report-table look now lives in
+[components/ReportTable.css](../../frontend/src/components/ReportTable.css). The paragraph below
+is kept as the record of a defect this repo got wrong twice) set
 `position: relative` on `.cash-flow-report .balance-report-table__name` (0,2,0) to anchor
 their `::before`/`::after`. Body rows survive only because the **other** half of that
 selector — `tbody td:first-child` (0,2,2) — is more specific. The Net Cash Flow row is

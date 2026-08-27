@@ -11,7 +11,7 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 ### 1.1 Open / In-Progress
 
 <a id="cr088"></a>
-- **CR088 — The report tables: the LE grid's typography everywhere, and a comparison the budget column can switch. ✅ COMPLETE — *P1+P2 released v3.43.0, P3 released v3.44.0 (both 2026-08-26); frontend + one new endpoint, NO migration.*** ([CR088](../cr/cr-088-budget-vs-actual-le-table.md))
+- **CR088 — The report tables: the LE grid's typography everywhere, and a comparison the budget column can switch. ✅ COMPLETE — *P1+P2 v3.43.0, P3 v3.44.0, P4 + the LE-column relabel v3.45.0 (all 2026-08-26); frontend + one new endpoint, NO migration.*** ([CR088](../cr/cr-088-budget-vs-actual-le-table.md))
   **P1 — the restyle.** Owner-requested (*"the same format as [the LE grid] … much easier to read"*),
   and it turned out not to be only cosmetic. `/budget-vs-actual` drew hierarchy in **colour and
   opacity**: five per-level `!important` backgrounds, hardcoded `rgba(148,163,184,…)` borders, and
@@ -65,6 +65,35 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
   Verified across all seven pages in both themes, including the **frozen column under horizontal
   scroll** (both totals rows are in `<tfoot>` — CR054's exact defect): labels stayed pinned on opaque
   grounds, 0 console errors everywhere. Six gates green, 582 frontend tests unchanged.
+
+  **P4 (v3.45.0) — the chrome the dense tables left behind**, plus the owner falsifying a column
+  header. P3 took the rows to `0.8rem` and nothing around them moved. ⚠️ **Both report components
+  opened with a `.budget-region` CARD** — border, shadow, accent bar, `1.35rem` uppercase `--primary`
+  — holding one sentence; on `/balances` it read **"BALANCE SHEET" directly beneath an `<h1>` reading
+  "Balance Sheet"**, the same words twice, in a card **taller than the three rows under it**. Removed
+  from both; the words moved to the `<caption>`, which IS a table's accessible name, so screen readers
+  and print keep it while the screen stops repeating itself. ⚠️ **One report of seven had its own
+  title** (`/balances` Summary: `--font-heading` 1.625rem `--ink` sentence-case against the 1.35rem
+  uppercase `--primary` the other six use) — nothing chose that, the page was built alone and never
+  reconciled. **Nine report pages now render one title treatment, measured.** And
+  `.realization-toolbar-header*` was **byte-identical** to `.report-toolbar-header*`, so **two of the
+  "six rival title treatments" CR086 counted were the same treatment twice** — collapsed.
+  ⚠️ **`features/CashFlow/CashFlowReport.css` is DELETED**: P3 cut it 220 → 30 lines, the banner's two
+  rules were the last in it, so it reached zero and its three imports went too. It began this CR
+  governing four pages' entire appearance. Five more dead blocks removed from `PageLayout.css` /
+  `BalanceReport.css`; two dead doc links this deletion created were repaired in the same pass
+  (⚠️ **nothing checks these — `Scripts/check-doc-links.sh` is still only a roadmap §2 item**).
+  🔴 **§11 — the owner read the shipped page and falsified a column.** *"If the methodology for LE is
+  to take the actual for all months prior, why is this report showing a variance for vs LE?"*
+  **The methodology was right, the figures were right, and the header was lying about them:**
+  `VAR VS LE` computes **LE − BUDGET**, not LE − Actual. Measured on prod for that exact period,
+  2026-01-01 → 07-31: **LE − Actual = 0.00 on both roots and 0 of 111 leaf rows differ** — §3.2
+  holding exactly as designed — while the 42,136.07 on screen is *actual vs budget*, mislabelled.
+  ⚠️ **CR087's defect class reproduced in a LABEL rather than a computation**, and §3.2 had
+  *anticipated* the confusion and still not prevented it: the page already said *"LE will equal Actual
+  on every row"*, which is what made the variance look impossible rather than explained it. **A note
+  stating a fact the column header contradicts does not resolve the contradiction.** Renamed
+  **`LE vs Budget`** — subject and benchmark both named — and the note now says why a figure appears.
 
 <a id="cr086"></a>
 - **CR086 — The visual system: six token values, three primitives, and a renderer that runs. 🔄 IN-PROGRESS — §3's money-colour repoint SHIPPED v3.37.2 (2026-08-23); the rest designed, not built.** ⚠️ **§3's money-colour repoint SHIPPED v3.37.2 (2026-08-23):** six token values, **light only**, taking light-mode contrast failures **2,364 → 1,227 (−48%)** with the two money colours and `--success-strong` now failing **zero** times and **dark byte-identical**; the delta ties to prediction within **one** element. Two traps a naive repoint would have hit, both found by deriving the ramp: `--success-strong` was **already failing** and would have ended up **lighter than its own base**, and `--danger-strong` was **already** the target value, so the two `--danger → --danger-strong` gradients would have rendered **flat**.  ([CR086](../cr/cr-086-ui-visual-system.md))

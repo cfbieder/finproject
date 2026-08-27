@@ -40,10 +40,10 @@ function BudgetRealizationContent({
 
   return (
     <div className="budget-realization-content">
-      <div className="realization-toolbar-header">
-        <div className="realization-toolbar-header__text">
-          <h1 className="realization-toolbar-header__title">Budget vs Actual</h1>
-          <p className="realization-toolbar-header__description">
+      <div className="report-toolbar-header">
+        <div className="report-toolbar-header__text">
+          <h1 className="report-toolbar-header__title">Budget vs Actual</h1>
+          <p className="report-toolbar-header__description">
             Compare budgeted amounts with actual performance by category, and
             track variance.
           </p>
@@ -126,8 +126,11 @@ function BudgetRealizationContent({
           <strong>The selected period ends on or before {compareProps.leName}&rsquo;s
           cut ({compareProps.leCut}),</strong> where the Latest Estimate holds the
           actual transactions themselves. <strong>LE will equal Actual on every
-          row.</strong> Choose a period reaching past the cut to see where the
-          estimate departs from the budget.
+          row.</strong> The variance column still shows a figure because it
+          compares LE with the <strong>budget</strong>, not with actual &mdash; over
+          this period it is the same number the Actual variance shows. Choose a
+          period reaching past the cut to see where the estimate departs from the
+          budget.
         </p>
       )}
 
@@ -219,7 +222,16 @@ function BudgetRealizationContent({
                             ? compareProps.leName
                             : "LE"}
                         </th>
-                        <th scope="col">Var vs LE</th>
+                        {/* ⚠️ "Var vs LE" until the owner read it and asked why a
+                            pre-cut period showed a variance at all, when the LE
+                            IS the actual there. It names the wrong benchmark:
+                            this column is LE − BUDGET, and on this page every
+                            comparison is against budget — LE is a third SUBJECT
+                            beside Actuals, not the thing being compared to. The
+                            figure was right and the header was lying about it,
+                            which is CR087's defect class (a column that can be
+                            read wrong) reproduced in a label. */}
+                        <th scope="col">LE vs Budget</th>
                       </>
                     )}
                   </tr>

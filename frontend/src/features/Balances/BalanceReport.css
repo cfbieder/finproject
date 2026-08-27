@@ -20,15 +20,6 @@
  *     read as a different surface from the header row it sits in.
  */
 
-.balance-report__title {
-  justify-content: center;
-  text-align: center;
-  width: 100%;
-}
-
-.balance-report__title::before {
-  content: none;
-}
 
 .balance-report-table__name-text {
   cursor: pointer;

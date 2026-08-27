@@ -2492,33 +2492,6 @@
   flex-wrap: wrap;
 }
 
-.balance-report__title {
-  margin: 0;
-  font-size: 1.1rem;
-  color: var(--ink);
-}
-
-.balance-report-table__caption {
-  caption-side: top;
-  display: block;
-  width: 100%;
-  text-align: left;
-  margin-bottom: 0.5rem;
-}
-
-.balance-report-table__caption-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.balance-report-table__caption h2 {
-  margin: 0;
-  width: 100%;
-}
-
 .balance-report__date {
   font-size: 0.95rem;
   color: var(--muted);
@@ -3371,6 +3344,11 @@
 }
 
 /* Report header — compact inline title */
+/* The page header every report uses. CR088 P4 collapsed a byte-identical twin
+   into it — `.realization-toolbar-header*` carried the same four declarations
+   under a second name, so Budget vs Actual, Budget LE and Variances were styled
+   by a copy rather than by this. Contributes to the "five rival title
+   treatments became six" CR086 §counted; two of the six were the same one. */
 .report-toolbar-header {
   display: flex;
   align-items: baseline;
@@ -3403,42 +3381,6 @@
 }
 
 .report-toolbar-header__description {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.875rem;
-  line-height: 1.4;
-}
-
-/* Compact page header */
-.realization-toolbar-header {
-  display: flex;
-  align-items: baseline;
-  gap: 1rem;
-  padding: 0.75rem 0 0.25rem;
-}
-
-.realization-toolbar-header__text {
-  display: flex;
-  align-items: baseline;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.realization-toolbar-header__title {
-  margin: 0;
-  font-size: 1.35rem;
-  font-weight: 700;
-  color: var(--primary);
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  white-space: nowrap;
-}
-
-
-.realization-toolbar-header__description {
   margin: 0;
   color: var(--muted);
   font-size: 0.875rem;
@@ -3824,13 +3766,11 @@
     margin-left: 0;
   }
 
-  .realization-toolbar-header,
   .report-toolbar-header {
     flex-direction: column;
     gap: 0.25rem;
   }
 
-  .realization-toolbar-header__text,
   .report-toolbar-header__text {
     flex-direction: column;
     gap: 0.25rem;
