@@ -429,9 +429,19 @@ async function callGateway({ systemPrompt, messages, forecastContext }) {
   lines.push("Assistant:");
   const prompt = lines.join("\n");
 
+  // CR-020 (ocr-llm): client identity. The gateway records `client_id` only when
+  // BOTH headers are present and the key matches — an id sent alone is discarded
+  // — so this sends the pair or nothing. No key configured => no headers => the
+  // request is identical to today's, which is what makes it safe to deploy
+  // before the gateway enforces anything.
+  const clientKey = (process.env.OCR_LLM_CLIENT_KEY || "").trim();
+  const authHeaders = clientKey
+    ? { "X-Client-Id": "finance", "X-Client-Key": clientKey }
+    : {};
+
   const response = await fetch(`${gatewayUrl}/task`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders },
     body: JSON.stringify({
       task: "finance_plan_review",
       prompt,

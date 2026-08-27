@@ -47,6 +47,10 @@ services:
       CATEGORY_NAMES_PATH: ../../components/data/category_names.json
       COA_PATH: ../../components/data/coa.json
       LLM_GATEWAY_URL: ${LLM_GATEWAY_URL:-http://192.168.1.61:8080}
+      # CR-020 (ocr-llm): client identity. Mapped explicitly — this service uses
+      # an `environment:` block, so a value sitting in .env alone never reaches
+      # the container. Empty default = no headers sent, unchanged behaviour.
+      OCR_LLM_CLIENT_KEY: ${OCR_LLM_CLIENT_KEY:-}
       BANK_FEED_URL: ${BANK_FEED_URL:-http://host.docker.internal:3007}
       BANK_FEED_API_KEY: ${BANK_FEED_API_KEY:-}
     extra_hosts:

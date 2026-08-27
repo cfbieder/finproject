@@ -9,6 +9,7 @@
 | POSTGRES_PASSWORD | postgres + server (all three stacks) | `.env` at repo root on 192.168.1.87 (fail-loud since CR034) | ☐ | 2026-06 (CR034 hardening) | exposure / host migration |
 | BANK_FEED_API_KEY | server ↔ bank-feed microservice (:3007) | `.env` at repo root; counterpart in `bank-feed/` repo config | ☐ | 2026-06 (CR034) | exposure / bank-feed redeploy |
 | FINTABLE_API_TOKEN | bank-feed → fintable REST API V2 (CR059) | `bank-feed/.env` on 192.168.1.87 (placeholder in `.env.example`) | ☐ | 2026-07-28 (created) | **expires 1 year — 2027-07-28** / exposure / scope change (read → write for reconnect) |
+| OCR_LLM_CLIENT_KEY | server → ocr-llm gateway `/task` (AI Review, `aiReview.js`) — sent as the `X-Client-Id: finance` + `X-Client-Key` PAIR, or not at all | `.env` at repo root on 192.168.1.87; **mapped explicitly in both compose files** — that service uses an `environment:` block, so a value sitting in `.env` alone never reaches the container | ☐ | 2026-08-27 (created) | exposure / gateway re-keying. ⚠️ **The gateway does not enforce it yet** — measured 2026-08-27, `POST /task` returns 422 identically with no key, the right key and a deliberately wrong one — so today it identifies rather than authenticates, and Fin sends nothing at all when the var is empty |
 | ~~anthropic_api_key~~ | nothing in Fin | REMOVED 2026-08-05 (v3.14.2) from `components/data/appdata.json` **and** the `app_data` table | n/a | **REVOKED 2026-08-05** (console key `chris-ocme-api-key`) | closed |
 
 **Not env vars, but they belong on this page: the CR082 identity data.** Locations only, per this
@@ -59,6 +60,6 @@ Non-secret endpoint config that travels with `.env` (no rotation): `BANK_FEED_UR
 `LLM_GATEWAY_URL` (ocr-llm gateway, Tailscale), `CORS_ORIGINS`, `VITE_APP_VERSION`
 (auto-managed by `Scripts/bump-version.sh`).
 
-**Gaps / TODO:** escrow status unknown for both secrets (no off-box copy recorded) —
+**Gaps / TODO:** escrow status unknown for all three secrets (no off-box copy recorded) —
 decide an escrow location and tick the column. v4 (CR027) auth will add a JWT/session
 secret when `AUTH_ENABLED` becomes real — add its row in that CR.
