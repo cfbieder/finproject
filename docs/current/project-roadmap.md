@@ -11,7 +11,7 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 ### 1.1 Open / In-Progress
 
 <a id="cr088"></a>
-- **CR088 — Budget Analysis: the LE grid's typography everywhere, and three comparisons instead of one. ✅ COMPLETE — *P1+P2 v3.43.0, P3 v3.44.0, P4 + the LE-column relabel v3.45.0 (all 2026-08-26), P5 v3.46.0 (2026-08-27); frontend + one new endpoint, NO migration.*** ([CR088](../cr/cr-088-budget-vs-actual-le-table.md))
+- **CR088 — Budget Analysis: the LE grid's typography everywhere, and three comparisons instead of one. ✅ COMPLETE — *P1+P2 v3.43.0, P3 v3.44.0, P4 v3.45.0 (all 2026-08-26), P5 v3.46.0, P6 v3.47.0 (both 2026-08-27); frontend + one new endpoint, NO migration.*** ([CR088](../cr/cr-088-budget-vs-actual-le-table.md))
   **P1 — the restyle.** Owner-requested (*"the same format as [the LE grid] … much easier to read"*),
   and it turned out not to be only cosmetic. `/budget-vs-actual` drew hierarchy in **colour and
   opacity**: five per-level `!important` backgrounds, hardcoded `rgba(148,163,184,…)` borders, and
@@ -125,6 +125,31 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
   of the row-drop rule, which stopped agreeing when the page learned about modes. **Third divergence
   in that one file** — CR087 §4b found a duplicated *sign* branch there. One `makeShouldDropRow` now,
   passed in. Verified by exporting in three modes and reading the workbooks back.
+
+  **P6 (v3.47.0) — the two tabs P3–P5 kept skipping**, and the count that turned out wrong.
+  `/balances` → **Trends** cannot opt into `ReportTable.css`: it is **transposed** (periods down the
+  rows, accounts across the columns), so the hierarchy, indent and totals rules have nothing to attach
+  to. It shares what was actually asked for — type scale, density (`0.7rem 0.85rem` → `0.3rem 0.5rem`)
+  and ⚠️ **`--font-mono` on the figures, which had been rendering in the BODY font** (measured `Outfit`
+  at 15.2px) while all seven other report tables used mono. `tabular-nums` was already set so columns
+  lined up; they just did not look like money anywhere else in the app. The density pays for itself:
+  **two more account columns fit on screen**. Also in that file: `letter-spacing: 0.06rem` where the
+  standard is `0.06em` (right number, wrong unit, so it did not scale with its own type); ⚠️ **negative
+  money in `Both`-currency mode sat on `--danger`, the ALERT token**, while the cell beside it uses
+  `--growth-negative`, the MONEY token — **identical values in both themes today, so nothing looks
+  wrong**, but CR086 §3's repoint moved the money colours specifically and the next one would leave
+  these behind; and **eight dead hex fallbacks** (`var(--primary, #6b8e6b)` ×5 etc.) that could never
+  fire and each encoded the *light* value — `check-inline-hex.sh` does not see CSS fallbacks.
+  **Net Worth** rendered **no `<h1>` at all** — the only Balances tab without one, and one of CR086's
+  ten headingless pages. ⚠️ **Adding the header broke the page, and only rendering caught it:**
+  `.balance-grid` is a two-column grid, so the header became a grid ITEM, took the wide column, shoved
+  the chart into the 260px sidebar track and wrapped the controls onto a second row. Fixed with
+  `grid-column: 1 / -1` scoped to that grid, never taught to the shared class.
+  🔴 **A TWELFTH title treatment, found by sweeping ELEVEN pages instead of nine.**
+  `/budget-vs-actual/chart` rendered `budget-graph-title` at **28px** — the same defect BalanceV2 had,
+  inside a destination whose other two tabs were already fixed. **P4's "nine report pages now render
+  one title treatment" was true and incomplete: the measurement was only as good as its list.** Three
+  more dead rules deleted with it. **All eleven now verified, both themes, 0 console errors.**
 
 <a id="cr086"></a>
 - **CR086 — The visual system: six token values, three primitives, and a renderer that runs. 🔄 IN-PROGRESS — §3's money-colour repoint SHIPPED v3.37.2 (2026-08-23); the rest designed, not built.** ⚠️ **§3's money-colour repoint SHIPPED v3.37.2 (2026-08-23):** six token values, **light only**, taking light-mode contrast failures **2,364 → 1,227 (−48%)** with the two money colours and `--success-strong` now failing **zero** times and **dark byte-identical**; the delta ties to prediction within **one** element. Two traps a naive repoint would have hit, both found by deriving the ramp: `--success-strong` was **already failing** and would have ended up **lighter than its own base**, and `--danger-strong` was **already** the target value, so the two `--danger → --danger-strong` gradients would have rendered **flat**.  ([CR086](../cr/cr-086-ui-visual-system.md))
@@ -1161,6 +1186,16 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
 ---
 
 ## 3. Known Issues
+
+- **Balance Trends' `Generate` emits a React `setState`-during-render warning** *(found 2026-08-27 by
+  [CR088](../cr/cr-088-budget-vs-actual-le-table.md) P6; NOT caused by it — `BalanceTrends.jsx` was
+  untouched and the change was CSS-only).* *"Cannot update a component while rendering a different
+  component"* fires on the Generate path. ⚠️ **Development-only** — React strips it from the production
+  build, and prod at v3.46.0 shows zero console errors — so this is a code-health item, not a live
+  defect. Fixing it means restructuring state flow in a 431-line component, which is why it was
+  recorded rather than folded into a typography pass. Distinct from the `react-hooks/set-state-in-effect`
+  debt `check-lint-debt.sh` ratchets (31 at baseline): that rule catches setState in an effect, this is
+  setState during another component's render.
 
 - [ ] **The e2e Generate specs race their own scenario load, and it reds `main`** (found 2026-08-17
   on CR083 P0a's push — three specs failed, the whole job passed on a re-run of **identical code**).

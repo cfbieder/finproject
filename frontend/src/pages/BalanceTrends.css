@@ -36,7 +36,7 @@
 
 .balance-trends-toolbar__error {
   font-size: 0.85rem;
-  color: var(--danger, #b14a4a);
+  color: var(--danger);
   margin: 0;
 }
 
@@ -81,7 +81,7 @@
 }
 
 .balance-trends-toolbar__interval-pill.is-active {
-  background: var(--primary, #6b8e6b);
+  background: var(--primary);
   color: var(--on-accent);
 }
 
@@ -122,14 +122,14 @@
 }
 
 .balance-trends-toolbar__btn--primary {
-  background: var(--primary, #6b8e6b);
+  background: var(--primary);
   color: var(--on-accent);
-  border-color: var(--primary, #6b8e6b);
+  border-color: var(--primary);
 }
 
 .balance-trends-toolbar__btn--primary:hover:not(:disabled) {
-  background: var(--primary-strong, #587958);
-  border-color: var(--primary-strong, #587958);
+  background: var(--primary-strong);
+  border-color: var(--primary-strong);
 }
 
 .balance-trends-toolbar__btn .spin {
@@ -154,14 +154,22 @@
   box-shadow: var(--shadow-soft);
 }
 
+/* CR088 P6 — brought onto the shared report-table type scale
+   (`components/ReportTable.css`). This table cannot simply opt in with the
+   `report-table` class: it is TRANSPOSED — periods run down the rows and
+   accounts across the columns — so the hierarchy, indent and totals rules there
+   have nothing to attach to. What it can share is the part the owner actually
+   asked to harmonise: the type scale, the density, and mono figures.
+   ⚠️ `letter-spacing` was `0.06rem`, not `0.06em` — the same number in the wrong
+   unit, so it did not scale with the type it was tracking. */
 .balance-trends-table thead th {
   background: var(--surface-muted);
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.68rem;
   text-transform: uppercase;
-  letter-spacing: 0.06rem;
-  font-weight: 700;
-  padding: 0.7rem 0.85rem;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  padding: 0.3rem 0.5rem;
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
@@ -183,7 +191,7 @@
 }
 
 .balance-trends-table thead th.balance-trends-table__th-month.is-partial {
-  color: var(--primary, #6b8e6b);
+  color: var(--primary);
 }
 
 /* Transposed layout: periods down rows, accounts across columns */
@@ -200,31 +208,31 @@
 .balance-trends-table__acct-name {
   display: block;
   text-transform: none;
-  font-size: 0.9rem;
-  font-weight: 700;
+  font-size: 0.8rem;
+  font-weight: 600;
   color: var(--ink);
 }
 
 .balance-trends-table__acct-curr {
   display: block;
-  margin-top: 0.15rem;
-  font-size: 0.72rem;
+  margin-top: 0.1rem;
+  font-size: 0.62rem;
   font-weight: 600;
   color: var(--muted);
 }
 
 .balance-trends-table__td-account.is-partial {
-  color: var(--primary, #6b8e6b);
+  color: var(--primary);
 }
 
 .balance-trends-table thead th.is-total-col {
-  border-left: 2px solid var(--border-strong, var(--border));
+  border-left: 2px solid var(--border-strong);
 }
 
 .balance-trends-table tbody td.balance-trends-table__td-value.is-total {
   background: var(--surface-muted);
   font-weight: 700;
-  border-left: 2px solid var(--border-strong, var(--border));
+  border-left: 2px solid var(--border-strong);
 }
 
 .balance-trends-table tbody tr:hover td.balance-trends-table__td-value.is-total {
@@ -232,9 +240,9 @@
 }
 
 .balance-trends-table tbody td {
-  padding: 0.6rem 0.85rem;
+  padding: 0.3rem 0.5rem;
   border-bottom: 1px solid var(--border);
-  font-size: 0.95rem;
+  font-size: 0.8rem;
   color: var(--ink);
   white-space: nowrap;
 }
@@ -250,16 +258,25 @@
 .balance-trends-table__td-currency {
   color: var(--muted);
   font-weight: 500;
-  font-size: 0.85rem;
+  font-size: 0.72rem;
 }
 
+/* ⚠️ The figures were rendering in the BODY font — measured `Outfit` at 15.2px —
+   while all seven other report tables set `--font-mono`. `tabular-nums` was
+   already on the table, so the columns did line up; they simply did not look
+   like money anywhere else in the app. */
 .balance-trends-table__td-value {
   text-align: right;
-  font-feature-settings: "tnum" 1;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
+/* `--growth-negative` is the money token every other report uses for a negative
+   figure; `--danger` is the alert colour, and it carried a hex fallback that
+   froze the light value into dark mode. */
 .balance-trends-table__td-value.is-negative {
-  color: var(--danger, #b14a4a);
+  color: var(--growth-negative);
 }
 
 /* "Both" currency mode: native on top, USD muted beneath */
@@ -270,17 +287,23 @@
 .balance-trends-table__val-usd {
   display: block;
   margin-top: 0.1rem;
-  font-size: 0.8rem;
+  font-size: 0.7rem;
   color: var(--muted);
 }
 
+/* ⚠️ These were on `--danger`, the ALERT token, while the single-currency value
+   cell above uses `--growth-negative`, the MONEY token — two tokens for one
+   meaning in one table. They resolve to the same value in both themes today, so
+   nothing looks wrong; the hazard is latent. CR086 §3's repoint moved the money
+   colours specifically, and a future one would move `--growth-negative` and
+   leave these behind, so "Both" mode would quietly stop matching "USD" mode. */
 .balance-trends-table__val-native.is-negative,
 .balance-trends-table__val-usd.is-negative {
-  color: var(--danger, #b14a4a);
+  color: var(--growth-negative);
 }
 
 .balance-trends-table tbody tr:hover td {
-  background: var(--surface-muted, rgba(107, 142, 107, 0.06));
+  background: var(--surface-muted);
 }
 
 /* The sticky account column must stay OPAQUE on hover (the row-hover tint above
@@ -293,7 +316,7 @@
 .balance-trends-table tfoot td.is-total {
   background: var(--surface-muted);
   font-weight: 700;
-  border-top: 2px solid var(--border-strong, var(--border));
+  border-top: 2px solid var(--border-strong);
 }
 
 .balance-trends-table tfoot td.balance-trends-table__td-account.is-total {

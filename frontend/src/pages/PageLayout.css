@@ -1552,6 +1552,15 @@
   grid-template-columns: minmax(0, 2.1fr) minmax(260px, 0.75fr);
 }
 
+/* CR088 P6: the Net Worth tab's page header is a CHILD of this two-column grid,
+   so without this it becomes a grid ITEM — it took the 2.1fr column, shoved the
+   chart into the 260px sidebar track and wrapped the controls onto a second row.
+   Scoped to `.balance-grid >` deliberately: `.report-toolbar-header` is shared by
+   nine pages and must not learn about this grid. */
+.balance-grid > .report-toolbar-header {
+  grid-column: 1 / -1;
+}
+
 .upload-grid {
   grid-template-columns: minmax(0, 1fr) minmax(340px, 0.9fr);
   align-items: stretch;

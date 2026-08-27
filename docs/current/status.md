@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-08-27 · **Live version:** **v3.46.0** (see `VERSION` / git tags) — **[CR088](../cr/cr-088-budget-vs-actual-le-table.md) COMPLETE (`Budget Analysis`, renamed in P5): SEVEN report tables share one stylesheet and the LE grid's typography — they drew hierarchy in colour and OPACITY, dimming money — NINE pages now render one page-title treatment, and `/budget-vs-actual`'s budget column gains a three-state comparison, `vs Actual` · `vs LE` · `Both`. ⚠️ Its last defect was found by the OWNER READING THE PAGE: a variance column named after the wrong benchmark ([§11](../cr/cr-088-budget-vs-actual-le-table.md))**; — **[CR054](../cr/cr-054-cash-flow-by-account.md): the By-Account totals row rejoins the frozen column, the report grows a `Total`, and its account chips gain [CR008](../cr/cr-008-hierarchy-filter.md)'s `multiGroup` so a selection can span two groups**; — **CR086 §3 (the money colours) + CR087's P0 COMPLETE (P0a the `opening_balance` audit trail, migration 074 · P0b two ways a variance could be wrong · P0c the preview and its 409) + P1's reconcile half (the queue speaks currency)**; — **CR085 COMPLETE with NO unbuilt scope** (tornado + trajectory + multi-band + owner-typed bands + the knob sweep + stream schedules + a starting set, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
+**Last updated:** 2026-08-27 · **Live version:** **v3.47.0** (see `VERSION` / git tags) — **[CR088](../cr/cr-088-budget-vs-actual-le-table.md) COMPLETE — ELEVEN report pages now share one table look and one page header (`Budget Analysis`, renamed in P5): SEVEN report tables share one stylesheet and the LE grid's typography — they drew hierarchy in colour and OPACITY, dimming money — NINE pages now render one page-title treatment, and `/budget-vs-actual`'s budget column gains a three-state comparison, `vs Actual` · `vs LE` · `Both`. ⚠️ Its last defect was found by the OWNER READING THE PAGE: a variance column named after the wrong benchmark ([§11](../cr/cr-088-budget-vs-actual-le-table.md))**; — **[CR054](../cr/cr-054-cash-flow-by-account.md): the By-Account totals row rejoins the frozen column, the report grows a `Total`, and its account chips gain [CR008](../cr/cr-008-hierarchy-filter.md)'s `multiGroup` so a selection can span two groups**; — **CR086 §3 (the money colours) + CR087's P0 COMPLETE (P0a the `opening_balance` audit trail, migration 074 · P0b two ways a variance could be wrong · P0c the preview and its 409) + P1's reconcile half (the queue speaks currency)**; — **CR085 COMPLETE with NO unbuilt scope** (tornado + trajectory + multi-band + owner-typed bands + the knob sweep + stream schedules + a starting set, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -199,7 +199,7 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   **remaining** months are wrong. ⚠️ **Finalise/recut NOT built, and `BUDGET FY` is read live** —
   right for a draft, wrong for a frozen artefact; snapshotting it needs a migration **before**
   finalise. **Two review rounds falsified seven of the CR's own figures**, all recorded in its §16.
-- ✅ **[CR088](../cr/cr-088-budget-vs-actual-le-table.md) — COMPLETE, v3.43.0 → v3.46.0.** The owner asked
+- ✅ **[CR088](../cr/cr-088-budget-vs-actual-le-table.md) — COMPLETE, v3.43.0 → v3.47.0.** The owner asked
   for `/budget-vs-actual` to read like the LE grid, and the restyle was **not only cosmetic**: the page
   drew hierarchy in colour and opacity — five `!important` per-level backgrounds and
   `opacity: 0.7 / 0.6 / 0.55` **on the money cells** — which is [CR086](../cr/cr-086-ui-visual-system.md)
@@ -245,6 +245,15 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   rather than a bug**, which makes it harder to catch, so it ships with a guard that counts unelapsed
   months rather than a footnote. Export follows the mode too — it had hardcoded three columns *and*
   kept its own copy of the row rule, the **third** screen-vs-workbook divergence in that one file.
+  **P6 (v3.47.0)** closed the last two tabs. `/balances` → Trends is **transposed** so it cannot opt
+  into the shared stylesheet; it shares the type scale and ⚠️ **`--font-mono` on figures that had been
+  rendering in the BODY font**. Net Worth had **no `<h1>` at all** — ⚠️ **and adding one BROKE the
+  page**, caught only by rendering: `.balance-grid` is a two-column grid, so the header became a grid
+  item and shoved the chart into the 260px sidebar track. 🔴 **Its durable lesson is about
+  MEASUREMENT, not CSS:** sweeping ELEVEN report pages instead of nine turned up a **twelfth** rival
+  title treatment. **P4's "nine pages now render one title treatment" was true and incomplete — a
+  measurement is only as good as its list**, which is the same shape as CR086's rig reporting true
+  totals over a 25-row sample.
 - **Re-examine SRQ** — **−476,930**: funds itself 35 of 36 years, dry in the last. Marginal, not
   hopeless. Financing would be the untested lever (all cash, no rent, sells at 7%), and testing it
   is **DECLINED** (owner, 2026-08-23) — so this is a judgement to make, not an experiment to run.

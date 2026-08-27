@@ -647,11 +647,19 @@ export default function BudgetRealizationGraph() {
     <>
       <main className="budget-realization-main">
         <div className="budget-graph-content">
-          <div className="budget-graph-header">
-            <h1 className="budget-graph-title">Budget Realization Chart</h1>
-            <p className="budget-graph-subtitle">
-              Visual comparison of budgeted vs actual performance by category
-            </p>
+          {/* CR088 P6: the LAST rival title treatment — `budget-graph-title` at
+              28px, found by sweeping all ELEVEN report pages rather than the
+              nine P4 knew about. Same defect BalanceV2 had: a page built on its
+              own and never reconciled. The WORDS stay (this tab is a chart and
+              says so, exactly as the Variances tab keeps its own title); only
+              the treatment joins the shared header. */}
+          <div className="report-toolbar-header">
+            <div className="report-toolbar-header__text">
+              <h1 className="report-toolbar-header__title">Budget Realization Chart</h1>
+              <p className="report-toolbar-header__description">
+                Visual comparison of budgeted vs actual performance by category.
+              </p>
+            </div>
           </div>
           {renderChart()}
         </div>

@@ -508,6 +508,22 @@ export default function Balance() {
   return (
     <>
       <main className="page-main balance-grid">
+        {/* CR088 P6: this page rendered NO <h1> at all — one of the ten pages
+            CR086 counted, and the only Balances tab without a title while its
+            three siblings (Summary, Periods, Trends) all carry one. It jumped
+            from the tab strip straight into a chart card, so nothing on screen
+            said which report you were looking at.
+            The chart's own "Assets vs Liabilities" heading stays: that names the
+            CHART, not the page, and is the same distinction P4 drew when it moved
+            the report name into the table's <caption>. This is not that banner. */}
+        <div className="report-toolbar-header">
+          <div className="report-toolbar-header__text">
+            <h1 className="report-toolbar-header__title">Net Worth</h1>
+            <p className="report-toolbar-header__description">
+              Assets less liabilities at each period end, across a chosen range.
+            </p>
+          </div>
+        </div>
         <div className="balance-layout-wrapper">
           <BalanceChartPanel
             chartRangeSummary={chartRangeSummary}

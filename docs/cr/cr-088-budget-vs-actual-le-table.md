@@ -1,6 +1,6 @@
 # CR088 — Budget Analysis: the LE grid's typography everywhere, and three comparisons instead of one
 
-**Status:** **COMPLETE** — P1 + P2 ***v3.43.0***, P3 ***v3.44.0***, P4 + the LE-column relabel ***v3.45.0*** (all 2026-08-26), P5 ***v3.46.0*** (2026-08-27). Frontend + one new endpoint, **no migration**. As-built notes are §6, what was deliberately not built is §8, P3 is §9, P4 (the chrome) is §10, §11 is the owner falsifying a column header, and §12 is what that led to.
+**Status:** **COMPLETE** — P1 + P2 ***v3.43.0***, P3 ***v3.44.0***, P4 ***v3.45.0*** (all 2026-08-26), P5 ***v3.46.0***, P6 ***v3.47.0*** (both 2026-08-27). **All eleven report pages now share one table look and one page header.** Frontend + one new endpoint, **no migration**. As-built notes are §6, what was deliberately not built is §8, P3 is §9, P4 (the chrome) is §10, §11 is the owner falsifying a column header, and §12 is what that led to.
 **Track:** v3
 **Migration:** none. `budget_le_lines` (migration 072) already carries everything P2 reads.
 **Depends on:** [CR083](cr-083-budget-latest-estimate.md) for the LE itself · shares a defect class with
@@ -537,3 +537,72 @@ Verified by exporting in three modes and reading the workbooks back: `LE vs Bud`
 are labelled *"vs budget"* on their face, so they state their own scope rather than silently
 disagreeing — the same reasoning `FyLandingStrip` already uses for a figure that does not tie to the
 table beneath it.
+
+## 13. P6 — the two tabs P3–P5 kept skipping
+
+§9.5, §10.6 and §12 each ended by naming `/balances` → **Trends** and **Net Worth** as untouched.
+This closes them, and finding the end of the list turned up two things the earlier passes had missed.
+
+### 13.1 Trends: the same type scale, not the same class
+
+Trends is **transposed** — periods down the rows, accounts across the columns — so it cannot opt into
+`components/ReportTable.css`: the hierarchy, indent and totals rules there have nothing to attach to.
+What it *can* share is what the owner actually asked to harmonise, and now does: the type scale
+(`0.68rem`/600 headers, `0.8rem` body), the density (`0.3rem 0.5rem`, down from `0.7rem 0.85rem`),
+and **`--font-mono` on the figures**.
+
+⚠️ **The money was rendering in the body font** — measured `Outfit` at `15.2px` — while all seven
+other report tables use `--font-mono`. `tabular-nums` was already set, so the columns did line up;
+they simply did not look like money anywhere else in the app. The density change also pays for
+itself: at the new scale **two more account columns fit on screen** without scrolling.
+
+Three smaller things in the same file:
+
+- **`letter-spacing: 0.06rem`, not `0.06em`** — the right number in the wrong unit, so it did not
+  scale with the type it was tracking.
+- ⚠️ **Negative money in `Both`-currency mode was on `--danger`, the ALERT token**, while the
+  single-currency cell beside it uses `--growth-negative`, the MONEY token. **They resolve to the
+  same value in both themes today, so nothing looks wrong** — the hazard is latent:
+  [CR086](cr-086-ui-visual-system.md) §3's repoint moved the money colours specifically, and the next
+  one would move `--growth-negative` and leave these behind.
+- **Eight dead hex fallbacks** (`var(--primary, #6b8e6b)` ×5, `var(--primary-strong, #587958)` ×2,
+  `var(--danger, #b14a4a)`). Every token is defined at both `:root` and `:root[data-theme="dark"]`, so
+  none could ever fire — and each encodes the **light** value, so if one ever did it would light-mode
+  a dark page. `check-inline-hex.sh` does not see CSS fallbacks.
+
+### 13.2 Net Worth had no `<h1>` — and giving it one broke the page
+
+It was the only Balances tab without a title while its three siblings all had one, jumping from the
+tab strip straight into a chart card: one of the ten headingless pages
+[CR086](cr-086-ui-visual-system.md) counted. It now carries the shared header. The chart's own
+*"Assets vs Liabilities"* heading **stays** — that names the CHART, not the page, which is the same
+distinction §10.1 drew when it moved the report name into the table's `<caption>`.
+
+⚠️ **Adding the header broke the layout, and only rendering caught it.** `.balance-grid` is a
+two-column grid (`2.1fr` / `minmax(260px, .75fr)`), so the new header became a grid **item**: it took
+the 2.1fr column, shoved the chart into the 260px sidebar track and wrapped the controls onto a
+second row. Fixed with `grid-column: 1 / -1`, scoped to `.balance-grid >` — `.report-toolbar-header`
+is shared by eleven pages and must not learn about one page's grid.
+
+### 13.3 🔴 A TWELFTH title treatment, found by sweeping eleven pages instead of nine
+
+P4 harmonised the page titles and verified **nine** pages. Sweeping all **eleven** for P6 turned up
+one more: `/budget-vs-actual/chart` rendered `budget-graph-title` at **28px** — the same defect
+BalanceV2 had, a page built on its own and never reconciled, sitting inside a destination whose other
+two tabs had already been fixed. **The measurement was only as good as its list**, which is worth
+recording: P4's *"nine report pages now render one title treatment"* was true and incomplete.
+
+The words stay (that tab is a chart and says so, exactly as the Variances tab keeps its own title);
+only the treatment joins. `budget-graph-title`, `budget-graph-subtitle` and `budget-graph-header` had
+no consumer left and are deleted.
+
+**All ELEVEN report pages now render one title treatment**, verified in both themes with zero console
+errors.
+
+### 13.4 One pre-existing defect found, recorded, not fixed
+
+Trends' **Generate** emits a React *"Cannot update a component while rendering a different
+component"* warning. It is **not** from this work — `BalanceTrends.jsx` is untouched here and a CSS
+change cannot produce it — and it is **development-only**, stripped from the production build (prod
+at v3.46.0 shows zero). Fixing it properly means restructuring state flow in a 431-line component
+this increment has no other reason to open, so it is recorded in the roadmap rather than folded in.

@@ -4,25 +4,6 @@
   max-height: calc(100vh - 80px);
 }
 
-.budget-graph-header {
-  margin-bottom: 32px;
-  padding-bottom: 16px;
-  border-bottom: 2px solid var(--border);
-}
-
-.budget-graph-title {
-  font-size: 28px;
-  font-weight: 600;
-  color: var(--ink);
-  margin: 0 0 8px 0;
-}
-
-.budget-graph-subtitle {
-  font-size: 14px;
-  color: var(--muted);
-  margin: 0;
-}
-
 .budget-graph-empty {
   display: flex;
   align-items: center;
