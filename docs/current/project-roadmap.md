@@ -11,7 +11,7 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 ### 1.1 Open / In-Progress
 
 <a id="cr088"></a>
-- **CR088 — The report tables: the LE grid's typography everywhere, and a comparison the budget column can switch. ✅ COMPLETE — *P1+P2 v3.43.0, P3 v3.44.0, P4 + the LE-column relabel v3.45.0 (all 2026-08-26); frontend + one new endpoint, NO migration.*** ([CR088](../cr/cr-088-budget-vs-actual-le-table.md))
+- **CR088 — Budget Analysis: the LE grid's typography everywhere, and three comparisons instead of one. ✅ COMPLETE — *P1+P2 v3.43.0, P3 v3.44.0, P4 + the LE-column relabel v3.45.0 (all 2026-08-26), P5 v3.46.0 (2026-08-27); frontend + one new endpoint, NO migration.*** ([CR088](../cr/cr-088-budget-vs-actual-le-table.md))
   **P1 — the restyle.** Owner-requested (*"the same format as [the LE grid] … much easier to read"*),
   and it turned out not to be only cosmetic. `/budget-vs-actual` drew hierarchy in **colour and
   opacity**: five per-level `!important` backgrounds, hardcoded `rgba(148,163,184,…)` borders, and
@@ -94,6 +94,37 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
   on every row"*, which is what made the variance look impossible rather than explained it. **A note
   stating a fact the column header contradicts does not resolve the contradiction.** Renamed
   **`LE vs Budget`** — subject and benchmark both named — and the note now says why a figure appears.
+
+  **P5 (v3.46.0) — three subjects, three comparisons.** Owner: *"we are comparing LE to budget here,
+  correct. What we want is to compare ACT to BUD, ACT to LE and LE to BUD."* §11 fixed the label; this
+  fixed **the model that generated it**. P2 had asked *"what is the always-present BUDGET compared
+  against"* — but with three subjects the budget is not privileged, and a control implying it is will
+  keep naming the wrong half. `compareMode` now names the **pair**: `Act vs Bud` (default) · `Act vs
+  LE` · `LE vs Bud` · `All`, each rendering only the subjects it compares, subjects in a fixed order,
+  a seam between *what things are* and *how they differ*, and **every variance header naming its own
+  pair**.
+  🔴 **Two of the three are variances. The third measures TIME.** Measured on prod 2026-08-27:
+  `ACT−LE` reads **+150,091 favourable on full-year expenses**, of which essentially all is that
+  **Sep–Dec have not happened** — twelve months of estimate against eight of actual. Over a pre-cut
+  window it is **0 by construction**. It is [CR087](../cr/cr-087-money-legibility.md) P0b's exact
+  shape (*a page of favourable variances that looked like good news*) reached by **honest arithmetic
+  instead of a bug**, which makes it harder to catch. So it ships **with a guard, not a footnote**:
+  the page counts unelapsed months and says *"5 of the 12 months in this period have not finished …
+  Act vs LE is measuring elapsed time, not performance"*, in warning tone, deliberately unlike the
+  neutral cut note — *"this is redundant"* and *"this figure is wrong to act on"* must not look alike.
+  ⚠️ **A seam rule that would have drawn nothing:** `th.budget-va__var-cell:first-of-type` — that
+  pseudo-class matches the first sibling of an ELEMENT type and ignores the class, so it asked for a
+  row whose first `<th>` is a variance cell, which never happens. Caught by reading the selector.
+  **Then two decisions taken through `/question`:** the page is renamed **`Budget Analysis`** (h1, nav,
+  description) with the **route deliberately unchanged** — `/budget-vs-actual` already absorbs three
+  CR042 redirects and a fourth is debt for a string nobody reads; *Budget Analysis* beat the sharper
+  *Budget Performance* because `LE vs Bud` compares two plans and nothing has been performed, so
+  "Performance" would overstate one mode of four — **this CR's own repeated failure, declined a third
+  time.** And **Export now follows the mode**: it hardcoded Budget/Actual/Variance, so exporting from
+  `LE vs Bud` gave an Actual column nobody asked for and **no LE at all**, ⚠️ *and* kept its own copy
+  of the row-drop rule, which stopped agreeing when the page learned about modes. **Third divergence
+  in that one file** — CR087 §4b found a duplicated *sign* branch there. One `makeShouldDropRow` now,
+  passed in. Verified by exporting in three modes and reading the workbooks back.
 
 <a id="cr086"></a>
 - **CR086 — The visual system: six token values, three primitives, and a renderer that runs. 🔄 IN-PROGRESS — §3's money-colour repoint SHIPPED v3.37.2 (2026-08-23); the rest designed, not built.** ⚠️ **§3's money-colour repoint SHIPPED v3.37.2 (2026-08-23):** six token values, **light only**, taking light-mode contrast failures **2,364 → 1,227 (−48%)** with the two money colours and `--success-strong` now failing **zero** times and **dark byte-identical**; the delta ties to prediction within **one** element. Two traps a naive repoint would have hit, both found by deriving the ramp: `--success-strong` was **already failing** and would have ended up **lighter than its own base**, and `--danger-strong` was **already** the target value, so the two `--danger → --danger-strong` gradients would have rendered **flat**.  ([CR086](../cr/cr-086-ui-visual-system.md))

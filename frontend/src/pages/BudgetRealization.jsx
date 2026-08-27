@@ -89,6 +89,30 @@ const buildLeafActualTotalsMap = (nodes, map = new Map()) => {
 };
 
 /**
+ * CR088 P5 — the ONE row-drop rule, used by the table and by the export.
+ *
+ * A row is dropped only when every SUBJECT column currently on screen would read
+ * zero. It has to be shared rather than restated: `excelExporter.js` kept its own
+ * `actual === 0 && budget === 0`, which stopped agreeing with the page the moment
+ * the page learned about modes — and that file had already produced one
+ * screen-vs-workbook disagreement (CR087 §4b, the duplicated sign branch).
+ */
+const makeShouldDropRow = ({
+  showBudget, showActual, showLe, hasBudgetData, hasActualData,
+}) => ({ budget, actual, le, lePresent }) => {
+  const budgetIsBlank = !showBudget || budget === 0;
+  const actualIsBlank = !showActual || actual === 0;
+  const leIsBlank = !showLe || !lePresent || le === 0;
+  return (
+    (hasBudgetData || !showBudget) &&
+    (hasActualData || !showActual) &&
+    budgetIsBlank &&
+    actualIsBlank &&
+    leIsBlank
+  );
+};
+
+/**
  * CR088 P2 — the set of leaf names the LE actually carries a line for.
  *
  * Separate from the totals map because the server's `hasLe` is the only way to
@@ -303,8 +327,12 @@ const renderCategoryRows = (nodes, ctx, level = 0, path = []) => {
     leafLeTotals,
     getLeValue,
     getLePresent,
+    showBudget,
     showActual,
     showLe,
+    varActBud,
+    varLeBud,
+    varActLe,
     onBudgetCellDoubleClick,
     onActualCellDoubleClick,
   } = ctx;
@@ -344,17 +372,16 @@ const renderCategoryRows = (nodes, ctx, level = 0, path = []) => {
         ? getLeValue(node, pathKey)
         : 0;
 
-    // A row is dropped only when EVERY column on screen would read zero. The
-    // pre-CR088 rule tested budget and actual; with the LE shown, a category
-    // that has only an estimate must survive it.
-    const actualIsBlank = !showActual || resolvedActualValue === 0;
-    const leIsBlank = !showLe || !leIsPresent || resolvedLeValue === 0;
+    // The shared rule — see `makeShouldDropRow`. The export calls the same one.
     if (
-      hasBudgetData &&
-      (hasActualData || !showActual) &&
-      resolvedBudgetValue === 0 &&
-      actualIsBlank &&
-      leIsBlank
+      makeShouldDropRow({
+        showBudget, showActual, showLe, hasBudgetData, hasActualData,
+      })({
+        budget: resolvedBudgetValue,
+        actual: resolvedActualValue,
+        le: resolvedLeValue,
+        lePresent: leIsPresent,
+      })
     ) {
       return [];
     }
@@ -391,13 +418,34 @@ const renderCategoryRows = (nodes, ctx, level = 0, path = []) => {
       ? formatCurrencyValue(varianceValue)
       : "—";
 
-    // Same convention, same direction: the LE is simply the other estimate of
-    // what the period holds, so `LE − budget` is favourable-positive on both
-    // sides exactly as `actual − budget` is.
+    // Three subjects, three pairwise comparisons. All use the SAME direction
+    // convention as `actual − budget` above — expenses are stored negative on
+    // both sides, so every one of these is favourable-positive without a
+    // per-root branch (CR087 §4b).
     const leDisplay = leIsPresent ? formatCurrencyValue(resolvedLeValue) : "—";
-    const leVarianceValue = resolvedLeValue - budgetForVariance;
-    const leVarianceDisplay =
-      leIsPresent && hasBudgetData ? formatCurrencyValue(leVarianceValue) : "—";
+
+    const leBudVarianceValue = resolvedLeValue - budgetForVariance;
+    const leBudVarianceDisplay =
+      leIsPresent && hasBudgetData ? formatCurrencyValue(leBudVarianceValue) : "—";
+
+    // ⚠️ `actual − LE` is NOT a variance in the way the other two are, and the
+    // page says so rather than letting the figure argue otherwise. Measured on
+    // prod 2026-08-27: over a period entirely at or before the cut it is ZERO on
+    // every row by construction (the LE holds those actuals); over the full year
+    // it reads **+150,091 favourable on expenses**, of which essentially all is
+    // that September–December have not happened — the LE covers twelve months
+    // and the actual covers eight. It measures elapsed TIME unless the window is
+    // both past the cut and fully elapsed. `compareProps.unelapsedMonths` drives
+    // the warning that says so.
+    const actLeVarianceValue = actualForVariance - resolvedLeValue;
+    const actLeVarianceDisplay =
+      leIsPresent && hasActualData ? formatCurrencyValue(actLeVarianceValue) : "—";
+
+    // Which variance column comes first, so the subjects/comparisons seam can be
+    // drawn on it. Order is fixed: act-bud, le-bud, act-le.
+    const firstVar = varActBud ? "actbud" : varLeBud ? "lebud" : varActLe ? "actle" : null;
+    const seam = (key) => (firstVar === key ? " budget-va__var-first" : "");
+
     const pathLabel = currentPath.join(" › ");
 
     const handleBudgetCellDoubleClick =
@@ -472,46 +520,66 @@ const renderCategoryRows = (nodes, ctx, level = 0, path = []) => {
           </button>
           <span className="balance-report-table__name-text">{node.name}</span>
         </td>
-        <td
-          className={getValueCellClassName(resolvedBudgetValue, hasBudgetData)}
-          onDoubleClick={handleBudgetCellDoubleClick}
-        >
-          {budgetDisplay}
-        </td>
+        {/* SUBJECTS first, always in the same order — budget, actual, LE — so a
+            column never moves when the mode changes. Then the VARIANCES, each
+            with a header naming its own pair (see the note in the header row).
+            §11 is why: a column called just "Variance" beside more than one
+            subject is a column that can be read wrong, and it was. */}
+        {showBudget && (
+          <td
+            className={getValueCellClassName(resolvedBudgetValue, hasBudgetData)}
+            onDoubleClick={handleBudgetCellDoubleClick}
+          >
+            {budgetDisplay}
+          </td>
+        )}
         {showActual && (
-          <>
-            <td
-              className={getValueCellClassName(resolvedActualValue, hasActualData)}
-              onDoubleClick={handleActualCellDoubleClick}
-            >
-              {actualDisplay}
-            </td>
-            <td className={getValueCellClassName(varianceValue, hasVarianceData)}>
-              {varianceDisplay}
-            </td>
-          </>
+          <td
+            className={getValueCellClassName(resolvedActualValue, hasActualData)}
+            onDoubleClick={handleActualCellDoubleClick}
+          >
+            {actualDisplay}
+          </td>
         )}
         {showLe && (
-          <>
-            <td
-              className={getValueCellClassName(
-                resolvedLeValue,
-                leIsPresent,
-                leIsPresent ? "budget-va__le-cell" : "budget-va__le-cell budget-va__absent"
-              )}
-            >
-              {leDisplay}
-            </td>
-            <td
-              className={getValueCellClassName(
-                leVarianceValue,
-                leIsPresent && hasBudgetData,
-                leIsPresent && hasBudgetData ? "" : "budget-va__absent"
-              )}
-            >
-              {leVarianceDisplay}
-            </td>
-          </>
+          <td
+            className={getValueCellClassName(
+              resolvedLeValue,
+              leIsPresent,
+              leIsPresent ? "budget-va__le-cell" : "budget-va__le-cell budget-va__absent"
+            )}
+          >
+            {leDisplay}
+          </td>
+        )}
+        {varActBud && (
+          <td className={getValueCellClassName(varianceValue, hasVarianceData, `budget-va__var-cell${seam("actbud")}`)}>
+            {varianceDisplay}
+          </td>
+        )}
+        {varLeBud && (
+          <td
+            className={getValueCellClassName(
+              leBudVarianceValue,
+              leIsPresent && hasBudgetData,
+              `budget-va__var-cell${seam("lebud")}` +
+                (leIsPresent && hasBudgetData ? "" : " budget-va__absent")
+            )}
+          >
+            {leBudVarianceDisplay}
+          </td>
+        )}
+        {varActLe && (
+          <td
+            className={getValueCellClassName(
+              actLeVarianceValue,
+              leIsPresent && hasActualData,
+              `budget-va__var-cell${seam("actle")}` +
+                (leIsPresent && hasActualData ? "" : " budget-va__absent")
+            )}
+          >
+            {actLeVarianceDisplay}
+          </td>
         )}
       </tr>
     );
@@ -569,7 +637,8 @@ const filterCategoryTree = (nodes, { includeUnrealized, includeTransfers }) => {
 // ============================================================================
 
 /**
- * BudgetRealization - Budget vs Actual reporting page
+ * BudgetRealization - the Budget Analysis reporting page (CR088 P5 renamed it;
+ * the /budget-vs-actual route is deliberately unchanged)
  *
  * This component provides functionality for:
  * - Comparing budget to actual performance by category
@@ -595,12 +664,21 @@ export default function BudgetRealization() {
   const [leafActualTotals, setLeafActualTotals] = useState(null);
   const [leafBudgetTotals, setLeafBudgetTotals] = useState(null);
 
-  // ---- CR088 P2: the Latest Estimate as a third column --------------------
-  // `compareMode` chooses what the always-present BUDGET column is compared
-  // against: "actual" (the default, and the only mode before CR088), "le", or
-  // "both". `leafLePresent` is the ABSENT-vs-ZERO set — see the note in
+  // ---- CR088 P2/P5: the Latest Estimate as a third subject ----------------
+  // ⚠️ P5 REFRAMED THIS. P2 modelled it as "what is the always-present BUDGET
+  // compared against", which is why the LE variance ended up named after the
+  // wrong benchmark (§11). There are three subjects — budget, actual, LE — and
+  // therefore THREE pairwise comparisons, and the budget is not privileged among
+  // them. `compareMode` now names the PAIR:
+  //
+  //   act-bud  BUDGETED · ACTUALS            · ACT vs BUD   (the default)
+  //   act-le   ACTUALS  · LE                 · ACT vs LE
+  //   le-bud   BUDGETED · LE                 · LE vs BUD
+  //   all      BUDGETED · ACTUALS · LE       · all three
+  //
+  // `leafLePresent` is the ABSENT-vs-ZERO set — see the note in
   // renderCategoryRows.
-  const [compareMode, setCompareMode] = useState("actual");
+  const [compareMode, setCompareMode] = useState("act-bud");
   const [leHeader, setLeHeader] = useState(null);
   const [leafLeTotals, setLeafLeTotals] = useState(null);
   const [leafLePresent, setLeafLePresent] = useState(null);
@@ -814,9 +892,13 @@ export default function BudgetRealization() {
     "balance-report-table__value--bold"
   );
 
-  // ---- CR088 P2: the LE's Net row -----------------------------------------
-  const showLe = compareMode === "le" || compareMode === "both";
-  const showActual = compareMode === "actual" || compareMode === "both";
+  // ---- CR088 P5: which subjects and which variances this mode renders ------
+  const showBudget = compareMode === "act-bud" || compareMode === "le-bud" || compareMode === "all";
+  const showActual = compareMode === "act-bud" || compareMode === "act-le" || compareMode === "all";
+  const showLe = compareMode === "act-le" || compareMode === "le-bud" || compareMode === "all";
+  const varActBud = compareMode === "act-bud" || compareMode === "all";
+  const varLeBud = compareMode === "le-bud" || compareMode === "all";
+  const varActLe = compareMode === "act-le" || compareMode === "all";
   const hasLeData = showLe && leafLeTotals !== null;
 
   const netLeValue =
@@ -824,20 +906,31 @@ export default function BudgetRealization() {
       ? computeIncomeExpenseTotal(filteredCategoryTree, leValueResolver)
       : null;
   const netLeDisplay = hasLeData ? formatCurrencyValue(netLeValue) : "—";
-  const netLeVarianceValue =
+
+  const netLeBudVarianceValue =
     (hasLeData ? netLeValue : 0) - (hasBudgetData ? netBudgetValue : 0);
-  const netLeVarianceDisplay =
-    hasLeData && hasBudgetData ? formatCurrencyValue(netLeVarianceValue) : "—";
+  const netLeBudVarianceDisplay =
+    hasLeData && hasBudgetData ? formatCurrencyValue(netLeBudVarianceValue) : "—";
+
+  const netActLeVarianceValue =
+    (hasActualData ? netActualValue : 0) - (hasLeData ? netLeValue : 0);
+  const netActLeVarianceDisplay =
+    hasLeData && hasActualData ? formatCurrencyValue(netActLeVarianceValue) : "—";
 
   const netLeCellClass = getValueCellClassName(
     netLeValue ?? 0,
     hasLeData,
     "balance-report-table__value--bold"
   );
-  const netLeVarianceCellClass = getValueCellClassName(
-    netLeVarianceValue,
+  const netLeBudVarianceCellClass = getValueCellClassName(
+    netLeBudVarianceValue,
     hasLeData && hasBudgetData,
-    "balance-report-table__value--bold"
+    "balance-report-table__value--bold budget-va__var-cell"
+  );
+  const netActLeVarianceCellClass = getValueCellClassName(
+    netActLeVarianceValue,
+    hasLeData && hasActualData,
+    "balance-report-table__value--bold budget-va__var-cell"
   );
 
   // Whether the selected period reaches PAST the LE's cut. It is the whole
@@ -851,6 +944,40 @@ export default function BudgetRealization() {
     const end = formatDateParam(actualPeriodRange.end);
     return Boolean(end) && end > leHeader.actualThrough;
   }, [leHeader, actualPeriodRange]);
+
+  // ⚠️ How many months of the selected window have NOT finished yet. This is the
+  // guard that keeps `Act vs LE` honest, and it is not a nicety — measured on
+  // prod 2026-08-27, over the full year that comparison reads **+150,091
+  // favourable on expenses**, of which essentially all is that Sep–Dec have not
+  // happened: the LE covers twelve months and the actual covers eight. The other
+  // two comparisons cannot have this problem, because budget and LE are both
+  // whole-period figures and actual is measured against a budget that is also
+  // pro-rated to the same months.
+  //
+  // A month counts as unelapsed if its last day is still in the future. Compared
+  // date-only, because a `new Date()` on a timestamp is Known Issue #3 (the
+  // timezone rule) and a month-end is a date, not an instant.
+  const unelapsedMonths = useMemo(() => {
+    if (!actualPeriodRange) return { count: 0, total: 0 };
+    const today = new Date();
+    const todayKey = formatDateParam(
+      new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    );
+    let count = 0;
+    let total = 0;
+    const cursor = new Date(
+      actualPeriodRange.start.getFullYear(),
+      actualPeriodRange.start.getMonth(),
+      1
+    );
+    while (cursor <= actualPeriodRange.end) {
+      total += 1;
+      const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0);
+      if (formatDateParam(monthEnd) > todayKey) count += 1;
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+    return { count, total };
+  }, [actualPeriodRange]);
 
   // ========== Effects: Initialization ==========
 
@@ -992,7 +1119,7 @@ export default function BudgetRealization() {
   // A year with no LE cannot offer the comparison; fall back rather than render
   // an empty column that looks like "the estimate is nothing".
   useEffect(() => {
-    if (!leHeader && compareMode !== "actual") setCompareMode("actual");
+    if (!leHeader && compareMode !== "act-bud") setCompareMode("act-bud");
   }, [leHeader, compareMode]);
 
   // Fetch the LE over the same period, with the same transfer convention, only
@@ -1196,14 +1323,31 @@ export default function BudgetRealization() {
 
   // ========== Export ==========
   const handleExport = useCallback(() => {
-    exportBudgetRealization(
-      filteredCategoryTree,
-      actualValueResolver,
-      budgetValueResolver,
+    exportBudgetRealization(filteredCategoryTree, {
+      getActualValue: actualValueResolver,
+      getBudgetValue: budgetValueResolver,
+      getLeValue: leValueResolver,
+      getLePresent: lePresenceResolver,
       hasActualData,
-      hasBudgetData
-    );
-  }, [filteredCategoryTree, actualValueResolver, budgetValueResolver, hasActualData, hasBudgetData]);
+      hasBudgetData,
+      hasLeData,
+      showBudget,
+      showActual,
+      showLe,
+      varActBud,
+      varLeBud: varLeBud && hasLeData,
+      varActLe: varActLe && hasLeData,
+      shouldDropRow: makeShouldDropRow({
+        showBudget, showActual, showLe, hasBudgetData, hasActualData,
+      }),
+      leLabel: leHeader ? leHeader.name : "LE",
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    filteredCategoryTree, actualValueResolver, budgetValueResolver,
+    leValueResolver, lePresenceResolver, hasActualData, hasBudgetData, hasLeData,
+    showBudget, showActual, showLe, varActBud, varLeBud, varActLe, leHeader,
+  ]);
 
   // ========== Row context (CR088 P2) ==========
   // One object instead of the eleven positional arguments `renderCategoryRows`
@@ -1220,8 +1364,12 @@ export default function BudgetRealization() {
       leafLeTotals,
       getLeValue: leValueResolver,
       getLePresent: lePresenceResolver,
+      showBudget,
       showActual,
       showLe: showLe && leafLeTotals !== null,
+      varActBud,
+      varLeBud: varLeBud && leafLeTotals !== null,
+      varActLe: varActLe && leafLeTotals !== null,
       onBudgetCellDoubleClick: handleBudgetCellDoubleClick,
       onActualCellDoubleClick: handleActualCellDoubleClick,
     }),
@@ -1235,8 +1383,12 @@ export default function BudgetRealization() {
       leafLeTotals,
       leValueResolver,
       lePresenceResolver,
+      showBudget,
       showActual,
       showLe,
+      varActBud,
+      varLeBud,
+      varActLe,
     ]
   );
 
@@ -1248,8 +1400,19 @@ export default function BudgetRealization() {
       leName: leHeader ? leHeader.name : null,
       leCut: leHeader ? leHeader.actualThrough : null,
       periodReachesPastCut,
+      unelapsedMonths,
+      showBudget,
+      showActual,
+      showLe,
+      varActBud,
+      varLeBud,
+      varActLe,
     }),
-    [compareMode, leHeader, periodReachesPastCut]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      compareMode, leHeader, periodReachesPastCut, unelapsedMonths,
+      showBudget, showActual, showLe, varActBud, varLeBud, varActLe,
+    ]
   );
 
   // ========== Render ==========
@@ -1268,9 +1431,11 @@ export default function BudgetRealization() {
           netActualCellClass={netActualCellClass}
           netVarianceCellClass={netVarianceCellClass}
           netLeDisplay={netLeDisplay}
-          netLeVarianceDisplay={netLeVarianceDisplay}
+          netLeBudVarianceDisplay={netLeBudVarianceDisplay}
+          netActLeVarianceDisplay={netActLeVarianceDisplay}
           netLeCellClass={netLeCellClass}
-          netLeVarianceCellClass={netLeVarianceCellClass}
+          netLeBudVarianceCellClass={netLeBudVarianceCellClass}
+          netActLeVarianceCellClass={netActLeVarianceCellClass}
           renderCategoryRows={renderCategoryRows}
           periodProps={periodProps}
           toggleProps={toggleProps}

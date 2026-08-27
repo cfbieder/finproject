@@ -151,16 +151,56 @@ export const exportCashFlow = (reports, periodLabels) => {
  * @param {boolean} hasActualData
  * @param {boolean} hasBudgetData
  */
+/**
+ * Export the Budget Analysis table — CR088 P5.
+ *
+ * ⚠️ TAKES THE MODE. Before P5 this wrote a fixed
+ * `["Category", "Budget", "Actual", "Variance"]` and knew nothing about what was
+ * on screen, so once the page grew four comparison modes the workbook could
+ * disagree with the report it came from: exporting in `LE vs Bud` produced an
+ * Actual column the reader had not asked for and no LE at all.
+ *
+ * ⚠️ AND IT NO LONGER KEEPS ITS OWN COPY OF THE ROW RULE. It used to decide
+ * which rows to drop with its own `actual === 0 && budget === 0`, a second copy
+ * of the page's rule — and when P5 taught the page to consider only the SUBJECTS
+ * it renders, that copy silently stopped agreeing about the row set too. This
+ * file has form: the comment retained below records CR087 §4b finding a
+ * duplicated sign branch here, which would have left "the screen and the
+ * exported workbook disagreeing about the sign of every variance". Same file,
+ * same shape, third time. The caller now passes `shouldDropRow`, so there is one
+ * rule and no second copy to drift.
+ */
 export const exportBudgetRealization = (
   categoryTree,
-  getActualValue,
-  getBudgetValue,
-  hasActualData,
-  hasBudgetData
+  {
+    getActualValue,
+    getBudgetValue,
+    getLeValue,
+    getLePresent,
+    hasActualData,
+    hasBudgetData,
+    hasLeData,
+    showBudget,
+    showActual,
+    showLe,
+    varActBud,
+    varLeBud,
+    varActLe,
+    shouldDropRow,
+    leLabel = "LE",
+  } = {}
 ) => {
   if (!Array.isArray(categoryTree) || categoryTree.length === 0) return;
 
-  const headers = ["Category", "Budget", "Actual", "Variance"];
+  // Subjects in the page's fixed order, then the variances, each named after its
+  // own pair — the same rule the headers follow, for the same reason (§11).
+  const headers = ["Category"];
+  if (showBudget) headers.push("Budget");
+  if (showActual) headers.push("Actual");
+  if (showLe) headers.push(leLabel);
+  if (varActBud) headers.push("Act vs Bud");
+  if (varLeBud) headers.push("LE vs Bud");
+  if (varActLe) headers.push("Act vs LE");
 
   const flattenBudgetTree = (nodes, path = [], depth = 0) => {
     if (!Array.isArray(nodes)) return [];
@@ -170,29 +210,40 @@ export const exportBudgetRealization = (
       const pathKey = currentPath.join(">");
       const budget = hasBudgetData && getBudgetValue ? getBudgetValue(node, pathKey) : 0;
       const actual = hasActualData && getActualValue ? getActualValue(node, pathKey) : 0;
-      if (hasActualData && hasBudgetData && actual === 0 && budget === 0) return [];
+      const lePresent = hasLeData && getLePresent ? getLePresent(node, pathKey) : false;
+      const le = hasLeData && getLeValue ? getLeValue(node, pathKey) : 0;
+
+      if (typeof shouldDropRow === "function" && shouldDropRow({ budget, actual, le, lePresent })) {
+        return [];
+      }
+
       // CR087 §4b — the same substring-keyed sign branch that was in
       // BudgetRealization.jsx lived here too, so fixing only the page would have
       // left the screen and the exported workbook disagreeing about the sign of
       // every variance. Expenses are stored NEGATIVE on both sides, so
-      // `actual − budget` is favourable-positive for income and expense alike.
-      const variance = actual - budget;
+      // `a − b` is favourable-positive for income and expense alike, and that
+      // holds for all three pairs.
+      const values = [];
+      if (showBudget) values.push(formatNum(budget));
+      if (showActual) values.push(formatNum(actual));
+      if (showLe) values.push(lePresent ? formatNum(le) : "");
+      if (varActBud) values.push(formatNum(actual - budget));
+      if (varLeBud) values.push(lePresent ? formatNum(le - budget) : "");
+      if (varActLe) values.push(lePresent ? formatNum(actual - le) : "");
+
       const hasChildren = Array.isArray(node.children) && node.children.length > 0;
       const children = hasChildren
         ? flattenBudgetTree(node.children, currentPath, depth + 1)
         : [];
-      return [
-        { name: node.name, depth, values: [formatNum(budget), formatNum(actual), formatNum(variance)] },
-        ...children,
-      ];
+      return [{ name: node.name, depth, values }, ...children];
     });
   };
 
   const rows = flattenBudgetTree(categoryTree);
   const wb = XLSX.utils.book_new();
   const ws = buildSheet(headers, rows);
-  XLSX.utils.book_append_sheet(wb, ws, "Budget vs Actual");
-  downloadWorkbook(wb, `budget-realization-${Date.now()}.xlsx`);
+  XLSX.utils.book_append_sheet(wb, ws, "Budget Analysis");
+  downloadWorkbook(wb, `budget-analysis-${Date.now()}.xlsx`);
 };
 
 // ============================================================================

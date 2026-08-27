@@ -1,6 +1,6 @@
-# CR088 — The Budget vs Actual table: the LE grid's typography, and a comparison it can switch
+# CR088 — Budget Analysis: the LE grid's typography everywhere, and three comparisons instead of one
 
-**Status:** **COMPLETE** — P1 + P2 ***released v3.43.0***, P3 ***released v3.44.0***, P4 + the LE-column relabel ***released v3.45.0*** (all 2026-08-26). Frontend + one new endpoint, **no migration**. As-built notes are §6, what was deliberately not built is §8, P3 is §9, P4 (the chrome) is §10, and §11 is the owner falsifying a column header.
+**Status:** **COMPLETE** — P1 + P2 ***v3.43.0***, P3 ***v3.44.0***, P4 + the LE-column relabel ***v3.45.0*** (all 2026-08-26), P5 ***v3.46.0*** (2026-08-27). Frontend + one new endpoint, **no migration**. As-built notes are §6, what was deliberately not built is §8, P3 is §9, P4 (the chrome) is §10, §11 is the owner falsifying a column header, and §12 is what that led to.
 **Track:** v3
 **Migration:** none. `budget_le_lines` (migration 072) already carries everything P2 reads.
 **Depends on:** [CR083](cr-083-budget-latest-estimate.md) for the LE itself · shares a defect class with
@@ -424,3 +424,116 @@ the cut note says why a figure appears at all (*"it compares LE with the budget,
 over this period it is the same number the Actual variance shows"*). In `Both` mode over a pre-cut
 period the page now makes the point itself: `Actuals` and `LE-08-26` render identical figures, and so
 do `Variance` and `LE vs Budget`.
+
+## 12. P5 — three subjects, three comparisons (owner, 2026-08-26)
+
+> *"I see this brings the crux of the issue — we are comparing LE to budget here, correct. What we
+> want is to compare ACT to BUD, ACT to LE and LE to BUD. Think how we can best allow for those three
+> variants."*
+
+§11 fixed the label. This fixes the **model behind it**, which is what generated the wrong label in
+the first place.
+
+### 12.1 The framing was wrong, not just the header
+
+P2 modelled the page as *"what is the always-present BUDGET compared against"*. That is why the LE
+variance ended up named after the wrong benchmark: **with three subjects the budget is not
+privileged**, and a control implying it is will keep producing headers that name the wrong half.
+There are three subjects — budget, actual, LE — and therefore three pairwise comparisons.
+
+`compareMode` now names the **pair**, and every mode renders only the subjects it compares:
+
+| Mode | Columns |
+|---|---|
+| `Act vs Bud` *(default)* | `BUDGETED · ACTUALS · ACT VS BUD` |
+| `Act vs LE` | `ACTUALS · LE · ACT VS LE` |
+| `LE vs Bud` | `BUDGETED · LE · LE VS BUD` |
+| `All` | `BUDGETED · ACTUALS · LE · ACT VS BUD · LE VS BUD · ACT VS LE` |
+
+Subjects keep a fixed order so a column never moves between modes, a 2px seam separates *what each
+thing is* from *how they differ*, and — the rule §11 bought — **every variance header names its own
+pair.** A column called just `Variance` is unambiguous only while one comparison is on screen; the
+moment there were two it was read as naming a benchmark it did not name.
+
+### 12.2 🔴 Two of the three are variances. The third measures TIME.
+
+This is the finding, and it was worth measuring before building. On prod, 2026-08-27, cut
+`2026-07-31`:
+
+| Period | ACT−BUD | LE−BUD | **ACT−LE** |
+|---|---:|---:|---:|
+| July (closed, pre-cut) | −138 | −138 | **0** |
+| August (post-cut, **in progress**) | −2,780 | −3,955 | **+1,175** |
+| Full year (spans the cut) | +161,831 | +11,740 | **+150,091** |
+
+**`ACT − LE` on the full year says expenses are $150,091 favourable, and essentially all of it is
+that September–December have not happened.** Twelve months of estimate against eight months of
+actual. It is not a variance; it is a calendar artefact wearing one's clothes — and it is
+[CR087](cr-087-money-legibility.md) P0b's exact shape (*a page of favourable variances that looked
+like good news*) arrived at by **honest arithmetic instead of a bug**, which makes it harder to
+catch, not easier. `ACT − BUD` and `LE − BUD` cannot do this: both sides of each are whole-period
+figures over the same months.
+
+So `Act vs LE` ships **with a guard, not a footnote**. The page counts how many months of the
+selected window have not finished and says so in a warning-toned note — *"5 of the 12 months in this
+period have not finished … Act vs LE is measuring elapsed time, not performance"* — distinct from the
+neutral cut note, because *"this is redundant"* and *"this figure is wrong to act on"* are different
+statements and must not look alike. Over a window at or before the cut it says the other true thing:
+the comparison is **zero by construction, an identity rather than a finding**.
+
+### 12.3 ⚠️ A seam that would have drawn nothing
+
+The subjects/variances rule was first written as
+`th.budget-va__var-cell:first-of-type`. **`:first-of-type` matches the first sibling of an ELEMENT
+type and ignores the class**, so that asks for a row whose *first* `<th>` is a variance cell — which
+never happens, because the first cell is always `Category`. It would have matched nothing and drawn
+no seam, silently. Caught by reading the selector rather than the render; the marker is now set in
+JSX, where *"which variance column comes first"* is actually known.
+
+### 12.4 Verified
+
+All four modes × two period shapes (a closed pre-cut month, and the full year with five unelapsed
+months), measured in a browser:
+
+- **Columns and seam correct in every mode**, subjects fixed in order, seam on the first variance.
+- **`Act vs LE` over July: `$0.00` on both roots**, with the identity note — not the warning.
+- **`Act vs LE` over the full year: the warning fires**, naming *5 of 12* (Aug–Dec, today being
+  2026-08-27).
+- **`LE vs Bud` over July renders figures identical to `Act vs Bud`**, with the cut note saying so.
+- **0 console errors** in every mode, both themes; 582 frontend tests unchanged; six gates green.
+
+### 12.5 The name, and the export — resolved (owner, `/question`)
+
+§12.5 originally ended by flagging that the page was three comparisons wide and still called
+**Budget vs Actual**, one of the three. Both that and a second mismatch P5 exposed were then walked
+through and decided:
+
+**The page is now `Budget Analysis`** — h1, nav label and route description. ⚠️ **The ROUTE is
+deliberately unchanged.** `/budget-vs-actual` already absorbs three [CR042](cr-042-report-consolidation.md)
+redirects (`/budget-realization`, `/budget-graph`, `/budget-variances`); a fourth would be redirect
+debt on redirect debt for a string nobody reads, while the *title* is the part sitting on screen
+contradicting its own toggle. `routes.test.js` needed no change, because it asserts paths.
+
+*Budget Analysis* over the sharper *Budget Performance* for one reason: **`LE vs Bud` compares two
+plans, and nothing has been performed yet** — so "Performance" would overstate one mode of four.
+That is this CR's own repeated failure (a label claiming more than the thing delivers, §11 and
+§12.1), declined for a third time.
+
+**Export now follows the mode**, and this is a defect P5 created rather than a polish item.
+`exportBudgetRealization` hardcoded `["Category", "Budget", "Actual", "Variance"]` and knew nothing
+about what was on screen, so exporting from `LE vs Bud` produced an Actual column the reader had not
+asked for and **no LE at all**. ⚠️ **It also kept its own copy of the row-drop rule**
+(`actual === 0 && budget === 0`), which stopped agreeing the moment the page learned to consider only
+the subjects it renders — so the row SET could differ too. **This file has form:** the comment still
+in it records CR087 §4b finding a duplicated *sign* branch here, which would have left *"the screen
+and the exported workbook disagreeing about the sign of every variance"*. Same file, same shape,
+third instance. The rule is now `makeShouldDropRow`, passed in — one rule, no second copy to drift.
+
+Verified by exporting in three modes and reading the workbooks back: `LE vs Bud` →
+`Category · Budget · LE-08-26 · LE vs Bud` with figures identical to the screen; `Act vs LE` →
+**no Budget column**; `All` → all seven. Sheet and filename renamed with the page.
+
+**Left alone deliberately:** the KPI cards stay actual-vs-budget in every mode. Unlike the export they
+are labelled *"vs budget"* on their face, so they state their own scope rather than silently
+disagreeing — the same reasoning `FyLandingStrip` already uses for a figure that does not tie to the
+table beneath it.

@@ -57,13 +57,6 @@
 
 /* ---- the LE columns ------------------------------------------------------ */
 
-/* The seam: the LE half of the table sits right of a 2px rule, the same signal
-   LEGrid uses to separate fact from estimate. */
-.budget-va .balance-report-table thead th.budget-va__le-cell,
-.budget-va .balance-report-table tbody td.budget-va__le-cell {
-  border-left: 2px solid var(--border-strong);
-}
-
 /* ABSENT, not zero — the LE carries no line for this category in this period.
    Rendered as `—` by the JSX; this only carries the colour, so the em dash is
    not mistaken for a figure. */
@@ -99,4 +92,32 @@
 @media print {
   .budget-va__compare,
   .budget-va__cutnote { display: none; }
+}
+
+/* ---- CR088 P5: the variance columns ------------------------------------- */
+
+/* A rule at the seam between the SUBJECT columns and the VARIANCE columns, so
+   the eye can tell "what each thing is" from "how they differ" without reading
+   the headers. Replaces P2's `__le-cell` seam, which marked the wrong boundary —
+   it separated LE from Actual, when the meaningful split is measurements vs
+   comparisons. Both still exist because in `All` the LE is the last subject and
+   the two seams coincide; in `Act vs LE` they do not. */
+/* ⚠️ NOT `:first-of-type`. That pseudo-class matches the first sibling of an
+   ELEMENT type, ignoring the class — so `th.budget-va__var-cell:first-of-type`
+   asks for a row whose FIRST <th> is a variance cell, which never happens here
+   because the first cell is always Category. It would have matched nothing and
+   drawn no seam at all. The marker is set in JSX, where "which variance column
+   comes first" is actually known. */
+.budget-va .balance-report-table thead th.budget-va__var-first,
+.budget-va .balance-report-table tbody td.budget-va__var-first {
+  border-left: 2px solid var(--border-strong);
+}
+
+/* The elapsed-time warning is a different class of statement from the cut note:
+   the cut note says "this is redundant", this one says "this figure is wrong to
+   act on". Marked with the warning token rather than the neutral border, and
+   `--warning-subtle` is defined in both themes. */
+.budget-va__cutnote--warn {
+  background: var(--warning-subtle);
+  border-left-color: var(--warning, var(--growth-negative));
 }

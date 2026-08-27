@@ -6,10 +6,15 @@ import FyLandingStrip from "./FyLandingStrip.jsx";
 import "../../components/ReportTable.css";
 import "./BudgetVaTable.css";
 
+// ⚠️ The modes name a PAIR, not "what the budget is compared against". P2 used
+// the second framing and it is what produced §11's mislabelled column: with
+// three subjects the budget is not privileged, and a control that implies it is
+// will keep generating headers that name the wrong benchmark.
 const COMPARE_MODES = [
-  { key: "actual", label: "vs Actual" },
-  { key: "le", label: "vs LE" },
-  { key: "both", label: "Both" },
+  { key: "act-bud", label: "Act vs Bud" },
+  { key: "act-le", label: "Act vs LE" },
+  { key: "le-bud", label: "LE vs Bud" },
+  { key: "all", label: "All" },
 ];
 
 function BudgetRealizationContent({
@@ -23,9 +28,11 @@ function BudgetRealizationContent({
   netActualCellClass,
   netVarianceCellClass,
   netLeDisplay,
-  netLeVarianceDisplay,
+  netLeBudVarianceDisplay,
+  netActLeVarianceDisplay,
   netLeCellClass,
-  netLeVarianceCellClass,
+  netLeBudVarianceCellClass,
+  netActLeVarianceCellClass,
   renderCategoryRows,
   periodProps,
   toggleProps,
@@ -35,17 +42,21 @@ function BudgetRealizationContent({
   kpiData,
   fyLanding,
 }) {
-  const showActual = rowContext.showActual;
-  const showLe = rowContext.showLe;
+  const { showBudget, showActual, showLe, varActBud, varLeBud, varActLe } = rowContext;
+  const leLabel = compareProps && compareProps.leName ? compareProps.leName : "LE";
+  const unelapsed = (compareProps && compareProps.unelapsedMonths) || { count: 0, total: 0 };
+  // The seam between SUBJECT and VARIANCE columns hangs off whichever variance
+  // comes first — see the note in BudgetVaTable.css for why this is not CSS.
+  const firstVar = varActBud ? "actbud" : varLeBud ? "lebud" : varActLe ? "actle" : null;
+  const seam = (key) => (firstVar === key ? " budget-va__var-first" : "");
 
   return (
     <div className="budget-realization-content">
       <div className="report-toolbar-header">
         <div className="report-toolbar-header__text">
-          <h1 className="report-toolbar-header__title">Budget vs Actual</h1>
+          <h1 className="report-toolbar-header__title">Budget Analysis</h1>
           <p className="report-toolbar-header__description">
-            Compare budgeted amounts with actual performance by category, and
-            track variance.
+            Compare any two of budget, actual and latest estimate by category.
           </p>
         </div>
       </div>
@@ -114,23 +125,53 @@ function BudgetRealizationContent({
 
       <FyLandingStrip landing={fyLanding} />
 
-      {/* ⚠️ The one thing a reader must be told before trusting an LE column.
-          `budget_le_lines` carries the transactions verbatim for every month at
-          or before the cut, so over such a period the LE column is IDENTICAL to
-          the actual one — measured on prod, 0 of 111 leaves differ and the sums
-          tie to the cent. Two columns that agree by construction read as
-          corroboration, and they are not. The mode stays selectable (the owner
-          asked for an explicit toggle, not auto-hiding); the page says why. */}
-      {showLe && compareProps && compareProps.leCut && !compareProps.periodReachesPastCut && (
+      {/* ⚠️ TWO different ways an LE comparison can read wrong, and they are not
+          the same hazard, so they are not the same sentence.
+
+          (1) LE vs Bud over a period at or before the cut: the LE holds those
+              actuals, so the column is byte-identical to Act vs Bud. Not wrong,
+              just not the second opinion it looks like.
+
+          (2) Act vs LE over a period that has not finished: THIS one produces a
+              figure that is wrong to act on. Measured on prod 2026-08-27, over
+              the full year it reads +150,091 favourable on expenses, of which
+              essentially all is that Sep–Dec have not happened — twelve months
+              of estimate against eight months of actual. It is the shape CR087
+              P0b closed on the actuals side (a page of favourable variances that
+              looked like good news), arrived at by honest arithmetic instead of
+              a bug, which makes it harder to catch. */}
+      {varLeBud && compareProps && compareProps.leCut && !compareProps.periodReachesPastCut && (
         <p className="budget-va__cutnote" role="note">
           <strong>The selected period ends on or before {compareProps.leName}&rsquo;s
           cut ({compareProps.leCut}),</strong> where the Latest Estimate holds the
           actual transactions themselves. <strong>LE will equal Actual on every
-          row.</strong> The variance column still shows a figure because it
-          compares LE with the <strong>budget</strong>, not with actual &mdash; over
-          this period it is the same number the Actual variance shows. Choose a
-          period reaching past the cut to see where the estimate departs from the
-          budget.
+          row,</strong> so <strong>LE vs Bud</strong> shows the same figures as{" "}
+          <strong>Act vs Bud</strong>. Choose a period reaching past the cut to see
+          where the estimate departs from the budget.
+        </p>
+      )}
+
+      {varActLe && unelapsed.count > 0 && (
+        <p className="budget-va__cutnote budget-va__cutnote--warn" role="note">
+          <strong>
+            {unelapsed.count} of the {unelapsed.total}{" "}
+            {unelapsed.total === 1 ? "month" : "months"} in this period{" "}
+            {unelapsed.count === 1 ? "has" : "have"} not finished.
+          </strong>{" "}
+          The Latest Estimate covers {unelapsed.total === 1 ? "it" : "all of them"} in
+          full; Actual only covers what has been booked so far, so{" "}
+          <strong>Act vs LE is measuring elapsed time, not performance</strong> — it
+          will read favourable simply because the period is not over. Compare a
+          window that has fully elapsed and sits past the cut.
+        </p>
+      )}
+
+      {varActLe && unelapsed.count === 0 && compareProps && !compareProps.periodReachesPastCut && (
+        <p className="budget-va__cutnote" role="note">
+          <strong>This period ends on or before the cut, where the Latest Estimate
+          IS the actual.</strong> <strong>Act vs LE will be zero on every row</strong>{" "}
+          &mdash; not a finding, an identity. It only carries information for a
+          window past {compareProps.leName}&rsquo;s cut ({compareProps.leCut}).
         </p>
       )}
 
@@ -208,31 +249,27 @@ function BudgetRealizationContent({
                     <th className="balance-report-table__category" scope="col">
                       Category
                     </th>
-                    <th scope="col">Budgeted</th>
-                    {showActual && (
-                      <>
-                        <th scope="col">Actuals</th>
-                        <th scope="col">Variance</th>
-                      </>
-                    )}
+                    {/* SUBJECTS in a fixed order, then the VARIANCES — and
+                        EVERY variance header names its own pair. That rule comes
+                        straight from §11: a column called just "Variance" is
+                        unambiguous only while there is one comparison on screen,
+                        and the moment there were two it was read as naming a
+                        benchmark it did not name. With three subjects the budget
+                        is not privileged, so nothing here may rely on it being
+                        the implied other half. */}
+                    {showBudget && <th scope="col">Budgeted</th>}
+                    {showActual && <th scope="col">Actuals</th>}
                     {showLe && (
-                      <>
-                        <th scope="col" className="budget-va__le-cell">
-                          {compareProps && compareProps.leName
-                            ? compareProps.leName
-                            : "LE"}
-                        </th>
-                        {/* ⚠️ "Var vs LE" until the owner read it and asked why a
-                            pre-cut period showed a variance at all, when the LE
-                            IS the actual there. It names the wrong benchmark:
-                            this column is LE − BUDGET, and on this page every
-                            comparison is against budget — LE is a third SUBJECT
-                            beside Actuals, not the thing being compared to. The
-                            figure was right and the header was lying about it,
-                            which is CR087's defect class (a column that can be
-                            read wrong) reproduced in a label. */}
-                        <th scope="col">LE vs Budget</th>
-                      </>
+                      <th scope="col" className="budget-va__le-cell">{leLabel}</th>
+                    )}
+                    {varActBud && (
+                      <th scope="col" className={`budget-va__var-cell${seam("actbud")}`}>Act vs Bud</th>
+                    )}
+                    {varLeBud && (
+                      <th scope="col" className={`budget-va__var-cell${seam("lebud")}`}>LE vs Bud</th>
+                    )}
+                    {varActLe && (
+                      <th scope="col" className={`budget-va__var-cell${seam("actle")}`}>Act vs LE</th>
                     )}
                   </tr>
                 </thead>
@@ -245,24 +282,31 @@ function BudgetRealizationContent({
                           Net Cash Flow
                         </span>
                       </td>
-                      <td className={netBudgetCellClass}>{netBudgetDisplay}</td>
+                      {showBudget && (
+                        <td className={netBudgetCellClass}>{netBudgetDisplay}</td>
+                      )}
                       {showActual && (
-                        <>
-                          <td className={netActualCellClass}>{netActualDisplay}</td>
-                          <td className={netVarianceCellClass}>
-                            {netVarianceDisplay}
-                          </td>
-                        </>
+                        <td className={netActualCellClass}>{netActualDisplay}</td>
                       )}
                       {showLe && (
-                        <>
-                          <td className={`${netLeCellClass} budget-va__le-cell`}>
-                            {netLeDisplay}
-                          </td>
-                          <td className={netLeVarianceCellClass}>
-                            {netLeVarianceDisplay}
-                          </td>
-                        </>
+                        <td className={`${netLeCellClass} budget-va__le-cell`}>
+                          {netLeDisplay}
+                        </td>
+                      )}
+                      {varActBud && (
+                        <td className={`${netVarianceCellClass} budget-va__var-cell${seam("actbud")}`}>
+                          {netVarianceDisplay}
+                        </td>
+                      )}
+                      {varLeBud && (
+                        <td className={`${netLeBudVarianceCellClass}${seam("lebud")}`}>
+                          {netLeBudVarianceDisplay}
+                        </td>
+                      )}
+                      {varActLe && (
+                        <td className={`${netActLeVarianceCellClass}${seam("actle")}`}>
+                          {netActLeVarianceDisplay}
+                        </td>
                       )}
                     </tr>
                   )}

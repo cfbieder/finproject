@@ -221,18 +221,24 @@ export const routes = [
     icon: Target,
   },
   {
+    // CR088 P5: renamed "Budget vs Actual" -> "Budget Analysis". The page now
+    // compares any two of BUDGET, ACTUAL and LE, so the old label named one of
+    // three modes and sat on screen contradicting its own toggle. The ROUTE is
+    // deliberately unchanged (owner decision): this destination already absorbs
+    // three CR042 redirects, and a fourth would be redirect debt on redirect
+    // debt for a string nobody reads.
     path: "/budget-vs-actual",
     component: BudgetVsActual,
-    label: "Budget vs Actual",
+    label: "Budget Analysis",
     category: "Budgeting",
     description:
-      "Budget vs actual — realization table, variance charts, and line items ranked by largest variance",
+      "Compare any two of budget, actual and latest estimate by category — realization table, charts, and line items ranked by largest variance",
     icon: Target,
   },
   {
     path: "/budget-vs-actual/:view",
     component: BudgetVsActual,
-    label: "Budget vs Actual",
+    label: "Budget Analysis",
     category: "Budgeting",
     showInNav: false,
     icon: Target,
