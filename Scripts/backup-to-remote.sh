@@ -1,5 +1,38 @@
 #!/bin/bash
 # ============================================================================
+# ⛔ RETIRED 2026-08-30 — DO NOT RE-ENABLE. This script refuses to run (see below).
+#
+# IT HAD BEEN FAILING SILENTLY FOR 74 DAYS. First error 2026-06-17, 76 errors in
+# the log, and nothing alerted: its pre-flight SSHes to cfbieder@192.168.1.252,
+# but that host is pbs1, a PBS appliance whose only account is root. The account
+# it authenticates as does not exist.
+#
+# ⚠️ ONE FAILED PRE-FLIGHT DISABLED TWO UNRELATED FUNCTIONS. The `exit 1` sits at
+# line ~52; the docker prune it also performed is at ~132. So the pruning stopped
+# on 2026-06-17 too, and nobody connected the two -- a reminder that an early exit
+# silently un-schedules everything downstream of it.
+#
+# WHY RETIRED RATHER THAN FIXED: everything it did is already covered, better.
+#   * The DB -> `fin-pg`, pbs1 ns/fin, ENCRYPTED and restore-tested 2026-07-14,
+#     running 6-hourly from /etc/cron.d/pg-backup-pbs. This script's copy was an
+#     unencrypted tar.gz, i.e. strictly worse than the leg that replaced it.
+#   * The docker prune -> ~/bin/docker-reclaim.sh, weekly, CR-016. Already working.
+#   * .env / certs / components-data -> the nightly VM-image leg.
+# Fixing the SSH target would have RESUMED writing plaintext archives containing
+# .env secrets onto pbs1 -- the exact exposure the 2026-08-30 fleet sweep removed.
+#
+# ⚠️ ONE THING IT COVERED IS NOW WORSE, AND IS RECORDED RATHER THAN GLOSSED:
+# .env, certs and components/data are covered ONLY by the VM-image leg, which the
+# fleet registry declares `encrypted: false`. fin is tier:prod / data_class:user-data.
+# That is a real gap -- it wants an encrypted config leg like hel1-4-config, not
+# this script back.
+# ============================================================================
+echo "backup-to-remote.sh is RETIRED (2026-08-30) — see the header. Refusing to run." >&2
+echo "  DB backups: /etc/cron.d/pg-backup-pbs -> pbs1 ns/fin (encrypted, restore-tested)" >&2
+echo "  docker prune: ~/bin/docker-reclaim.sh (weekly)" >&2
+exit 1
+
+# ============================================================================
 # backup-to-remote.sh — Backup database + config to remote host
 #
 # Backs up:
