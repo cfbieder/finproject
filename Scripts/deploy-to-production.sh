@@ -180,6 +180,14 @@ if [ "$NO_BACKUP" = false ]; then
     docker exec fin-postgres pg_dump -U fin -d fin -Fc > "$BACKUP_FILE"
     echo "✓ Production database backed up to: $BACKUP_FILE"
     echo "  Size: $(du -h "$BACKUP_FILE" | cut -f1)"
+    # ⚠️ RETENTION ADDED 2026-08-30 — there was NONE, so every deploy left another plaintext dump of
+    # the production DB here forever: 424 files, 1.5 GB, going back 177 days to 2026-03-03.
+    # Found by the homelab's `check-plaintext-dumps` sweep. A pre-deploy snapshot's value EXPIRES at
+    # the next successful deploy, so 422 of those could never serve the rollback they exist for --
+    # they were simply old plaintext copies of production financial data.
+    # Keep current + one back (the rollback path below references $BACKUP_FILE, the newest); anything
+    # older restores from the encrypted, restore-tested PBS leg `fin-pg` (pbs1 ns/fin).
+    ls -t "$BACKUP_DIR"/fin_backup_*.dump 2>/dev/null | tail -n +3 | xargs -r rm
     echo ""
 else
     echo "Step 1: SKIPPED - Database backup disabled"
