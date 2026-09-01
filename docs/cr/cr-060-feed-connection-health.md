@@ -164,8 +164,10 @@ defect** — which is the honest reason to build it now rather than a scare to b
 reports the other direction: **2 feed accounts carry no active fin mapping** (`Individual`,
 `Christopher Biedermann (USD) (8325)`) — expected, they are the deliberately unmapped ones.
 
-*Open observation, not a claim:* the upstream serves **31** accounts (CR059 §25) where bank-feed
-carries **29**. Probably the disabled/ignored pair; worth resolving while building, not before.
+*Resolved while building (2026-09-01):* the upstream serves **31** accounts where fin sees **29** —
+it is the **`?app=fin` routing filter**, not disabled accounts. `GET /v1/accounts` returns 31
+unfiltered and 29 with `app=fin`; the other two are routed to the OCME consumer. So the guard's
+denominator is right and nothing is missing.
 
 ### Where each piece lives
 
@@ -213,10 +215,14 @@ the alert reading *"1 mapping point at…"*, which no test asserted and no gate 
 restored) rather than by trusting an empty list: on real data the check returns `[]`, which proves
 only that nothing is wrong, not that the alarm works.
 
-⚠️ **NOT yet verified end-to-end:** no link has actually been minted. That needs the rebuilt bank-feed
-stack (a shared service prod also uses) and a real call against the live fintable account — both owner
-decisions, not steps to take unasked. **The new-connection form consumes a monthly connection attempt
-where the reconnect form is exempt**, so the first live test should be a *reconnect* mint.
+**Verified end-to-end 2026-09-01, against the live upstream.** bank-feed rebuilt (reads unaffected: 31
+accounts unfiltered, 29 for `app=fin`, health `ok`), then **one reconnect link minted through fin's own
+proxy** — fin route → `bankFeedClient` → bank-feed route → adapter → fintable — returning **HTTP 201**
+with a real single-use URL and a 30-minute expiry. **Deliberately a *reconnect* mint, and deliberately
+Bank Pekao:** the reconnect form is exempt from the plan checks the new-connection form is subject to
+(which consume a monthly connection attempt), and Pekao is OCME's bank, where fin's mapping is
+`ignored` with `account_id NULL` — so even the worst case had nothing of fin's behind it. **The URL was
+not opened**; it expired unused, which is the whole point of testing the mint rather than the consent.
 
 ## Still to do
 

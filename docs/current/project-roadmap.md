@@ -766,6 +766,51 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.2 Completed (chronological, latest first)
 
+- **v3.48.0** (2026-09-01) — **minor: [CR060](../cr/cr-060-feed-connection-health.md) — connect and
+  re-authorise a bank from inside fin, and the guard that makes it safe.** No migration, no forecast
+  numbers move. Owner asked whether Fintable's **OAuth Applications** could register and reset accounts
+  from the app. ⚠️ **It cannot usefully, and that is the cheap half of the answer:** OAuth exists to let
+  *other* Fintable users authorise an app you publish, and grants the **same** API surface our PAT
+  already reaches — a public client, PKCE, 1-hour access tokens on a 30-day refresh, immutable redirect
+  URIs, all for zero extra capability. 🔴 **The useful half was a FALSE PREMISE IN OUR OWN RECORD.**
+  CR060 had fenced the reconnect out of scope because minting a link *"needs a write-capable
+  credential"* (CR059 §10 on write credentials in an unattended service). Fintable says the opposite
+  twice — `read` covers *"mint connection links"*, and *"a read-only integration can offer 'connect a
+  bank' without ever holding write access"* — because **minting connects nothing**: a bank login needs a
+  real browser, so the URL is all a server can produce. The old sentence is kept beside its correction
+  rather than edited away; it is *why* this CR shipped half-built, and anyone reading it today would
+  re-fence the same work. **This is the "verify before recommending against" rule catching a fence we
+  had built ourselves.** **Shipped: `POST /connections/link`** (new bank, optional `institution` slug)
+  and **`POST /connections/:id/link`** (re-authorise — the recurring **~90-day PSD2** chore on **7 of
+  our 13** connections), proxied from bank-feed (`07363c7`), plus a **Bank connections** section on
+  `/bank-feed-diagnostic` with a Re-authorise button per row. Upstream `4xx` passes through **verbatim**
+  — `422` is the documented *no plan headroom* answer, and flattening it to 502 would report fintable's
+  clear refusal as our outage. 🔴 **The guard shipped FIRST, deliberately, because the button is the
+  cheap half.** A reconnect can mint **new fintable account ids**, and `account_source_mappings.external_name`
+  **IS** that id since [CR059](../cr/cr-059-fintable-api-ingestion.md) P3a — so a re-consent can leave a
+  mapping pointing at nothing and the account **stops feeding in silence**, which already happened,
+  dropping two Revolut wallets for **seven weeks**. `GET /account-mappings` now returns
+  `orphaned_mappings`. ⚠️ **The bug it closes is that the page could not express this at all:** those
+  rows are built by walking the FEED, so a mapping whose feed account vanished was **absent from the one
+  page whose job is to show what needs action**. ⚠️ **It returns `null`, not `[]`, on an empty feed
+  list** — could-not-ask is not asked-and-absent, the distinction `attachFeedHealth` already pins, and
+  27 phantom orphans on an upstream blip is how an alarm gets trained away. **Measured live: 29 feed
+  accounts (`app=fin`; 31 unfiltered — the routing filter, not disabled accounts), 27 mapped and not
+  ignored, 0 ORPHANED** — preventive, not a live defect. The adapter gained its **first POST**, so
+  `request()` took a method/body and ⚠️ **the 429 retry had to replay them**; a retry that silently
+  downgrades a POST to a GET is the CR059 P0 shape twice over, where both defects were in the *request*
+  and both returned something plausible. ⚠️ **`DELETE /connections/{id}` PURGES the connection's data**
+  and sits one path segment from the reconnect, so it stays a 501 and the word *reset* appears on no
+  button. **Verified end-to-end against the live upstream:** bank-feed rebuilt, then **one reconnect
+  link minted through fin's own proxy — HTTP 201**, real single-use URL, 30-minute expiry, **not
+  opened**. Deliberately a *reconnect* (exempt from the plan checks the new-connection form consumes an
+  attempt against) and deliberately **Bank Pekao**, which is OCME's bank where fin's mapping is
+  `ignored` with `account_id NULL` — nothing of fin's behind it even in the worst case. **1112 backend
+  on a from-scratch DB (+4) · 586 frontend · 217 bank-feed (+7)**, eslint + hex gate clean, rendered in
+  **both themes** — ⚠️ **and the render caught the alert reading *"1 mapping point at…"***, which no
+  test asserted and no gate looks at. **The orphan path was exercised by breaking a mapping on dev and
+  restoring it:** on real data it returns `[]`, which proves nothing is wrong, not that the alarm works.
+
 - **v3.47.1** (2026-09-01) — **patch: a refused reconcile says so, instead of offering an Apply that
   writes nothing; and two backup legs that had been failing or growing unbounded.** No migration, no
   forecast numbers move. **(1) [CR080 B3.1](../cr/cr-080-feed-accrual-reconcile-mode.md) — owner-found,
