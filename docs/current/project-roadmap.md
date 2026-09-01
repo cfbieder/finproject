@@ -766,6 +766,36 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.2 Completed (chronological, latest first)
 
+- **v3.48.3** (2026-09-01) — **patch: the Feed health page stops reporting 31 feeds for 13 connections,
+  all STALE, and one error worn by thirteen.** Frontend + bank-feed (`fda1bd8`), no migration, no
+  forecast numbers move. 🔴 **Owner-found by reading the page against fintable's own dashboard:**
+  *"PKO Bank Polski — STALE, last sync 893h ago"* while fintable showed everything synced within a day.
+  ⚠️ **Fintable was right and nothing was wrong with any feed** — and the card **contradicted itself
+  before it contradicted fintable**, reading *"7-day syncs: 165 ok"* directly above *"last sync 893h
+  ago"*. **Two independent defects, both in `/v1/health/feeds`.** **(1) Ghost generations** —
+  `bank_connections` holds **31 rows for 13 live connections**, because the upsert keys on
+  `institution_id` and that column has meant a GoCardless slug, then NULL, then **fintable's CONNECTION
+  id**; each change of meaning missed and INSERTed ([§3](#3-known-issues)). ⚠️ **The 18 ghosts are INERT
+  — every one carries ZERO accounts** and all 31 `feed_accounts` are on the live generation, so
+  balances, ingest and CR060's own mapping guard were never affected; the sole symptom was **18
+  permanent `STALE` cards**, and an alarm that is always on reports nothing. `feeds[]` now lists only
+  connections that carry accounts, with the excluded count published as
+  `service.connections_without_accounts` — **counted, not silently dropped**, since a page that quietly
+  hides 18 rows lies in the other direction. **(2) Service-wide numbers worn as per-feed** —
+  `sync_health_7d` and the last error were computed **inside** the per-connection loop with no
+  `connection_id` filter (`sync_jobs` carries none), so all 13 cards showed identical counts and the
+  **same error with the same timestamp**, attributed to whichever institution you were reading. The code
+  comment said the quiet part — *"we report all jobs alongside the single fintable connection"* — true
+  when there was one, false since there were thirteen. Moved to a top-level `service` block computed
+  once (also 2 queries instead of 2×N); fin renders it **once**, above the cards. ⚠️ **Breaking within
+  v1, the first such change, and it removes a field that was lying.** 🔴 **The uncomfortable part:
+  [CR060](../cr/cr-060-feed-connection-health.md)'s OWN surface was the one telling the untruth.** The
+  `upstream` block that CR060 added — read live from fintable — was correct throughout, which is exactly
+  why `/balance-calibration` kept saying `all feeds healthy` **correctly** while this page screamed.
+  **The page you open BECAUSE you suspect something was the one that could not be trusted.**
+  **Verified after: 13 feeds, 0 stale**, matching fintable's 13 healthy connections exactly. 217
+  bank-feed / 1116 backend / 586 frontend, eslint + hex clean, rendered in both themes.
+
 - **v3.48.2** (2026-09-01) — **patch: the account-mapping table names the bank.** Owner-asked; frontend
   plus one additive field, no migration, no forecast numbers move. `Settings → Bank Feed Setup`'s
   mapping table listed feed accounts by **display name alone**, and the names do not separate the banks.
