@@ -89,6 +89,26 @@ function connections() { return request('/v1/connections'); }
 function accounts()    { return request('/v1/accounts', { query: { app: APP } }); }
 function balances(asOf) { return request('/v1/balances', { query: { as_of: asOf, app: APP } }); }
 
+/**
+ * CR060 — ask bank-feed to mint a single-use browser URL for connecting or
+ * re-authorising a bank. bank-feed holds the upstream token; fin never does.
+ *
+ * This is the FIRST write-shaped call fin makes to bank-feed, and it is not
+ * really a write: minting connects nothing, a human opens the URL. Upstream
+ * treats it as a `read`-scope operation for that reason.
+ *
+ * @param {object}  o
+ * @param {string} [o.connectionId] re-authorise this connection; omit for a new bank.
+ * @param {string} [o.institution]  institution slug (new connections only).
+ * @returns {Promise<{link:{url:string,expires_at:string}}>}
+ */
+function mintConnectionLink({ connectionId = null, institution = null } = {}) {
+  const path = connectionId
+    ? `/v1/connections/${encodeURIComponent(connectionId)}/link`
+    : '/v1/connections/link';
+  return request(path, { method: 'POST', body: institution ? { institution } : {} });
+}
+
 function transactions({ since, until, accountId, limit = 500, offset = 0 } = {}) {
   return request('/v1/transactions', {
     query: { since, until, account_id: accountId, app: APP, limit, offset },
@@ -151,6 +171,7 @@ module.exports = {
   health,
   feedsHealth,
   connections,
+  mintConnectionLink,
   accounts,
   balances,
   transactions,

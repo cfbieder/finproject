@@ -54,6 +54,42 @@ router.get('/transactions',   proxy((req) => client.transactions({
   offset:    req.query.offset,
 })));
 
+/**
+ * POST /api/v2/bank-feed/connections/link            — connect a NEW bank
+ * POST /api/v2/bank-feed/connections/:id/link        — RE-AUTHORISE an existing one
+ *
+ * CR060. Returns `{link:{url,expires_at}}` — a single-use browser URL with a
+ * 30-minute TTL that the owner opens. Nothing is connected, re-authorised or
+ * changed by this call: a bank login needs a real browser, so minting is the
+ * only part a server can do, and the upstream treats it as a read operation.
+ *
+ * ⚠️ After a reconnect completes, check `GET /account-mappings` →
+ * `orphaned_mappings`. A re-consent can mint NEW fintable account ids, which is
+ * what fin's mappings key on, so the account can go on looking mapped while it
+ * has quietly stopped feeding (CR059 §25.3 — two Revolut wallets, seven weeks).
+ *
+ * ⚠️ There is deliberately no delete/disconnect route here. Upstream's DELETE
+ * purges the connection's data; "reset" means the reconnect link above.
+ */
+async function mintLink(req, res) {
+  try {
+    const out = await client.mintConnectionLink({
+      connectionId: req.params.id || null,
+      institution: (req.body && req.body.institution) || null,
+    });
+    res.status(201).json(out);
+  } catch (err) {
+    // A 4xx from upstream is an ANSWER, not a fault — 422 is the documented
+    // "no plan headroom" reply (connection limit, monthly attempts, volume).
+    // Flattening it to 502 would report fintable's clear refusal as our outage.
+    const status = err.status && err.status >= 400 && err.status < 500 ? err.status : 502;
+    res.status(status).json({ error: err.message, bank_feed_url: client.baseUrl });
+  }
+}
+
+router.post('/connections/link',     mintLink);
+router.post('/connections/:id/link', mintLink);
+
 // Diagnostic: aggregate everything BankFeedDiagnostic.jsx needs in one call.
 router.get('/diagnostic', async (req, res) => {
   const out = {
@@ -132,7 +168,15 @@ router.get('/account-mappings', async (req, res) => {
       };
     });
 
-    res.json({ accounts: rows, fin_accounts: finRows });
+    // CR060 — the other direction; see findOrphanedMappings.
+    const orphanedMappings = findOrphanedMappings(feedAccounts, mappings, finNameById);
+
+    res.json({
+      accounts: rows,
+      fin_accounts: finRows,
+      orphaned_mappings: orphanedMappings,
+      orphaned_checked: feedAccounts.length > 0,
+    });
   } catch (err) {
     const status = err.status && err.status >= 400 && err.status < 600 ? err.status : 502;
     res.status(status).json({ error: err.message, bank_feed_url: client.baseUrl });
@@ -261,6 +305,47 @@ router.get('/balance-recon', async (req, res, next) => {
  * @param {{accounts: object[]}} result   mutated in place
  * @param {object|null} upstream          the `upstream` block from /v1/health/feeds
  */
+/**
+ * CR060 — mappings that point at a feed account which no longer exists.
+ *
+ * THE OTHER DIRECTION, and nothing looked at it until now. `/account-mappings`
+ * builds its rows by walking the FEED's accounts, so a mapping whose
+ * `external_name` matches no live feed account does not appear in that list at
+ * all — it is invisible on the one page whose job is to show what needs action.
+ *
+ * That is exactly the shape a bank RECONNECT produces. Since CR059 P3a the
+ * mapping keys on fintable's account id, and a re-consent can mint NEW ids: the
+ * mapping then points at nothing, the account silently stops feeding, and every
+ * surface goes on reporting it as fine. A 2026-06-06 Revolut re-consent did this
+ * to two wallets and it went SEVEN WEEKS unnoticed (CR060 §Why, CR059 §25.3).
+ *
+ * Scoped to mapped-and-not-ignored, per CR060's own correction: the ignored rows
+ * are switched off deliberately (OCME's bank) and must stay silent.
+ *
+ * ⚠️ Returns null — not [] — when the feed list is EMPTY. An empty list is not
+ * evidence that every mapping is orphaned, it is evidence that bank-feed had
+ * nothing to say, and reporting 27 orphans on an upstream blip is how an alarm
+ * gets trained away. Same distinction attachFeedHealth pins for feed_health:
+ * could-not-ask is not asked-and-absent.
+ *
+ * @param {Array} feedAccounts  live feed accounts (each with `external_id`)
+ * @param {Array} mappings      account_source_mappings rows for source='bank-feed'
+ * @param {Map}   finNameById   fin account id → name, for display
+ * @returns {Array|null} orphans, or null when the feed list was empty
+ */
+function findOrphanedMappings(feedAccounts, mappings, finNameById) {
+  if (!Array.isArray(feedAccounts) || feedAccounts.length === 0) return null;
+  const live = new Set(feedAccounts.map((a) => a.external_id));
+  return (mappings || [])
+    .filter((m) => m.account_id != null && m.ignored !== true && !live.has(m.external_name))
+    .map((m) => ({
+      mapping_id: m.id,
+      external_id: m.external_name,
+      mapped_account_id: m.account_id,
+      mapped_account_name: (finNameById && finNameById.get(m.account_id)) || null,
+    }));
+}
+
 function attachFeedHealth(result, upstream) {
   const ok = !!(upstream && upstream.ok);
   const byAccount = (ok && upstream.accounts_health) || null;
@@ -573,3 +658,4 @@ module.exports = router;
 // a database; the enrichment logic is neither, and it carries the one rule worth
 // pinning down (null = could-not-ask vs 'unknown' = asked-and-absent).
 module.exports.attachFeedHealth = attachFeedHealth;
+module.exports.findOrphanedMappings = findOrphanedMappings;

@@ -49,6 +49,12 @@ export default function BankFeedDiagnostic() {
   const [savingId, setSavingId] = useState(null);
   const [mapError, setMapError] = useState(null);
   const [recon, setRecon] = useState(null);
+  // CR060 — mappings pointing at a feed account that no longer exists, and the
+  // link-minting that can create exactly that situation.
+  const [orphans, setOrphans] = useState(null);
+  const [minting, setMinting] = useState(null);
+  const [link, setLink] = useState(null);
+  const [linkError, setLinkError] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -69,6 +75,9 @@ export default function BankFeedDiagnostic() {
     try {
       const res = await Rest.get("/bank-feed/account-mappings");
       setMappings(res.accounts || []);
+      // `null` means bank-feed had nothing to say, which is NOT the same as
+      // "no orphans" — keep the distinction all the way to the render.
+      setOrphans(res.orphaned_mappings ?? null);
     } catch (err) {
       setMapError(err.message);
     }
@@ -108,6 +117,28 @@ export default function BankFeedDiagnostic() {
       setMapError(err.message);
     } finally {
       setSavingId(null);
+    }
+  };
+
+  // CR060 — mint a single-use browser URL and show it. Deliberately NOT
+  // window.open: this page is routinely viewed from another device over
+  // Tailscale, and a popup that a blocker eats looks exactly like a failure.
+  const mintLink = async (connectionId, label) => {
+    setMinting(connectionId || "new");
+    setLink(null);
+    setLinkError(null);
+    try {
+      const res = await Rest.post(
+        connectionId
+          ? `/bank-feed/connections/${connectionId}/link`
+          : "/bank-feed/connections/link",
+        {}
+      );
+      setLink({ ...res.link, label, connectionId: connectionId || null });
+    } catch (err) {
+      setLinkError(err.message);
+    } finally {
+      setMinting(null);
     }
   };
 
@@ -196,6 +227,39 @@ export default function BankFeedDiagnostic() {
       {mappings && (
         <section className="bfd-section">
           <h2>Account mapping (CR022 R1)</h2>
+
+          {/* CR060 — the table below is built by walking the FEED, so a mapping
+              whose feed account has vanished does not appear in it at all. It
+              has to be stated separately or it is stated nowhere. */}
+          {orphans && orphans.length > 0 && (
+            <div className="bfd-error" role="alert">
+              <strong>
+                {orphans.length === 1
+                  ? "1 mapping points"
+                  : `${orphans.length} mappings point`}{" "}
+                at a feed account that no longer exists.
+              </strong>{" "}
+              {orphans.length === 1 ? "That fin account has" : "These fin accounts have"}{" "}
+              stopped feeding, silently — no error, just a balance
+              that stops moving. A bank reconnect re-keys accounts, which is how this
+              happens. Re-map {orphans.length === 1 ? "it" : "each one"} to its new feed
+              account below.
+              <ul>
+                {orphans.map((m) => (
+                  <li key={m.mapping_id}>
+                    <strong>{m.mapped_account_name || `fin account ${m.mapped_account_id}`}</strong>{" "}
+                    → missing feed account <code>{m.external_id}</code>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {orphans === null && (
+            <p className="bfd-subtitle">
+              Orphaned-mapping check did not run — bank-feed returned no accounts. That is
+              not the same as “none”.
+            </p>
+          )}
           <p className="bfd-subtitle">
             Map each bank-feed account to a fin account to import its
             transactions. An unmapped account stays <strong>pending</strong> and
@@ -359,6 +423,95 @@ export default function BankFeedDiagnostic() {
               </tbody>
             </table>
           </section>
+
+          {/* CR060 — bank connections, and the reconnect that is this page's whole
+              point. `upstream` is bank-feed's passthrough of fintable's own
+              connection list; when it could not be read we say so rather than
+              rendering an empty, reassuring section. */}
+          {data.feeds_health?.upstream?.connections?.length > 0 && (
+            <section className="bfd-section">
+              <h2>Bank connections (CR060)</h2>
+              <p className="bfd-subtitle">
+                A bank consent expires periodically — roughly every 90 days on the
+                GoCardless connections — and re-authorising means logging into the bank,
+                which needs a real browser. These buttons mint a{" "}
+                <strong>single-use link, valid 30 minutes</strong>; nothing is changed
+                until you open it and sign in.{" "}
+                <strong>
+                  After re-authorising, reload this page and check the account mapping
+                  section above
+                </strong>{" "}
+                — a reconnect can re-key accounts, which leaves the fin mapping pointing
+                at nothing.
+              </p>
+
+              {link && (
+                <div className="bfd-ok-box" role="status">
+                  <strong>Link ready{link.label ? ` for ${link.label}` : ""}.</strong>{" "}
+                  <a href={link.url} target="_blank" rel="noopener noreferrer">
+                    Open it to sign in at your bank →
+                  </a>
+                  <div className="bfd-muted">
+                    Single use, expires {fmtDateTime(link.expires_at)}. If it lapses, mint
+                    another.
+                  </div>
+                </div>
+              )}
+              {linkError && <div className="bfd-error" role="alert">{linkError}</div>}
+
+              <table className="bfd-accounts">
+                <thead>
+                  <tr>
+                    <th>Institution</th>
+                    <th>Provider</th>
+                    <th className="num">Accounts</th>
+                    <th>State</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.feeds_health.upstream.connections.map((c) => (
+                    <tr key={c.connection_id}>
+                      <td>{c.institution_name}</td>
+                      <td className="bfd-muted">{c.provider}</td>
+                      <td className="num">{c.accounts_count}</td>
+                      <td>
+                        <StatusPill
+                          label={
+                            c.needs_reconnect
+                              ? "NEEDS RECONNECT"
+                              : c.healthy
+                                ? "healthy"
+                                : "unhealthy"
+                          }
+                          kind={c.needs_reconnect || !c.healthy ? "danger" : "ok"}
+                        />
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          onClick={() => mintLink(c.connection_id, c.institution_name)}
+                          disabled={minting !== null}
+                        >
+                          {minting === c.connection_id ? "Minting…" : "Re-authorise"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <p>
+                <button
+                  type="button"
+                  onClick={() => mintLink(null, "a new bank")}
+                  disabled={minting !== null}
+                >
+                  {minting === "new" ? "Minting…" : "Connect a new bank…"}
+                </button>
+              </p>
+            </section>
+          )}
 
           {data.feeds_health?.error ? (
             <section className="bfd-section">

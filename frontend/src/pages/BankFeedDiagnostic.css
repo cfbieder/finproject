@@ -237,6 +237,22 @@
   color: var(--danger-strong);
 }
 
+/* CR060 — a minted connection link. Tokens only: this box has to read correctly
+   in both themes, and --success-* are redefined under dark rather than being
+   overridden here with a literal. */
+.bfd-ok-box {
+  background: var(--success-subtle);
+  border: 1px solid var(--success-light);
+  color: var(--success-strong);
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+.bfd-ok-box a {
+  color: inherit;
+  font-weight: 600;
+}
+
 /* CR028 — per-account feed tx-sign flip toggle (in the Type cell) */
 .bfd-negate-toggle {
   display: inline-flex;
