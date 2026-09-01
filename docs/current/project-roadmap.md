@@ -766,6 +766,24 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.2 Completed (chronological, latest first)
 
+- **v3.48.2** (2026-09-01) — **patch: the account-mapping table names the bank.** Owner-asked; frontend
+  plus one additive field, no migration, no forecast numbers move. `Settings → Bank Feed Setup`'s
+  mapping table listed feed accounts by **display name alone**, and the names do not separate the banks.
+  ⚠️ **Measured on prod, which is what earns the column:** `Christopher Biedermann (PLN) (8325)` is
+  **Revolut** while `CHRISTOPHER F BIEDERMANN (PLN) (1791)` is **Erste Bank Polska** — same currency,
+  nothing in the name to tell them apart — and **five rows share the `Christopher Biedermann (…)` form
+  across Revolut and Wise**. In this repo that is not cosmetic: a shared display name is precisely what
+  once **rerouted a whole feed** ([CR059 §18](../cr/cr-059-fintable-api-ingestion.md)). `GET
+  /account-mappings` now carries `institution` per row, from `buildExternalIdToInstitution()` — already
+  built in that route file for `/balance-recon`, so the column is a lookup on data one call away — in
+  its **own try/catch** on that same precedent, because a mapping page that will not render because
+  bank-feed is down has made an outage worse. **`null` renders as `—`, never a guess.** 29 of 29 rows
+  resolve on prod. ⚠️ **The code comment first asserted those rows were PKO; they are Revolut** —
+  inferred from the name pattern instead of read from the data, and corrected only when the live output
+  came back. **The restatement class again, this time in a comment rather than a document.**
+  1116 backend / 586 frontend, eslint clean, rendered in both themes with header and cell counts checked
+  (8 and 8 — a column added to `<thead>` and not `<tbody>` is a silent misalignment).
+
 - **v3.48.1** (2026-09-01) — **patch: the orphan guard reaches the page the weekly loop actually uses,
   and disarms the button on it.** No migration, no forecast numbers move. v3.48.0 shipped the
   orphaned-mapping check on `/bank-feed-diagnostic` — a page you open when you already suspect
