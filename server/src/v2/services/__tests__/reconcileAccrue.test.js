@@ -202,7 +202,11 @@ dbDescribe('reconcileToFeed — accrue (DB)', () => {
       `INSERT INTO transactions (transaction_date, amount, currency, account_id, category_id, source, accepted)
        VALUES ('2026-06-01', 0.01, 'USD', $1, $2, $3, TRUE)`,
       [acctId, INTEREST_INCOME, ACCRUAL_SOURCE]);
-    await tx('2026-07-01', -500); // fin recorded this on 07-01; the feed has not seen it
+    // Dated 07-02, deliberately: a later fin transaction must stay out of the
+    // base. It is NOT on the sync day, so the observation's window is clean and
+    // the pairing rule is what is under test here — see the ambiguity test below
+    // for what happens when it is not.
+    await tx('2026-07-02', -500);
     await seedFeed(10029.60, '2026-07-01', '2026-07-01');
 
     const out = await reconcileToFeed(acctId, { asOf: '2026-07-05', dryRun: true });
@@ -211,6 +215,102 @@ dbDescribe('reconcileToFeed — accrue (DB)', () => {
     expect(out.book_date).toBe('2026-06-30');
     expect(out.computed_excl_accrual).toBeCloseTo(10000.01, 2);
     expect(out.accrual_amount).toBeCloseTo(29.59, 2);
+  });
+
+  // ── The window an observation can be COMPARED against, not merely contain ───
+  //
+  // The rule this replaces claimed it "can only ever under-claim a day". It
+  // cannot: a balance synced on day S was taken partway through S, so it already
+  // carries whatever the bank booked that morning, while `computed` stops at
+  // S-1. Wise - USD was the live counterexample (2026-09-01) — and there the
+  // excess was spending, so the gap went negative and the rate guard shouted.
+  // A DEPOSIT in the same window overstates the accrual instead, and a small one
+  // sits inside the band and is filed as income forever.
+  test('an observation synced on a day that carries transactions is not used', async () => {
+    await freshAccount({ opening: 10000 });
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, category_id, source, accepted)
+       VALUES ('2026-06-01', 0.01, 'USD', $1, $2, $3, TRUE)`,
+      [acctId, INTEREST_INCOME, ACCRUAL_SOURCE]);
+    // The one observation is synced 07-01 and fin books on 07-01, so we cannot
+    // tell whether the bank's figure already contains that row.
+    await tx('2026-07-01', -500);
+    await seedFeed(10029.60, '2026-07-01', '2026-07-01');
+
+    const out = await reconcileToFeed(acctId, { asOf: '2026-07-05', dryRun: true });
+    expect(out.refused).toBe(true);
+    expect(out.window_ambiguous).toBe(true);
+    expect(out.applied).toBe(false);
+    expect(out.note).toMatch(/quieter sync day/);
+  });
+
+  test('it walks back to the most recent observation whose window IS clean', async () => {
+    await freshAccount({ opening: 10000 });
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, category_id, source, accepted)
+       VALUES ('2026-06-01', 0.01, 'USD', $1, $2, $3, TRUE)`,
+      [acctId, INTEREST_INCOME, ACCRUAL_SOURCE]);
+    await tx('2026-07-03', -500);              // dirties the NEWER observation's window
+    await seedFeed(10020.00, '2026-07-02', '2026-07-02'); // window {07-02} clean
+    await seedFeed(10029.60, '2026-07-04', '2026-07-03'); // window {07-03} DIRTY
+
+    const out = await reconcileToFeed(acctId, { asOf: '2026-07-05', dryRun: true });
+    // The older, sound observation beats the fresher, unsound one. The days it
+    // skips are picked up by the next run.
+    expect(out.refused).toBe(false);
+    expect(out.book_date).toBe('2026-07-01');
+    expect(out.feed_balance).toBeCloseTo(10020.00, 2);
+  });
+
+  // ── balanceDate names the OBSERVATION; bookDate names the ENTRY DATE ────────
+  //
+  // They were fused for accrue until 2026-09-01: naming an observation silently
+  // dated the row on that day too, so the page's "mark against balance dated"
+  // control would have moved the entry date without saying so.
+  test('balanceDate picks the observation and NO LONGER sets the entry date', async () => {
+    await freshAccount({ opening: 10000 });
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, category_id, source, accepted)
+       VALUES ('2026-06-01', 0.01, 'USD', $1, $2, $3, TRUE)`,
+      [acctId, INTEREST_INCOME, ACCRUAL_SOURCE]);
+    await seedFeed(10029.60, '2026-07-04', '2026-07-03');
+
+    const out = await reconcileToFeed(acctId, {
+      asOf: '2026-07-05', dryRun: true, balanceDate: '2026-07-04',
+    });
+    expect(out.feed_date).toBe('2026-07-04');
+    // The observation's OWN rule still places it: synced 07-03, so it speaks for
+    // 07-02 — not for the 07-04 label the caller named.
+    expect(out.book_date).toBe('2026-07-02');
+  });
+
+  test('bookDate dates the entry verbatim, independently of the observation', async () => {
+    await freshAccount({ opening: 10000 });
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, category_id, source, accepted)
+       VALUES ('2026-06-01', 0.01, 'USD', $1, $2, $3, TRUE)`,
+      [acctId, INTEREST_INCOME, ACCRUAL_SOURCE]);
+    await seedFeed(10029.60, '2026-07-04', '2026-07-03');
+
+    const out = await reconcileToFeed(acctId, {
+      asOf: '2026-07-05', dryRun: true, balanceDate: '2026-07-04', bookDate: '2026-06-30',
+    });
+    expect(out.feed_date).toBe('2026-07-04');   // measured against this observation…
+    expect(out.book_date).toBe('2026-06-30');   // …and dated where the caller said
+  });
+
+  test('force restores the old pick, ambiguous window and all', async () => {
+    await freshAccount({ opening: 10000 });
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, category_id, source, accepted)
+       VALUES ('2026-06-01', 0.01, 'USD', $1, $2, $3, TRUE)`,
+      [acctId, INTEREST_INCOME, ACCRUAL_SOURCE]);
+    await tx('2026-07-01', -500);
+    await seedFeed(10029.60, '2026-07-01', '2026-07-01');
+
+    const out = await reconcileToFeed(acctId, { asOf: '2026-07-05', dryRun: true, force: true });
+    expect(out.window_ambiguous).toBeUndefined();
+    expect(out.book_date).toBe('2026-06-30');
   });
 
   test('a row labelled AHEAD of its sync speaks for the day before the sync', async () => {

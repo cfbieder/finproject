@@ -158,7 +158,7 @@ async function reconcileToFeed(accountId, { asOf = null, dryRun = false, force =
   }
 
   if (m.reconcile_mode === 'accrue') {
-    return db.transaction((client) => accrue(client, accountId, m, asOfDate, dryRun, force, balanceDate));
+    return db.transaction((client) => accrue(client, accountId, m, asOfDate, dryRun, force, balanceDate, bookDate));
   }
 
   // An UNRECOGNISED mode must not silently fall through to calibrate. This was a
@@ -418,7 +418,7 @@ async function mtm(client, accountId, m, monthEnd, dryRun, force = false, markAg
  *      to fix: yield booked to an expense category, invisible to income and tax.
  *   3. The guard is a RATE, not a share of balance — see ACCRUAL_MIN/MAX_APY.
  */
-async function accrue(client, accountId, m, asOfDate, dryRun, force = false, balanceDate = null) {
+async function accrue(client, accountId, m, asOfDate, dryRun, force = false, balanceDate = null, entryDate = null) {
   if (m.accrual_category_id == null) {
     throw new Error(
       `account ${accountId} (${m.name}) is set to 'accrue' but has no accrual_category_id — ` +
@@ -450,29 +450,114 @@ async function accrue(client, accountId, m, asOfDate, dryRun, force = false, bal
   //
   // A NULL `source_synced_at` (rows predating CR035's sync-time capture) cannot be
   // placed at all and is excluded unless the caller names it via `balanceDate`.
-  const obs = (await client.query(
-    balanceDate
-      ? `SELECT balance, balance_date::text AS balance_date,
+  // ── Which observation, and the window it can be COMPARED against ───────────
+  //
+  // ⚠️ The rule this replaces asserted, in its own comment, that it "can only
+  // ever under-claim a day … where over-claiming books a real transaction as
+  // income forever." THAT PROPERTY DOES NOT HOLD, and Wise - USD is the
+  // counterexample (measured 2026-09-01).
+  //
+  // `LEAST(balance_date, synced_on - 1)` picks the last day the observation
+  // fully CONTAINS. But soundness needs the observation to contain EXACTLY the
+  // window `computed` covers, not merely to contain it. A balance synced on day
+  // S was taken partway through S, so it already carries whatever the bank
+  // recorded that morning — while `computed` stops at S-1. The difference is
+  // booked as yield.
+  //
+  // On Wise - USD the excess was SPENDING, so the gap went negative and the rate
+  // guard refused it (loudly, which is how this was found). The dangerous
+  // direction is the other one: a DEPOSIT landing before the sync overstates the
+  // accrual, and anything under the band's allowance — ~5.29 on a 3,862 balance
+  // over 5 days — is filed as Interest Income permanently, with nothing to say so.
+  //
+  // We cannot know what the bank booked on S before syncing. We CAN know whether
+  // FIN has transactions in that window, and fin is fed from the same bank — so
+  // an empty window is strong evidence the observation contains nothing beyond
+  // its book date. Prefer the most recent observation whose window is clean,
+  // walking back through ALL history rather than settling for a fresher unsound
+  // one: an older sound measurement is worth more than a newer wrong one, and
+  // the days skipped are picked up by the next run (the cost the original rule
+  // was already willing to pay).
+  //
+  // Own accruals are excluded from the test — they are our bookings, not bank
+  // activity, and a prior row dated in the window is handled by the
+  // later-accrual check below.
+  //
+  // `force` restores the old behaviour: the owner may know the window is clean.
+  const AMBIGUITY_FILTER = `
+      AND NOT EXISTS (
+        SELECT 1 FROM transactions t
+         WHERE t.account_id = $3
+           AND t.source IS DISTINCT FROM '${ACCRUAL_SOURCE}'
+           AND t.transaction_date > o.book_date
+           AND t.transaction_date <= o.synced_on
+      )`;
+
+  // The unfiltered form has no $3, so the parameter list must match the SQL —
+  // passing an unused parameter is a bind error, not a no-op.
+  const pickParams = (withFilter) =>
+    (withFilter ? [m.external_name, asOfDate, accountId] : [m.external_name, asOfDate]);
+
+  const pickSql = (withFilter) => `
+    WITH o AS (
+      SELECT balance, balance_date,
+             (source_synced_at AT TIME ZONE 'UTC')::date AS synced_on,
+             LEAST(balance_date,
+                   (source_synced_at AT TIME ZONE 'UTC')::date - 1) AS book_date
+        FROM bankfeed_balances
+       WHERE feed_account_external_id = $1
+         AND balance_date <= $2::date
+         AND source_synced_at IS NOT NULL
+    )
+    SELECT balance, balance_date::text AS balance_date,
+           synced_on::text AS synced_on, book_date
+      FROM o
+     WHERE TRUE${withFilter ? AMBIGUITY_FILTER : ''}
+     ORDER BY book_date DESC, balance_date DESC
+     LIMIT 1`;
+
+  // ⚠️ `balanceDate` names WHICH OBSERVATION to use — and, since 2026-09-01,
+  // nothing else. It used to set the booking date as well, so the page's "mark
+  // against balance dated" control would have silently moved the entry date too;
+  // a control that does more than its label says is how CR088 §11 shipped a
+  // variance column named after the wrong benchmark. `bookDate` is now the
+  // separate, explicit way to say when the row is dated — the same split `mtm`
+  // has always had.
+  //
+  // COALESCE because a row predating CR035 carries no sync time and so cannot be
+  // placed by the rule; naming it explicitly is the documented escape hatch, and
+  // its own label is then the only date available.
+  const obs = balanceDate
+    ? (await client.query(
+        `SELECT balance, balance_date::text AS balance_date,
                 (source_synced_at AT TIME ZONE 'UTC')::date::text AS synced_on,
-                $3::date AS book_date
+                COALESCE(
+                  LEAST(balance_date, (source_synced_at AT TIME ZONE 'UTC')::date - 1),
+                  balance_date
+                ) AS book_date
            FROM bankfeed_balances
-          WHERE feed_account_external_id = $1 AND balance_date = $2::date`
-      : `SELECT balance, balance_date::text AS balance_date,
-                (source_synced_at AT TIME ZONE 'UTC')::date::text AS synced_on,
-                LEAST(balance_date,
-                      (source_synced_at AT TIME ZONE 'UTC')::date - 1) AS book_date
-           FROM bankfeed_balances
-          WHERE feed_account_external_id = $1
-            AND balance_date <= $2::date
-            AND source_synced_at IS NOT NULL
-          ORDER BY LEAST(balance_date,
-                         (source_synced_at AT TIME ZONE 'UTC')::date - 1) DESC,
-                   balance_date DESC
-          LIMIT 1`,
-    balanceDate
-      ? [m.external_name, balanceDate, balanceDate]
-      : [m.external_name, asOfDate]
-  )).rows[0];
+          WHERE feed_account_external_id = $1 AND balance_date = $2::date`,
+        [m.external_name, balanceDate]
+      )).rows[0]
+    : (await client.query(pickSql(!force), pickParams(!force))).rows[0];
+
+  // Distinguish "no observation at all" (throw, below) from "every observation's
+  // window is dirty" (a refusal that names the reason). Collapsing them would
+  // report a data gap as a measurement problem, or the reverse.
+  if (!obs && !balanceDate && !force) {
+    const anyAtAll = (await client.query(pickSql(false), pickParams(false))).rows[0];
+    if (anyAtAll) {
+      return {
+        account_id: accountId, name: m.name, mode: 'accrue',
+        feed_date: anyAtAll.balance_date, feed_synced_on: anyAtAll.synced_on,
+        refused: true, applied: false, window_ambiguous: true,
+        note: `every feed observation for this account was synced on a day that also carries ` +
+          `transactions, so none can be compared against fin's ledger without counting those ` +
+          `transactions as yield. The newest is dated ${anyAtAll.balance_date} (synced ` +
+          `${anyAtAll.synced_on}). Wait for a quieter sync day, or pass force.`,
+      };
+    }
+  }
 
   if (!obs) {
     throw new Error(
@@ -482,7 +567,11 @@ async function accrue(client, accountId, m, asOfDate, dryRun, force = false, bal
     );
   }
 
-  const bookDate = (await client.query(`SELECT $1::date::text AS d`, [obs.book_date])).rows[0].d;
+  // An explicit entry date is used VERBATIM — the caller is saying when the row
+  // is dated, not which observation measures it.
+  const bookDate = (await client.query(
+    `SELECT COALESCE($2::date, $1::date)::text AS d`, [obs.book_date, entryDate]
+  )).rows[0].d;
 
   // An accrual already booked LATER than the day this observation can speak for
   // means the period is already closed past this point. Booking here would double

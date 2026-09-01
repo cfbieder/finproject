@@ -47,10 +47,12 @@ export default function MtmDateControl({ value, onChange, balanceDate = "", onBa
             value={balanceDate}
             onChange={(e) => onBalanceDateChange(e.target.value)}
             title={
-              "Optional. Which feed OBSERVATION to mark against, when it is not the one the " +
-              "booking date would pick. The feed labels a balance with the date it synced, in " +
+              "Optional. Which feed OBSERVATION to measure against, when it is not the one " +
+              "the engine would pick. The feed labels a balance with the date it synced, in " +
               "the small hours — so the row dated D was taken before D traded. Leave blank " +
-              "unless the reconcile refuses and names the alternatives."
+              "unless the reconcile refuses and names the alternatives. Applies to MTM and " +
+              "ACCRUAL rows; on accrual rows it selects the observation only — the entry is " +
+              "still dated by the day that observation can speak for."
             }
           />
           {balanceDate && (
@@ -61,8 +63,9 @@ export default function MtmDateControl({ value, onChange, balanceDate = "", onBa
         </>
       )}
       <span className="bfd-muted bfd-mtm-hint">
-        — dates the Unrealized-G/L entry; the balance it marks against is the same date unless
-        you override it (calibrate rows ignore both)
+        — the date box dates the <strong>Unrealized-G/L</strong> entry on brokerage rows only;
+        accrual rows date themselves from the observation they measure. The override picks the
+        observation for <strong>both</strong>. Calibrate rows ignore the pair.
       </span>
     </div>
   );

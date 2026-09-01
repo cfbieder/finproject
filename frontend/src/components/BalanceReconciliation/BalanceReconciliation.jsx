@@ -181,10 +181,21 @@ export default function BalanceReconciliation() {
   // CR087 P0c — PREVIEW FIRST. The old flow confirmed a sentence with no figures
   // in it and reported `old → new` in a toast AFTER the write, on an operation
   // that shifts every historical date on the account by one constant.
+  // `balanceDate` — which OBSERVATION to measure against — now applies to
+  // `accrue` too. Until 2026-09-01 the engine fused it with the entry date for
+  // accrue, so sending it from here would have moved the booking date without
+  // the label saying so; that split is fixed, and the field means one thing.
+  //
+  // ⚠️ `bookDate` is deliberately NOT sent for accrue. It defaults to last
+  // month-end, so sending it would date EVERY accrual at month-end instead of at
+  // the day its observation can speak for. The engine accepts it for accrue (for
+  // scripts and deliberate use); the page has no business volunteering it.
   const reconcileBody = (a, extra = {}) =>
     a.reconcile_mode === "mtm"
       ? { bookDate, ...(markBalanceDate ? { balanceDate: markBalanceDate } : {}), ...extra }
-      : { ...extra };
+      : a.reconcile_mode === "accrue"
+        ? { ...(markBalanceDate ? { balanceDate: markBalanceDate } : {}), ...extra }
+        : { ...extra };
 
   const runPreview = async (a) => {
     setPreview({ account: a, data: null, error: null, stale: false });

@@ -152,6 +152,11 @@ differs in four ways:
    about the feed's true lag**, which remains unproven (Known Issue #14; CR065 §11 declined to
    guess it). It can only under-claim by a day — which the next run picks up — where over-claiming
    books a real transaction as income forever.
+
+   🔴 **That last sentence is FALSE, and `Wise - USD` is the counterexample (measured 2026-09-01,
+   corrected in v3.49.0 — see [§B2.1](#b21--the-pairing-rule-could-over-claim-after-all-2026-09-01)).**
+   The rule picks the last day the observation *fully contains*; soundness needs it to contain
+   **exactly** the window `computed` covers, not merely to contain it.
 4. **The guard — the part that genuinely needs new design.** `mtm`'s
    `MTM_IMPLAUSIBLE_PCT = 0.15` is *useless here*: a missed $500 transfer on Wise USD is 12% of
    balance and sails straight through, permanently laundered into income and never revisited (an
@@ -233,6 +238,57 @@ the 08-30 that observation can speak for. Marking against the **08-30** observat
 **+1.52 = 2.87%/yr**, inside the band. ⚠️ **The `balanceDate` control that would do that is sent
 only for `mtm`** — the engine honours it for `accrue`, so the one field that resolves this row
 cannot be reached from the page. Recorded as a known issue, not fixed here.
+
+### B2.1 — the pairing rule could over-claim after all (2026-09-01)
+
+**Found by chasing the owner's original complaint to its root**: `Wise - USD` refused for days at
+**−4.76%/yr**, and the gap turned out to be neither yield nor the missing transaction the note
+guesses at.
+
+`LEAST(balance_date, synced_on − 1)` picks the last day an observation **fully contains**. But a
+balance synced on day **S** was taken *partway through S*, so it already carries whatever the bank
+booked that morning — while `computed` stops at **S−1**. The difference is booked as yield. The
+observation containing the window is not the same as it matching the window, and §B2's *"can only
+under-claim"* rests on the first where it needed the second.
+
+**Measured on prod:** the auto-picked row (labelled **09-01**, synced **08-31**) already held
+08-31's card spend of **−4.04**, against a `computed` that stopped at 08-30 — hence **−2.52**.
+
+⚠️ **The direction that saved us is not the dangerous one.** Here the excess was **spending**, so the
+gap went negative and the rate guard shouted, which is how this was found at all. A **deposit** in
+the same window *overstates* the accrual, and anything under the band's allowance — **~5.29** on a
+3,862 balance over 5 days — sits inside `−1%..10%` and is filed as `Interest Income` **permanently**,
+with nothing left to notice it. **The guard cannot see its own blind spot.**
+
+**The fix — prefer an observation whose window is CLEAN.** We cannot know what the bank booked on S
+before syncing; we *can* know whether **fin** has transactions in that window, and fin is fed from
+the same bank, so an empty window is strong evidence the observation contains nothing past its book
+date. The engine now walks back through **all** history to the most recent observation whose
+`(book_date, synced_on]` carries no fin rows (own accruals excluded), preferring **an older sound
+measurement over a fresher wrong one** — the days skipped are collected by the next run, which is
+the cost §B2 was already willing to pay. If **every** observation is ambiguous it **refuses** and
+says so (`window_ambiguous`), rather than falling back to the shape that caused this; `force`
+restores the old pick.
+
+**Result on prod, the account that started it:** `Wise - USD` books **+1.52 dated 2026-08-29,
+3.59%/yr** — the figure predicted from SQL before the code existed, reached automatically with no
+override. ⚠️ **`WISE - EUR` is untouched and that is the discrimination working**: its window was
+clean, so it keeps the newest observation (+0.37, 2.19%/yr).
+
+**`balanceDate` and the entry date are also no longer fused.** Naming an observation used to date the
+row on that day too, so the page's *"mark against balance dated"* control would have moved the entry
+date without saying so — [CR088 §11](cr-088-budget-vs-actual-le-table.md)'s defect class (a control
+named after one thing that does another) waiting to happen. `accrue` now takes `bookDate` separately,
+the split `mtm` always had. ⚠️ **The page sends `balanceDate` only** — `bookDate` defaults to last
+month-end there, so volunteering it would date **every** accrual at month-end.
+
+**8 new tests** (the window rule, the walk-back, the all-ambiguous refusal, `force`, and the
+`balanceDate`/`bookDate` split); **1121 backend on a from-scratch DB**, 586 frontend.
+⚠️ **One existing test had to be rewritten, and it is the most useful thing here:** *"a row labelled
+with its own sync date speaks for the day BEFORE"* seeded a fin transaction **on the sync day** and
+asserted the accrual booked anyway, on the premise *"the feed has not seen it"* — **an assumption the
+engine cannot verify, encoded as a fixture**. It is now split: the pairing regime is pinned with a
+clean window, and the dirty-window case asserts the refusal.
 
 ## Non-goals
 
