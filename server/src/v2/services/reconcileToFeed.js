@@ -76,7 +76,13 @@ function expectedFromFeed(m, feedVal) {
  *   actually contains it" without this code guessing a lag rule it cannot yet
  *   prove (calendar vs business days — roadmap Known Issue #14).
  * @param {boolean} [opts.dryRun] compute only, write nothing.
- * @returns {Promise<object>} action summary
+ * @returns {Promise<object>} action summary. A run the engine DECLINES to write
+ *   returns `refused: true` with `applied: false` and a `note` saying why — on a
+ *   dry run too, so a preview can say it BEFORE the owner approves a figure that
+ *   will never be booked. `refused` is always present on every mode's summary:
+ *   an absent-means-false flag is how the UI's refusal gate came to read
+ *   `undefined` on every feed reconcile and offer Apply on a run that could not
+ *   succeed (only reconcileManual set the equivalent `blocked`).
  */
 async function reconcileToFeed(accountId, { asOf = null, dryRun = false, force = false, bookDate = null, balanceDate = null, expect = null } = {}) {
   // Pre-flight (no transaction): load mapping, and for 'mtm' make sure the target
@@ -294,7 +300,7 @@ async function mtm(client, accountId, m, monthEnd, dryRun, force = false, markAg
     mtm_amount: amount, category_id: UNREALIZED_GL_CATEGORY_ID,
     implausible, implausible_pct: Math.round(implausiblePct * 1000) / 1000,
     stale_feed: stale, stale_reason: staleReason, later_observations: laterObservations,
-    removed_read_override: false, applied: false,
+    removed_read_override: false, refused: false, applied: false,
   };
 
   // USD base_amount for the (account-currency) MTM amount — needed only when an
@@ -316,12 +322,14 @@ async function mtm(client, accountId, m, monthEnd, dryRun, force = false, markAg
     summary.note = `stale feed — ${staleReason}. Marking ${monthEnd} against it would pin the ` +
       `account to a value the custodian never reported. Wait for the feed to settle (it has run ` +
       `~2 days behind month-end), or pass force to override.`;
+    summary.refused = true;
     if (!dryRun) return summary; // refuse to write; surface the reason
   }
 
-  if (implausible && !force) {
+  if (implausible && !force && !summary.refused) {
     summary.note = `MTM ${amount} is ${(implausiblePct * 100).toFixed(1)}% of feed — implausible ` +
       `(basis likely unanchored). Anchor the account's basis first, or pass force to override.`;
+    summary.refused = true;
     if (!dryRun) return summary; // refuse to write; surface the reason
   }
 
@@ -513,7 +521,7 @@ async function accrue(client, accountId, m, asOfDate, dryRun, force = false, bal
     accrual_amount: amount, category_id: m.accrual_category_id,
     period_since: period.since, period_days: days === null ? null : Number(days),
     implied_apy: apy === null ? null : Math.round(apy * 10000) / 10000,
-    implausible, applied: false,
+    implausible, refused: false, applied: false,
   };
 
   let baseAmount = null;
@@ -536,6 +544,7 @@ async function accrue(client, accountId, m, asOfDate, dryRun, force = false, bal
         `outside the plausible band ${(ACCRUAL_MIN_APY * 100).toFixed(0)}%..${(ACCRUAL_MAX_APY * 100).toFixed(0)}%. ` +
         `A gap that does not accrue like yield is usually a MISSING TRANSACTION — booking it here would ` +
         `file it as income permanently. Find the transaction, or pass force.`;
+    summary.refused = true;
     if (!dryRun) return summary; // refuse to write; surface the reason
   }
 
@@ -583,7 +592,7 @@ async function calibrate(client, accountId, m, asOfDate, dryRun, expect = null) 
   const summary = {
     account_id: accountId, name: m.name, mode: 'calibrate', as_of: asOfDate,
     feed_date: feed.balance_date, feed_balance: feedVal, expected, sum_tx: sumTx,
-    old_opening: Number(m.opening_balance), new_opening: newOpening, applied: false,
+    old_opening: Number(m.opening_balance), new_opening: newOpening, refused: false, applied: false,
   };
 
   // CR087 P0c — REFUSE AN APPLY THAT NO LONGER MATCHES ITS PREVIEW.

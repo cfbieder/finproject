@@ -114,6 +114,7 @@ dbDescribe('reconcileToFeed — accrue (DB)', () => {
     expect(out.implied_apy).toBeGreaterThan(0.03);
     expect(out.implied_apy).toBeLessThan(0.04);
     expect(out.implausible).toBe(false);
+    expect(out.refused).toBe(false);
     expect(out.applied).toBe(true);
 
     const rows = (await db.query(
@@ -143,6 +144,7 @@ dbDescribe('reconcileToFeed — accrue (DB)', () => {
     const out = await reconcileToFeed(acctId, { asOf: '2026-07-05', dryRun: false });
 
     expect(out.implausible).toBe(true);
+    expect(out.refused).toBe(true);
     expect(out.applied).toBe(false);
     expect(out.note).toMatch(/MISSING TRANSACTION/);
     expect(out.implied_apy).toBeGreaterThan(ACCRUAL_MAX_APY);
@@ -163,7 +165,26 @@ dbDescribe('reconcileToFeed — accrue (DB)', () => {
 
     const out = await reconcileToFeed(acctId, { asOf: '2026-07-05', dryRun: false, force: true });
     expect(out.implausible).toBe(true);   // still REPORTED as implausible…
-    expect(out.applied).toBe(true);       // …but written, because force was explicit
+    expect(out.refused).toBe(false);      // …not refused…
+    expect(out.applied).toBe(true);       // …and written, because force was explicit
+  });
+
+  // The PREVIEW must carry the refusal too. This is the whole point of the flag:
+  // the dry run is what the confirm dialog renders, and while it came back with
+  // `refused` undefined the dialog showed the figures as a proposal and offered
+  // an Apply that could only ever be declined (Wise - USD, 2026-09-01).
+  test('a dry run of a refused accrual reports refused (so the preview can say so)', async () => {
+    await freshAccount({ opening: 10000 });
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, category_id, source, accepted)
+       VALUES ('2026-06-01', 0.01, 'USD', $1, $2, $3, TRUE)`,
+      [acctId, INTEREST_INCOME, ACCRUAL_SOURCE]);
+    await seedFeed(10529.60, '2026-07-01', '2026-07-02');
+
+    const out = await reconcileToFeed(acctId, { asOf: '2026-07-05', dryRun: true });
+    expect(out.refused).toBe(true);
+    expect(out.applied).toBe(false);
+    expect(out.note).toMatch(/MISSING TRANSACTION/);
   });
 
   // ── Which day an observation may speak for (CR065 §11 / Known Issue #14) ───

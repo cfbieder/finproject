@@ -195,6 +195,45 @@ Third option in the reconcile-mode dropdown on
 plus a category picker on the row (shown only for `accrue`). Button label follows the mode. The
 existing `MTM GAP` / `DRIFT` badge needs a third state.
 
+### B3.1 — the guard refused in silence (fixed 2026-09-01)
+
+Owner, on the live page: *"I am trying to reconcile Wise-USD, but after I click reconcile it does
+not change?"* It had not changed because the server **refused** it — which is this mode's routine
+outcome between month-ends, exactly as B4 describes.
+
+The confirm dialog [CR087](cr-087-money-legibility.md) P0c put in front of the write asked
+`preview.refused === true || preview.blocked === true`, and **`reconcileToFeed` set neither** —
+only `reconcileManual` ever set `blocked`. So every feed preview arrived with both `undefined`,
+rendered *"Accrual −2.52 · Books to Interest Income · Dated 2026-08-30"* as a **proposal**, and lit
+**Apply**. Clicking it posted, was refused server-side, and changed nothing but a toast. The gate
+was written, shipped, and dead on the only three modes that use it.
+
+**The engine now says it rather than the UI guessing it.** `reconcileToFeed` sets `refused` on all
+three modes' summaries, at each of the three sites that decline to write (mtm stale, mtm
+implausible, accrue out-of-band) — **on a dry run too**, which is the whole point, since the dry run
+is what the dialog renders. It is deliberately NOT re-derived in the UI from `implausible` /
+`stale_feed` / `note`: which of those actually blocks a write is the engine's rule, and a copy of it
+in the front end is the restatement that goes stale.
+
+⚠️ **The defect class is [CR085](cr-085-forecast-sensitivity.md)'s, one step over: not state that
+renders and does nothing, but an ACTION offered that can do nothing.** A *disabled* Apply would have
+been the same lie told more quietly, so a refused dialog now has no Apply at all — titled
+**`Not booked`**, the reason **above** the figures, the amount named **`Gap (not booked)`**, and the
+income category row dropped, because nothing books to it. Verified by rendering it in **both
+themes**, not by reading the CSS.
+
+Fixed alongside, in the same guard: on a **dry run** the mtm implausibility note **overwrote the
+staleness note**, naming the symptom over the cause — the ordering the apply path gets right only
+because it returns early.
+
+**What the account that prompted this actually had** (measured on prod, 2026-09-01): the −2.52 was
+neither yield nor the missing transaction the note guesses at. The auto-picked observation (labelled
+**09-01, synced 08-31**) already contained 08-31's card spend of −4.04, while `computed` stops at
+the 08-30 that observation can speak for. Marking against the **08-30** observation instead gives
+**+1.52 = 2.87%/yr**, inside the band. ⚠️ **The `balanceDate` control that would do that is sent
+only for `mtm`** — the engine honours it for `accrue`, so the one field that resolves this row
+cannot be reached from the page. Recorded as a known issue, not fixed here.
+
 ## Non-goals
 
 - **Spreading accrual across days.** One dated row per reconcile is how a bank posts interest
@@ -223,6 +262,13 @@ Also pinned: the three booking-date regimes; an observation with no sync time is
 than guessed at; a NULL category refuses instead of defaulting; re-running supersedes rather than
 duplicating; an earlier accrual row is part of the base and not re-recognised; and `calibrate` /
 `mtm` are unchanged by the new dispatch.
+
+**B3.1 (2026-09-01)** adds 1 backend test (a refused **dry run** reports `refused`, the case the
+dialog reads) and `ReconcilePreviewModal.test.jsx`, 4 frontend tests pinning that a refused preview
+offers no Apply, states the reason, and names the figure a gap — plus that a plausible one is still
+a proposal with an Apply. **1108 backend / 586 frontend, all green**, the backend run against a
+from-scratch database (`Scripts/test-fresh-db.sh`). The dialog was rendered against the dev stack in
+both themes.
 
 **Shipped v3.28.0 (2026-08-11), migrations 067 + 069.** Both accounts are live on `accrue` /
 `Interest Income`; `WISE - EUR` reconciles to **0** and `Wise - USD` carries −1.19, the accrual

@@ -378,6 +378,12 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
   - **Remaining:** the first real run happens at **month-end** — today both accounts refuse, correctly. Dev's ledger lacks 065–067 (applied prod-first); `sync-db-prod-to-dev.sh` resolves it. Against prod today both
     accounts correctly **refuse**, one per guard, and the feed's day-jitter (±1.5) exceeding one
     day of accrual (0.40) is why this belongs on the monthly reconcile, not the weekly loop.
+  - ⚠️ **That routine refusal had no UI until 2026-09-01**
+    ([B3.1](../cr/cr-080-feed-accrual-reconcile-mode.md)) — the confirm dialog read a `refused` flag
+    `reconcileToFeed` never set, so a refused accrue rendered as a **proposal** with a live **Apply**
+    that posted, was declined server-side, and moved nothing but a toast. **Owner-found, on the page.**
+    The engine now states the refusal (all three modes, **dry runs included**) and the dialog drops the
+    Apply, names the figure `Gap (not booked)` and puts the reason above it.
   - **Not reviewed** — neither cr-technical-reviewer nor cr-signoff-pm has seen it.
 
 <a id="cr079"></a>
@@ -1186,6 +1192,19 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
 ---
 
 ## 3. Known Issues
+
+- [ ] **`balanceDate` is sent only for `mtm`, so an `accrue` row cannot be steered to the observation
+  that would reconcile it** *(found 2026-09-01 while fixing
+  [CR080 B3.1](../cr/cr-080-feed-accrual-reconcile-mode.md))*. The engine honours `balanceDate` for
+  **both** modes; `reconcileBody` in
+  [BalanceReconciliation.jsx](../../frontend/src/components/BalanceReconciliation/BalanceReconciliation.jsx)
+  attaches it only when `reconcile_mode === "mtm"`, so the page's *"mark against balance dated"* field is
+  inert on the accrue rows. It matters because the auto-pick can land on an observation **synced after the
+  day it is paired against**: on prod, `Wise - USD` refused at **−4.76%/yr** because the 09-01 row (synced
+  08-31) already held 08-31's card spend, while the 08-30 row gives **+1.52 = 2.87%/yr** and books
+  cleanly. Reachable by API today, not by the owner. ⚠️ **Related and also unbuilt: there is no `force`
+  control anywhere**, though every refusal message ends *"or pass force"* — a sentence telling the reader
+  to do something the page cannot do.
 
 - **Balance Trends' `Generate` emits a React `setState`-during-render warning** *(found 2026-08-27 by
   [CR088](../cr/cr-088-budget-vs-actual-le-table.md) P6; NOT caused by it — `BalanceTrends.jsx` was

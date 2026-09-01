@@ -152,7 +152,12 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   writes nothing if they moved. ⚠️ **The preview was not read-only** until now (the route synced and
   upserted before `dryRun` was consulted), and the 409 exposed an **infinite loop** caught on dev: the
   preview does not sync, the apply does, so *"Preview again"* would have re-staled forever — it now shows
-  the server's fresh figures instead. **P1's reconcile half (v3.40.0)** labelled the currency on every row
+  the server's fresh figures instead. ⚠️ **Its refusal gate was DEAD until 2026-09-01**
+  ([CR080 B3.1](../cr/cr-080-feed-accrual-reconcile-mode.md)): the dialog read a `refused` flag
+  `reconcileToFeed` never set, so a **routinely** refused accrue (both Wise accounts refuse between
+  month-ends, by design) rendered as a proposal with a live **Apply** that wrote nothing — an ACTION
+  offered that can have no effect, CR085's defect class one step over, and **owner-found on the page
+  again**. The engine now states it; the dialog drops the Apply. **P1's reconcile half (v3.40.0)** labelled the currency on every row
   and fixed a sort that was **wrong on half the queue** — it ranked raw `|drift|` across currencies, so
   **2,394 PLN ($650) outranked $848.77**, and 10 of the 20 live calibrate accounts are non-USD. It converts
   through the shared `fx.rateAsOf`, which returns **null rather than 1:1** on an unconvertible currency.
