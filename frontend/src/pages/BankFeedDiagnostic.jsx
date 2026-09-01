@@ -529,6 +529,44 @@ export default function BankFeedDiagnostic() {
           ) : (
             <section className="bfd-section">
               <h2>Feed health</h2>
+              {/* Service-wide, and said once. These numbers were printed on EVERY
+                  card as though each belonged to that institution: `sync_jobs`
+                  carries no connection_id, so one error — same message, same
+                  timestamp — was attributed to all thirteen. A card could read
+                  "165 syncs ok" directly above "last sync 893h ago". */}
+              {data.feeds_health?.service && (
+                <p className="bfd-subtitle">
+                  <strong>Service (all feeds):</strong>{" "}
+                  <span className="bfd-ok">
+                    {data.feeds_health.service.sync_health_7d?.succeeded} syncs ok
+                  </span>
+                  {data.feeds_health.service.sync_health_7d?.failed > 0 && (
+                    <>
+                      {" / "}
+                      <span className="bfd-danger">
+                        {data.feeds_health.service.sync_health_7d.failed} failed
+                      </span>
+                    </>
+                  )}{" "}
+                  in 7 days
+                  {data.feeds_health.service.most_recent_error && (
+                    <>
+                      {" · last error "}
+                      {fmtDateTime(data.feeds_health.service.most_recent_error_at)}:{" "}
+                      <code>{data.feeds_health.service.most_recent_error}</code>
+                    </>
+                  )}
+                  {data.feeds_health.service.connections_without_accounts > 0 && (
+                    <>
+                      {" · "}
+                      {data.feeds_health.service.connections_without_accounts} superseded
+                      connection record
+                      {data.feeds_health.service.connections_without_accounts === 1 ? "" : "s"}{" "}
+                      carry no accounts and are not shown
+                    </>
+                  )}
+                </p>
+              )}
               {data.feeds_health?.feeds?.map((f) => (
                 <div key={f.id} className="bfd-feed-card">
                   <header className="bfd-feed-card-header">
@@ -547,30 +585,6 @@ export default function BankFeedDiagnostic() {
                       </span>
                     </div>
                   </header>
-                  <div className="bfd-feed-stats">
-                    <div>
-                      <strong>7-day syncs:</strong>{" "}
-                      <span className="bfd-ok">
-                        {f.sync_health_7d?.succeeded} ok
-                      </span>
-                      {f.sync_health_7d?.failed > 0 && (
-                        <>
-                          {" / "}
-                          <span className="bfd-danger">
-                            {f.sync_health_7d.failed} failed
-                          </span>
-                        </>
-                      )}
-                    </div>
-                    {f.sync_health_7d?.most_recent_error && (
-                      <div className="bfd-muted">
-                        Last error{" "}
-                        {fmtDateTime(f.sync_health_7d.most_recent_error_at)}:{" "}
-                        <code>{f.sync_health_7d.most_recent_error}</code>
-                      </div>
-                    )}
-                  </div>
-
                   <table className="bfd-accounts">
                     <thead>
                       <tr>

@@ -1339,6 +1339,23 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
 
 ## 3. Known Issues
 
+- [ ] **`bank_connections` are keyed on a column whose meaning has drifted twice, so every cutover forks
+  a generation** *(found 2026-09-01, owner-found by reading the Feed health page)*. `institution_id` has
+  held a **GoCardless institution slug** (`PKO_BPKOPLPW`), then **NULL**, then **fintable's CONNECTION
+  id** (`conn_nordigen_…`) — and `fintableSync.js` looks a connection up **by that column**, so each
+  change of meaning missed and INSERTed. Result: **31 rows for 13 live connections**, 18 abandoned and
+  frozen at their last sync. ⚠️ **Inert, and that is why nobody noticed:** all 18 carry **zero**
+  accounts, every one of the 31 `feed_accounts` sits on the live generation, so balances, ingest and
+  CR060's mapping guard were never affected — the only symptom was 18 permanent `STALE` cards. **The
+  display is fixed** (bank-feed `fda1bd8` — `feeds[]` lists only connections carrying accounts, the
+  count is published as `service.connections_without_accounts`); **the keying is not.**
+  `bank_connections.external_id` **exists and is empty on every row**; populating it with fintable's
+  connection id and keying the upsert on it would stop a fourth generation at the next cutover. Left
+  deliberately — it touches the sync path and the ghosts are inert. **This is
+  [CR059 §22.7](../cr/cr-059-fintable-api-ingestion.md)'s own lesson — *no id-keyed guard survives an
+  upstream changing its id scheme* — landing on CONNECTIONS instead of transactions, where §22.11's
+  generation detector was never pointed.**
+
 - [ ] **`balanceDate` is sent only for `mtm`, so an `accrue` row cannot be steered to the observation
   that would reconcile it** *(found 2026-09-01 while fixing
   [CR080 B3.1](../cr/cr-080-feed-accrual-reconcile-mode.md))*. The engine honours `balanceDate` for

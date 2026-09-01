@@ -276,6 +276,34 @@ faithful.** Pointing the mapping at a bogus id left no cached balances, so the r
 and never exercised the case that matters. Seeding the frozen balance reproduced the real shape: a
 plausible DRIFT row, which is the whole reason the badge outranks `reconciled`.
 
+### The Feed health cards were reporting 31 feeds for 13 connections, all STALE (2026-09-01)
+
+**Owner-found by reading the page**, against fintable's own dashboard: *"PKO Bank Polski — STALE, last
+sync 893h ago"* while fintable showed everything synced within a day. ⚠️ **Fintable was right. Nothing
+was wrong with any feed** — and the card contradicted itself before it contradicted fintable, reading
+*"7-day syncs: 165 ok"* directly above *"last sync 893h ago"*.
+
+Two defects in `/v1/health/feeds`, both bank-feed's (`fda1bd8`):
+
+1. **Ghost generations.** 31 `bank_connections` rows for 13 live connections — see
+   [roadmap §3](../current/project-roadmap.md#3-known-issues) for the id-drift root cause. All 18
+   ghosts carry **zero** accounts, so they were inert; they simply rendered as 18 permanent `STALE`
+   cards. `feeds[]` now lists only connections that carry accounts, and the excluded count is published
+   as `service.connections_without_accounts` — **stated, not silently dropped**.
+2. **Service-wide numbers worn as per-feed.** `sync_health_7d` and the last error were computed inside
+   the per-connection loop with no `connection_id` filter (`sync_jobs` has none), so all 13 cards
+   carried the same counts and the **same error with the same timestamp**. Moved to a top-level
+   `service` block; fin renders it **once**, above the cards. ⚠️ **Breaking within v1** — the only such
+   change so far, and it removes a field that was lying.
+
+⚠️ **This CR's own surface was the one telling the untruth.** The `upstream` block it added — read live
+from fintable — was correct throughout, which is why `/balance-calibration` kept saying `all feeds
+healthy` **correctly** while this page screamed. **The page you open when you suspect something was the
+one that could not be trusted.**
+
+**Verified after:** 13 feeds, 0 stale, matching fintable's 13 healthy connections exactly. 217
+bank-feed tests, 1116 backend, 586 frontend, rendered in both themes.
+
 ## Still to do
 
 - ~~**Deploy** (rebuild the bank-feed stack).~~ **DONE** — it shipped with CR059's cutover rebuilds; the
