@@ -766,6 +766,48 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.2 Completed (chronological, latest first)
 
+- **v3.49.0** (2026-09-01) — **minor: the accrual pairing rule could over-claim after all, and
+  `Wise - USD` was the proof.** Frontend + engine + bank-feed (`db953e2`, its **migration 007**); **no
+  fin migration**, no forecast numbers move. 🔴 **[CR080 §B2](../cr/cr-080-feed-accrual-reconcile-mode.md)
+  asserted in its own text that the booking rule *"can only under-claim by a day … where over-claiming
+  books a real transaction as income forever."* THAT IS FALSE.** `LEAST(balance_date, synced_on − 1)`
+  picks the last day an observation **fully contains**; soundness needs it to contain **exactly** the
+  window `computed` covers. A balance synced on day S was taken partway through S, so it already holds
+  that morning's bank activity while `computed` stops at S−1 — and the difference is booked as yield.
+  **Measured on prod: the auto-picked row (labelled 09-01, synced 08-31) already carried 08-31's card
+  spend of −4.04**, hence the −2.52 that refused at −4.76%/yr for days. ⚠️ **The direction that saved us
+  is not the dangerous one:** here the excess was SPENDING, so the gap went negative and the rate guard
+  shouted — which is the only reason it was ever found. A **deposit** in the same window *overstates*
+  the accrual, and anything under **~5.29** (the band's allowance on 3,862 over 5 days) is filed as
+  `Interest Income` permanently. **The guard could not see its own blind spot.** **The fix:** walk back
+  through **all** history to the most recent observation whose `(book_date, synced_on]` window carries
+  no fin transactions — fin is fed from the same bank, so an empty window is strong evidence the
+  observation holds nothing past its book date; **an older sound measurement beats a fresher wrong
+  one**, and the skipped days are collected next run (the cost §B2 already accepted). All ambiguous ⇒
+  **refuses** (`window_ambiguous`); `force` restores the old pick. **Result on the account that started
+  the whole session: `Wise - USD` books +1.52 dated 2026-08-29 at 3.59%/yr** — the figure predicted from
+  SQL before the code existed, reached automatically with no override; **`WISE - EUR` is untouched, and
+  that is the discrimination working** (clean window, keeps the newest observation). ⚠️ **`balanceDate`
+  and the entry date are no longer fused for `accrue`** — naming an observation used to date the row
+  there too, so *"mark against balance dated"* would have moved the entry date without saying so
+  ([CR088 §11](../cr/cr-088-budget-vs-actual-le-table.md)'s class); `bookDate` is now separate, the split
+  `mtm` always had, and **the page sends only `balanceDate`** because `bookDate` defaults to last
+  month-end there and volunteering it would date every accrual at month-end. ⚠️ **One existing test had
+  to be REWRITTEN and it is the most instructive artefact here:** it seeded a fin transaction **on the
+  sync day** and asserted the accrual booked anyway, on the premise *"the feed has not seen it"* — **an
+  assumption the engine cannot verify, encoded as a fixture and green for three weeks.**
+  **Also in this release, closing [§3](#3-known-issues)'s newest entry:** `bank_connections` now key on
+  **`external_id`** (bank-feed migration 007) instead of a column that has meant a GoCardless slug, then
+  NULL, then fintable's connection id — the drift that forked 31 rows out of 13 connections. **Proved on
+  the live store: a real sync held it at 31 → 31**, all 13 matched and updated in place. ⚠️ **Found while
+  applying it: `schema_migrations` did not match reality** — 005 and 006 had been applied outside the
+  runner and never recorded, so they replayed; no damage, but **006 is a data rewrite**. And the
+  **orphan pill now links to the page that fixes it**, with every string naming that page as the MENU
+  does (`Settings → Bank Feed Setup`). ⚠️ **The route is deliberately NOT renamed to match** — CR088 P5
+  settled that question for `/budget-vs-actual`; a redirect for a string nobody reads is debt on debt,
+  and the house rule disagreed with my own earlier suggestion. **1121 backend on a from-scratch DB (+8)
+  · 586 frontend · 221 bank-feed (+4)**, eslint + hex clean, rendered in both themes.
+
 - **v3.48.3** (2026-09-01) — **patch: the Feed health page stops reporting 31 feeds for 13 connections,
   all STALE, and one error worn by thirteen.** Frontend + bank-feed (`fda1bd8`), no migration, no
   forecast numbers move. 🔴 **Owner-found by reading the page against fintable's own dashboard:**
