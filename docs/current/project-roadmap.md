@@ -766,6 +766,42 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.2 Completed (chronological, latest first)
 
+- **v3.48.1** (2026-09-01) — **patch: the orphan guard reaches the page the weekly loop actually uses,
+  and disarms the button on it.** No migration, no forecast numbers move. v3.48.0 shipped the
+  orphaned-mapping check on `/bank-feed-diagnostic` — a page you open when you already suspect
+  something — while the reconcile loop happens on `/balance-calibration`. 🔴 **Two structural facts made
+  that worse than a signal in the wrong place.** **(1) An orphaned account was ALREADY in the recon
+  table, looking normal.** `balanceReconcile` builds its rows from `account_source_mappings` and never
+  joins the feed, and fin's `bankfeed_balances` cache still holds the **old** id's rows — so the row does
+  not go blank, it **FREEZES**. Reproduced on dev: a re-keyed `Wise - USD` renders
+  `computed 4,048.37 · bank 4,046.87 · drift 1.50`, an ordinary DRIFT row whose bank figure is a fossil.
+  **(2) The health badge structurally could not see it.** `attachFeedHealth` gives an account with no
+  upstream counterpart `feed_health = null`, and the badge counts `feed_health && feed_health.attention`,
+  which excludes nulls — so the page printed **`ALL FEEDS HEALTHY`** beside it. ⚠️ **That is the sentence
+  the seven-week Revolut gap would have displayed, every day, for seven weeks.** **Shipped (three owner
+  decisions via `/question`):** a header pill counted over **all** rows rather than the filtered view (a
+  filter hiding a dead account does not revive it), with a distinct `mapping check unavailable` for
+  could-not-ask · a row badge **`feed gone` that OUTRANKS every other status including `reconciled`**,
+  because every other status there is computed from the frozen figure and *"reconciled"* is the most
+  misleading thing that table can say · and **`reconcileToFeed` now REFUSES an orphaned mapping**
+  (`refused` + `feed_orphaned`, button disabled), since reconciling would re-anchor `opening_balance` or
+  book a yield from a number the bank has not reported since the reconnect — [CR080](../cr/cr-080-feed-accrual-reconcile-mode.md)'s
+  fabricated −32.56 loss in a new costume, and that one took three migrations to undo. ⚠️ **The live
+  account list is fetched in the ROUTE, never the engine:** `reconcileToFeed` runs inside a
+  `db.transaction` and a network call there would hold it open on an upstream timeout — the engine keeps
+  the rule, the route supplies the fact. ⚠️ **A null or empty set is could-not-ask and skips the check**;
+  refusing every reconcile in the app because bank-feed blipped is a worse failure than the one being
+  guarded, and 4 tests pin exactly that, `force` included. **The signal costs no extra upstream call** —
+  `buildExternalIdToInstitution()` was already built on that route and its **keys ARE** the live feed
+  account ids. *Deliberate:* the red pill sits **beside** `ALL FEEDS HEALTHY` rather than replacing it —
+  both are true and about different things (the **connection** is healthy, the **mapping** is not), and
+  suppressing a true signal to avoid an apparent contradiction is how a page starts lying in the other
+  direction. **1116 backend on a from-scratch DB (+4) · 586 frontend**, eslint + hex clean, rendered in
+  both themes. ⚠️ **The first probe was NOT faithful and nearly shipped:** pointing the mapping at a
+  bogus id left no cached balances, so the row fell through to `no feed` and never exercised the case
+  that matters — seeding the frozen balance reproduced the real shape, which is the whole reason the
+  badge outranks `reconciled`.
+
 - **v3.48.0** (2026-09-01) — **minor: [CR060](../cr/cr-060-feed-connection-health.md) — connect and
   re-authorise a bank from inside fin, and the guard that makes it safe.** No migration, no forecast
   numbers move. Owner asked whether Fintable's **OAuth Applications** could register and reset accounts
