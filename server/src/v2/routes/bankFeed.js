@@ -137,6 +137,22 @@ router.get('/account-mappings', async (req, res) => {
     const mappings = await accountSourceMappings.listBySource('bank-feed');
     const byExternal = new Map(mappings.map((m) => [m.external_name, m]));
 
+    // Which bank each feed account belongs to. Owner-asked, and it earns its
+    // column: several feed accounts carry near-identical names across DIFFERENT
+    // banks — measured on prod, "Christopher Biedermann (PLN) (8325)" is
+    // REVOLUT while "CHRISTOPHER F BIEDERMANN (PLN) (1791)" is Erste Bank
+    // Polska, same currency and nothing in the name to separate them. A shared
+    // display name is precisely what once rerouted a whole feed.
+    // Best-effort, exactly as on /balance-recon:
+    // institution lives in bank-feed, not fin's DB, and a page that will not
+    // render because that service is down has made an outage worse.
+    let extIdToInstitution = new Map();
+    try {
+      extIdToInstitution = await buildExternalIdToInstitution();
+    } catch (e) {
+      console.warn('[v2/bank-feed] institution enrich failed on account-mappings (non-fatal):', e.message);
+    }
+
     // Selectable fin accounts (active) + id→name map for display. Queried
     // directly: the accounts repo doesn't export a flat list method.
     const finRows = (await db.query(
@@ -158,6 +174,7 @@ router.get('/account-mappings', async (req, res) => {
       return {
         external_id: a.external_id,
         name: a.name,
+        institution: extIdToInstitution.get(a.external_id) || null,
         currency: a.currency,
         type: a.type,
         mapped_account_id: m ? m.account_id : null,

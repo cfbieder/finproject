@@ -270,6 +270,7 @@ export default function BankFeedDiagnostic() {
             <thead>
               <tr>
                 <th>Bank-feed account</th>
+                <th>Institution</th>
                 <th>Cur</th>
                 <th className="num">Staged (pending)</th>
                 <th>Status</th>
@@ -282,6 +283,11 @@ export default function BankFeedDiagnostic() {
               {mappings.map((m) => (
                 <tr key={m.external_id}>
                   <td>{m.name}</td>
+                  {/* Which bank this account is at. Several feed accounts carry
+                      near-identical names across DIFFERENT institutions, and the
+                      name alone cannot tell them apart. Null when bank-feed was
+                      unreachable — "—", never a guess. */}
+                  <td>{m.institution || <span className="bfd-muted">—</span>}</td>
                   <td>{m.currency}</td>
                   <td className="num">{m.staged_unpromoted}</td>
                   <td>
