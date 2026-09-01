@@ -765,6 +765,52 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.2 Completed (chronological, latest first)
 
+- **v3.47.1** (2026-09-01) — **patch: a refused reconcile says so, instead of offering an Apply that
+  writes nothing; and two backup legs that had been failing or growing unbounded.** No migration, no
+  forecast numbers move. **(1) [CR080 B3.1](../cr/cr-080-feed-accrual-reconcile-mode.md) — owner-found,
+  on the page:** *"I am trying to reconcile Wise-USD, but after I click reconcile it does not change?"*
+  It had not changed because the server **refused** it — this mode's **routine** outcome between
+  month-ends, which B4 predicted and which makes the defect worse, not milder. The
+  [CR087](../cr/cr-087-money-legibility.md) P0c confirm dialog asked `preview.refused ||
+  preview.blocked`, and `reconcileToFeed` set **neither** — only `reconcileManual` ever set `blocked`.
+  ⚠️ **So the gate was written, shipped, and DEAD on all three feed modes:** every preview arrived with
+  both `undefined`, rendered *"Accrual −2.52 · Books to Interest Income · Dated 2026-08-30"* as a
+  **proposal**, and lit **Apply** — which posted, was declined server-side, and moved nothing but a
+  toast. The engine now **states** the refusal at each of the three sites that decline to write (mtm
+  stale, mtm implausible, accrue out-of-band), always present on every mode's summary and **set on a dry
+  run too** — the dry run being what the dialog renders. ⚠️ **Deliberately not re-derived in the UI**
+  from `implausible` / `stale_feed` / `note`: which of those blocks a write is the engine's rule, and a
+  copy of it in the front end is the restatement class this project has now been bitten by ten times. A
+  refused dialog has **no Apply at all** rather than a disabled one — a greyed button is the same lie
+  told more quietly — titled `Not booked`, reason **above** the figures, amount named `Gap (not
+  booked)`, income category dropped because nothing books to it. 🔴 **Its durable point: this is
+  [CR085](../cr/cr-085-forecast-sensitivity.md)'s defect class one step over — not state that renders
+  and does nothing, but an ACTION offered that can do nothing** — and like eleven of its twelve
+  instances it was found by the owner reading the page, not by a gate. Found alongside: on a **dry run**
+  mtm's implausibility note **overwrote** the staleness note, naming the symptom over the cause (the
+  apply path gets the order right only because it returns early). ⚠️ **What the account actually had is
+  neither yield nor the missing transaction the note guesses at** — the auto-picked observation
+  (labelled 09-01, **synced 08-31**) already held 08-31's card spend of −4.04 while `computed` stops at
+  08-30; the 08-30 observation gives **+1.52 = 2.87%/yr** and books cleanly. **The control that would do
+  that is unreachable from the page** ([§3](#3-known-issues)). 5 new tests (1 backend — a refused *dry
+  run* reports `refused` — and `ReconcilePreviewModal.test.jsx`, 4 frontend); **1108 backend on a
+  from-scratch DB / 586 frontend**, eslint clean, and the dialog **rendered in both themes** rather than
+  reasoned about. **(2) `backup-to-remote.sh` RETIRED** — its pre-flight SSHed to
+  `cfbieder@192.168.1.252`, which is **pbs1, an appliance whose only account is `root`**: failing
+  **every run since 2026-06-17**, 76 logged errors, **no alert**. ⚠️ **One failed pre-flight disabled a
+  second, unrelated function** — the `exit 1` sat above the docker prune this script also performed, so
+  pruning stopped the same day and nobody connected them. Retired rather than repaired, because fixing
+  the SSH target would have **resumed writing unencrypted archives containing `.env` secrets** onto
+  pbs1; every function it had is covered better (DB → encrypted, restore-tested PBS `fin-pg` 6-hourly ·
+  prune → `~/bin/docker-reclaim.sh` · config → the nightly VM-image leg). **(3) Pre-deploy snapshots got
+  retention, having had none** — **424 files / 1.5 GB / 177 days** of plaintext `pg_dump`s of production
+  on a prod-tier box, found by the homelab's 2026-08-30 `check-plaintext-dumps` sweep. A pre-deploy
+  snapshot's value expires at the next successful deploy and the rollback path only ever references the
+  newest, so **422 of them could never serve the rollback they existed for**. Keeps current + one back.
+
+- *(v3.43.0 – v3.47.0 are recorded under the [CR088](#cr088) entry in §1.1 rather than as separate rows
+  here — the six phases shipped over two days and read as one story.)*
+
 - **v3.42.0** (2026-08-26) — **minor: [CR008](../cr/cr-008-hierarchy-filter.md) `multiGroup` — an account selection that spans two chips, and the fence that keeps six pages on the old semantics.** Frontend-only, no migration. Owner-asked: *"select accounts from two places, Bank Accounts and PLN Credit Cards"* — the chips were **mutually exclusive**, so the Polish picture (PLN bank accounts **plus** PLN cards) meant running the report twice and adding columns by hand. ⚠️ **Nothing on the server stood in the way and it is worth recording why:** `GET /api/v2/cash-flow` has always taken `accounts` as a **repeatable param** matched with `a.name = ANY(...)` — the wire is a flat list of names with **no concept of groups** — so the entire restriction was one line of frontend state, `emitSelection` returning only the *active* group's leaves while `deselected` was **already keyed per group**. Opt-in `multiGroup` turns the pills into **toggles**: active groups stack in the checklist under sticky sub-headers, the emitted value is the **union**, and a summary line reports the total, since a cross-group selection is otherwise only legible by clicking through every pill. ⚠️ **Off by default, which is the whole design:** a second pill click **replaces** today and **six** surfaces depend on it (Ledger, TransActual, TransBudget, BalanceTrends, BudgetWorksheetV2, the FC line drill-down), so the single `activeGroup` became an ordered `activeKeys` list holding **0 or 1 keys** in the standard mode — those six render through the same path they always did. The union cannot double-count because `buildAccountFilterGroups` emits one chip per account-type node, making the groups **disjoint**. Three non-obvious semantics settled: **"All" still means *no filter*, not *everything checked*** · a group toggled back on **starts fully checked** (the pre-existing reset-on-open turns out to be load-bearing once selections accumulate) · **right-click-to-solo now clears every active group**, because *"only this item"* has to mean the emitted list is exactly that item. **Verified in a browser:** 21 → 25 checked across two groups, **23 names spanning both groups on the wire**, identical across all 8 period requests; the five reachable standard-mode consumers each show **one active pill after clicking two**, no summary, no sub-headers. Zero page errors, both themes, 582 frontend tests, eslint clean, three CSS gates at baseline. ⚠️ **A known inconsistency left for the owner:** the **Categories** filter beside it on the same page still replaces, so two adjacent controls now behave differently — one prop away, deliberately not taken because the ask was about accounts.
 
 - **v3.41.0** (2026-08-26) — **minor: [CR054](../cr/cr-054-cash-flow-by-account.md) — the totals row rejoins the frozen column, and the By-Account report grows a `Total`.** Frontend-only, no migration, both owner-found by scrolling the report sideways. **(1)** Scrolling the period columns right carried the **`NET CASH FLOW`** label away while `CATEGORY`/`INCOME`/`EXPENSE` stayed pinned, leaving the totals under the wrong month headers. The frozen column comes from a **two-part** selector — `.balance-report-table tbody td:first-child, .balance-report-table__name` — and the Cash Flow tree-lines set `position: relative` on the second half; body rows survive only because the **first** half is more specific. The row lives in **`<tfoot>`**, matched only the losing half, and scrolled. ⚠️ **The obvious fix was worse and a measurement caught it:** scoping the tree-line rule to `tbody` **ties** the two at (0,2,2) and the later import wins, silently unpinning the *entire* body column — a DOM probe reported `bodyLeft: -324` where the reasoning had said "clean". **Measure the rendered page, do not argue about it.** Balance Sheet's `Net Worth` row uses the same `<tfoot>` pattern and was never affected: the defect existed only where the two CSS files met. **(2)** A trailing **`TOTAL`** column sums each row across the period columns, at every tree level and on the footer row. ⚠️ **Opt-in via `showTotalColumn`, and that is a correctness fence:** the component is shared by three tabs, and while **By Account** / **By Period** columns come from `getPeriods()` — contiguous, non-overlapping — the **Summary** tab's are user-picked comparison ranges that may **overlap**, where a sum double-counts. Only By Account passes it. The footer's per-period values were computed inline mid-render and are now collected into a `netValues` array the total reuses, so the total cannot disagree with the cells above it. **Verified in a browser, all 117 rows expanded across 8 monthly columns: 0 mismatches** between a row's period cells and its Total; `<th>`, `<col>` and every row's cell count agree at 10; both themes. 582 frontend tests, eslint clean. ⚠️ **Deliberately not done:** the Total column **scrolls** rather than freezing at the right edge, and the **Excel export still omits it**. **This is one more instance of the class [status.md](status.md) already names — a display defect found by a person looking at the page, not by a gate** ([CR085 §22](../cr/cr-085-forecast-sensitivity.md) gated the engine half; nothing yet checks that a table renders every column it was handed).

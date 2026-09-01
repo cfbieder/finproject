@@ -364,13 +364,15 @@ ssh cfbieder@192.168.1.87 && cd ~/psproject
 | `provision-vm.sh`, `deploy-on-vm.sh` | KVM provisioning |
 | `boot-reconcile-docker.sh`, `fin-docker-reconcile.service` | Boot-time `compose up -d` on prod/dev/bank-feed stacks — fixes dockerd reboot race that leaves postgres containers detached from their networks (seen 2026-07-04); unit installed + enabled in `/etc/systemd/system/` 2026-07-05 |
 | `backup-mongo.sh`, `restore-mongo.sh` | **Dead (Mongo era)** — deletion backlogged |
+| `backup-to-remote.sh` | **RETIRED v3.47.1** — refuses to run, prints where each function went (see §11) |
 
 ---
 
 ## 11. Backup & Restore
 
-- **Automated:** `backup-to-remote.sh` via cron (`0 2 */2 * *`) → `cfbieder@192.168.1.252:~/backups/fin/` (DB dump, `.env` files, `components/data/`, `certs/`; 30-day retention; log `Backups/backup-remote.log`).
-- **Local:** `Backups/` (git-ignored); deploy script auto-backs-up first. Manual: `docker exec fin-postgres pg_dump -U fin -d fin -Fc > Backups/fin_backup.dump`; restore with `pg_restore --clean --if-exists`. Full restore runbook: [../guides/restore.md](../guides/restore.md).
+- **Automated:** **PBS `fin-pg` on pbs1 (ns/fin)** — encrypted, 6-hourly, restore-tested 2026-07-14. Config rides the nightly VM-image leg.
+- ⚠️ **`backup-to-remote.sh` is RETIRED (v3.47.1, 2026-09-01)** — it refuses to run and says where each function went. Its pre-flight SSHed to `cfbieder@192.168.1.252`, which is **pbs1, an appliance whose only account is `root`**: it had failed **every run since 2026-06-17** (76 logged errors, no alert). ⚠️ **One failed pre-flight disabled a second, unrelated function** — the `exit 1` sat above the docker prune this script also did, so pruning stopped the same day and nobody connected the two (prune now lives in `~/bin/docker-reclaim.sh`, weekly, CR-016). Retired rather than repaired: fixing the SSH target would have resumed writing **unencrypted** `tar.gz` archives containing `.env` secrets onto pbs1 — the exposure the 2026-08-30 `check-plaintext-dumps` sweep exists to remove.
+- **Local:** `Backups/` (git-ignored); deploy script auto-backs-up first — **current + one back since v3.47.1**, having previously kept every snapshot ever taken (**424 files / 1.5 GB / 177 days** when found). A pre-deploy snapshot's value expires at the next successful deploy, and the rollback path only ever references the newest (`$BACKUP_FILE`); anything older restores from the encrypted PBS leg. Manual: `docker exec fin-postgres pg_dump -U fin -d fin -Fc > Backups/fin_backup.dump`; restore with `pg_restore --clean --if-exists`. Full restore runbook: [../guides/restore.md](../guides/restore.md).
 
 ---
 
