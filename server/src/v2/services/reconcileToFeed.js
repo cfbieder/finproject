@@ -84,7 +84,7 @@ function expectedFromFeed(m, feedVal) {
  *   `undefined` on every feed reconcile and offer Apply on a run that could not
  *   succeed (only reconcileManual set the equivalent `blocked`).
  */
-async function reconcileToFeed(accountId, { asOf = null, dryRun = false, force = false, bookDate = null, balanceDate = null, expect = null } = {}) {
+async function reconcileToFeed(accountId, { asOf = null, dryRun = false, force = false, bookDate = null, balanceDate = null, expect = null, liveFeedAccountIds = null } = {}) {
   // Pre-flight (no transaction): load mapping, and for 'mtm' make sure the target
   // month-end balance is cached — the daily cron only caches recent snapshots, so
   // a month-end may be absent locally while the bank-feed service still has it.
@@ -98,6 +98,36 @@ async function reconcileToFeed(accountId, { asOf = null, dryRun = false, force =
   )).rows[0];
   if (!m) throw new Error(`account ${accountId} has no bank-feed mapping`);
   if (m.ignored) throw new Error(`account ${accountId} mapping is ignored`);
+
+  // ── CR060: refuse to reconcile a mapping that points at nothing ────────────
+  //
+  // Since CR059 P3a `external_name` IS fintable's account id, and a bank
+  // reconnect can mint a NEW one. The mapping then resolves to no feed account —
+  // but fin's `bankfeed_balances` cache still holds the OLD id's rows, so the
+  // feed side does not go blank, it FREEZES. Reconciling against it would
+  // re-anchor `opening_balance` (calibrate) or book a yield (accrue) from a
+  // figure the bank has not reported since the reconnect, permanently and with
+  // nothing to say the number was stale. That is CR080's fabricated −32.56 loss
+  // in a new costume, and that one took three migrations to undo.
+  //
+  // ⚠️ Only when the caller could actually ASK. A null set means the account
+  // list was unavailable, and refusing every reconcile because bank-feed blipped
+  // would be a worse failure than the one being guarded against — the same
+  // could-not-ask rule the health surface and the orphan report both keep.
+  //
+  // `force` overrides, as everywhere else here: the owner may know the mapping
+  // is about to be repointed and want the run anyway.
+  if (liveFeedAccountIds && liveFeedAccountIds.size > 0
+      && !liveFeedAccountIds.has(String(m.external_name)) && !force) {
+    return {
+      account_id: accountId, name: m.name, mode: m.reconcile_mode,
+      refused: true, applied: false, feed_orphaned: true,
+      note: `this account's mapping points at feed account ${m.external_name}, which the feed no ` +
+        `longer carries — most likely a bank reconnect re-keyed it. The bank figures shown are the ` +
+        `last ones cached before that happened, so reconciling now would anchor the account to a ` +
+        `stale number. Re-map it to its new feed account first (Bank feed diagnostic), or pass force.`,
+    };
+  }
 
   const asOfDate = (await db.query(
     `SELECT COALESCE($1::date, CURRENT_DATE)::text AS d`, [asOf]

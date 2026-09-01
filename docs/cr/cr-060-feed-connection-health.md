@@ -224,6 +224,58 @@ Bank Pekao:** the reconnect form is exempt from the plan checks the new-connecti
 `ignored` with `account_id NULL` — so even the worst case had nothing of fin's behind it. **The URL was
 not opened**; it expired unused, which is the whole point of testing the mint rather than the consent.
 
+### On the reconcile page, and the button it disarms (2026-09-01)
+
+**The guard only guards if it is on the path you walk.** It shipped on `/bank-feed-diagnostic`, a page
+you open when you already suspect something; the weekly loop happens on `/balance-calibration`.
+
+⚠️ **Two structural facts made this worse than "a signal in the wrong place".**
+
+1. **An orphaned account is already IN the recon table, looking normal.** `balanceReconcile` builds its
+   rows from `account_source_mappings` and never joins the feed, and fin's `bankfeed_balances` cache
+   still holds the OLD id's rows — so the row does not go blank, it **FREEZES**. Reproduced on dev: a
+   re-keyed `Wise - USD` renders `computed 4,048.37 · bank 4,046.87 · drift 1.50`, an ordinary-looking
+   DRIFT row whose bank figure is a fossil.
+2. **The health badge structurally cannot see it.** `attachFeedHealth` sets `feed_health = null` for an
+   account with no upstream counterpart, and the badge counts
+   `.filter(a => a.feed_health && a.feed_health.attention)` — a null is excluded. So the page said
+   **`ALL FEEDS HEALTHY`** beside it. **That is the sentence the seven-week Revolut gap would have
+   displayed, every day, for seven weeks.**
+
+**Shipped, all three at once** (owner decisions, `/question`):
+
+- **A header pill** — `N mapping(s) point at a missing feed account`, counted over **all** rows rather
+  than the filtered view (a filter hiding a dead account does not revive it), plus a distinct
+  `mapping check unavailable` for could-not-ask.
+- **A row badge, `feed gone`, which OUTRANKS every other status** — including `reconciled`. Every other
+  status on that row is computed from the frozen figure, so *"reconciled"* is the most misleading thing
+  the table can say.
+- **`reconcileToFeed` REFUSES an orphaned mapping** (`refused: true`, `feed_orphaned: true`), and the
+  row's Reconcile button is disabled. Reconciling would re-anchor `opening_balance` (calibrate) or book
+  a yield (accrue) from a number the bank has not reported since the reconnect — CR080's fabricated
+  −32.56 loss in a new costume, and that took three migrations to undo. `force` overrides, as everywhere.
+
+⚠️ **The live account list is fetched in the ROUTE, not the engine:** `reconcileToFeed` runs inside a
+`db.transaction`, and a network call in that path would hold a transaction open on an upstream timeout.
+The engine keeps the rule and is handed the fact. ⚠️ **A null or empty set means could-not-ask and
+skips the check** — refusing every reconcile in the app because bank-feed blipped is a worse failure
+than the one being guarded. 4 tests pin exactly that, including `force`.
+
+**The orphan signal costs no extra upstream call:** `buildExternalIdToInstitution()` was already being
+built on this route, and its KEYS are the live feed account ids, so *"does this mapping still resolve"*
+is a `.has()` on data in hand.
+
+*Deliberate, not an oversight:* the red pill sits **beside** `ALL FEEDS HEALTHY` rather than replacing
+it. Both are true and they are about different things — the **connection** is healthy, the **mapping**
+is not — and suppressing a true signal to avoid an apparent contradiction is how a page starts lying in
+the other direction.
+
+**Verified:** 1116 backend on a from-scratch DB (+4), 586 frontend, eslint + hex gate clean, and
+rendered in **both themes** against a re-keyed mapping on dev — ⚠️ **and the first probe was not
+faithful.** Pointing the mapping at a bogus id left no cached balances, so the row fell to `no feed`
+and never exercised the case that matters. Seeding the frozen balance reproduced the real shape: a
+plausible DRIFT row, which is the whole reason the badge outranks `reconciled`.
+
 ## Still to do
 
 - ~~**Deploy** (rebuild the bank-feed stack).~~ **DONE** — it shipped with CR059's cutover rebuilds; the
@@ -243,9 +295,7 @@ not opened**; it expired unused, which is the whole point of testing the mint ra
 - ~~**Reconnect / connect-a-bank (unblocked 2026-09-01)**~~ — **BUILT, see above.** Remaining:
   **deploy the bank-feed stack** (shared with prod) and mint one *reconnect* link to prove the path
   end-to-end.
-- **Surface the orphan check where the reconcile loop runs**, not only on the diagnostic page — an
-  orphaned mapping should contradict the recon page's `ALL FEEDS HEALTHY` badge, which today it does
-  not.
+- ~~**Surface the orphan check where the reconcile loop runs**~~ — **DONE, see below.**
 - **`GET /institutions` passthrough**, so *Connect a new bank* can pre-select the bank instead of
   opening a generic search. Optional: the flow works without it.
 - Decide whether `needs_reconnect` should reach the owner rather than waiting to be looked at (a push

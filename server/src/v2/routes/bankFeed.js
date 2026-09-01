@@ -257,11 +257,24 @@ router.get('/balance-recon', async (req, res, next) => {
     // the filter simply shows them under "Unknown".
     try {
       const extIdToInstitution = await buildExternalIdToInstitution();
+      // CR060 — the orphan check rides along for free: this map's KEYS are the
+      // live feed account ids, so "does this mapping still resolve" is a lookup
+      // on data the route already fetched. No extra upstream call.
+      //
+      // ⚠️ Only when the map is non-empty. An empty one means bank-feed had
+      // nothing to say, and marking all 27 rows orphaned on an upstream blip is
+      // how an alarm gets trained away — `null` says we could not check, which
+      // the UI must not render as "fine".
+      const canCheckOrphans = extIdToInstitution.size > 0;
       for (const a of result.accounts) {
         a.institution = extIdToInstitution.get(a.feed_external_id) || null;
+        a.feed_orphaned = canCheckOrphans ? !extIdToInstitution.has(a.feed_external_id) : null;
       }
+      result.orphans_checked = canCheckOrphans;
     } catch (e) {
       console.warn('[v2/bank-feed] institution enrich failed (non-fatal):', e.message);
+      for (const a of result.accounts) a.feed_orphaned = null;
+      result.orphans_checked = false;
     }
 
     // CR060: attach the upstream CONNECTION's health to each row, so a dead feed
@@ -417,8 +430,23 @@ router.post('/reconcile/:accountId', async (req, res, next) => {
         console.warn('[v2/bank-feed] pre-reconcile balance ingest failed (non-fatal):', e.message);
       }
     }
+    // CR060 — hand the engine the live feed account ids so it can refuse to
+    // reconcile a mapping that points at nothing. Fetched HERE rather than in
+    // the engine: reconcileToFeed runs inside a db.transaction, and a network
+    // call in that path would hold a transaction open on an upstream timeout.
+    // Best-effort — on failure the set is null and the engine skips the check
+    // rather than refusing everything, the same could-not-ask rule as above.
+    let liveFeedAccountIds = null;
+    try {
+      const accResp = await client.accounts();
+      const accList = Array.isArray(accResp) ? accResp : (accResp && accResp.accounts) || [];
+      if (accList.length > 0) liveFeedAccountIds = new Set(accList.map((a) => String(a.external_id)));
+    } catch (e) {
+      console.warn('[v2/bank-feed] orphan pre-check unavailable (non-fatal):', e.message);
+    }
+
     const result = await reconcileToFeed(accountId, {
-      asOf, dryRun: isDryRun, force: force === true, bookDate, balanceDate,
+      asOf, dryRun: isDryRun, force: force === true, bookDate, balanceDate, liveFeedAccountIds,
       // Only an apply carries an expectation; a preview has nothing to compare to.
       expect: isDryRun ? null : expect,
     });

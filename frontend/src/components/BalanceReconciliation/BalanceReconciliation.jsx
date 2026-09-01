@@ -322,6 +322,11 @@ export default function BalanceReconciliation() {
     ).values(),
   ];
 
+  // CR060 — mappings pointing at a feed account the feed no longer carries.
+  // Counted over ALL rows, not the filtered view, for the same reason
+  // feedsNeedingAttention is: a filter hiding a dead account does not revive it.
+  const orphanedRows = (balRecon.accounts || []).filter((a) => a.feed_orphaned === true);
+
   return (
     <section className="bfd-section recon-panel">
       <div className="recon-title-row">
@@ -382,6 +387,21 @@ export default function BalanceReconciliation() {
             signal, not a reassuring one, so "all feeds healthy" is said out loud.
             The three cases are deliberately distinct — healthy, N need attention,
             and "we could not ask", which must never be allowed to look healthy. */}
+        {/* CR060 — the badge below reports the upstream CONNECTION's health, and
+            an orphaned mapping is invisible to it: the connection is perfectly
+            healthy, the account just is not on it any more. Without this pill
+            the page says "all feeds healthy" beside an account that stopped
+            feeding — which is the exact sentence the seven-week Revolut gap
+            would have shown, every day, for seven weeks. */}
+        {orphanedRows.length > 0 && (
+          <StatusPill
+            label={`${orphanedRows.length} mapping${orphanedRows.length === 1 ? "" : "s"} point${orphanedRows.length === 1 ? "s" : ""} at a missing feed account`}
+            kind="danger"
+          />
+        )}
+        {balRecon.orphans_checked === false && (
+          <StatusPill label="mapping check unavailable" kind="warn" />
+        )}
         {balRecon.upstream_ok === false ? (
           <StatusPill label="feed health unavailable" kind="warn" />
         ) : feedsNeedingAttention.length > 0 ? (
@@ -629,7 +649,14 @@ export default function BalanceReconciliation() {
                   )}
                 </td>
                 <td>
-                  {a.reconciled == null ? (
+                  {/* CR060 — an orphaned mapping OUTRANKS every other status,
+                      because every other status on this row is computed from a
+                      bank figure that froze when the reconnect re-keyed the
+                      account. "reconciled" against a stale number is the most
+                      misleading thing this table can say. */}
+                  {a.feed_orphaned ? (
+                    <StatusPill label="feed gone" kind="danger" />
+                  ) : a.reconciled == null ? (
                     <StatusPill label="no feed" kind="warn" />
                   ) : a.reconciled ? (
                     <StatusPill label="reconciled" kind="ok" />
@@ -644,9 +671,15 @@ export default function BalanceReconciliation() {
                 <td className="recon-actions">
                   <button
                     className="generate-report-button"
-                    disabled={reconcilingId === a.account_id || a.feed_balance == null}
+                    disabled={reconcilingId === a.account_id || a.feed_balance == null || a.feed_orphaned === true}
                     onClick={() => askReconcile(a)}
-                    title={isMtm ? "Post a month-end Unrealized-G/L (MTM) entry" : "Re-anchor opening_balance to the bank balance"}
+                    title={
+                      a.feed_orphaned
+                        ? "This mapping points at a feed account the feed no longer carries — the bank figures are frozen at the last sync before it was re-keyed. Re-map it on Bank feed diagnostic first."
+                        : isMtm
+                          ? "Post a month-end Unrealized-G/L (MTM) entry"
+                          : "Re-anchor opening_balance to the bank balance"
+                    }
                   >
                     {reconcilingId === a.account_id ? "…" : "Reconcile"}
                   </button>

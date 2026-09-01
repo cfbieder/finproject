@@ -345,4 +345,69 @@ dbDescribe('reconcileToFeed — accrue (DB)', () => {
     expect(out.mode).toBe('calibrate');
     expect(out.new_opening).toBeCloseTo(1500, 2);
   });
+
+  // ── CR060: a mapping that points at nothing must not be reconciled ───────────
+  //
+  // A bank reconnect can re-key the fintable account id that `external_name` IS.
+  // fin's `bankfeed_balances` cache keeps the OLD id's rows, so the bank side does
+  // not go blank — it FREEZES, and reconciling anchors the account to a figure the
+  // bank has not reported since. These pin the refusal and, just as importantly,
+  // that it stays silent when we could not check.
+  describe('reconcileToFeed — orphaned mapping guard (CR060)', () => {
+    test('refuses when the mapping is absent from the live feed account list', async () => {
+      await freshAccount({ opening: 10000 });
+      await seedFeed(10000, '2026-07-01', '2026-07-02');
+
+      const out = await reconcileToFeed(acctId, {
+        asOf: '2026-07-05',
+        dryRun: false,
+        liveFeedAccountIds: new Set(['some_other_account']),
+      });
+
+      expect(out.refused).toBe(true);
+      expect(out.applied).toBe(false);
+      expect(out.feed_orphaned).toBe(true);
+      expect(out.note).toMatch(/re-keyed/);
+    });
+
+    test('does NOT refuse when the mapping is present in the list', async () => {
+      await freshAccount({ opening: 10000 });
+      await seedFeed(10000, '2026-07-01', '2026-07-02');
+      const ext = (await db.query(
+        `SELECT external_name FROM account_source_mappings WHERE account_id=$1 AND source='bank-feed'`,
+        [acctId])).rows[0].external_name;
+
+      const out = await reconcileToFeed(acctId, {
+        asOf: '2026-07-05',
+        dryRun: true,
+        liveFeedAccountIds: new Set([ext]),
+      });
+      expect(out.feed_orphaned).toBeUndefined();
+    });
+
+    test('an ABSENT list is could-not-ask — it must not refuse everything', async () => {
+      // bank-feed being unreachable must not stop every reconcile in the app.
+      await freshAccount({ opening: 10000 });
+      await seedFeed(10000, '2026-07-01', '2026-07-02');
+
+      for (const ids of [null, new Set()]) {
+        const out = await reconcileToFeed(acctId, { asOf: '2026-07-05', dryRun: true, liveFeedAccountIds: ids });
+        expect(out.feed_orphaned).toBeUndefined();
+      }
+    });
+
+    test('force overrides the orphan guard, like every other guard here', async () => {
+      await freshAccount({ opening: 10000 });
+      await seedFeed(10000, '2026-07-01', '2026-07-02');
+
+      const out = await reconcileToFeed(acctId, {
+        asOf: '2026-07-05',
+        dryRun: true,
+        force: true,
+        liveFeedAccountIds: new Set(['some_other_account']),
+      });
+      expect(out.feed_orphaned).toBeUndefined();
+    });
+  });
+
 });
