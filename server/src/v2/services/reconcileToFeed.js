@@ -125,7 +125,7 @@ async function reconcileToFeed(accountId, { asOf = null, dryRun = false, force =
       note: `this account's mapping points at feed account ${m.external_name}, which the feed no ` +
         `longer carries — most likely a bank reconnect re-keyed it. The bank figures shown are the ` +
         `last ones cached before that happened, so reconciling now would anchor the account to a ` +
-        `stale number. Re-map it to its new feed account first (Bank feed diagnostic), or pass force.`,
+        `stale number. Re-map it to its new feed account first (Settings \u2192 Bank Feed Setup), or pass force.`,
     };
   }
 

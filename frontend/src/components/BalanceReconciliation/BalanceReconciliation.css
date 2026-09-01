@@ -206,3 +206,16 @@
   color: var(--danger);
   font-weight: 600;
 }
+
+/* CR060 — the orphan pill is a LINK to the page that fixes it. It must still
+   read as a pill, not as body-text link: no underline, no link colour, and the
+   pill keeps its own danger styling. Focus-visible is left to the app-wide token
+   ring (CR085 Tier 2) rather than being redefined here. */
+.recon-orphan-link {
+  text-decoration: none;
+  color: inherit;
+  display: inline-flex;
+}
+.recon-orphan-link:hover {
+  filter: brightness(0.95);
+}

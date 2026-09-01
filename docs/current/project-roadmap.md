@@ -1369,8 +1369,19 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
 
 ## 3. Known Issues
 
-- [ ] **`bank_connections` are keyed on a column whose meaning has drifted twice, so every cutover forks
-  a generation** *(found 2026-09-01, owner-found by reading the Feed health page)*. `institution_id` has
+- [x] **CLOSED 2026-09-01 (bank-feed `db953e2`, migration 007).** `external_id` is backfilled from the
+  era-3 value and carries a partial unique index; the lookup prefers it, falls back to the historical
+  order so a pre-007 store groups unchanged, and **stamps it onto a matched row** so the next scheme
+  change finds it rather than forking. **Proved on the live store: a real sync held connections at 31 →
+  31**, all 13 matched and updated in place, 0 inserted. The 18 ghosts are left in place — zero
+  accounts, filtered from health, and deleting rows to tidy a display is not worth the risk.
+  ⚠️ **Found while applying it: `schema_migrations` did not match reality** — 005 and 006 had been
+  applied to the live bank-feed database **outside the runner** and never recorded, so `migrate.js`
+  replayed them. No damage (verified after: 31 connections, 31 feed accounts, 3,383 transactions, 0
+  orphaned fin mappings) — **but 006 is a data rewrite** (the CR059 P3a id crosswalk), and an
+  unrecorded migration is a re-run waiting to happen.
+  ~~**`bank_connections` are keyed on a column whose meaning has drifted twice, so every cutover forks
+  a generation**~~ *(found 2026-09-01, owner-found by reading the Feed health page)*. `institution_id` has
   held a **GoCardless institution slug** (`PKO_BPKOPLPW`), then **NULL**, then **fintable's CONNECTION
   id** (`conn_nordigen_…`) — and `fintableSync.js` looks a connection up **by that column**, so each
   change of meaning missed and INSERTed. Result: **31 rows for 13 live connections**, 18 abandoned and

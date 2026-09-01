@@ -405,10 +405,17 @@ export default function BalanceReconciliation() {
             feeding — which is the exact sentence the seven-week Revolut gap
             would have shown, every day, for seven weeks. */}
         {orphanedRows.length > 0 && (
-          <StatusPill
-            label={`${orphanedRows.length} mapping${orphanedRows.length === 1 ? "" : "s"} point${orphanedRows.length === 1 ? "s" : ""} at a missing feed account`}
-            kind="danger"
-          />
+          // Links to where it is FIXED. The re-mapping lives on another page, and
+          // an alarm that names a problem without a route to the remedy makes the
+          // reader hunt for it — which is exactly what happened when this page and
+          // Bank Feed Setup turned out to be two clicks apart with nothing joining
+          // them. Named as the MENU names it, not as the URL does.
+          <Link to="/bank-feed-diagnostic" className="recon-orphan-link" title="Re-map it under Settings → Bank Feed Setup">
+            <StatusPill
+              label={`${orphanedRows.length} mapping${orphanedRows.length === 1 ? "" : "s"} point${orphanedRows.length === 1 ? "s" : ""} at a missing feed account — fix`}
+              kind="danger"
+            />
+          </Link>
         )}
         {balRecon.orphans_checked === false && (
           <StatusPill label="mapping check unavailable" kind="warn" />
@@ -686,7 +693,7 @@ export default function BalanceReconciliation() {
                     onClick={() => askReconcile(a)}
                     title={
                       a.feed_orphaned
-                        ? "This mapping points at a feed account the feed no longer carries — the bank figures are frozen at the last sync before it was re-keyed. Re-map it on Bank feed diagnostic first."
+                        ? "This mapping points at a feed account the feed no longer carries — the bank figures are frozen at the last sync before it was re-keyed. Re-map it under Settings \u2192 Bank Feed Setup first."
                         : isMtm
                           ? "Post a month-end Unrealized-G/L (MTM) entry"
                           : "Re-anchor opening_balance to the bank balance"

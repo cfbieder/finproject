@@ -324,6 +324,12 @@ bank-feed tests, 1116 backend, 586 frontend, rendered in both themes.
   **deploy the bank-feed stack** (shared with prod) and mint one *reconnect* link to prove the path
   end-to-end.
 - ~~**Surface the orphan check where the reconcile loop runs**~~ — **DONE, see below.**
+- ~~**The orphan pill does not link to the page that fixes it**~~ — **DONE 2026-09-01.** The re-mapping
+  lives on another page, so the pill is now a link, and every string naming that page says
+  **`Settings → Bank Feed Setup`** — what the MENU calls it, not what the URL does. ⚠️ **The route is
+  deliberately NOT renamed to match:** [CR088 §P5](cr-088-budget-vs-actual-le-table.md) settled this
+  exact question for `/budget-vs-actual` → *Budget Analysis* (owner decision) — a redirect for a string
+  nobody reads is debt on debt. The discoverability problem was the missing link, not the URL.
 - **`GET /institutions` passthrough**, so *Connect a new bank* can pre-select the bank instead of
   opening a generic search. Optional: the flow works without it.
 - Decide whether `needs_reconnect` should reach the owner rather than waiting to be looked at (a push
