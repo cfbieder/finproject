@@ -766,6 +766,32 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.2 Completed (chronological, latest first)
 
+- **v3.49.1** (2026-09-02) — **patch: an expired bank consent reaches you, instead of waiting to be
+  found.** Frontend + one additive field + a session hook; no migration, no forecast numbers move.
+  🔴 **[CR060](../cr/cr-060-feed-connection-health.md) left this as an open decision resting on a FALSE
+  premise — *"a push notification path already exists from CR006"*.** It does not.
+  [CR006](../cr/cr-006-ai-review.md)'s notification is the **browser Web Notifications API**, fired when
+  the fin **tab is hidden** and an AI review finishes: it reaches the owner only if fin is *already
+  open*, which is the one case a badge would cover. **There is no out-of-app channel in this project**,
+  and that line asserted one for months. **Two channels shipped, both onto paths that already existed:**
+  `GET /util/attention-summary` gains **`needsReconnect`**, rendered by `AttentionStrip` on Home with a
+  link to Bank Feed Setup; and a **SessionStart hook** beside the CI one prints the count when a session
+  starts in this repo. ⚠️ **Counted as distinct CONNECTIONS, not accounts** — one dead consent can carry
+  three Revolut wallets — and **scoped to accounts fin maps and does not ignore**, which is CR060's own
+  correction, or OCME's Bank Pekao would sit on the Home page forever for a feed switched off on
+  purpose. ⚠️ **Placed ABOVE `staleFeeds` deliberately:** that signal catches the same failure **three
+  days later and by its side effect**, and a reader who meets *"feed data stale"* first goes hunting for
+  a sync problem instead of re-authorising a bank. 🔴 **Deliberately NOT a cron writing to a log** — the
+  tempting option, and precisely the shape that had cost **74 days of backups two days earlier**
+  (`backup-to-remote.sh` failed every run into a logfile nobody read). **A log is not an alert.** Both
+  channels stay **silent when they cannot ask**, the cry-wolf rule the CI hook already keeps.
+  **Verified against a STUBBED API for plural, singular and outage** — an alarm only ever seen *not*
+  firing is untested — and the strip rendered in both themes with the count forced via request
+  interception. ⚠️ **Rendering it caught the same grammar class as the day before** (*"1 mapping point
+  at…"*): *"2 bank connections need re-authorising — **the feed has** stopped."* **Twice in two days a
+  defect passed every gate and died on sight**, which remains the standing argument for a display-side
+  gate ([status.md](status.md)). 1121 backend / 586 frontend, eslint + hex clean.
+
 - **v3.49.0** (2026-09-01) — **minor: the accrual pairing rule could over-claim after all, and
   `Wise - USD` was the proof.** Frontend + engine + bank-feed (`db953e2`, its **migration 007**); **no
   fin migration**, no forecast numbers move. 🔴 **[CR080 §B2](../cr/cr-080-feed-accrual-reconcile-mode.md)
