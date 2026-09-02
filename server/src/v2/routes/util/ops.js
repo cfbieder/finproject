@@ -16,6 +16,7 @@ const { dataPaths } = require('../../../utils/dataPaths');
 // Hoisted out of the handler (CR043 N13).
 const bankFeedRecon = require('../../repositories/bankFeedReconciliation');
 const manualRecon = require('../../repositories/manualReconciliation');
+const bankFeedClient = require('../../services/bankFeedClient');
 
 const execFileAsync = promisify(execFile);
 
@@ -35,6 +36,11 @@ const execFileAsync = promisify(execFile);
  *    the day after a booking, so raw drift would flag them all month.
  *  - mtmDue: fed MTM-mode accounts with no source='mtm' entry dated the last
  *    completed month-end — the actually-actionable MTM signal.
+ *  - needsReconnect: bank connections whose consent has expired (CR060). PSD2
+ *    consents lapse about every 90 days on the 8 GoCardless connections, and
+ *    until now nothing told the owner — `staleFeeds` catches it only as a
+ *    SIDE EFFECT, three days later, once the silence is long enough to notice.
+ *    This is the day-zero fact the upstream already reports.
  */
 router.get('/attention-summary', async (req, res, next) => {
   try {
@@ -49,6 +55,37 @@ router.get('/attention-summary', async (req, res, next) => {
       bankFeedRecon.balanceReconcile({}),
       manualRecon.manualBalanceReconcile({}),
     ]);
+
+    // CR060 — connections needing re-authorisation.
+    //
+    // Best-effort: this strip is an aid, never a blocker, and a bank-feed outage
+    // must not take the Home page's other four signals down with it.
+    //
+    // ⚠️ Counted as distinct CONNECTIONS, not rows — one dead consent can carry
+    // several accounts (Revolut had three wallets), and counting accounts would
+    // report "3 need attention" for one thing to fix.
+    //
+    // ⚠️ Scoped to accounts fin actually MAPS and does not ignore: that is what
+    // `balanceReconcile` returns, and it is CR060's own correction — alerting on
+    // every upstream connection would report OCME's bank here forever, for a
+    // feed switched off on purpose.
+    let needsReconnect = 0;
+    try {
+      const health = await bankFeedClient.feedsHealth();
+      const byAccount = (health && health.upstream && health.upstream.accounts_health) || null;
+      if (byAccount) {
+        const conns = new Set();
+        for (const a of fedRecon.accounts || []) {
+          const h = byAccount[a.feed_external_id];
+          if (h && h.state === 'needs_reconnect') {
+            conns.add(h.connection_id || h.institution_name || a.feed_external_id);
+          }
+        }
+        needsReconnect = conns.size;
+      }
+    } catch (e) {
+      console.warn('[v2/util] needs-reconnect check unavailable (non-fatal):', e.message);
+    }
 
     const now = Date.now();
     const staleDaysOf = (a) => {
@@ -89,6 +126,7 @@ router.get('/attention-summary', async (req, res, next) => {
         count: staleDays.length,
         worstDays: staleDays.length ? Math.max(...staleDays) : null,
       },
+      needsReconnect: { count: needsReconnect },
       drift: {
         fed: fedAccounts.filter((a) => a.reconciled === false && a.reconcile_mode !== 'mtm').length,
         manual: (manRecon.accounts || []).filter((a) => a.reconciled === false).length,

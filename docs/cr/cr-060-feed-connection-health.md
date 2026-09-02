@@ -332,8 +332,27 @@ bank-feed tests, 1116 backend, 586 frontend, rendered in both themes.
   nobody reads is debt on debt. The discoverability problem was the missing link, not the URL.
 - **`GET /institutions` passthrough**, so *Connect a new bank* can pre-select the bank instead of
   opening a generic search. Optional: the flow works without it.
-- Decide whether `needs_reconnect` should reach the owner rather than waiting to be looked at (a push
-  notification path already exists from CR006).
+- ~~Decide whether `needs_reconnect` should reach the owner rather than waiting to be looked at (a push
+  notification path already exists from CR006).~~ **DONE 2026-09-02 — and the parenthetical was FALSE.**
+  ⚠️ **[CR006](cr-006-ai-review.md)'s notification is the browser Web Notifications API**, fired when the
+  fin **tab is hidden** and an AI review completes. It reaches the owner only if fin is already open —
+  the one case where a badge would do. **There is no out-of-app channel in this project**, and this line
+  asserted one for months.
+
+  Two channels shipped, both onto paths that already existed:
+  - **`GET /util/attention-summary` gains `needsReconnect`**, rendered by `AttentionStrip` on Home with a
+    link to Bank Feed Setup. ⚠️ **Counted as distinct CONNECTIONS, not accounts** (one dead consent can
+    carry three wallets), and **scoped to accounts fin maps and does not ignore** — CR060's own
+    correction, or OCME's bank would sit on the Home page forever. Placed **above** `staleFeeds`
+    deliberately: that signal catches the same failure **three days later and by its side effect**, and a
+    reader who meets *"feed data stale"* first goes hunting for a sync problem instead of
+    re-authorising a bank.
+  - **A SessionStart hook**, alongside the CI one, printing the count when a session starts in this repo.
+
+  ⚠️ **Deliberately NOT a cron job writing to a log.** That was the tempting option and it is the shape
+  that had just cost 74 days of backups: `backup-to-remote.sh` failed **every run** into a logfile
+  nobody read. **A log is not an alert.** Both channels put the fact where someone is already looking,
+  and both stay **silent when they cannot ask** — the CI hook's cry-wolf rule.
 
 ## Depends on
 

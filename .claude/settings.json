@@ -45,6 +45,12 @@
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start-ci-status.sh\"",
             "timeout": 15,
             "statusMessage": "Checking CI on main..."
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start-feed-health.sh\"",
+            "timeout": 10,
+            "statusMessage": "Checking bank feed consents..."
           }
         ]
       }

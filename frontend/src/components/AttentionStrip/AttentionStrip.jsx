@@ -7,6 +7,7 @@ import {
   WifiOff,
   Scale,
   BadgeDollarSign,
+  PlugZap,
 } from "lucide-react";
 import Rest from "../../js/rest.js";
 import "./AttentionStrip.css";
@@ -54,6 +55,22 @@ export default function AttentionStrip() {
       icon: BadgeDollarSign,
       label: `${summary.verifyUsd.count} wire-transfer row${summary.verifyUsd.count === 1 ? "" : "s"} — verify USD amount`,
       tone: "warn",
+    });
+  }
+  // CR060 — a bank consent has expired. Placed BEFORE staleFeeds deliberately:
+  // it is the same failure caught earlier and named correctly, and a reader who
+  // meets "feed data stale" first will go looking for a sync problem instead of
+  // re-authorising the bank.
+  if (summary.needsReconnect?.count > 0) {
+    items.push({
+      key: "needsReconnect",
+      to: "/bank-feed-diagnostic",
+      icon: PlugZap,
+      label:
+        summary.needsReconnect.count === 1
+          ? "1 bank connection needs re-authorising — its feed has stopped"
+          : `${summary.needsReconnect.count} bank connections need re-authorising — their feeds have stopped`,
+      tone: "alert",
     });
   }
   if (summary.staleFeeds?.count > 0) {
