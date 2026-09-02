@@ -167,3 +167,106 @@ describe('reconcile preview (DB, CR087 P0c)', () => {
     expect(await openingOf()).toBe(250);
   });
 });
+
+/**
+ * CR087 P0c, the half that was missing — `expect` on the MTM path (DB).
+ *
+ * ⚠️ P0c shipped threading `expect` into `calibrate()` and NOT into `mtm()`. So
+ * the mode carrying the largest figures on the page — six-figure brokerage marks
+ * — had none of the protection, while the apply path re-syncs and re-ingests
+ * before computing. The owner approved one number and could have written another,
+ * with no 409 and nothing to say it had moved: the exact "looks verified" failure
+ * P0c exists to prevent, left open on the mode most worth guarding.
+ *
+ * Found by the CR089 pass-1 review, 2026-09-02, in shipped code.
+ */
+const TAG_MTM = '__test_p0c_mtm__';
+const FEED_UUID_MTM = '__test_p0c_mtm_uuid__';
+
+describe('reconcile preview — the mtm branch (DB, CR087 P0c)', () => {
+  let accountId;
+
+  const bookedCount = async () =>
+    Number((await db.query(
+      `SELECT COUNT(*)::int AS n FROM transactions WHERE account_id = $1 AND source = 'mtm'`,
+      [accountId]
+    )).rows[0].n);
+
+  beforeAll(async () => {
+    const { rows } = await db.query(
+      `INSERT INTO accounts (name, account_type, section, currency, opening_balance, is_active)
+       VALUES ($1, 'asset', 'balance_sheet', 'USD', 1000.00, FALSE)
+       RETURNING id`,
+      [TAG_MTM]
+    );
+    accountId = rows[0].id;
+    await db.query(
+      `INSERT INTO account_source_mappings (account_id, source, external_name, reconcile_mode, ignored)
+       VALUES ($1, 'bank-feed', $2, 'mtm', FALSE)`,
+      [accountId, FEED_UUID_MTM]
+    );
+    // Synced the day AFTER the month-end it is marked against, or the staleness
+    // guard fires first and we never reach the expectation check.
+    await db.query(
+      `INSERT INTO bankfeed_balances (feed_account_external_id, balance, currency, balance_date, source, source_synced_at)
+       VALUES ($1, 1100.00, 'USD', DATE '2026-07-31', 'fintable', TIMESTAMPTZ '2026-08-01 04:00:00+00')
+       ON CONFLICT (feed_account_external_id, balance_date, source)
+       DO UPDATE SET balance = EXCLUDED.balance, source_synced_at = EXCLUDED.source_synced_at`,
+      [FEED_UUID_MTM]
+    );
+  });
+
+  afterAll(async () => {
+    await db.query(`DELETE FROM transactions WHERE account_id = $1`, [accountId]);
+    await db.query(`DELETE FROM bankfeed_balances WHERE feed_account_external_id = $1`, [FEED_UUID_MTM]);
+    await db.query(`DELETE FROM account_source_mappings WHERE external_name = $1`, [FEED_UUID_MTM]);
+    if (accountId) await db.query(`DELETE FROM accounts WHERE id = $1`, [accountId]);
+  });
+
+  test('an apply whose expectation still matches writes the entry', async () => {
+    const p = await reconcileToFeed(accountId, { bookDate: '2026-07-31', dryRun: true });
+    expect(p.mtm_amount).toBeCloseTo(100, 2);
+
+    const res = await reconcileToFeed(accountId, {
+      bookDate: '2026-07-31',
+      dryRun: false,
+      expect: { mtm_amount: p.mtm_amount, feed_balance: p.feed_balance, feed_date: p.feed_date },
+    });
+    expect(res.applied).toBe(true);
+    expect(await bookedCount()).toBe(1);
+  });
+
+  test('an apply whose MTM AMOUNT has moved is refused, and writes nothing', async () => {
+    await db.query(`DELETE FROM transactions WHERE account_id = $1 AND source = 'mtm'`, [accountId]);
+    await expect(
+      reconcileToFeed(accountId, {
+        bookDate: '2026-07-31',
+        dryRun: false,
+        expect: { mtm_amount: 99999, feed_balance: 1100, feed_date: '2026-07-31' },
+      })
+    ).rejects.toMatchObject({ code: 'PREVIEW_STALE' });
+    expect(await bookedCount()).toBe(0);
+  });
+
+  test('an apply whose FEED BALANCE moved is refused even when the amount agrees', async () => {
+    // The same mark derived from a different balance is a coincidence, not a
+    // match — and the apply re-ingests, so a restated row is the normal case.
+    await db.query(`DELETE FROM transactions WHERE account_id = $1 AND source = 'mtm'`, [accountId]);
+    await expect(
+      reconcileToFeed(accountId, {
+        bookDate: '2026-07-31',
+        dryRun: false,
+        expect: { mtm_amount: 100, feed_balance: 999.99, feed_date: '2026-07-31' },
+      })
+    ).rejects.toMatchObject({ code: 'PREVIEW_STALE' });
+    expect(await bookedCount()).toBe(0);
+  });
+
+  test('an apply carrying NO expectation still writes — the guard is opt-in', async () => {
+    // Cron and scripts pass none, and must be unaffected.
+    await db.query(`DELETE FROM transactions WHERE account_id = $1 AND source = 'mtm'`, [accountId]);
+    const res = await reconcileToFeed(accountId, { bookDate: '2026-07-31', dryRun: false });
+    expect(res.applied).toBe(true);
+    expect(await bookedCount()).toBe(1);
+  });
+});

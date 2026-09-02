@@ -229,10 +229,22 @@ export default function BalanceReconciliation() {
       // recomputes and returns 409 if they moved, because the apply path
       // re-syncs upstream and a feed row landing in that window silently
       // changes the number that gets written.
-      const expect =
-        preview?.data && a.reconcile_mode !== "mtm" && a.reconcile_mode !== "accrue"
-          ? { new_opening: preview.data.new_opening, feed_date: preview.data.feed_date }
-          : null;
+      // ⚠️ mtm was EXCLUDED from this guard until 2026-09-02 — the mode with the
+      // largest figures on the page approved a number and could have written a
+      // different one, because the apply path re-syncs and re-ingests. The
+      // engine now checks all three fields for mtm; accrue stays out, since it
+      // derives its own observation and books nothing the preview did not show.
+      const expect = !preview?.data
+        ? null
+        : a.reconcile_mode === "mtm"
+          ? {
+              mtm_amount: preview.data.mtm_amount,
+              feed_balance: preview.data.feed_balance,
+              feed_date: preview.data.feed_date,
+            }
+          : a.reconcile_mode === "accrue"
+            ? null
+            : { new_opening: preview.data.new_opening, feed_date: preview.data.feed_date };
       const body = reconcileBody(a, { dryRun: false, ...(expect ? { expect } : {}) });
       const res = await Rest.post(`/bank-feed/reconcile/${a.account_id}`, body);
       setReconcileMsg(

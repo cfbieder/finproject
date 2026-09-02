@@ -154,7 +154,7 @@ async function reconcileToFeed(accountId, { asOf = null, dryRun = false, force =
       }
     }
     const markAgainst = balanceDate ? await normalizeDate(db, balanceDate) : null;
-    return db.transaction((client) => mtm(client, accountId, m, monthEnd, dryRun, force, markAgainst));
+    return db.transaction((client) => mtm(client, accountId, m, monthEnd, dryRun, force, markAgainst, expect));
   }
 
   if (m.reconcile_mode === 'accrue') {
@@ -194,7 +194,7 @@ async function resolveMonthEnd(conn, asOfDate) {
   )).rows[0].d;
 }
 
-async function mtm(client, accountId, m, monthEnd, dryRun, force = false, markAgainst = null) {
+async function mtm(client, accountId, m, monthEnd, dryRun, force = false, markAgainst = null, expect = null) {
   // The three most recent feed observations on/before the observation date. One
   // row is enough to compute a mark; three are needed to tell a MOVING feed from
   // a STALLED one, which is the difference between a real month-end value and a
@@ -354,6 +354,36 @@ async function mtm(client, accountId, m, monthEnd, dryRun, force = false, markAg
       `~2 days behind month-end), or pass force to override.`;
     summary.refused = true;
     if (!dryRun) return summary; // refuse to write; surface the reason
+  }
+
+  // CR087 P0c — REFUSE AN APPLY THAT NO LONGER MATCHES ITS PREVIEW.
+  //
+  // ⚠️ This guard shipped covering `calibrate` ONLY. `expect` was threaded to
+  // that branch and not to this one, so the mode with the largest figures on the
+  // page had none of the protection — and the apply path DOES re-sync and
+  // re-ingest (routes/bankFeed.js), so a feed row landing between preview and
+  // apply changed the booked amount with no 409 and no sign anything moved.
+  // Found by the CR089 pass-1 review, 2026-09-02.
+  //
+  // Three fields, because on an mtm any one of them can move independently:
+  // `mtm_amount` is the number approved, `feed_balance` is what it was derived
+  // from, and `feed_date` names the observation — the same amount computed from
+  // a different row is a coincidence, not a match.
+  if (!dryRun && expect) {
+    const drifted =
+      Number(expect.mtm_amount) !== amount ||
+      Number(expect.feed_balance) !== feedVal ||
+      String(expect.feed_date) !== String(feed.balance_date);
+    if (drifted) {
+      const err = new Error(
+        `the figures moved since you previewed them: ` +
+        `${expect.mtm_amount} (feed ${expect.feed_date} = ${expect.feed_balance}) → ` +
+        `${amount} (feed ${feed.balance_date} = ${feedVal}). Nothing was written. Preview again.`
+      );
+      err.code = 'PREVIEW_STALE';
+      err.summary = { ...summary, expected_by_client: { ...expect } };
+      throw err;
+    }
   }
 
   if (implausible && !force && !summary.refused) {
