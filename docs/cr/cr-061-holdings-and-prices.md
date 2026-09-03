@@ -402,15 +402,64 @@ the classification its own tests asserted:
 
 | Symbol | rev 2's rule gave | Correct |
 |---|---|---|
-| `FDIC91125` | **`bond`** (matches `^[0-9A-Z]{9}$`, `name == symbol`) | `cash` / `unknown` |
-| `QIMHQ`, `QHYEQ` | **`equity`** (5 alpha chars) → quote-eligible | `unknown` |
-| `FCNTX` | **`equity`** | `mutual_fund` — inexpressible in rev 2's vocabulary |
+| a CUSIP-shaped cash sweep | **`bond`** (matches `^[0-9A-Z]{9}$`, `name == symbol`) | not a bond |
+| two par-priced tickers | **`equity`** (5 alpha chars) → quote-eligible | `unknown` |
+| the mutual fund | **`equity`** | `mutual_fund` — inexpressible in rev 2's vocabulary |
 
-So: **seed the ~95 measured positions once by hand with `classification_source = 'manual'`**, and use
-inference only as an `unknown`-defaulting fallback for instruments seen later. With 95 positions, one
-owner and one database, a rule set that already disagrees with its own tests is more machinery than
-the problem has. The one inference rule worth keeping is **CUSIP mod-10 check-digit validation** —
-real CUSIPs pass, `FDIC91125` fails — because that is falsifiable rather than shape-matching.
+### 🔴 rev 3's own proposed fix was ALSO wrong — measured 2026-09-03
+
+rev 3 adopted pass 1's recommendation that **CUSIP mod-10 check-digit validation** is *"what makes the
+rule falsifiable rather than shape-matching"*, on the stated grounds that real CUSIPs pass and the
+cash-sweep identifier fails. **It does not fail.** Implemented and verified against public reference
+CUSIPs (Apple's `037833100` and Microsoft's `594918104` both pass, a corrupted digit fails), the live
+`FDIC91125` **passes too** — the check space is one digit, so roughly one in ten arbitrary
+nine-character strings validates.
+
+So the checksum is kept as a **necessary** condition and never a sufficient one. **What actually
+separates the case is the price**: a deposit sits at exactly `1.00`, while the measured bonds price at
+`0.9989`, `1.01045` and so on — a fraction *of* par, essentially never exactly par. The par test runs
+**before** the CUSIP test, and that ordering is the rule.
+
+⚠️ It resolves to **`unknown`, not `cash`** — we can see *how* the instrument is priced without
+knowing *what* it is, and asserting `cash` would claim the second from evidence for the first.
+`unknown` is never quoted and always warned, so it takes one manual classification. The cost is that
+a bond trading at exactly par on the day it is first seen lands `unknown` rather than `bond`; it is
+then flagged rather than silently mispriced.
+
+### The rules as built
+
+1. a known money-market ticker → `mmf` / `par`;
+2. **price exactly `1.00` → `unknown` / `par`** (the rule above — it precedes the CUSIP test);
+3. CUSIP-shaped **and** self-named **and** checksum-valid **and** not at par → `bond` / `per_1_face` / `face`;
+4. five letters ending in `X` → `mutual_fund` / `per_share` (the US open-end fund convention — the
+   basis is unchanged, but a fund never returns an intraday quote, and *"no quote because it is a
+   fund"* must not look like *"no quote because the lookup is broken"*);
+5. one to five letters → `equity` / `per_share`;
+6. anything else → `unknown`, never quoted, always warned.
+
+### ✅ Verified against the live portfolio, 2026-09-03
+
+`Scripts/classify-live-positions.js` (read-only) run over all 95 positions:
+
+| Class | Positions | Value | Share | Basis |
+|---|---:|---:|---:|---|
+| equity | 48 | 1,848,640 | **47.5%** | `per_share` |
+| bond | 37 | 1,676,285 | 43.1% | `per_1_face` |
+| mutual_fund | 1 | 147,988 | 3.8% | `per_share` |
+| mmf | 6 | 133,015 | 3.4% | `par` |
+| unknown | 3 | 86,309 | 2.2% | `par` |
+
+**This reproduces §4.6's measured table exactly**, which is the cross-check that matters: §4.6 was
+built by asking the quote endpoint what it would price, and this was built from shape and price
+alone. ✓ **No CUSIP-shaped or par-priced instrument is marked `per_share`** — the assertion the whole
+scheme exists for. The three `unknown` rows are a finding, not a failure: each takes one manual
+classification, and `classification_source` stops the next ingest overwriting it.
+
+⚠️ **The fixture is sanitized, not frozen from life.** §9 originally said "freeze the 95 measured
+positions as a fixture"; the repo does not commit real financial data (`Samples/Fidelity/`,
+`Samples/Fintable/` and the Quicken exports are gitignored) and the symbols **are** the holdings. So
+the committed tests invent every identifier — CUSIPs are generated with a correct check digit rather
+than copied — and the live check lives in the script above, whose output is data.
 
 A security becomes quote-eligible only after a successful quote has passed §5's guards. That removes
 the entire class where a wrong classification silently authorises a quote.
