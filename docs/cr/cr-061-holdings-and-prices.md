@@ -499,7 +499,7 @@ a complete snapshot invents "not reported by the feed" dollars.**
 
 | Phase | What | Ships independently? |
 |---|---|---|
-| **P0** | **bank-feed**: migration `feed_holdings`, `fetchHoldings`, `convertHolding`, `insertHoldingSnapshots`, `routes/holdings.js`, contract §Holding + endpoint row, `HANDOFFS.md` entry | yes — and **nothing else in this CR or CR089 P2 can start until it lands** |
+| **P0** ✅ **BUILT 2026-09-03** (bank-feed `4acbe39`) | **bank-feed**: migration `008_feed_holdings.sql` (`feed_holding_snapshots` + `feed_holdings`), `fetchHoldings`, `convertHoldingsSnapshot`, `fetchHoldingsSnapshots` + `insertHoldingSnapshots`, `routes/holdings.js`, contract §Holding + endpoint row, `HANDOFFS.md`. 13 tests, suite **234/234**. Verified live: one forced sync fetched **6 accounts / 95 positions / 0 errors**. See §8.3 | yes — **CR089 P2 is now unblocked** |
 | **P1** | **fin**: migration 075, securities master + hand-seeded classification, `security_position_snapshots` + `security_positions`, the ingest, **backfill to 2026-07-04**, and the `security_prices` close backfill for the quotable sleeve | **yes — and this is the piece with the clock on it** |
 | **P2** | **statement-derived position backfill to 2016** (owner-claimed 2026-09-02) — parse the per-holding position tables from the 117 statements, cross-check against fintable where they overlap, and explain the month-boundary disagreements the roadmap records | yes |
 | *(CR090)* | the Investments section and the quote overlay | separate CR |
@@ -508,6 +508,35 @@ a complete snapshot invents "not reported by the feed" dollars.**
 **P1 alone starts the accrual and unblocks CR089 P2.** Deferred to the roadmap rather than carried
 here: position value history, TTM position return, yield on cost — all gated on twelve months of a
 table that does not exist yet, and carrying them makes this CR read as unfinished for a year.
+
+### 8.3 P0 as built — and the residual got *tighter*
+
+Live on :3007 since 2026-09-03. `custodian_balance − Σ positions` on the 2026-09-02 poll:
+
+| Account | Positions | Σ positions | Custodian balance | Residual |
+|---|---:|---:|---:|---:|
+| Stocks | 31 | 1,185,594.3939 | 1,185,594.38 | −0.0139 |
+| Fixed Income | 31 | 1,225,038.4710 | 1,225,038.45 | −0.0210 |
+| Rollover IRA | 19 | 298,161.6579 | 298,161.57 | −0.0879 |
+| Cash Management | 12 | 1,086,530.1800 | 1,086,529.68 | −0.5000 |
+| Individual | 1 | 26,185.99 | 26,185.99 | 0.0000 |
+| **Options** | **1** | **70,725.56** | **102,288.86** | **31,563.30** |
+
+✅ **Five of six now tie within $0.50, where §4.2 measured them $10.00 wide.** That improvement is not
+noise and not a better upstream — §4.2 paired positions against a balance from a *separate* call,
+and P0 captures both in one run. It is the header table (§6.1) doing exactly what it was added for,
+and it means CR090's residual row can use a **$1 floor** rather than the $50 §9 proposed.
+
+⚠️ **The Options residual moved: 33,081.00 (09-01) → 31,563.30 (09-02).** Expected — the contracts
+trade weekly — but it settles a design question CR090 left open: **the residual is a live figure, not
+a constant**, so it must be recomputed per snapshot and never cached or hard-coded as "the options
+gap".
+
+Also confirmed live, and worth having in one place: the ingest classifies **only brokerage accounts**
+as candidates (the other 24 accounts would return an empty envelope forever), and holdings run
+**unconditionally** in every API sync rather than as an optional phase — `requestSync` coalesces
+concurrent callers onto one run, so an optional phase means a caller who asked for holdings can be
+handed a success summary from a run that never fetched them.
 
 ### 8.1 Deploy path
 
@@ -528,6 +557,33 @@ The backfill is ~360 calls that also decide `asset_class` for every security on 
   This repo's backfill scar is 31 duplicate rows netting +$267, so the rollback is stated, not assumed.
 
 ---
+
+## 8.4 The testing gate — what "done" means for each stage
+
+Owner-required 2026-09-03: **no stage is complete without its automated tests**, and each stage names
+which layer it is proving. The rule this comes from is that P0's first cut tested the *conversion*
+layer only — and conversion is not where this class of bug lives. CR059's two real defects were both
+in a URL and both returned a plausible empty result rather than an error, and the duplicate-symbol
+rejection P0 advertises is enforced by a **database constraint** that nothing exercised until it was
+asked for.
+
+| Layer | How it is tested | Why it cannot be skipped |
+|---|---|---|
+| Conversion / classification | pure unit tests over frozen fixtures | The 95 measured positions are the fixture; the classifier is the thing most likely to be confidently wrong (§6.4) |
+| Adapter / HTTP | injected `fetchImpl`, asserting the **request shape** | A wrong URL returns a plausible empty result, not an error |
+| Failure paths | forced throw / 503 per account | `partial` must never render as `empty`; one account failing must not fail the run |
+| DB writer | fake client, asserting statement **order** | DELETE-before-insert is what stops a departed symbol inflating Σ positions |
+| Constraints | real DB, inside an **always-rolled-back** transaction | A test asserting intent while the constraint is missing proves nothing |
+| API shaping | pure function over rows | A LEFT JOIN's nulls must not become a phantom position |
+
+**fin stages additionally run `./Scripts/test-fresh-db.sh`, not bare `jest`.** Dev's database holds
+real rows a test can reach for by accident; five suites have borrowed something only dev has — most
+recently CR080's hardcoded `Interest Income = 74`, which is **11** on a fresh database. Each passed
+locally and failed in CI. Baseline before this CR's fin work: **1125/1125**.
+
+**P0 as built: 22 holdings tests** across three files — `holdings.test.js` (13, conversion),
+`holdingsPipeline.test.js` (17 total incl. adapter/failure/writer/route), `holdingsSchema.test.js` (5,
+constraints, rolled back, skips when no DB is reachable). bank-feed suite **256/256**.
 
 ## 9. Verification
 
