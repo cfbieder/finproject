@@ -1,0 +1,234 @@
+/* CR090 P1 — the Investments portfolio. Tokens only (CR026 light/dark parity).
+   No raw hex anywhere: a page that hardcodes colour looks wrong in dark, and no
+   gate catches that — only rendering both themes does. */
+
+.inv-page {
+  padding: 1.5rem;
+  max-width: 1400px;
+}
+
+/* ---- summary ------------------------------------------------------------ */
+
+.inv-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2xl);
+  padding: var(--space-lg);
+  margin-bottom: var(--space-lg);
+}
+
+/* ---- figures ------------------------------------------------------------ */
+
+.inv-figure {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.inv-figure__label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.inv-figure__value {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--ink);
+  /* Money lines up column-wise or it cannot be compared at a glance. */
+  font-variant-numeric: tabular-nums;
+}
+
+.inv-figure--primary .inv-figure__value {
+  font-size: 1.6rem;
+  font-family: var(--font-heading);
+}
+
+.inv-figure__sub {
+  font-size: 0.78rem;
+  color: var(--ink-tertiary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.inv-pos { color: var(--growth-positive); }
+.inv-neg { color: var(--growth-negative); }
+
+.inv-badge {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  color: var(--ink-secondary);
+}
+
+.inv-badge--warn {
+  background: var(--warning-subtle);
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+/* ---- account ------------------------------------------------------------ */
+
+.inv-account {
+  padding: var(--space-lg);
+  margin-bottom: var(--space-lg);
+}
+
+.inv-account__header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-md);
+}
+
+.inv-account__identity h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-family: var(--font-heading);
+  color: var(--ink);
+}
+
+.inv-account__asof {
+  font-size: 0.78rem;
+  color: var(--ink-tertiary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: 2px;
+}
+
+/* The "poll date" qualifier. It has to be visible without shouting: the date
+   IS a real fact, it just is not the valuation date, and pretending otherwise
+   is how correct figures end up under a label that lies about them. */
+.inv-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--muted);
+  cursor: help;
+  border-bottom: 1px dotted var(--border-strong);
+}
+
+.inv-account__figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xl);
+}
+
+.inv-status-note {
+  margin: 0 0 var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border-left: 3px solid var(--warning);
+  background: var(--surface-muted);
+  color: var(--ink-secondary);
+  font-size: 0.85rem;
+  border-radius: var(--radius-sm);
+}
+
+/* ---- price provenance --------------------------------------------------- */
+
+.inv-chip {
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  color: var(--ink-tertiary);
+  white-space: nowrap;
+}
+
+/* A live quote is IEX — one exchange, cacheable, delayed. It is never labelled
+   "live", and it is visually distinct so a mixed-basis table is legible. */
+.inv-chip--quote {
+  border-color: var(--info-border);
+  color: var(--info-strong);
+}
+
+/* ---- reconciliation ----------------------------------------------------- */
+
+.inv-recon {
+  margin-top: var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.inv-recon__row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  padding: 3px 0;
+  font-size: 0.88rem;
+  color: var(--ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.inv-recon__row--residual {
+  color: var(--ink-secondary);
+}
+
+.inv-recon--material .inv-recon__row--residual {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+.inv-recon__row--residual span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+/* The account total. It is the CUSTODIAN's number, always — the positions above
+   sum to a subtotal, never to this. */
+.inv-recon__row--total {
+  border-top: 1px solid var(--border-strong);
+  margin-top: var(--space-xs);
+  padding-top: var(--space-sm);
+  font-weight: 700;
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+
+.inv-recon__explain {
+  margin: var(--space-sm) 0 0;
+  font-size: 0.8rem;
+  color: var(--ink-tertiary);
+  line-height: 1.45;
+}
+
+.inv-recon--unknown {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  font-size: 0.88rem;
+  color: var(--ink-secondary);
+}
+
+.inv-recon__note {
+  flex-basis: 100%;
+  font-size: 0.8rem;
+  color: var(--ink-tertiary);
+}
+
+/* ---- narrow screens ------------------------------------------------------ */
+
+@media (max-width: 720px) {
+  .inv-account__header,
+  .inv-account__figures {
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+  .inv-page { padding: var(--space-md); }
+}

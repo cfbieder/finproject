@@ -28,6 +28,7 @@ import {
   GitCompare,
   SlidersHorizontal,
   Wallet,
+  PieChart,
   Palette,
   LineChart,
   Landmark,
@@ -50,6 +51,7 @@ const BudgetLE = lazy(() => import("../pages/BudgetLE"));
 // CR042 U5: the two cash-flow pages are now tabs inside CashFlowTabs.
 const CashFlowTabs = lazy(() => import("../pages/CashFlowTabs"));
 const InvestmentReturns = lazy(() => import("../pages/InvestmentReturns"));
+const Investments = lazy(() => import("../pages/Investments"));
 const FCEquity = lazy(() => import("../pages/FCEquity"));
 const FCLineMapping = lazy(() => import("../pages/FCLineMapping"));
 const FCModuleManage = lazy(() => import("../pages/FCModuleManage"));
@@ -107,6 +109,10 @@ export const CATEGORY_META = {
   Taxes: {
     description: "Foreign account reporting and other annual tax forms",
     icon: Landmark,
+  },
+  Investments: {
+    description: "What each investment account holds, as the custodian reports it",
+    icon: PieChart,
   },
 };
 
@@ -520,6 +526,21 @@ export const routes = [
       "The year's maximum account values, the $10,000 test, and the filing worksheet",
     icon: FileSpreadsheet,
   },
+
+  // Investments (CR090). New top-level section; the portfolio register is its
+  // first page. Registered by `category` rather than hand-wired into the
+  // sidebar, so it appears in BOTH nav shells — the CR026 navLayout flag
+  // defaults to `legacy` on prod, and a sidebar-only entry would be invisible
+  // there.
+  {
+    path: "/investments",
+    component: Investments,
+    label: "Portfolio",
+    category: "Investments",
+    description:
+      "Every position each account holds, reconciled to the balance the custodian reports",
+    icon: PieChart,
+  },
 ];
 
 /**
@@ -617,6 +638,7 @@ export const SIDEBAR_GROUPS = [
   { key: "data", label: "Data Sources", icon: HardDrive, category: "Database" },
   { key: "settings", label: "Settings", icon: Settings2, category: "Settings" },
   { key: "taxes", label: "Taxes", icon: Landmark, category: "Taxes" },
+  { key: "investments", label: "Investments", icon: PieChart, category: "Investments" },
 ];
 
 /**

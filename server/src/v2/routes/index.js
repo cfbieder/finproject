@@ -25,6 +25,7 @@ const bankFeedRouter = require('./bankFeed');
 const ingestBankFeedRouter = require('./ingestBankFeed');
 const manualCalibrationRouter = require('./manualCalibration');
 const taxRouter = require('./tax');
+const investmentsRouter = require('./investments');
 
 // Mount routes
 router.use('/health', healthRouter);
@@ -40,6 +41,7 @@ router.use('/ingest-ps', ingestPsRouter);
 router.use('/transfer-match-groups', transferMatchGroupsRouter);
 router.use('/ai-review', aiReviewRouter);
 router.use('/tax', taxRouter);
+router.use('/investments', investmentsRouter);
 router.use('/quicken-import', quickenImportRouter);
 router.use('/bank-feed', bankFeedRouter);
 router.use('/ingest-bank-feed', ingestBankFeedRouter);

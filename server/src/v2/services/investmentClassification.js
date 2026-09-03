@@ -4,12 +4,19 @@
  *
  * What an instrument IS, decided once, before anything tries to price it.
  *
- * The stakes are not cosmetic. Three conventions share the upstream's two
- * numeric fields, and only `value = quantity x price` is true of all three:
+ * The stakes are not cosmetic. FOUR conventions share the upstream's two numeric
+ * fields, and `value = quantity x price` is the ONLY thing true of all four —
+ * which is exactly why conflating them survives every arithmetic check:
  *
- *   equity / ETF / CEF   shares        x  dollars per share   100 x 141.50
- *   CUSIP bond / CD      FACE VALUE    x  fraction of par     100000 x 0.9989
- *   money-market fund    shares        at par                 70526.53 x 1.00
+ *   equity / ETF / fund  shares         x  dollars per share   100 x 141.50
+ *   bond (percent)       $100-face units x percent of par      1000 x 98.745
+ *   bond (fraction)      face DOLLARS   x  fraction of par     100000 x 0.9989
+ *   money-market fund    shares         at par                 70526.53 x 1.00
+ *
+ * ⚠️ The two bond forms are BOTH live in this portfolio (29 positions percent,
+ * 8 fraction) and are not variants of each other. Reading one as the other
+ * renders a bond priced at 98.745 as 9874.500 — which is how this was found:
+ * by looking at the page, not by a test.
  *
  * Send a bond to an equity quote lookup and 100,000 face gets priced at $250 a
  * "share" — $25,000,000 booked from one misclassification. Migration 075 removed
@@ -73,7 +80,14 @@ function isValidCusip(s) {
 
 const CLASSES = Object.freeze({
   EQUITY: { asset_class: 'equity', price_basis: 'per_share', quantity_unit: 'shares' },
-  BOND: { asset_class: 'bond', price_basis: 'per_1_face', quantity_unit: 'face' },
+  // Two bond conventions, and they are NOT variants of one another — both are
+  // live in this portfolio (migration 076). `value = quantity x price` holds for
+  // both, which is why conflating them survives every arithmetic check; only a
+  // human reading the price can tell, and only if the basis says which it is.
+  //   BOND_FRACTION  price 0.9989 (a fraction of par), quantity in face DOLLARS
+  //   BOND_PERCENT   price 98.745 (a percent of par),  quantity in $100-face units
+  BOND_FRACTION: { asset_class: 'bond', price_basis: 'per_1_face', quantity_unit: 'face' },
+  BOND_PERCENT: { asset_class: 'bond', price_basis: 'per_100_face', quantity_unit: 'face' },
   MMF: { asset_class: 'mmf', price_basis: 'par', quantity_unit: 'shares' },
   UNKNOWN: { asset_class: 'unknown', price_basis: null, quantity_unit: null },
 });
@@ -136,7 +150,19 @@ function classify(h = {}) {
   // digit, so about one in ten arbitrary 9-character strings passes, and
   // `FDIC91125` is a measured example that does.
   if (/^[0-9A-Z]{9}$/.test(symbol) && !/^[A-Z]{9}$/.test(symbol) && name === symbol && isValidCusip(symbol)) {
-    return { ...CLASSES.BOND, classification_source: 'inferred', reason: 'CUSIP-shaped, self-named, valid checksum, not at par' };
+    // Which of the two bond conventions, decided by the PRICE's magnitude —
+    // the only thing that distinguishes them. Measured ranges on the live
+    // portfolio: percent-of-par 77.92–103.07, fraction-of-par 0.9873–1.0002.
+    // A price below 10 cannot be a percent of par for anything but a defaulted
+    // instrument, and one above 10 cannot be a fraction.
+    const percentOfPar = price !== null && Number.isFinite(price) && price >= 10;
+    return {
+      ...(percentOfPar ? CLASSES.BOND_PERCENT : CLASSES.BOND_FRACTION),
+      classification_source: 'inferred',
+      reason: percentOfPar
+        ? 'CUSIP-shaped, self-named, valid checksum; price is a percent of par'
+        : 'CUSIP-shaped, self-named, valid checksum; price is a fraction of par',
+    };
   }
 
   // A US open-end mutual fund: five letters ending in X, the long-standing

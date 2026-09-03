@@ -71,11 +71,26 @@ describe('classify — the three pricing conventions', () => {
       .toMatchObject({ asset_class: 'equity', price_basis: 'per_share', quantity_unit: 'shares' });
   });
 
-  test('a self-named CUSIP off par is a bond, priced as a FRACTION of par', () => {
+  test('a self-named CUSIP off par is a bond, priced against par', () => {
     const r = classify({ symbol: BOND, name: BOND, price: '0.9989' });
     expect(r).toMatchObject({ asset_class: 'bond', price_basis: 'per_1_face', quantity_unit: 'face' });
     // The distinction that carries the money: 100000 x 0.9989 = 99,890, which is
     // face value times a fraction of par — not 100,000 shares at a dollar.
+  });
+
+  test('🔴 the two bond conventions are told apart by price magnitude', () => {
+    // Both are live in the real portfolio and both satisfy
+    // value = quantity x price, so no arithmetic check can separate them.
+    // Percent of par: 1000 units of $100 face at 98.745% = 98,745.
+    const percent = classify({ symbol: BOND, name: BOND, price: '98.745' });
+    expect(percent.price_basis).toBe('per_100_face');
+    // Fraction of par: 100,000 face dollars at 0.9989 = 99,890.
+    const fraction = classify({ symbol: BOND, name: BOND, price: '0.9989' });
+    expect(fraction.price_basis).toBe('per_1_face');
+    // Both are still bonds, and both are quantity-in-face.
+    expect(percent.asset_class).toBe('bond');
+    expect(fraction.asset_class).toBe('bond');
+    expect(percent.quantity_unit).toBe('face');
   });
 
   test('a known money-market fund is at par, never quoted', () => {
