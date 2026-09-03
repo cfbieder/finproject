@@ -111,6 +111,10 @@ export const CATEGORY_META = {
     description: "Foreign account reporting and other annual tax forms",
     icon: Landmark,
   },
+  Investments: {
+    description: "What each investment account holds, as the custodian reports it",
+    icon: PieChart,
+  },
 };
 
 /**
@@ -524,9 +528,9 @@ export const routes = [
     icon: FileSpreadsheet,
   },
 
-  // Investments (CR090). Lives under Reports (owner, 2026-09-03) rather than as
-  // its own top-level section: it is a report on what the custodian holds, and a
-  // whole nav group for one page was a heavier structure than the content.
+  // Investments (CR090). Its own top-level section, sitting BELOW Reports in the
+  // sidebar (owner, 2026-09-03). Two pages: the summary, and the per-account
+  // register.
   //
   // Registered by `category` rather than hand-wired into the sidebar, so it
   // appears in BOTH nav shells — the CR026 navLayout flag defaults to `legacy`
@@ -534,24 +538,32 @@ export const routes = [
   {
     path: "/investments",
     component: Investments,
-    label: "Investments",
-    category: "Reports & Graphs",
-    subcategory: "Reports",
-    description:
-      "Every position each account holds, reconciled to the balance the custodian reports",
+    label: "Investment Summary",
+    category: "Investments",
+    description: "Every account's balance, positions and reconciliation, in one table",
     icon: PieChart,
   },
   {
-    // One account's register. Deep-linkable and reachable from the summary, but
-    // out of the nav — five near-identical entries would bury the eleven other
-    // reports without telling the reader anything the summary does not.
-    path: "/investments/:accountId",
+    // A nav entry needs a STATIC path, so this one opens the first account; the
+    // `:accountId` variant below is what the summary links to and what the tab
+    // strip navigates between.
+    path: "/investments/positions",
     component: InvestmentAccount,
-    label: "Investment account",
-    category: "Reports & Graphs",
-    subcategory: "Reports",
+    label: "Investment Positions",
+    category: "Investments",
+    description:
+      "Every position one account holds, reconciled to the balance the custodian reports",
+    icon: Layers,
+  },
+  {
+    // Deep-linkable per account, and out of the nav: five near-identical entries
+    // would say nothing the tab strip on the page does not.
+    path: "/investments/positions/:accountId",
+    component: InvestmentAccount,
+    label: "Investment Positions",
+    category: "Investments",
     showInNav: false,
-    icon: PieChart,
+    icon: Layers,
   },
 ];
 
@@ -646,6 +658,7 @@ export const SIDEBAR_GROUPS = [
   { key: "budget", label: "Budget", icon: Calculator, category: "Budgeting" },
   { key: "forecast", label: "Forecast", icon: TrendingUp, category: "Forecasting" },
   { key: "reports", label: "Reports", icon: BarChart3, category: "Reports & Graphs" },
+  { key: "investments", label: "Investments", icon: PieChart, category: "Investments" },
   { divider: true, key: "div-admin" },
   { key: "data", label: "Data Sources", icon: HardDrive, category: "Database" },
   { key: "settings", label: "Settings", icon: Settings2, category: "Settings" },

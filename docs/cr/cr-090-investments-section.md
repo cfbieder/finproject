@@ -206,18 +206,17 @@ statement, stated once.
 
 ## 4. Where it goes in the app
 
-⚠️ **Owner revision 2026-09-03: it lives under Reports, not as its own top-level section**, and it is
-**two pages, not one**.
+⚠️ **Owner revision 2026-09-03 — the placement changed twice, and this is the settled one.**
+It was first built as its own top-level section, then moved *under* Reports on the reasoning that a
+whole nav group for one page was heavier than the content. The owner's answer resolved both halves:
+it is **its own section, positioned below Reports**, and it is **two pages, not one** — which is what
+made a section the right size for it after all.
 
-- **`/investments`** — the summary: totals, then one row per account (balance, positions, residual,
-  unrealized, coverage, priceable) with a quick link into each.
-- **`/investments/:accountId`** — that account's register, with a tab strip to switch accounts
-  without returning to the summary, since comparing two accounts is the reason to be there.
-
-A whole nav group for one page was a heavier structure than the content, and this *is* a report on
-what the custodian holds — so it sits beside Balances, Cash Flow and Investment Returns under
-**Reports & Graphs › Reports**. The detail route is `showInNav: false`: five near-identical entries
-would bury the eleven other reports without telling the reader anything the summary does not.
+| Nav entry | Path | What it is |
+|---|---|---|
+| **Investment Summary** | `/investments` | Totals, then one row per account — balance, positions, residual, unrealized, coverage, priceable — each linking into its register |
+| **Investment Positions** | `/investments/positions` | One account's register. A nav entry needs a static path, so this opens the first account |
+| *(not in nav)* | `/investments/positions/:accountId` | The same register, deep-linkable. What the summary links to and the tab strip navigates between |
 
 Registered via `category` in `frontend/src/config/routes.jsx`, which is what makes it appear in
 **both** nav shells; the CR026 `navLayout` flag defaults to `legacy` on prod, so wiring only the

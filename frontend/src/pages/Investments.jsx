@@ -26,7 +26,7 @@ const COLUMNS = [
     header: "Account",
     sortable: true,
     render: (a) => (
-      <Link className="inv-link" to={`/investments/${a.account_id}`}>
+      <Link className="inv-link" to={`/investments/positions/${a.account_id}`}>
         {a.account_name} <ChevronRight size={13} aria-hidden="true" />
       </Link>
     ),

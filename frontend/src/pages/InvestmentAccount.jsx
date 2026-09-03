@@ -57,7 +57,11 @@ export default function InvestmentAccount() {
   }
 
   const accounts = portfolio?.accounts || [];
-  const a = accounts.find((x) => String(x.account_id) === String(accountId));
+  // `/investments/positions` carries no id — the nav needs a static path, so it
+  // opens the first account rather than an empty shell asking to be told which.
+  const a = accountId
+    ? accounts.find((x) => String(x.account_id) === String(accountId))
+    : accounts[0];
 
   if (!a) {
     // A tracked account that has no snapshot, or a stale bookmark. Say which,
@@ -65,7 +69,7 @@ export default function InvestmentAccount() {
     return (
       <div className="page-shell inv-page">
         <Link className="inv-back" to="/investments">
-          <ArrowLeft size={14} aria-hidden="true" /> All accounts
+          <ArrowLeft size={14} aria-hidden="true" /> Investment summary
         </Link>
         <EmptyState message="No holdings snapshot for that account. It may not be tracked, or the feed has not reported positions for it yet." />
       </div>
@@ -75,7 +79,7 @@ export default function InvestmentAccount() {
   return (
     <div className="page-shell inv-page">
       <Link className="inv-back" to="/investments">
-        <ArrowLeft size={14} aria-hidden="true" /> All accounts
+        <ArrowLeft size={14} aria-hidden="true" /> Investment summary
       </Link>
 
       <header className="page-accent__header">
@@ -96,7 +100,7 @@ export default function InvestmentAccount() {
         {accounts.map((x) => (
           <Link
             key={x.account_id}
-            to={`/investments/${x.account_id}`}
+            to={`/investments/positions/${x.account_id}`}
             className={`report-tab${x.account_id === a.account_id ? " report-tab--active" : ""}`}
             aria-current={x.account_id === a.account_id ? "page" : undefined}
           >
