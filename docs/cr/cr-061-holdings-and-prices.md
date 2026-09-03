@@ -1,4 +1,10 @@
-# CR061 — Investment holdings ingest and market prices — PLANNED (rev 3, 2026-09-02)
+# CR061 — Investment holdings ingest and market prices — ✅ **P0 + P1 COMPLETE** (v3.50.0, 2026-09-03) · P2 open
+
+**✅ P0 + P1 SHIPPED v3.50.0 (2026-09-03).** bank-feed serves `GET /v1/holdings` (its migration 008);
+fin has migrations **075** + **076**, the securities master, the classifier, the ingest on the nightly
+refresh, and both backfills. Measured after the backfills: **305 snapshots over 61 days
+(2026-07-04..09-02), 5,628 positions, 93 securities, 1,978 daily closes** — in tables that had held
+nothing since May 2026. **P2 (the statement-derived backfill to 2016) remains open.**
 
 **rev 3 (2026-09-02)** — split, after a two-pass review returned `revise` / `revise-with-a-GO-on-the-
 carved-increment`. rev 2 had grown into three CRs, and the one piece with a clock on it was scheduled
