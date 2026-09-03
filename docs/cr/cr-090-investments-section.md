@@ -206,10 +206,32 @@ statement, stated once.
 
 ## 4. Where it goes in the app
 
-A new top-level **`Investments`** category in `frontend/src/config/routes.jsx` — lazy import,
-`CATEGORY_META` entry, route object, `SIDEBAR_GROUPS` entry. Registering via `category` is what makes
-it appear in **both** nav shells; the CR026 `navLayout` flag defaults to `legacy` on prod, so wiring
-only the sidebar would leave it invisible. Keep `frontend/src/config/routes.test.js` green.
+⚠️ **Owner revision 2026-09-03: it lives under Reports, not as its own top-level section**, and it is
+**two pages, not one**.
+
+- **`/investments`** — the summary: totals, then one row per account (balance, positions, residual,
+  unrealized, coverage, priceable) with a quick link into each.
+- **`/investments/:accountId`** — that account's register, with a tab strip to switch accounts
+  without returning to the summary, since comparing two accounts is the reason to be there.
+
+A whole nav group for one page was a heavier structure than the content, and this *is* a report on
+what the custodian holds — so it sits beside Balances, Cash Flow and Investment Returns under
+**Reports & Graphs › Reports**. The detail route is `showInNav: false`: five near-identical entries
+would bury the eleven other reports without telling the reader anything the summary does not.
+
+Registered via `category` in `frontend/src/config/routes.jsx`, which is what makes it appear in
+**both** nav shells; the CR026 `navLayout` flag defaults to `legacy` on prod, so wiring only the
+sidebar would leave it invisible. Keep `frontend/src/config/routes.test.js` green.
+
+**Shared rendering is split three ways so each module exports one kind of thing** — `investmentFormat.js`
+(pure formatters), `investmentView.jsx` (components), `positionColumns.jsx` (the column spec). A single
+module exporting both breaks React Fast Refresh, and `Scripts/check-lint-debt.sh` ratchets that warning
+downward. The summary and the detail share every formatter, so a figure cannot read one way in the list
+and another on the register.
+
+**The account switcher is links, not buttons** — each account has a URL, so it must be right-clickable
+and bookmarkable — styled with the existing `report-tabs` classes rather than a one-off button class,
+which `Scripts/check-button-css.sh` ratchets.
 
 - **Server:** CR043's route→service split — `server/src/services/investments.js` beside
   `investmentReturns.js`, thin routes, the `{data, meta}` envelope that

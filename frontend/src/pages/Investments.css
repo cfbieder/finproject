@@ -232,3 +232,40 @@
   }
   .inv-page { padding: var(--space-md); }
 }
+
+/* ---- summary table + navigation (CR090, owner revision 2026-09-03) -------- */
+
+.inv-link {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.inv-link:hover { text-decoration: underline; }
+
+.inv-muted { color: var(--muted); }
+
+.inv-warn {
+  color: var(--warning);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  justify-content: flex-end;
+}
+
+.inv-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 0.82rem;
+  color: var(--ink-tertiary);
+  text-decoration: none;
+  margin-bottom: var(--space-sm);
+}
+
+.inv-back:hover { color: var(--primary); }
+

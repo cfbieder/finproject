@@ -52,6 +52,7 @@ const BudgetLE = lazy(() => import("../pages/BudgetLE"));
 const CashFlowTabs = lazy(() => import("../pages/CashFlowTabs"));
 const InvestmentReturns = lazy(() => import("../pages/InvestmentReturns"));
 const Investments = lazy(() => import("../pages/Investments"));
+const InvestmentAccount = lazy(() => import("../pages/InvestmentAccount"));
 const FCEquity = lazy(() => import("../pages/FCEquity"));
 const FCLineMapping = lazy(() => import("../pages/FCLineMapping"));
 const FCModuleManage = lazy(() => import("../pages/FCModuleManage"));
@@ -109,10 +110,6 @@ export const CATEGORY_META = {
   Taxes: {
     description: "Foreign account reporting and other annual tax forms",
     icon: Landmark,
-  },
-  Investments: {
-    description: "What each investment account holds, as the custodian reports it",
-    icon: PieChart,
   },
 };
 
@@ -527,18 +524,33 @@ export const routes = [
     icon: FileSpreadsheet,
   },
 
-  // Investments (CR090). New top-level section; the portfolio register is its
-  // first page. Registered by `category` rather than hand-wired into the
-  // sidebar, so it appears in BOTH nav shells — the CR026 navLayout flag
-  // defaults to `legacy` on prod, and a sidebar-only entry would be invisible
-  // there.
+  // Investments (CR090). Lives under Reports (owner, 2026-09-03) rather than as
+  // its own top-level section: it is a report on what the custodian holds, and a
+  // whole nav group for one page was a heavier structure than the content.
+  //
+  // Registered by `category` rather than hand-wired into the sidebar, so it
+  // appears in BOTH nav shells — the CR026 navLayout flag defaults to `legacy`
+  // on prod, and a sidebar-only entry would be invisible there.
   {
     path: "/investments",
     component: Investments,
-    label: "Portfolio",
-    category: "Investments",
+    label: "Investments",
+    category: "Reports & Graphs",
+    subcategory: "Reports",
     description:
       "Every position each account holds, reconciled to the balance the custodian reports",
+    icon: PieChart,
+  },
+  {
+    // One account's register. Deep-linkable and reachable from the summary, but
+    // out of the nav — five near-identical entries would bury the eleven other
+    // reports without telling the reader anything the summary does not.
+    path: "/investments/:accountId",
+    component: InvestmentAccount,
+    label: "Investment account",
+    category: "Reports & Graphs",
+    subcategory: "Reports",
+    showInNav: false,
     icon: PieChart,
   },
 ];
@@ -638,7 +650,6 @@ export const SIDEBAR_GROUPS = [
   { key: "data", label: "Data Sources", icon: HardDrive, category: "Database" },
   { key: "settings", label: "Settings", icon: Settings2, category: "Settings" },
   { key: "taxes", label: "Taxes", icon: Landmark, category: "Taxes" },
-  { key: "investments", label: "Investments", icon: PieChart, category: "Investments" },
 ];
 
 /**
