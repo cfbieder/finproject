@@ -556,7 +556,7 @@ a complete snapshot invents "not reported by the feed" dollars.**
 |---|---|---|
 | **P0** ✅ **BUILT 2026-09-03** (bank-feed `4acbe39`) | **bank-feed**: migration `008_feed_holdings.sql` (`feed_holding_snapshots` + `feed_holdings`), `fetchHoldings`, `convertHoldingsSnapshot`, `fetchHoldingsSnapshots` + `insertHoldingSnapshots`, `routes/holdings.js`, contract §Holding + endpoint row, `HANDOFFS.md`. 13 tests, suite **234/234**. Verified live: one forced sync fetched **6 accounts / 95 positions / 0 errors**. See §8.3 | yes — **CR089 P2 is now unblocked** |
 | **P1** | **fin**: migration 075, securities master + hand-seeded classification, `security_position_snapshots` + `security_positions`, the ingest, **backfill to 2026-07-04**, and the `security_prices` close backfill for the quotable sleeve | **yes — and this is the piece with the clock on it** |
-| **P2** | **statement-derived position backfill to 2016** (owner-claimed 2026-09-02) — parse the per-holding position tables from the 117 statements, cross-check against fintable where they overlap, and explain the month-boundary disagreements the roadmap records | yes |
+| **P2** 🔄 **PARSER STARTED 2026-09-03 — 61 of 117 account-statements reconcile; ingest NOT built** | **statement-derived position backfill to 2016** — parse the per-holding position tables from the 117 statements, cross-check against fintable where they overlap, and explain the month-boundary disagreements the roadmap records. See §8.5 | yes |
 | *(CR090)* | the Investments section and the quote overlay | separate CR |
 | *(CR089 P2)* | dating by evidence — reads P1's fin-local tables | separate CR, and gated on its own §P2.3 discriminant measurement |
 
@@ -592,6 +592,41 @@ as candidates (the other 24 accounts would return an empty envelope forever), an
 **unconditionally** in every API sync rather than as an optional phase — `requestSync` coalesces
 concurrent callers onto one run, so an optional phase means a caller who asked for holdings can be
 handed a success summary from a run that never fetched them.
+
+### 8.5 P2 as it stands — the parser, and what it refuses to claim
+
+`server/src/v2/scripts/parse-fidelity-holdings.js` reads the per-holding tables: every position with
+quantity, price per unit, market value, total cost basis and unrealized G/L. The statements do carry
+them, which was the open question — §4.8 only knew they carried *totals*.
+
+✅ **The design decision that made this tractable: the statement checks the parser.** Every section
+prints its own subtotal (`Total Common Stock (35% of account holdings) $241,952.11 …`), so the rows
+extracted must sum to the number the statement itself printed. A section that does not reconcile is
+an **error**, not a warning. Nothing here has to be believed.
+
+**Current state: 61 of 117 account-statements reconcile fully; 0 fail to parse.** The first run
+reconciled **2**. Every gain came from the check reporting a lie rather than from the parser looking
+right:
+
+| What the check caught | What it had produced |
+|---|---|
+| Holdings pages repeat `Account #`, so each **page** became its own block | rows split across a page break were dropped — $292,410 of one ETF section |
+| A rejected regex match still **consumes** input | a subtotal line swallowed the row after it; `Stock Funds` reported **0** against a printed 7,146.46 |
+| Two column layouts differing by one column | the single-account form has a **Beginning** Market Value before Quantity, so every figure read one column left — a $4,496.85 sweep reported as **`1`** |
+| The section subtotal moves with the layout | its first number is the *beginning* value, so a correct row sum was compared against the **wrong month** |
+| `(continued)` pages carry rows but no subtotal | filtering on the subtotal dropped them entirely |
+
+⚠️ **Not one of those failures looked malformed.** Each produced a plausible number, and the only
+reason any was noticed is that the statement's own arithmetic contradicted it. A test pins the
+wrong-layout read precisely so it stays visible: `parseRows(single, …, 'combined')` returns
+quantity 4900 and market value 50, and nothing about that result looks wrong.
+
+**Still to do before P2 can ship:** the remaining **56** account-statements are further layout
+variants, spread across every year (2016: 7/8 · 2021: 3/12 · 2025: 4/16) rather than falling behind a
+clean cutoff, so there is no useful subset to ship early. And **the ingest is not written**: nothing
+yet writes these into `security_position_snapshots` / `security_positions` with `source='statement'`,
+and the cross-check against fintable over the 2026-07..09 overlap — where the two sources describe
+the same days and must agree — has not been run.
 
 ### 8.1 Deploy path
 
