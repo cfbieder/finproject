@@ -125,6 +125,22 @@ the dev-first migration rule, and the fact that **an engine change moves nothing
 scenarios are REGENERATED**. It changes far less often than this file does.
 
 ## Next
+- 📋 **[CR061](../cr/cr-061-holdings-and-prices.md) rev 3 + [CR090](../cr/cr-090-investments-section.md) — the
+  Investments work, split after two review passes.** Owner asked for a per-account portfolio view valued at
+  real-time quotes; rev 2 grew into three CRs, so **CR061 is now the ingest and CR090 is the page**. The reason is
+  a clock: **fintable's holdings history starts 2026-07-04 and nothing recovers a day nobody stored.**
+  🔴 **The measurement is the story.** rev 1 quoted its constraints from CR059 **without calling the endpoints**;
+  rev 2 called them and corrected three; **rev 3 corrects two more of its own, both found by review** — the
+  classifier it proposed *could not produce its own tests' answers* (`FDIC91125` → bond, `FCNTX` → equity, no
+  vocabulary value for a mutual fund at all), and it counted 29 CUSIPs where there are **37 in two accounts**, the
+  8 missing ones being exactly the mis-basis that prices 100,000 face at an equity's $250.
+  Five of six accounts' holdings **tie to the custodian within $10**; Options is **$33,081 short** because fintable
+  does not report option contracts, and CR090's universal residual row exists to keep that legible.
+  🔴 **`snapshot_date` is a POLL date, not a valuation date** ([CR089](../cr/cr-089-month-end-observation-dating.md)) —
+  the 09-02 snapshot holds the 08-31 close — so positions store `polled_on` **and** `valued_on`.
+  **Only 47.5% of value is quotable**, so the real-time ask ships as an overlay *beside* the custodian total, never
+  as a revaluation of it. *Owner: the `Individual` account is not tracked · ⚠️ that inverted 2026-09-03 — **CR061 ships the bank-feed holdings work first**, CR089 P2 waits on it ·
+  the statement backfill to 2016 is claimed by CR061.*
 - ✅ **[CR085](../cr/cr-085-forecast-sensitivity.md) — everything it deferred is now BUILT.** Tier 2
   (a token focus ring app-wide, replacing a default that composited to **1.18:1** — the widest-reach
   fix on this list, and it was never really about this page) · Tier 3 (compose and read stop sharing

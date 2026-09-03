@@ -1,45 +1,590 @@
-# CR061 — Investment holdings and market prices — PLANNED (statement reader built; fintable side not started)
+# CR061 — Investment holdings ingest and market prices — PLANNED (rev 3, 2026-09-02)
 
-**Built so far (2026-07-31):** `parse-fidelity-statement.js` reads holdings totals — market value,
-total cost basis and **unrealized gain/loss** per account — straight out of the custodian's statement
-PDFs, for all **117 account-statements** across 2016–2026. That is not the fintable holdings ingest
-this CR is about, but it is the first real unrealized-G/L series fin has ever had, and it establishes
-the two facts the ingest will need: the custodian's `Change in Investment Value` **cannot** measure
-return (it absorbs transfers), while market value minus cost basis can. Full reasoning and the
-cross-validation in [CR058 §12.8–12.9](cr-058-quicken-valuation-anchors.md). Nothing is written to
-the ledger and `securities` is still 0 rows.
+**rev 3 (2026-09-02)** — split, after a two-pass review returned `revise` / `revise-with-a-GO-on-the-
+carved-increment`. rev 2 had grown into three CRs, and the one piece with a clock on it was scheduled
+behind the two that had none. So:
 
-Fill fin's empty securities tables from fintable's holdings snapshots, and give the app a market-price
-source it has never had.
+- **This CR is the ingest.** The bank-feed storage, the securities master, the classifier,
+  `security_positions`, the market-price source, and the backfills. **No UI.**
+- **[CR090](cr-090-investments-section.md) is the page** — the Investments section, the per-account
+  register, the quote overlay and the warnings the owner reads.
+
+Why the split has a reason beyond tidiness: **fintable's holdings history begins 2026-07-04 and
+nothing recovers a day nobody stored** (§4.8). The ingest can ship the day the endpoint exists and
+starts the clock; the page cannot ship without nav wiring, both themes rendered, and a display review
+— and by the time it is built it renders two months of accrued history instead of one day's.
+
+Everything in §4 was measured **live against fintable's API on 2026-09-01/02** and against the dev
+(`:5434`) and prod (`:5433`) databases. rev 1 of this CR quoted its constraints from
+[CR059](cr-059-fintable-api-ingestion.md) §15B+C without ever calling the endpoints; rev 2 called
+them and corrected three; **rev 3 corrects two more of its own** (§4.7, §4.8), both found by review.
 
 Roadmap anchor: [project-roadmap.md#cr061](../current/project-roadmap.md#cr061). **Track: v3.**
-**Split out of [CR059](cr-059-fintable-api-ingestion.md) §15B+C** — that CR replaces a pipe; this one
-is the reason the pipe was worth replacing.
+**Split out of [CR059](cr-059-fintable-api-ingestion.md) §15B+C.**
 
-## Why
+---
 
-`securities` and `quicken_price_staging` are **0 rows**. Everything downstream has been working around
-that absence:
+## 1. Why
 
-- [CR056](cr-056-investment-returns.md) had to derive investment returns from **ledger postings**
-  rather than positions, and its `Unattributed` row exists because of it.
-- [CR058](cr-058-quicken-valuation-anchors.md) reconstructs brokerage history from **Quicken exports**
-  because nothing else knows what was held.
+`securities`, `security_lots`, `security_transactions`, `security_lot_disposals`, `security_prices`
+and `quicken_price_staging` are **0 rows on dev and prod** (verified 2026-09-02). The whole schema
+was created by migration `022_quicken_import.sql` in May 2026 and has never held a row. Everything
+downstream has been working around that absence:
+
+- [CR056](cr-056-investment-returns.md) derives investment returns from **ledger postings** rather
+  than positions, and its `Unattributed` row exists because of it. ⚠️ CR056 is **COMPLETED and not
+  blocked** — it shipped *because* the tables were empty. This CR does not unblock it; it makes a
+  future position-based return possible, which CR056 itself defers.
+- [CR058](cr-058-quicken-valuation-anchors.md) reconstructs brokerage history from **Quicken
+  exports** because nothing else knows what was held.
 - [CR020](cr-020-stock-investment-module.md) has been a planning skeleton for the same reason.
+- [CR089](cr-089-month-end-observation-dating.md) — **the nearest consumer, and the one with a
+  recurring deadline** — needs holdings and dated closes to stop the owner having to know a poll date
+  to book month-end MTM.
+- fin has **no market-price source at all**, so no fin surface has ever known what a share is worth.
 
-`GET /accounts/{id}/holdings` returns daily snapshots — quantity, price, market value, cost basis —
-for the six Fidelity accounts. `GET /prices` (public, no auth) returns US equity quotes and
-split/dividend-adjusted history.
+And a wrong number today: the roadmap records fin disagreeing with the custodian at **almost every
+month boundary** — Fidelity Bond wrong at all four measured dates, by up to **+14,163** — because
+past points are only as good as whenever an MTM row happened to land. §8's P2 is the fix.
 
-## Known constraints, to design around rather than discover
+---
 
-- **`cost_basis` is the position total, not per share** — a provider quirk fintable passes through.
-- **No history pagination on holdings**: one call per day per account, so a backfill is slow by
-  construction.
-- Snapshots exist only from whenever fintable began recording — this does not recover 2019.
-- Prices default to the **IEX** feed: one exchange, not the consolidated tape, cacheable up to an hour,
-  and `volume` is IEX-only. Fine for valuing a position; not a quote.
+## 2. What this CR delivers
 
-## Depends on
+1. **Stored holdings** — fintable's per-account daily snapshots, in bank-feed, served to fin.
+2. **The `securities` master, populated** — with a classification that decides what an instrument
+   *is* before anything tries to price it.
+3. **`security_positions`** — the per-position snapshot series, with a snapshot header that can say
+   "fetched and empty" and "never fetched" as different things.
+4. **A market-price source** (fin's first): live quotes and **dated daily closes**.
+5. **Two backfills** — fintable to 2026-07-04, and the custodian statements to 2016 (§8 P2).
 
-[CR059](cr-059-fintable-api-ingestion.md) P1's adapter and, for the holdings half, its P4 cutover.
+Not here: the Investments section, the register, the quote overlay, the page's warnings. Those are
+[CR090](cr-090-investments-section.md).
+
+⚠️ **And not here, or anywhere in this thread of work (owner-confirmed 2026-09-03): any write to the
+ledger.** This CR fills tables and CR090 reads them. Neither books an MTM row, auto-reconciles against
+the balances fin already holds, re-anchors an `opening_balance`, or flips `balance_from_feed`. The
+existing reconcile loop remains the only thing that books a mark. See [CR090 §0](cr-090-investments-section.md).
+
+---
+
+## 3. Relationship to CR020, CR089 and CR090
+
+**[CR020](cr-020-stock-investment-module.md)** — this CR takes its ingest and price source; CR090
+takes its overview page. CR020 keeps what genuinely needs lot-level data: realized G/L, tax lots,
+wash sales, HIFO/FIFO selection, and the Fidelity **Closed Lots** import that is the only way to get
+them. Its header and index row carry the narrowing.
+
+**A snapshot is not a lot,** and this is why the split holds. `security_lots` requires
+`acquired_date NOT NULL` and `cost_per_share NOT NULL`; a daily position snapshot has neither.
+Writing snapshots there would fabricate an acquisition date and a per-share cost in three different
+units (§4.4) and would poison CR020's lot model permanently. It also means this CR **does not depend
+on CR019** (IN-PROGRESS, investment promote descoped to value-only) — it routes around it.
+
+**[CR089](cr-089-month-end-observation-dating.md)** — ⚠️ **the ownership settled on 2026-09-02
+was inverted by CR089's own review passes on 2026-09-03, and this CR follows it.** The owner decision
+gave CR089 the bank-feed passthrough; CR089 then split into P1 (no dependencies) and P2 (blocked),
+and its §P2.5 concludes the opposite: *"P2 should read **fin-local tables CR061 fills**, not add a
+second live passthrough"* — which deletes its timeout/cache/fail-open machinery and takes a network
+call off a read-only preview path.
+
+**So this CR owns the bank-feed holdings work outright and ships it first** (§8 P0). CR089 P1 — the
+date control moving into the dialog — has no dependency and can ship at any time. **CR089 P2 waits
+on this CR's P1**, not the reverse.
+
+🔴 **CR089 still changes this CR's data model** (§4.10) — and 🔴 **its P2.3 puts the `valued_on`
+source in doubt**, which §4.10 now records.
+
+---
+
+## 4. Measured against the live API — 2026-09-01/02
+
+### 4.1 The endpoint
+
+`GET /accounts/{id}/holdings` → 200 for all six Fidelity accounts:
+
+```json
+{"id":"hol_01M1DTHVWGWR6K6PF4Q0BRJ8TX","name":"SPCX","symbol":"SPCX","quantity":"100",
+ "price":"141.5","value":"14150.0","cost_basis":"15708.500","currency":"USD",
+ "updated_at":"2026-09-01T06:29:53Z"}
+```
+
+plus `snapshot_date` and `workspace_id` on the envelope. **No collection route** (`/holdings`,
+`/positions`, `/securities`, `/investments` all 404) and **no cursor**.
+
+### 4.2 The six accounts, and how they tie
+
+Five are tracked in fin; `Individual` is deliberately not (§10.1). It is listed because its
+reconciliation is evidence about the *feed*, independent of whether fin renders it.
+
+| Fintable account | fin account | Positions | Σ positions | Custodian balance | Residual |
+|---|---|---:|---:|---:|---:|
+| Stocks | 27 Fidelity Stocks | 31 | 1,187,764.09 | 1,187,764.08 | 0.01 |
+| Fixed Income | 31 Fidelity Bond | 31 | 1,225,920.82 | 1,225,920.78 | 0.04 |
+| Cash Management | 30 Fidelity Cash Mgt | 12 | 1,085,463.02 | 1,085,453.02 | 10.00 |
+| Rollover IRA | 26 Fidelity IRA | 19 | 298,532.29 | 298,532.19 | 0.10 |
+| Individual | *— not tracked (§10.1) —* | 1 | 26,111.55 | 26,111.55 | 0.00 |
+| **Options** | 28 Fidelity Options | **1** | **70,526.53** | **103,607.53** | **33,081.00** |
+
+**Five of six tie within $10** — four within a dime. That tie is the strongest integrity check
+available, and CR090's residual row is built on it. Record these four residuals as **expected
+values**, not as a tolerance to aspire to.
+
+### 4.3 🔴 The Options account is missing $33,081 of option contracts
+
+It returns **only its SPAXX money-market sweep**. Its transaction feed for 2026-08-31 alone shows
+`YOU BOUGHT OPENING TRANSACTION PUT (EIX)`, `EXPIRED PUT (META)`, `YOU SOLD CLOSING TRANSACTION PUT
+(EIX)` and a dozen more — the contracts are real, traded weekly, and **fintable's holdings endpoint
+does not report them**. 31.9% of that account is invisible to any position-based total. Structural,
+not transient.
+
+### 4.4 Three quantity/price conventions, not one
+
+| Kind | `quantity` unit | `price` basis | Live example |
+|---|---|---|---|
+| equity / ETF / CEF | shares | $ per share | `100 × 141.50 = 14,150` |
+| **CUSIP bond / brokered CD** | **face value** | **fraction of par** | `100,000 × 0.9989 = 99,890` |
+| money market | shares | par (1.00) | `70,526.53 × 1.00` |
+
+`value = quantity × price` holds for all three. The failures are in aggregation, display and quote
+lookup. ⚠️ `securities.asset_class` is `NOT NULL DEFAULT 'stock'` — an unclassified CUSIP inserted
+without an explicit class **silently becomes a stock, and a stock is quote-eligible**. That default
+has to go (§6).
+
+### 4.5 The CUSIP positions are in two accounts, not one
+
+**37 CUSIP-priced positions: 29 in Fixed Income and 8 in Cash Management** (brokered CDs — CR058
+§12.6 records that account holding them). rev 2 said 29 and scoped the classifier's evidence to one
+account; that would have left **8 positions classified per-share**, which is precisely the mis-basis
+§6's guard exists to catch, arriving through a door the CR left open.
+
+For every one, `name == symbol == CUSIP` (`718172DC0`, `06055JDF3`, `949764XN9`). No issuer, no
+coupon, no maturity. Note also that **Fixed Income is not CUSIP-only**: `FLDR`, a bond ETF, is 44% of
+that account, and it quotes.
+
+### 4.6 Quote coverage: **47.5% of value** against fintable `/prices`, as of 2026-09-02
+
+| Class | Positions | Value | Share | Quotable? |
+|---|---:|---:|---:|---|
+| equity / ETF / CEF | 48 | 1,848,640 | **47.5%** | **yes** |
+| bond / brokered CD (CUSIP) | 37 | 1,676,285 | 43.1% | no — not a ticker |
+| mutual fund (`FCNTX`) | 1 | 147,988 | 3.8% | **no — returns 200-empty** |
+| money market (`SPAXX`/`FZDXX`/`FDRXX`) | 6 | 133,015 | 3.4% | no — par by nature |
+| unclassified (`QIMHQ`, `QHYEQ`, `FDIC91125`) | 3 | 86,309 | 2.2% | no — returns 200-empty |
+
+Per account, quotable share of positions: **IRA 97% · Stocks 87% · Fixed Income 44% · Cash Mgt 0% ·
+Individual 0% · Options 0%.**
+
+🔴 **The two fintable endpoints disagree on symbol format.** The custodian reports **`BRKB`**; the
+quote endpoint returns empty for `BRKB` and **502.43 for `BRK.B`**. $25,202 that a naive lookup drops
+*silently* — and a quote that isn't there looks exactly like a market that didn't move.
+
+### 4.7 The price feed: public, IEX, and it has dated history after all
+
+- **Public — no auth** (verified by calling with no `Authorization` header). The param is
+  **`?symbols=`**, plural; `?symbol=` 422s.
+- **`feed: "iex"`** with `price, open, high, low, previous_close, change, change_percent, volume,
+  trading_day, as_of`. `as_of` is the **last IEX print**, clustered at `19:59:5x Z` with after-hours
+  stragglers to `20:36Z`. IEX is one exchange at a low single-digit share of consolidated volume, so
+  for a thin name the last IEX print can be materially older than the last sale. Fine for valuing a
+  position; not a quote.
+- **🔴 It returns `503 service_unavailable` often** — four of five batches failed during this
+  measurement, and two symbols still 503'd after eight retries with backoff. Cached repeats ~25ms vs
+  ~1s cold. **Quotes are best-effort; nothing may depend on one arriving, and nothing may fetch them
+  on a render path.**
+- ✅ **`GET /prices/{symbol}/history?start=&end=` WORKS** — corrected in rev 3. rev 2 reported it 404,
+  having sent `from`/`to`; the params are **`start`/`end`**, and the 404 message
+  (*"No price history for that ticker and range"*) is misleading. It returns daily bars with
+  `open/high/low/close/volume/trade_count/vwap` **and the trading calendar** (its bars skip 08-29 and
+  08-30). Found by [CR089](cr-089-month-end-observation-dating.md), verified here.
+
+  **This changes §8.** A dated-close backfill is available, so `security_prices` can be populated for
+  the quotable sleeve immediately rather than accruing forward from today.
+
+### 4.8 Snapshot history: fintable starts 2026-07-04; the statements go back to 2016
+
+`?date=` serves back-dated snapshots. Walking the Stocks account day by day: **2026-07-04 is
+fintable's earliest**, and every calendar day since is present (weekends included, repeating
+Friday's marks). Earlier dates return **200 with `data: []` and `snapshot_date: null`**.
+
+⚠️ **rev 2 generalised this to "there is no earlier position history". That was wrong.**
+[CR058 §12.8–12.9](cr-058-quicken-valuation-anchors.md) records that the custodian's statements carry
+a **per-holding position table** — market value, total cost basis, unrealized G/L — across all **117
+account-statements, 2016–2026**, and the parser is already built. The roadmap assigns that backfill
+to this CR by name: *"fintable supplies holdings going forward, statements supply the backfill, and
+the two check each other."* **Owner decision 2026-09-02: CR061 claims it** — §8 P2.
+
+So: fintable gives a daily series from 2026-07-04 forward; the statements give a period-end series
+back to 2016; and the overlap is what lets each check the other.
+
+### 4.9 🔴 The `hol_…` id is re-minted on every sync
+
+The Options account's SPAXX position carried `hol_01M1DTHW0HMT51GM25G6NXM0NE` at 06:29Z and
+`hol_01M1GDAQ40QRV9GMR9JBRT14S0` hours later the same day — same position, new id, quantity moved
+70,526.53 → 70,725.56 **under the same `snapshot_date`**. Never key on the upstream id; keep it in
+`raw`. This is [CR059](cr-059-fintable-api-ingestion.md) §22's lesson in a new noun.
+
+✅ **Measured, and it holds:** across all 95 live positions there are **0 duplicate
+`(account, symbol)` pairs** — so `(account, security, snapshot_date)` is a sound grain *today*.
+§6 makes a violation fail loud rather than trusting it to stay true.
+
+### 4.10 🔴 `snapshot_date` is a POLL date, not a valuation date
+
+[CR089](cr-089-month-end-observation-dating.md) measured this, and it is the most consequential
+finding for this CR's schema:
+
+```
+GET /accounts/{id}/holdings?date=2026-08-31  → snapshot_date 2026-08-31, Σ = 1,187,764.09
+GET /accounts/{id}/holdings                  → snapshot_date 2026-09-02, Σ = 1,185,594.39
+```
+
+The 09-02 snapshot is priced at the **08-31 close**. Asking for the snapshot *dated* 08-31 returns
+positions priced at **Friday 08-28's** close. **No field anywhere states the valuation date** — the
+only ground truth is the position prices, cross-checked against dated closes (which §4.7 now makes
+available).
+
+**Consequence, and it is not cosmetic:** `security_positions` must carry **two dates** —
+`polled_on` (the envelope's `snapshot_date`, provenance) and `valued_on` (**nullable**, derived).
+Storing one and letting consumers infer the other mis-dates the entire position history by a day or
+two, invisibly. That is the class CR089 exists to kill, and this CR must not reintroduce it one table
+over.
+
+🔴 **`valued_on` has no proven source yet, so it ships nullable and mostly null.** CR089's pass 1
+falsified its own strongest evidence row — the draft took `previous_close` from `GET /prices?symbols=`
+where the authoritative close comes from `GET /prices/{sym}/history`, and **the two fintable endpoints
+disagree by 0.65% about the same close**. Measured per-symbol residual between custodian price and
+history close runs **0.005% (CSCO) to 1.3% (JEPI)**, systematically positive — and **that bias exceeds
+the 0.7% adjacent-day separation** the detection rested on. CR089 P2 is explicit that *"if the
+corrected margin does not separate, P2 does not get built."*
+
+**What this CR must therefore do:** store the column, populate it only from a proven detector, and
+**never let any consumer fall back to `polled_on` when it is null** — [CR090](cr-090-investments-section.md)
+says *"valuation date not established"* instead. A nullable column read with a silent fallback is the
+same defect wearing a schema.
+
+🔴 **And a second finding from CR089 P2.4 that this CR's own reconciliation must respect:** the
+08-31 snapshot holds the right **quantities** and the wrong **prices**; the 09-02 snapshot holds the
+right **prices** and the wrong **quantities** (dividend and sweep credits landing 09-01/02).
+**Neither snapshot is the month-end.** On Cash Mgt the quantity effect measured **ten times the mark
+and the opposite sign**. So a position snapshot is a *poll*, not a valuation — nothing downstream may
+treat `Σ(quantity × price)` from one snapshot as "the value on date X" without saying which date each
+half came from.
+
+### 4.11 Two live gaps in fin, both resolved by the owner 2026-09-02
+
+- **The `Individual` account is not in fin, deliberately.** `account_source_mappings` id 369,
+  `external_name = '3434139509958219125'`, `account_id IS NULL`, `ignored = TRUE`, holding
+  **$26,111.55**. It looks like [CR060](cr-060-feed-connection-health.md)'s orphaned-mapping shape and
+  is not — see §10.1.
+- **fin's balance sheet was a month behind the custodian, by −$30,527**, every last `Unrealized G/L`
+  mark dated 2026-07-31. The owner re-marked the same day in a parallel session, so those figures are
+  a **dated snapshot of the gap, not a standing state**. What survives the re-mark is the mechanism:
+  between marks the drift reappears and grows, which is why CR090's rule gates on **mark age**.
+  ⚠️ **The fix is never `balance_from_feed`** — it is FALSE on all five mappings today
+  (`reconcileToFeed.js` clears it on every reconcile), and [CR056](cr-056-investment-returns.md)
+  documents that enabling it makes the Balance Sheet and `/investment-returns` disagree on the same
+  account on the same date.
+
+---
+
+## 5. The price source, and what it is for
+
+Two distinct uses, and conflating them is what makes a price history unauditable:
+
+| Use | Source | Lands in | Grain |
+|---|---|---|---|
+| **Dated closes** — valuation, CR089's dating evidence, backfill | `/prices/{sym}/history?start=&end=` | `security_prices` | one row per `(security, date)` |
+| **Live quotes** — CR090's overlay panel | `/prices?symbols=` | `security_quotes` | one row per `(security, quoted_at)` |
+
+**A quote is not a close.** `security_prices` is `UNIQUE(security_id, price_date)` with a single
+`close`; a custodian snapshot price and an intraday quote both dated today would collide and
+last-writer-wins silently with no timestamp to tell them apart. Separate tables, and
+`security_prices.source` distinguishes `fintable-close` from `statement` from `manual`.
+
+⚠️ **Quotes are fetched server-side, cached, and scheduled — never on a render path.** A public
+endpoint that 503'd four batches in five would otherwise make the page's first cold load the demo
+that kills the feature.
+
+### The structural guard against the $25M failure
+
+The failure to design against is a CUSIP's 100,000 face priced at an equity's $250. Three layers,
+because one threshold cannot do it:
+
+1. **Structural refusal** — a security is never sent to the quote fetcher unless
+   `quantity_unit = 'shares'` **and** `price_basis = 'per_share'`. Deterministic, and the actual fix.
+2. **Magnitude refusal at ~5×** — catches the residue of (1) without ever refusing a real move.
+   ⚠️ 20% is simultaneously far too loose for a 100×–1000× error and too tight for the market: a
+   single-name equity can move >20% on earnings, and a snapshot straddling a split gives exactly 2×
+   or 0.5×.
+3. **5% / 20% as a warning only**, on implied position value (not on price — rev 2 stated the test
+   two different ways).
+
+**A refused quote is not silence.** The position falls back to `price_source = 'custodian'`, CR090's
+overlay coverage drops by that position's weight, and the row's chip names the refusal — otherwise a
+refused position reads as "didn't move", which is CR085's dead-state defect class.
+
+---
+
+## 6. Data model
+
+### 6.1 The snapshot header — what makes the reconciliation and "absent" expressible
+
+```
+security_position_snapshots(
+  id, account_id, polled_on DATE, valued_on DATE NULL, source, status,
+  custodian_balance DECIMAL(18,4) NULL, positions_count INT, sum_market_value DECIMAL(18,4),
+  fetched_at TIMESTAMPTZ, raw JSONB)
+  UNIQUE (account_id, polled_on, source)
+  status ∈ fetched | empty | absent | partial
+```
+
+🔴 **Why a header at all.** CR090's residual row is `custodian balance − Σ positions`, and rev 2 left
+the balance coming from `bankfeed_balances` — **a different fetch on a different clock**. §4.9
+measured the same `snapshot_date` returning different quantities hours apart, so a torn pairing moves
+the Options residual by ~199 against a $33,081 headline. Capturing the balance *in the same fetch*
+makes the residual arithmetic on one row. And `status` is the only way `no rows` stops meaning
+never-fetched, fetched-and-empty, and genuinely-holds-nothing all at once (§4.8's pre-2026-07-04
+case, which §9 tests).
+
+### 6.2 The positions
+
+```
+security_positions(
+  id, snapshot_id FK → security_position_snapshots(id) ON DELETE CASCADE,
+  account_id, security_id, quantity NUMERIC(18,6), price NUMERIC(18,6), price_basis,
+  market_value DECIMAL(18,4), cost_basis DECIMAL(18,4) NULL, currency CHAR(3),
+  price_source, price_asof TIMESTAMPTZ, fetched_at, raw JSONB)
+  UNIQUE (account_id, security_id, snapshot_id)
+```
+
+`price_source ∈ custodian | close | quote | par | manual | none`. Money is `DECIMAL(18,4)`,
+quantity/price `NUMERIC(18,6)`, matching migration 022 — **never float**.
+
+**Currency:** every measured position is USD, which is exactly how a latent defect ships. Any
+cross-currency sum goes through the shared `fx.rateAsOf`, which returns **null, not 1:1**; an
+unconvertible position **abstains** rather than being added at face.
+
+🔴 **Uniqueness fails loud.** §4.9 measured 0 duplicates today, but an `ON CONFLICT DO UPDATE` on a
+future duplicate (two CD tranches under one CUSIP, a mid-corporate-action double) keeps one row and
+drops the other — Σ positions quietly under-counts and the residual row absorbs it as "not reported
+by the feed", which is the one number CR090 exists to make legible. Assert
+`COUNT(*) = COUNT(DISTINCT security_id)` per snapshot and **reject the snapshot**, do not upsert.
+
+### 6.3 Quotes
+
+```
+security_quotes(id, security_id, quoted_at TIMESTAMPTZ, price NUMERIC(18,6), source, venue, fetched_at)
+  INDEX (security_id, quoted_at DESC)
+```
+
+Retention: keep the latest per security plus 7 days; older rows are pruned. A per-render fetch with
+no retention rule is unbounded growth for data with no audit value.
+
+### 6.4 Classification — and quotability is *earned*, not inferred
+
+`securities.asset_class` becomes `CHECK (asset_class IN ('equity','etf','mutual_fund','mmf','bond',
+'cash','unknown'))` with **no default**. ⚠️ rev 2's vocabulary had **no value for a mutual fund at
+all** — $147,988 the schema could not express — while migration 022's own comment already had `mf`.
+`option` is included only if [CR090 §6](cr-090-investments-section.md)'s manual entry lands; today nothing can produce one.
+
+Add to `securities`: `price_basis` (`per_share · per_1_face · par`), `quantity_unit`
+(`shares · face · contracts`), `classification_source` (`inferred · manual`), `quote_symbol`
+(nullable, **NULL until a quote has been observed**).
+
+**Resolution goes through `security_source_mappings`, not `securities.ticker`.** Migration 022
+created it with `UNIQUE(source, external_name)` for exactly this; use `source = 'fintable'`.
+Resolving on `ticker` would mint duplicate `securities` rows for the same instrument once CR019's
+Quicken promote runs, since that routes via `quicken_security_master_staging.promoted_security_id`.
+
+**Shape decides only what is safe to probe, never what is quotable.** rev 2's rules could not produce
+the classification its own tests asserted:
+
+| Symbol | rev 2's rule gave | Correct |
+|---|---|---|
+| `FDIC91125` | **`bond`** (matches `^[0-9A-Z]{9}$`, `name == symbol`) | `cash` / `unknown` |
+| `QIMHQ`, `QHYEQ` | **`equity`** (5 alpha chars) → quote-eligible | `unknown` |
+| `FCNTX` | **`equity`** | `mutual_fund` — inexpressible in rev 2's vocabulary |
+
+So: **seed the ~95 measured positions once by hand with `classification_source = 'manual'`**, and use
+inference only as an `unknown`-defaulting fallback for instruments seen later. With 95 positions, one
+owner and one database, a rule set that already disagrees with its own tests is more machinery than
+the problem has. The one inference rule worth keeping is **CUSIP mod-10 check-digit validation** —
+real CUSIPs pass, `FDIC91125` fails — because that is falsifiable rather than shape-matching.
+
+A security becomes quote-eligible only after a successful quote has passed §5's guards. That removes
+the entire class where a wrong classification silently authorises a quote.
+
+### 6.5 Migration notes
+
+Fin migration **075**. It `ALTER`s `securities`, a table [CR019](cr-019-quicken-import.md)
+(IN-PROGRESS) owns — safe today: **0 rows on both dev and prod**, nothing under `server/` writes
+`asset_class`, and CR019's investment promote is descoped to value-only. But the column is `NOT
+NULL`, so every future insert must supply a value, and CR019's `quicken_type` (Stock / Bond / Mutual
+Fund / ETF) maps onto the new vocabulary — state that mapping here, and update CR020 §4's schema
+table in the same pass.
+
+House rules that bite: the `CHECK` needs a `DO` block (Postgres has no `ADD CONSTRAINT IF NOT
+EXISTS`) · `pg_constraint` post-conditions schema-qualified · structural assertions only, never row
+counts · a row in `docs/current/migrations.md` · verified on a fresh DB via `Scripts/test-fresh-db.sh`.
+
+---
+
+## 7. Repo boundary and the contract
+
+| Piece | Repo | Why |
+|---|---|---|
+| Holdings fetch, **storage** and `/v1/holdings` | **bank-feed, this CR** (⚠️ re-inverted 2026-09-03 — see §3) | It holds the only `FINTABLE_API_TOKEN` and owns the account-id crosswalk that has already been re-keyed once in lockstep with fin's 044. Fetching direct from fin creates a *second* binding to fintable account ids that the next re-consent must repair twice. CR089 P2 reads fin-local tables rather than a second passthrough. |
+| Securities master, classification, positions | **fin** | bank-feed must never learn what a security is. |
+| Market prices (quotes and closes) | **fin** | `/prices` is public, so the credential argument does not apply. Prices are a market fact, not per-account bank data. |
+
+**bank-feed stores positions denormalized and dumb** — `symbol`, `name`, `quantity`, `price`,
+`value`, `cost_basis`, `currency`, `snapshot_date`, `raw` — the way it stores `category_hint`: a
+string the upstream said, not an FK into a master it owns.
+
+### 7.1 The contract fin builds against
+
+Pinned here because it is fin's spec; the implementation stays bank-feed's record (its filenames and
+migration number are its own to assign — fin cannot hold another repo's migration counter).
+
+- `GET /v1/holdings?as_of=&account_id=&app=` — latest per `(account, symbol)`, mirroring
+  `/v1/balances`' `DISTINCT ON` shape and its `app=` owner filter.
+- **Every NUMERIC serialized `::text`** — the decimal-as-string convention, contract §Sign conventions.
+- The response carries **`polled_on` per account** (not one global `as_of`), the **account's custodian
+  balance from the same fetch** (§6.1), and a **`status`** distinguishing `fetched` / `empty` /
+  `absent` / `partial`. A 503 or partial upstream read is reported as `partial`, never as an empty
+  holdings list.
+- **Keyed on the stable external account UUID**, resolved as `refreshBankFeedV2.buildAccountIdToUuid()`
+  does — **not** fintable's internal id, which has been re-keyed once already (fin `063`/`051`,
+  bank-feed `006`).
+- Additive within v1: a **new endpoint** touching no existing shape, which the contract's
+  additive-only rule permits. No `v2`.
+
+Three storage rules fin is asserting and bank-feed should be held to:
+
+1. **Stamp from the envelope's `snapshot_date`, never the sync clock.** `feed_balances` uses
+   `balance_date: syncDate` (`fintableApiToCanonical.js:91`); a `?date=` backfill stamped "today"
+   would file 60 days of history on one day. ⚠️ And per §4.10, that date is a **poll** date — bank-feed
+   should name the column accordingly.
+2. **Key on `(account_uuid, polled_on, source, symbol)`, not `hol_…`** (§4.9).
+3. **Store `cost_basis` verbatim as the position total.** fin owns any per-share division; doing it
+   on both sides is how the two silently diverge.
+
+⚠️ **`feed_sign` and `feed_negate_tx` must not follow holdings across the boundary.** A position is
+not a signed flow; applying either to a `quantity`, `value` or `cost_basis` is a category error.
+
+### 7.2 🔴 Holdings must not be able to break the transaction sync
+
+`fintableSync.js` has a single module-level `inFlight` handle (`:713`) and `requestSync` hands a
+concurrent caller the in-flight result tagged `coalesced: true` (`:749`). Requirements, not
+observations:
+
+- A holdings fetch that 503s, times out or throws **leaves the ledger ingest unaffected**.
+- A caller who asked for holdings **must not** receive a success summary from a run that never
+  fetched them. Either holdings run unconditionally in every sync, or they get their own in-flight
+  handle and `sync_jobs` trigger.
+
+This is the only way this CR can damage an existing surface, and it damages the most important one.
+
+### 7.3 The fin-side ingest
+
+Rides the existing nightly refresh in the shape `refreshBankFeedV2.ingestBalances()` already
+establishes: best-effort, never fails the transaction path, resolves ids, counts `unresolved`. A 503
+or partial fetch is recorded as the snapshot header's `partial` status — **a partial fetch stored as
+a complete snapshot invents "not reported by the feed" dollars.**
+
+---
+
+## 8. Phases
+
+| Phase | What | Ships independently? |
+|---|---|---|
+| **P0** | **bank-feed**: migration `feed_holdings`, `fetchHoldings`, `convertHolding`, `insertHoldingSnapshots`, `routes/holdings.js`, contract §Holding + endpoint row, `HANDOFFS.md` entry | yes — and **nothing else in this CR or CR089 P2 can start until it lands** |
+| **P1** | **fin**: migration 075, securities master + hand-seeded classification, `security_position_snapshots` + `security_positions`, the ingest, **backfill to 2026-07-04**, and the `security_prices` close backfill for the quotable sleeve | **yes — and this is the piece with the clock on it** |
+| **P2** | **statement-derived position backfill to 2016** (owner-claimed 2026-09-02) — parse the per-holding position tables from the 117 statements, cross-check against fintable where they overlap, and explain the month-boundary disagreements the roadmap records | yes |
+| *(CR090)* | the Investments section and the quote overlay | separate CR |
+| *(CR089 P2)* | dating by evidence — reads P1's fin-local tables | separate CR, and gated on its own §P2.3 discriminant measurement |
+
+**P1 alone starts the accrual and unblocks CR089 P2.** Deferred to the roadmap rather than carried
+here: position value history, TTM position return, yield on cost — all gated on twelve months of a
+table that does not exist yet, and carrying them makes this CR read as unfinished for a year.
+
+### 8.1 Deploy path
+
+- bank-feed migrations through `scripts/migrate.js` so `schema_migrations` records them — the 005/006
+  replay is on the record as a live hazard.
+- fin migration **075** to **dev first**, then prod via `Scripts/deploy-to-production.sh` Step 2b,
+  **before** the code that reads the new objects.
+
+### 8.2 Backfill: dry run and rollback
+
+The backfill is ~360 calls that also decide `asset_class` for every security on first sight, and
+`classification_source` makes the answer sticky.
+
+- **Dry run first**: a read-only pass that fetches, classifies and prints §9's assertions **without
+  writing**. Resumable, with a per-account last-completed-date marker, and run outside `runSync`'s
+  write transaction.
+- **Rollback, in one sentence**: positions are re-derivable — delete by `polled_on` range and re-run.
+  This repo's backfill scar is 31 duplicate rows netting +$267, so the rollback is stated, not assumed.
+
+---
+
+## 9. Verification
+
+- Ingest one snapshot for the five tracked accounts; assert Σ positions reconciles to the custodian
+  balance **within $50** and that the four measured residuals (0.01 / 0.04 / 10.00 / 0.10) come back
+  as expected values, with **exactly** the Options residual on the fifth.
+- Freeze the **95 measured positions as a fixture** — it is the falsifiable artefact the
+  classification argument needs. Assert: **37 → `bond`** (29 Fixed Income + 8 Cash Mgt), 0 Stocks rows
+  → `bond`, 6 → `mmf`, 1 → `mutual_fund`, 3 → `unknown`, **none → `equity` by default**.
+- Assert `FDIC91125` fails CUSIP check-digit validation and lands `unknown`, not `bond`.
+- Assert the structural refusal: no security with `price_basis != 'per_share'` ever reaches the quote
+  fetcher; and a deliberately mis-mapped CUSIP→equity quote is **refused**, not merely warned.
+- Assert a pre-2026-07-04 `?date=` (200, `data: []`) stores a header with `status = 'absent'` and
+  **zero position rows** — distinguishable from `empty`.
+- Assert a simulated 503 mid-fetch stores `status = 'partial'` and that the ledger sync is unaffected.
+- Assert duplicate `(snapshot, security)` **rejects the snapshot** rather than upserting.
+- Re-ingest the same day twice: one row per `(account, security, snapshot)`, later fetch wins,
+  `fetched_at` moves, and the header's `custodian_balance` moves with it so the residual stays
+  coherent. ⚠️ **Not byte-idempotence** — §4.9 measured quantities changing under a fixed
+  `snapshot_date`.
+- Resolve COA categories **by name, never by id**. A CI-built database gives `Interest Income` id
+  **11**, not 74 — known issue #21, whose twelve tests failed the day they shipped.
+- Suites: `server/src/services/__tests__/`, plus the bank-feed side's own.
+
+---
+
+## 10. Owner decisions
+
+### 10.1 ✅ DECIDED — the `Individual` account is not tracked
+
+It keeps `account_id = NULL, ignored = TRUE`. Three consequences:
+
+1. **fin filters on `ignored = FALSE`** when mirroring — and it must be *fin* that filters, since
+   bank-feed cannot see fin's `account_source_mappings`.
+2. **bank-feed stores all six anyway.** One extra call, and it is the only place history can accrue;
+   skipping it at ingest would forfeit history for no gain and make the decision irreversible, which
+   contradicts §4.8's own rule. Un-ignoring later then starts from that day.
+3. Any orphan rule scopes to **mapped, non-`ignored`** feed accounts, or it fires forever and becomes
+   the warning CR074 forbids — the identical scoping CR060 needed for Bank Pekao.
+
+### 10.2 ✅ DECIDED — the statement backfill is claimed here (§8 P2)
+
+### 10.3 Open — does `cost_basis` arrive for the CUSIP bonds and for SPAXX?
+
+Unmeasurable until something is ingested; the dry run (§8.2) answers it. It decides whether CR090's
+Fixed Income unrealized column is populated or abstains. Does **not** gate the start.
+
+---
+
+## 11. Depends on
+
+[CR059](cr-059-fintable-api-ingestion.md) P1's adapter and P4 cutover (done — live since 2026-08-10).
+**Nothing else blocks this CR.** [CR019](cr-019-quicken-import.md) and
+[CR020](cr-020-stock-investment-module.md) share the `securities` vocabulary this CR changes (§6.5) —
+neither blocks it.
+
+**Depending on this CR:** [CR090](cr-090-investments-section.md) (all of it) and
+[CR089](cr-089-month-end-observation-dating.md) **P2** (which reads P1's fin-local tables — CR089 P1
+is independent and can ship at any time). `valued_on` would come from CR089 P2 *if* its discriminant
+proves out; §4.10 says what happens if it does not.

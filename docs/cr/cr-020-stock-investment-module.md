@@ -1,4 +1,19 @@
-**Status:** OPEN — Planning (skeleton) · Depends on CR019 (Quicken Import)
+**Status:** OPEN — Planning (skeleton) · Depends on CR019 (Quicken Import) · **NARROWED 2026-09-02**
+
+> ⚠️ **This CR's v1 has been taken, and split across two CRs.**
+> [CR061](cr-061-holdings-and-prices.md) takes the **ingest and the price source** — fintable's daily
+> holdings snapshots rather than the Fidelity CSV importers in §3, and fintable's public `/prices`
+> rather than Tradier. [CR090](cr-090-investments-section.md) takes the **overview page**:
+> `/investments` supersedes the `/portfolio` family in §6. CR061 also reverses §2's non-goal
+> *"Real-time intraday pricing (nightly close is sufficient)"*, because the owner asked for it —
+> though the deliverable form of that ask is an overlay, not a revaluation ([CR090 §2](cr-090-investments-section.md)).
+> §7.1–7.3's metrics split per [CR090 §5](cr-090-investments-section.md).
+>
+> **What remains CR020's** is everything that genuinely needs lot-level data: realized G/L, tax lots,
+> wash-sale detection, HIFO/FIFO lot selection, and the Fidelity **Closed Lots** import that is the
+> only way to obtain them. A daily position snapshot is **not** a lot — `security_lots` requires
+> `acquired_date NOT NULL` and `cost_per_share NOT NULL`, neither of which a snapshot carries, and
+> writing snapshots there would fabricate both and poison this model permanently.
 
 # CR020 — Stock Investment Module
 
