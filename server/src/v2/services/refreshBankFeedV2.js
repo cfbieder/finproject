@@ -24,6 +24,7 @@
  */
 
 const bankFeedClient = require('./bankFeedClient');
+const { ingestHoldings } = require('./ingestHoldings');
 const { normalizeBatch, findPsMatch, categorizeFidelityActivity } = require('../converters/bankFeedToCanonical');
 const staging = require('../repositories/bankfeedStaging');
 const db = require('../db');
@@ -200,6 +201,31 @@ async function ingest({ sinceDays = DEFAULT_SINCE_DAYS, since, syncMaxAgeMin } =
     balances = { error: err.message };
   }
 
+  // CR061 — investment positions, in the same best-effort shape as balances.
+  //
+  // ⚠️ It writes position snapshots and securities. It books NOTHING to the
+  // ledger, reconciles nothing against the balances fin already holds, and never
+  // touches `balance_from_feed` (CR090 §0, owner-confirmed 2026-09-03).
+  //
+  // Non-fatal by construction: the transaction staging above is the important
+  // half, and it has already happened by this point. `ingestHoldings` returns a
+  // summary rather than throwing, so this catch is a backstop, not the design.
+  let holdings = null;
+  try {
+    holdings = await ingestHoldings();
+    if (holdings.unmapped && holdings.unmapped.length) {
+      // A re-consent can mint new feed account ids, and that is exactly what the
+      // mapping keys on — so an account can silently stop feeding. Reported here
+      // for the same reason CR060's orphan guard exists; one of these is expected
+      // (the account the owner deliberately does not track).
+      console.warn(`[refreshBankFeedV2] ${holdings.unmapped.length} feed account(s) hold positions `
+        + `but map to no tracked fin account: ${holdings.unmapped.map((u) => u.uuid || u.feed_account_id).join(', ')}`);
+    }
+  } catch (err) {
+    console.warn('[refreshBankFeedV2] holdings ingest failed (non-fatal):', err.message);
+    holdings = { error: err.message };
+  }
+
   return {
     since: sinceDate,
     fetched: txs.length,
@@ -213,6 +239,7 @@ async function ingest({ sinceDays = DEFAULT_SINCE_DAYS, since, syncMaxAgeMin } =
     updatedCount: insertResult.updatedCount,
     skippedCount: insertResult.skippedCount,
     balances,
+    holdings,
   };
 }
 

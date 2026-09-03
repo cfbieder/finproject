@@ -89,6 +89,13 @@ function connections() { return request('/v1/connections'); }
 function accounts()    { return request('/v1/accounts', { query: { app: APP } }); }
 function balances(asOf) { return request('/v1/balances', { query: { as_of: asOf, app: APP } }); }
 
+// CR061. Investment positions per account, from the latest snapshot at or
+// before `asOf`. ⚠️ Each entry carries a `status` that must be read BEFORE its
+// `positions`: an empty list means the account holds nothing ('empty'), the
+// upstream has no snapshot for that date ('absent'), or the fetch broke
+// ('partial') — and only 'fetched' licenses "this is what is held".
+function holdings(asOf) { return request('/v1/holdings', { query: { as_of: asOf, app: APP } }); }
+
 /**
  * CR060 — ask bank-feed to mint a single-use browser URL for connecting or
  * re-authorising a bank. bank-feed holds the upstream token; fin never does.
@@ -174,6 +181,7 @@ module.exports = {
   mintConnectionLink,
   accounts,
   balances,
+  holdings,
   transactions,
   sync,
   manualParse,
