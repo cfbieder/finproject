@@ -8,11 +8,24 @@
 import { money, pct, UNIT_LABEL, renderPrice } from "./investmentFormat.js";
 import { ProvenanceChip } from "./investmentView.jsx";
 
-/* ⚠️ No Name column. The upstream sets `name == symbol` for EVERY instrument it
-   reports, so the service nulls the echo and the column rendered as dashes on
-   every row of every account. It returns when something supplies real names. */
+/* The Name column was removed in P1 and is back: the upstream sets
+   `name == symbol` for every instrument it reports, so the service nulls the
+   echo and every row rendered as a dash. CR061 P2's statement backfill now
+   supplies real names for **88 of the 94 live positions (94%)** — `DIA` reads
+   "SPDR DOW JONES INDL AVERAGE ETF TR UNIT SER 1" rather than "DIA".
+   The remaining 6 are CUSIPs the feed holds but no statement covers, bought
+   after the last statement date (2026-06-30); they still render "—", which is
+   the honest answer rather than a repeated symbol. */
 export const POSITION_COLUMNS = (currency) => [
   { key: "symbol", header: "Symbol", sortable: true },
+  {
+    key: "name",
+    header: "Name",
+    sortable: true,
+    // Names run to 120 characters; the cell clips and carries the full string as
+    // a tooltip rather than wrapping and making every row two lines tall.
+    render: (r) => (r.name ? <span className="inv-name" title={r.name}>{r.name}</span> : "—"),
+  },
   {
     key: "market_value",
     header: "Market value",

@@ -87,16 +87,22 @@ async function resolveSecurity(position, cache) {
   if (cache.has(symbol)) return cache.get(symbol);
 
   const existing = await db.query(`
-    SELECT s.id FROM security_source_mappings m
+    SELECT s.id, s.name FROM security_source_mappings m
       JOIN securities s ON s.id = m.security_id
      WHERE m.source = 'fintable' AND m.external_name = $1`, [symbol]);
-  if (existing.rows.length) { cache.set(symbol, existing.rows[0].id); return existing.rows[0].id; }
+  if (existing.rows.length) {
+    await healName(db, existing.rows[0], symbol, position);
+    cache.set(symbol, existing.rows[0].id); return existing.rows[0].id;
+  }
 
   const stmt = await db.query(`
-    SELECT s.id FROM security_source_mappings m
+    SELECT s.id, s.name FROM security_source_mappings m
       JOIN securities s ON s.id = m.security_id
      WHERE m.source = $1 AND m.external_name = $2`, [SOURCE, symbol]);
-  if (stmt.rows.length) { cache.set(symbol, stmt.rows[0].id); return stmt.rows[0].id; }
+  if (stmt.rows.length) {
+    await healName(db, stmt.rows[0], symbol, position);
+    cache.set(symbol, stmt.rows[0].id); return stmt.rows[0].id;
+  }
 
   const c = classify(position);
   const isTicker = /^[A-Z]{1,5}$/.test(symbol.toUpperCase());
@@ -111,6 +117,44 @@ async function resolveSecurity(position, cache) {
   [rows[0].id, SOURCE, symbol]);
   cache.set(symbol, rows[0].id);
   return rows[0].id;
+}
+
+/**
+ * `securities.name` is written once, at first sight, and never revisited — so a
+ * name that was wrong when the row was created stays wrong forever. 13 of 265
+ * were stored named after their own statement page header (Iron Mountain as
+ * "st (AI) Sep 30, 2020 Total Cost Basis Un…"), because the parser's description
+ * capture reached back across the header on the first row of a page.
+ *
+ * The parser is fixed, but a corrected parser repairs nothing on its own: a
+ * re-run finds the mapping, returns the existing id and never looks at the name.
+ * So heal on resolve, under a predicate that CONVERGES — a bad name is one that
+ * carries statement furniture, starts on punctuation, or is just the symbol
+ * (what the bank-feed writes, since fintable sets `name == symbol` for
+ * everything). Once healed a row stops matching and is left alone, so this is
+ * not last-writer-wins across 117 statements.
+ *
+ * A statement description is the only real name source fin has.
+ */
+const FURNITURE_IN_NAME = /Total Cost Basis|Ending Market Value|Beginning Market Value|Accrued Interest|Account #|Price Per Unit|Est\.\s?Yield|EAI|\(continued\)|% of account holdings|Unrealized Gain/;
+
+function nameLooksWrong(name, symbol) {
+  const raw = String(name || '');
+  const n = raw.trim();
+  // Untrimmed is its own symptom, and testing the TRIMMED value hides it: four
+  // brokered CDs were stored as " B FINWISE BANK (UTAH) CD …" — the old tail-
+  // slice cutting mid-token — and read as perfectly well-formed once trimmed.
+  if (raw !== n) return true;
+  return !n || n === symbol || FURNITURE_IN_NAME.test(n) || !/^[A-Za-z]/.test(n);
+}
+
+let healed = 0;
+async function healName(db, row, symbol, position) {
+  const better = String(position.description || '').trim();
+  if (!better || nameLooksWrong(better, symbol)) return;
+  if (!nameLooksWrong(row.name, symbol)) return;
+  await db.query('UPDATE securities SET name = $2, updated_at = now() WHERE id = $1', [row.id, better]);
+  healed += 1;
 }
 
 /**
@@ -234,6 +278,7 @@ async function main() {
   console.log(`statements parsed: ${stats.files} · account-statements: ${stats.accounts}`);
   console.log(`${APPLY && !REPORT_ONLY ? 'ingested' : 'would ingest'}: ${stats.ingested}  ·  positions: ${stats.positions}`);
   console.log(`skipped (did not reconcile): ${stats.skipped_unreconciled}`);
+  if (healed) console.log(`repaired ${healed} security name(s) that held statement furniture or the bare symbol`);
   if (stats.unmapped.size) {
     console.log(`\n⚠️ ${stats.unmapped.size} account number(s) are not in the pinned map and were REFUSED,`);
     console.log('   not guessed — assigning by closest balance would hide the very drift this measures:');

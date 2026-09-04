@@ -55,6 +55,17 @@
   flex-wrap: wrap;
 }
 
+/* Instrument names run to 120 characters. Clip to one line and carry the full
+   string in a `title`, so a long name cannot make every row two lines tall. */
+.inv-name {
+  display: inline-block;
+  max-width: 22rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
 .inv-pos { color: var(--growth-positive); }
 .inv-neg { color: var(--growth-negative); }
 

@@ -16,6 +16,7 @@
 const {
   num,
   parseRows,
+  describe: describeRow,
 } = require('../parse-fidelity-holdings');
 
 describe('num — absence is not zero', () => {
@@ -130,5 +131,93 @@ describe('parseRows — the two column layouts', () => {
     const rows = parseRows(withTotal, 'Stock Funds', 'test', 'combined');
     expect(rows).toHaveLength(1);
     expect(rows[0].symbol).toBe('AAAX');
+  });
+});
+
+describe('describe — the name column the reconciliation gate cannot see', () => {
+  // 🔴 This is the one defect class the subtotal check is blind to by
+  // construction: it compares SUMS against the statement's printed subtotals, so
+  // it validates arithmetic and never reads a description. 13 of 265 securities
+  // were stored named after their own page header — Iron Mountain as
+  // "st (AI) Sep 30, 2020 Total Cost Basis Un…" — with every figure correct and
+  // every section tying. `securities` is written once at first sight, so the bad
+  // name was permanent.
+  const HEADERS = {
+    'combined, no yield columns (2016)':
+      'Description Quantity Price Per Unit Total Market Value Total Cost Basis Unrealized Gain/Loss',
+    'combined, with yield columns':
+      'Description Quantity Price Per Unit Total Market Value Total Cost Basis Unrealized Gain/Loss '
+      + 'Est. Annual Income (EAI) Est.Yield (EY)',
+    'single, dated column labels':
+      'Description Beginning Market Value Jun 1,2016 Quantity Jun 30,2016 Price Per Unit Jun 30,2016 '
+      + 'Ending Market Value Jun 30,2016 Total Cost Basis Unrealized Gain/Loss Jun 30,2016 EAI ($) / EY (%)',
+    'core account, NO cost or unrealized column at all':
+      'Description Beginning Market Value Dec 1, 2020 Quantity Dec 31, 2020 Price Per Unit Dec 31, 2020 '
+      + 'Ending Market Value Dec 31, 2020 EAI ($) / EY (%)',
+  };
+
+  test.each(Object.entries(HEADERS))('%s is furniture, not a name', (_label, header) => {
+    expect(describeRow(`${header} ACME INDL PPTYS INC COM`)).toBe('ACME INDL PPTYS INC COM');
+  });
+
+  test('🔴 the page banner survives the header — it precedes it', () => {
+    // The first cut scrubbed the column header only, so the banner above it was
+    // left and the tail-slice kept exactly that. Owner name included.
+    const window = '1, 2016 - March 31, 2016 Account # X00-000000 A N OTHER - INDIVIDUAL '
+      + 'Stocks (continued) Description Quantity Price Per Unit Total Market Value Total Cost Basis '
+      + 'Unrealized Gain/Loss Common Stock (continued) ACME VANCE TX ADV GLB DIV OP COM';
+    expect(describeRow(window)).toBe('ACME VANCE TX ADV GLB DIV OP COM');
+  });
+
+  test('a section heading printed before its first row is not part of the name', () => {
+    // It prints WITHOUT `(continued)` the first time, so the continuation rule
+    // does not cover it, and `Common Stock M MEDTRONIC PLC` was stored.
+    expect(describeRow('Unrealized Gain/Loss Common Stock ACME MEDICAL PLC'))
+      .toBe('ACME MEDICAL PLC');
+    expect(describeRow('Unrealized Gain/Loss Exchange Traded Products E (e.g. ETF, ETN) ACME TECH ETF'))
+      .toBe('ACME TECH ETF');
+  });
+
+  test('🔴 the PREVIOUS row’s uncaptured EAI/yield columns bleed into the next name', () => {
+    // The numeric run captures five figures; EAI and yield trail every row and
+    // are deliberately not captured, so they stay in the window the next row
+    // inherits. `-$108.15` is a minus THEN a dollar sign — an alternation of
+    // "dashes" or "optionally-$-prefixed number" matches neither half.
+    expect(describeRow('-$108.15 $105.60 2.930% ACME MOUNTAIN INC COM')).toBe('ACME MOUNTAIN INC COM');
+    expect(describeRow('- - ACME BIO INC COM USD0.0005')).toBe('ACME BIO INC COM USD0.0005');
+    expect(describeRow('277.06 6.170 ACME EXCH TRD FD')).toBe('ACME EXCH TRD FD');
+  });
+
+  test('a subtotal and the figures trailing it are consumed together', () => {
+    expect(describeRow('Total Core Account (1% of account holdings) $516.52 - ACME TR STOXX FD'))
+      .toBe('ACME TR STOXX FD');
+  });
+
+  test('an ordinary mid-table row is returned untouched', () => {
+    expect(describeRow('  ACME GROWTH FUND  ')).toBe('ACME GROWTH FUND');
+  });
+
+  test('stacked footnote flags are stripped, not just the first', () => {
+    // A brokered CD carries `M B` and is CUSIP-identified in an ORDINARY section,
+    // so it takes the normal path rather than the bond grammar. Stripping one
+    // flag stored it as `B CARROLL CNTY TR CO MO CD …`.
+    const [r] = parseRows(
+      'M B ACME CNTY TR CO MO CD 5.55000% 10/18/2033 949764XN9 100,000.000 $99.890 '
+      + '$99,890.00 $100,000.00 -$110.00',
+      'Other', 'test', 'combined',
+    );
+    expect(r.symbol).toBe('949764XN9');
+    expect(r.description).toBe('ACME CNTY TR CO MO CD 5.55000% 10/18/2033');
+  });
+
+  test('🔴 the name is the HEAD of the description, not the tail', () => {
+    // `slice(-120)` was right only while furniture sat in FRONT of the name.
+    // With the furniture cut it truncates the name itself — two CDs were stored
+    // starting mid-token, on a leading space.
+    const long = `ACME CNTY TR CO MO CD 5.55000% 10/18/2033 ${'X'.repeat(140)}`;
+    expect(parseRows(
+      `${long} (AAAX) 100.000 $50.000 $5,000.00 $4,000.00 $1,000.00`,
+      'Other', 'test', 'combined',
+    )[0].description).toMatch(/^ACME CNTY TR CO MO CD/);
   });
 });

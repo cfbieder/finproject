@@ -232,6 +232,80 @@ function parseBondRows(rawBody, sectionName, label, numTok) {
   return rows;
 }
 
+/**
+ * A row's description is whatever text precedes its identifier — which, for the
+ * FIRST row on a page, also contains the page banner, the section heading and
+ * the column header. Those are furniture, not the holding's name.
+ *
+ * 🔴 This was silently wrong for 13 of 265 securities: Iron Mountain was stored
+ * as "st (AI) Sep 30, 2020 Total Cost Basis Un…" and Eaton Vance as
+ * "March 31, 2016 Account # X27-230910 CHRI…". Nothing caught it, and nothing
+ * could have — the reconciliation gate compares SUMS against the statement's
+ * printed subtotals, so it validates arithmetic and never reads a name. Every
+ * other defect this parser has had was caught by that gate; this one outlived it
+ * by living in the one column the gate does not look at. `securities` is a master
+ * table written once at first sight, so a bad name is permanent.
+ *
+ * Cutting at the LAST furniture token rather than scrubbing patterns out is what
+ * makes this robust: the two header layouts do not share a shape —
+ *
+ *   combined  Description Quantity Price Per Unit … Est. Annual Income (EAI) Est.Yield (EY)
+ *   single    Description Beginning Market Value Jun 1,2016 Quantity Jun 30,2016 … EAI ($) / EY (%)
+ *
+ * — and the old scrub matched the first only, because `[A-Za-z .()/]*` cannot
+ * cross the dates the single layout interleaves between its column labels. Both
+ * terminate on a yield label, so the cut point is stable where the pattern is not.
+ */
+const FURNITURE = new RegExp([
+  // The column header comes in FOUR variants and they share no single tail, so
+  // each terminator is listed independently and the LAST match wins:
+  //   Description Quantity Price Per Unit … Total Cost Basis Unrealized Gain/Loss
+  //   … Unrealized Gain/Loss Est. Annual Income (EAI) Est.Yield (EY)
+  //   … Unrealized Gain/Loss Jun 30,2016 EAI ($) / EY (%)
+  //   Core Account: Description Beginning Market Value … Ending Market Value … EAI ($) / EY (%)
+  // The last has NO cost or unrealized column at all — a money-market sweep has
+  // no basis — so anchoring on `Unrealized Gain/Loss` alone left every FDIC
+  // deposit row named after its own header.
+  String.raw`Unrealized Gain\/Loss`,
+  String.raw`EAI \(\$\) \/ EY \(%\)`,
+  String.raw`Est\. Annual Income \(EAI\)\s*Est\.\s?Yield \(EY\)`,
+  // A section subtotal and the figures trailing it. `[^A-Za-z]*` eats the
+  // numbers so they cannot be read as part of the next row's name.
+  String.raw`Total [A-Za-z .&'-]+\(\d+% of account holdings\)[^A-Za-z]*`,
+  // Page banner and continuation heading (`Stocks (continued)`,
+  // `Common Stock (continued)`) — both sit between the header and the first row.
+  String.raw`\(continued\)`,
+].join('|'), 'g');
+
+// Two things still sit between the furniture and the name, and neither is a
+// header: the SECTION HEADING, which prints once before its first row without
+// the `(continued)` marker; and numeric debris from the row before — the EAI and
+// yield columns trail every row and the numeric run deliberately does not capture
+// them, so they are left in the window for the next row to inherit. Biogen read
+// as `- - M BIOGEN INC COM` and Invesco as `277.06 6.170 M INVESCO …`.
+const LEADING_DEBRIS = new RegExp(
+  // `-$108.15` is a minus, then a dollar sign: an alternation of "dashes" OR
+  // "optionally-$-prefixed number" matches neither half of it, and Iron Mountain
+  // kept its predecessor's unrealized column.
+  String.raw`^(?:(?:-{1,2}|%|-?\$?[\d,]+(?:\.\d+)?%?)\s+)+`,
+);
+const LEADING_SECTION = new RegExp(
+  String.raw`^(?:` + SECTIONS.map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
+  + String.raw`)(?:\s+E \(e\.g\. ETF, ETN\))?\s+`,
+);
+
+function describe(window) {
+  let cut = 0;
+  for (const f of window.matchAll(FURNITURE)) cut = f.index + f[0].length;
+  let d = window.slice(cut).replace(/\s+/g, ' ').trim();
+  // Order matters: debris precedes the heading (`… 6.170 Common Stock M INVESCO`),
+  // and a heading can itself be followed by more debris.
+  for (let i = 0; i < 2; i += 1) {
+    d = d.replace(LEADING_DEBRIS, '').replace(LEADING_SECTION, '');
+  }
+  return d.trim();
+}
+
 function parseRows(rawBody, sectionName, label, layout) {
   const rows = [];
 
@@ -282,16 +356,18 @@ function parseRows(rawBody, sectionName, label, layout) {
   let lastEnd = 0;
   while ((m = rowRe.exec(rawBody)) !== null) {
     const symbol = m[1] || m[2];
-    const desc = rawBody.slice(lastEnd, m.index)
-      .replace(/Total [A-Za-z .&'-]+\(\d+% of account holdings\)[^A-Za-z]*/g, ' ')
-      .replace(/Description Quantity Price Per Unit[A-Za-z .()/]*/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
+    const desc = describe(rawBody.slice(lastEnd, m.index));
     lastEnd = rowRe.lastIndex;
 
     rows.push({
       section: sectionName,
-      description: desc.replace(/^[A-Z] /, '').slice(-120),
+      // Keep the HEAD, not the tail. `slice(-120)` was correct only while the
+      // window still held furniture in front of the name — the tail was then the
+      // one part that was reliably the holding. With the furniture cut, tail-
+      // slicing truncates the NAME instead, which is how two CDs ended up stored
+      // starting mid-token on a leading space.
+      // Flags stack (`M B FS KKR CAP CORP NOTE`), so strip all of them, not one.
+      description: desc.replace(/^(?:[A-Z] )+/, '').slice(0, 120),
       symbol,
       quantity: num(m[COL.qty], `${label}/${sectionName}/qty`),
       price: num(m[COL.price], `${label}/${sectionName}/price`),
@@ -500,4 +576,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { parseFile, extractText, parseRows, num };
+module.exports = { parseFile, extractText, parseRows, num, describe };
