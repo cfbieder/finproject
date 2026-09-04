@@ -1907,6 +1907,21 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
     `EnterWorktree` already exists; (b) accept it and keep the rule as the mitigation, on the
     grounds that the observed damage is cosmetic. **Documentation is not a third option** —
     it is what was in place when both incidents happened.
+    **RESOLVED 2026-09-04 — (a), owner decision: a session that will COMMIT works in its own
+    worktree.** Written into [.claude/rules/git-concurrency.md](../../.claude/rules/git-concurrency.md)
+    §0, which is always loaded. **A THIRD incident that day is what settled it, and it broke the
+    "cosmetic" premise:** the absorbed file was **source** — `Scripts/extract-statements-llm.js`,
+    an in-flight edit committed under an unrelated thread's message and **pushed**. 🔴 **The
+    argument that decides it is not the incident count but that ON ONE TREE THERE IS NO SAFE
+    COMMIT PRIMITIVE:** `git commit -- <paths>` takes the shared **worktree** state, `git add` +
+    bare commit takes the shared **index**, rule 1 sends you to the first and rule 2 forces you
+    onto the second for deletions. Every victim had followed the rule correctly — this was never
+    a discipline problem, which is why three rounds of documentation could not touch it. ⚠️ **A
+    worktree isolates git, NOT the test rig** — jest is `maxWorkers: 1` against the shared dev
+    Postgres on `:5434`, `test-fresh-db.sh` uses a fixed container name, and one stack holds
+    3105/5434, so parallel sessions still take turns on tests and the dev stack. Escape hatch for
+    a genuinely solo session (tree clean, one worktree, no other session mentioned), to be
+    **re-checked before committing**, not assumed.
 
 ---
 

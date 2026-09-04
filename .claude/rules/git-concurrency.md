@@ -3,6 +3,42 @@
 This repo has a single shared working tree, index, and branch, and more than one agent
 thread may be active at once. To avoid one thread absorbing or wiping another's work:
 
+## 0. A session that will COMMIT works in its own worktree (owner decision, 2026-09-04)
+
+**On one working tree there is no safe commit primitive**, which is why rules 1–2 below
+failed three times (2026-08-12 ×2, 2026-09-04) and why documentation alone cannot fix
+this. Both mechanisms are shared mutable state:
+
+- `git commit -- <paths>` commits the **worktree** state of those paths, so another
+  thread's edit to a file you also touched rides along under your message.
+- `git add <paths>` + bare `git commit` uses the **index**, which is equally shared.
+
+Rule 1 sends you to the first; rule 2 forces you onto the second for deletions. Each
+incident's victim had followed the rule correctly. The third took a **source file**
+(`Scripts/extract-statements-llm.js`) into an unrelated thread's commit, which was then
+pushed — the earlier two only misattributed prose.
+
+**So: if this session will commit, get off the shared tree first.** Use `EnterWorktree`,
+or `git worktree add ../psproject-<topic> -b <topic>`. Commit there, then merge to `main`
+as one unit. Symlink `server/node_modules` (and `frontend/node_modules` if needed) from
+the main tree rather than reinstalling.
+
+**The one escape, and check it rather than assume it:** you may work directly on `main`
+when you are demonstrably the only writer — `git status` clean at session start, `git
+worktree list` shows only the main tree, and the user has not mentioned another session.
+**Re-check immediately before committing**; if files you did not edit have appeared, stop
+and move to a worktree. State which branch you took, so the choice is visible.
+
+⚠️ **A worktree isolates git, NOT the test rig.** jest runs `maxWorkers: 1` because the
+DB-backed suites share dev Postgres on `:5434`; `Scripts/test-fresh-db.sh` uses a fixed
+container name; only one stack can hold ports 3105/5434. Parallel sessions edit and
+commit freely but must still take turns running tests and the dev stack.
+
+**Never commit a file you did not edit in this session** — that single check would have
+caught all three incidents.
+
+## The rest still applies (inside a worktree too)
+
 1. **Always stage AND commit with explicit pathspecs.** A bare `git commit` after
    `git add <files>` still commits the **entire index**, including another thread's
    pre-staged changes. Correct forms: `git commit -m "msg" -- <files>` (`-m` and its

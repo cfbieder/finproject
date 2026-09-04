@@ -116,8 +116,11 @@ at session start: the timezone rule (#3), the red `main` nobody announced (#12 �
 `./Scripts/test-fresh-db.sh` catches the ambient-data class before the push. **Last piece CLOSED
 2026-09-04** — the *Actions → failed workflows* email is on **and proven by making one fire** on a
 throwaway PR, never touching `main`; the toggle was not the whole cause, the repo had **zero
-watchers**, and GitHub needs *watching* **and** *runs you triggered*), **#23 (new):** agent threads on one shared
-tree commit over each other — twice today, cosmetic so far, needs a worktree-or-accept call, the ESLint JSX blind
+watchers**, and GitHub needs *watching* **and** *runs you triggered*), **#23 RESOLVED 2026-09-04:** agent threads on one
+shared tree commit over each other — a **third** incident took SOURCE, not prose, so the "cosmetic"
+premise is dead; owner chose the **worktree** (rule §0). The deciding argument: on one tree there is
+**no safe commit primitive** — pathspec takes the shared worktree, `git add` takes the shared index —
+so every victim had followed the rule correctly), the ESLint JSX blind
 spot (#10), dirty-tree deploys (#17). #2 and #15 are CLOSED.
 
 ## Live infrastructure
