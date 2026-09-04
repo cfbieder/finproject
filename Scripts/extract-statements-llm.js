@@ -11,20 +11,28 @@
  * `ollama_heavy → ollama_mid` with no cloud step, so a holdings table — every
  * position, quantity and cost basis in a real portfolio — cannot leave the
  * Tailnet. ocr-llm verified this rather than asserting it: naming `claude` or
- * `openai` in `routing.prefer` returns 409 `routing_unsatisfiable`.
+ * `openai` in the request's `routing` block returns 409 `routing_unsatisfiable`.
  *
- * ⚠️ `--pin-mid` moves the run to `ollama_mid` (Machine A GPU 1). Use it for the
- * BULK RUN and nowhere else: 21 tasks lead with `ollama_heavy`, Ollama serialises
- * per model, and a 50-row statement can hold that tier ~180s — long enough to
- * blow the 85s chain deadline on health's `year_in_review_narration`, whose
- * Claude fallback is then skipped as unaffordable so it fails rather than
- * degrades. ocr-llm also warned their throughput canary cannot see this: it
- * computes tok/s from Ollama's `eval_duration`, which excludes queue wait, so a
- * saturated tier still reports healthy.
+ * ⚠️ `--pin-mid` is now a BULK-RUN-ONLY escape hatch, and there is no bulk run.
+ * ocr-llm asked for the pin when this was 56 documents — 21 tasks lead with
+ * `ollama_heavy`, Ollama serialises per model, and a 50-row statement can hold
+ * that tier ~180s, long enough to blow the 85s chain deadline on health's
+ * `year_in_review_narration` (whose Claude fallback is then skipped as
+ * unaffordable, so it fails rather than degrades). At the real volume — ~4
+ * documents a quarter — four calls queue nobody, and they RETRACTED the pin on
+ * 2026-09-04 after measuring it on identical input:
  *
- * ⚠️ Extraction was validated by ocr-llm on HEAVY, not on mid. Their advice, and
- * this script's default posture: run a few statements pinned to mid and compare
- * the tie rate before committing the whole corpus. `--sample N` does that.
+ *     ollama_heavy (default)   17.0s   37.9 tok/s   subtotals tie 3/3
+ *     ollama_mid   (--pin-mid) 28.4s   20.2 tok/s   subtotals tie 3/3
+ *
+ * Heavy is 1.7× faster, the gap widens with prompt length (93.9s on a 9.7k-char
+ * prompt), and heavy is the path they validated before shipping. Quality was
+ * never the difference. So: TAKE THE DEFAULT. Put the pin back only for a
+ * genuine bulk run, and remember their throughput canary cannot see contention —
+ * it computes tok/s from Ollama's `eval_duration`, which excludes queue wait, so
+ * a saturated tier still reports healthy.
+ *
+ * `--sample N` remains the way to compare tiers on a few statements first.
  *
  * Requests are sequential on purpose — parallel calls queue inside Ollama
  * anyway, so concurrency buys nothing and only widens the window.
@@ -33,8 +41,9 @@
  * ingest's job (Scripts/ingest-statement-positions.js).
  *
  * Usage:
- *   node Scripts/extract-statements-llm.js --sample 3 --pin-mid
- *   node Scripts/extract-statements-llm.js --pin-mid            # all failing
+ *   node Scripts/extract-statements-llm.js --sample 3
+ *   node Scripts/extract-statements-llm.js                      # all failing
+ *   node Scripts/extract-statements-llm.js --pin-mid            # bulk run only
  */
 
 const path = require('node:path');
@@ -62,7 +71,15 @@ const INSTRUCTION = [
   'A figure the statement declines to state ("not applicable", "unavailable", "-") is null, never 0.',
 ].join(' ');
 
-async function extractOne(text, timeoutMs = 240000) {
+// The client abort must sit ABOVE any server-side deadline, not below it, or it
+// wins the race and a typed `504 deadline_exceeded` never arrives — the caller
+// is left inferring a hang from a bare `fetch failed`, which is the failure this
+// timeout was added for in the first place. 240s was a guess and it was too low
+// twice over: it is beneath the worst-case heavy→mid chain on the largest block
+// in the corpus (17,622 chars ⇒ heavy ~100s + mid ~170s), so it would abort a
+// slow-but-working statement, and it would pre-empt the 420s deadline offered to
+// ocr-llm on 2026-09-04. 480s clears both and stays under their 600s default.
+async function extractOne(text, timeoutMs = 480000) {
   const body = {
     task: 'finance_statement_extract',
     prompt: `${INSTRUCTION}\n\n${text}`,
