@@ -80,7 +80,11 @@ function extractText(pdfPath) {
 function num(tok, ctx) {
   if (tok == null) throw new Error(`missing number (${ctx})`);
   const t = String(tok).trim();
-  if (t === '-' || t === '--' || /^not applicable$/i.test(t)) return null;
+  // The statement has three ways of declining to state a figure, and all three
+  // mean the same thing: it did not say. `unavailable` appears in the beginning
+  // market value of a position opened mid-period; `not applicable` on cash.
+  // Returning 0 for any of them would turn "not stated" into a claim.
+  if (t === '-' || t === '--' || /^(not applicable|unavailable)$/i.test(t)) return null;
   const cleaned = t.replace(/[$,\s]/g, '');
   if (!/^-?\d+(\.\d+)?$/.test(cleaned)) throw new Error(`non-numeric "${tok}" (${ctx})`);
   return Number(cleaned);
@@ -169,6 +173,57 @@ function detectLayout(text) {
   return /Description\s+Beginning Market Value/.test(text) ? 'single' : 'combined';
 }
 
+// Bond sections carry a different row grammar, not a variant of the same one.
+const BOND_SECTIONS = new Set([
+  'Corporate Bonds', 'Bonds', 'Certificates of Deposit',
+  'Municipal Bonds', 'U.S. Treasury', 'Government Agency',
+]);
+
+/**
+ * Bond rows, which differ from every other section in two ways at once:
+ *
+ *  1. An extra ACCRUED INTEREST column sits between ending market value and
+ *     cost basis, so the numeric run is seven long rather than six. Read with
+ *     the ordinary mapping, accrued interest would be booked as cost basis and
+ *     the cost as the gain.
+ *  2. The identifier is not in parentheses. It is printed as `CUSIP: 06406RAN7`
+ *     in the descriptive block that FOLLOWS the figures, after the coupon,
+ *     ratings and call schedule.
+ *
+ * So the scan anchors on the numeric run and then takes the next CUSIP after
+ * it. If a row ever loses its CUSIP the section simply will not reconcile,
+ * which is the outcome we want over a guess.
+ */
+function parseBondRows(rawBody, sectionName, label, numTok) {
+  const rows = [];
+  const runRe = new RegExp(
+    String.raw`(${numTok})\s+(${numTok})\s+(${numTok})\s+(${numTok})\s+(${numTok})\s+(${numTok})\s+(${numTok})`,
+    'g',
+  );
+  let m;
+  while ((m = runRe.exec(rawBody)) !== null) {
+    const after = rawBody.slice(runRe.lastIndex);
+    const cusip = after.match(/CUSIP:\s*([0-9A-Z]{9})/);
+    if (!cusip) continue;
+    const mv = num(m[4], `${label}/${sectionName}/mv`);
+    if (mv === null) continue;
+    rows.push({
+      section: sectionName,
+      description: 'BOND',
+      symbol: cusip[1],
+      quantity: num(m[2], `${label}/${sectionName}/qty`),
+      price: num(m[3], `${label}/${sectionName}/price`),
+      market_value: mv,
+      // m[5] is ACCRUED INTEREST — deliberately not stored as anything. It is
+      // interest earned and not yet paid, not part of the position's value, and
+      // the section subtotal excludes it.
+      cost_basis: num(m[6], `${label}/${sectionName}/cost`),
+      unrealized: num(m[7], `${label}/${sectionName}/ugl`),
+    });
+  }
+  return rows;
+}
+
 function parseRows(rawBody, sectionName, label, layout) {
   const rows = [];
 
@@ -185,7 +240,9 @@ function parseRows(rawBody, sectionName, label, layout) {
   // The ticker or CUSIP is the one stable token on the line, so the scan anchors
   // there and reads the numeric run that follows. The description is then simply
   // whatever preceded it, which no longer has to be described by a grammar.
-  const numTok = String.raw`(?:-?\$?[\d,]+\.\d{1,4}|-|not applicable)`;
+  const numTok = String.raw`(?:-?\$?[\d,]+\.\d{1,4}|-|not applicable|unavailable)`;
+  if (BOND_SECTIONS.has(sectionName)) return parseBondRows(rawBody, sectionName, label, numTok);
+
   const rowRe = new RegExp(
     // The `E` flag marks an exchange-traded product; a core-account money-market
     // fund prints `-- 7-day yield: 0.06%` between its ticker and its numbers.
@@ -193,7 +250,13 @@ function parseRows(rawBody, sectionName, label, layout) {
     // explicitly rather than by a permissive gap — a wildcard here would let the
     // scan wander into the next row's figures.
     String.raw`(?:\(([A-Z]{1,6}(?:\.[A-Z])?)\)|\b([0-9][0-9A-Z]{8})\b)`
-    + String.raw`(?:\s*--\s*7-day yield:\s*[\d.]+\s*%)?\s*(?:E\s+)?`
+    // Between the identifier and the figures a row may carry a rate clause
+    // (`-- 7-day yield: 0.06%`, `-- Interest rate: 0.01%`) and a single-letter
+    // footnote marker (`E` for exchange-traded, `h` for held-away FDIC deposits).
+    // Both are enumerated rather than skipped with a wildcard: a permissive gap
+    // here would let the scan run past a row with no figures and pick up the
+    // NEXT row's numbers, which reads as a real position at the wrong price.
+    + String.raw`(?:\s*--\s*[A-Za-z0-9 -]{3,24}:\s*[\d.]+\s*%)?\s*(?:[A-Za-z]\s+)?`
     + (layout === 'single'
       ? String.raw`(${numTok})\s+(${numTok})\s+(${numTok})\s+(${numTok})\s+(${numTok})\s+(${numTok})`
       : String.raw`(${numTok})\s+(${numTok})\s+(${numTok})\s+(${numTok})\s+(${numTok})`),

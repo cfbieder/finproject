@@ -72,11 +72,35 @@ describe('parseRows — the two column layouts', () => {
     expect(wrong.market_value).toBe(50);    // the price
   });
 
-  test('a CUSIP row is recognised as well as a ticker', () => {
-    const bond = '949764XN9 100,000.000 $99.890 $99,890.00 $100,000.00 -$110.00';
-    const [r] = parseRows(bond, 'Corporate Bonds', 'test', 'combined');
+  test('a CUSIP-identified row in a NON-bond section still parses', () => {
+    const row = '949764XN9 100,000.000 $99.890 $99,890.00 $100,000.00 -$110.00';
+    const [r] = parseRows(row, 'Other', 'test', 'combined');
     expect(r.symbol).toBe('949764XN9');
     expect(r.market_value).toBe(99890);
+  });
+
+  test('🔴 a bond row has an ACCRUED INTEREST column, and its CUSIP comes AFTER', () => {
+    // Two differences at once from every other section. Read with the ordinary
+    // mapping, the accrued interest (171.87) would be booked as cost basis and
+    // the real cost as the gain — every figure after the market value wrong.
+    const bond = 'M B FS KKR CAP CORP NOTE 02/01/25 9,451.20 10,000.000 94.5750 9,457.50 '
+      + '171.87 9,554.60 -97.10 412.50 4.125 FIXED COUPON MOODYS Baa3 CUSIP: 302635AE7';
+    const [r] = parseRows(bond, 'Corporate Bonds', 'test', 'combined');
+    expect(r.symbol).toBe('302635AE7');
+    expect(r.quantity).toBe(10000);
+    expect(r.price).toBe(94.575);
+    expect(r.market_value).toBe(9457.50);
+    expect(r.cost_basis).toBe(9554.60);      // NOT the accrued interest
+    expect(r.unrealized).toBe(-97.10);
+  });
+
+  test('accrued interest is not stored anywhere — it is not part of the position', () => {
+    const bond = 'M B ACME NOTE 9,451.20 10,000.000 94.5750 9,457.50 171.87 9,554.60 -97.10 '
+      + 'CUSIP: 302635AE7';
+    const [r] = parseRows(bond, 'Corporate Bonds', 'test', 'combined');
+    // Interest earned and not yet paid is not value held, and the statement's
+    // own section subtotal excludes it — so carrying it would break the check.
+    expect(Object.values(r)).not.toContain(171.87);
   });
 
   test('the core-account CASH sweep is a position, and is layout-aware', () => {

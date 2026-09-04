@@ -556,7 +556,7 @@ a complete snapshot invents "not reported by the feed" dollars.**
 |---|---|---|
 | **P0** ✅ **BUILT 2026-09-03** (bank-feed `4acbe39`) | **bank-feed**: migration `008_feed_holdings.sql` (`feed_holding_snapshots` + `feed_holdings`), `fetchHoldings`, `convertHoldingsSnapshot`, `fetchHoldingsSnapshots` + `insertHoldingSnapshots`, `routes/holdings.js`, contract §Holding + endpoint row, `HANDOFFS.md`. 13 tests, suite **234/234**. Verified live: one forced sync fetched **6 accounts / 95 positions / 0 errors**. See §8.3 | yes — **CR089 P2 is now unblocked** |
 | **P1** | **fin**: migration 075, securities master + hand-seeded classification, `security_position_snapshots` + `security_positions`, the ingest, **backfill to 2026-07-04**, and the `security_prices` close backfill for the quotable sleeve | **yes — and this is the piece with the clock on it** |
-| **P2** 🔄 **PARSER STARTED 2026-09-03 — 61 of 117 account-statements reconcile; ingest NOT built** | **statement-derived position backfill to 2016** — parse the per-holding position tables from the 117 statements, cross-check against fintable where they overlap, and explain the month-boundary disagreements the roadmap records. See §8.5 | yes |
+| **P2** 🔄 **PARSER — 102 of 117 account-statements reconcile (2026-09-04); ingest NOT built** | **statement-derived position backfill to 2016** — parse the per-holding position tables from the 117 statements, cross-check against fintable where they overlap, and explain the month-boundary disagreements the roadmap records. See §8.5 | yes |
 | *(CR090)* | the Investments section and the quote overlay | separate CR |
 | *(CR089 P2)* | dating by evidence — reads P1's fin-local tables | separate CR, and gated on its own §P2.3 discriminant measurement |
 
@@ -604,8 +604,8 @@ prints its own subtotal (`Total Common Stock (35% of account holdings) $241,952.
 extracted must sum to the number the statement itself printed. A section that does not reconcile is
 an **error**, not a warning. Nothing here has to be believed.
 
-**Current state: 61 of 117 account-statements reconcile fully; 0 fail to parse.** The first run
-reconciled **2**. Every gain came from the check reporting a lie rather than from the parser looking
+**Current state: 102 of 117 account-statements reconcile fully (87%); 0 fail to parse.** The first
+run reconciled **2**. Every gain came from the check reporting a lie rather than from the parser looking
 right:
 
 | What the check caught | What it had produced |
@@ -615,18 +615,36 @@ right:
 | Two column layouts differing by one column | the single-account form has a **Beginning** Market Value before Quantity, so every figure read one column left — a $4,496.85 sweep reported as **`1`** |
 | The section subtotal moves with the layout | its first number is the *beginning* value, so a correct row sum was compared against the **wrong month** |
 | `(continued)` pages carry rows but no subtotal | filtering on the subtotal dropped them entirely |
+| A rate clause and a footnote marker sit between the identifier and the figures | an FDIC-deposit core account holding **$2,212,567.74** parsed as **0** |
+| `unavailable` is a third way the statement declines to state a figure | a position opened mid-period was skipped entirely — one row, $4,314 |
+| 🔴 **Bond rows have a different grammar, not a variant of the same one** | an extra **accrued interest** column between market value and cost, and the CUSIP printed **after** the figures rather than in parentheses. Read with the ordinary mapping, accrued interest books as cost basis and the cost as the gain |
 
 ⚠️ **Not one of those failures looked malformed.** Each produced a plausible number, and the only
 reason any was noticed is that the statement's own arithmetic contradicted it. A test pins the
 wrong-layout read precisely so it stays visible: `parseRows(single, …, 'combined')` returns
 quantity 4900 and market value 50, and nothing about that result looks wrong.
 
-**Still to do before P2 can ship:** the remaining **56** account-statements are further layout
-variants, spread across every year (2016: 7/8 · 2021: 3/12 · 2025: 4/16) rather than falling behind a
-clean cutoff, so there is no useful subset to ship early. And **the ingest is not written**: nothing
+**Coverage by year** (2026-09-04): 2016 8/8 · 2017 7/8 · 2018 8/8 · 2019 8/8 · 2020 9/10 ·
+2021 11/12 · 2022 10/12 · 2023 9/12 · 2024 13/15 · 2025 11/16 · 2026 8/8.
+
+**Still to do before P2 can ship:** **15** account-statements remain, and they are the long tail —
+`Other` (6), `Loaned/Collateralized Securities` (3) and single instances elsewhere, rather than one
+systematic cause. ⚠️ **A handoff is open with ocr-llm** ([Finance → ocr-llm], 2026-09-04) requesting a
+**local-only** catalog task with a JSON `response_shape` so those can be extracted by the gateway
+instead — local-only because the input is a holdings table, the most identifying data in the app, and
+`finance_plan_review` is already routed that way for the same reason. ⚠️ The gateway takes **no
+per-request schema**; schemas are declared per task in its catalog, which is why this needs the other
+repo rather than a call we can just make. Whatever extracts a row, the subtotal gate checks it
+identically. And **the ingest is not written**: nothing
 yet writes these into `security_position_snapshots` / `security_positions` with `source='statement'`,
-and the cross-check against fintable over the 2026-07..09 overlap — where the two sources describe
-the same days and must agree — has not been run.
+and the validation has had to change shape: 🔴 **the two position sources do not overlap at all.**
+The statements end **2026-06-30** and fintable's history begins **2026-07-04**, so the cross-check
+§8's P2 row describes has nothing to compare. **Owner decision 2026-09-04:** validate instead by
+comparing each statement's per-account total against **fin's own ledger on that date** — which is the
+comparison that produces the actual deliverable, since it names date by date where fin drifted from
+the custodian. The single 2026-06-30 overlap with `bankfeed_balances` (which starts 2026-05-31) comes
+along as a free spot check. **The output is a report; it books nothing** (owner, 2026-09-04) — the
+standing non-goal that this thread does not write to the ledger holds.
 
 ### 8.1 Deploy path
 
