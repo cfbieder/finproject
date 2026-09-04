@@ -1492,6 +1492,39 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
 
 ## 3. Known Issues
 
+- [x] **FIXED 2026-09-04. 🔴 The v4 stack could not reach the LLM gateway, and `aiReview.js` failed
+  soft into a 401** *(found 2026-09-04, reviewing ocr-llm's `LLM_PROTOCOLS.md`)*. The gateway has run
+  `CLIENT_AUTH_MODE=enforce` since **2026-08-31** — re-measured from this repo 2026-09-04,
+  `POST /task` returns **401 `client_unidentified`** both with no headers and with a wrong key,
+  which retires the "it identifies but does not authenticate" note the
+  [secrets inventory](secrets-inventory.md) had carried since 2026-08-27. Two consequences we own:
+  **(a) `docker-compose.v4.yml` maps `LLM_GATEWAY_URL` but not `OCR_LLM_CLIENT_KEY`** (both v3
+  compose files map it), so AI Review on :3205 401s — ocr-llm's own 2026-08-31 audit probed
+  `fin-server` and `fin-server-dev` and the v4 container was not among the eleven deployments they
+  checked, so their verification could not have caught it. **(b) `aiReview.js` sends the header pair
+  only when the key is non-empty** and otherwise sends nothing — correct while the gateway merely
+  observed identity, now a guaranteed 401 that surfaces as a failed review rather than as
+  "this deployment has no key". Cheap fix on both sides: map the var in the v4 compose, and fail
+  loud at call time when it is missing. ⚠️ **Prod and dev were unaffected** — both map the key and
+  ocr-llm probed both at 200. **Both fixed:** `docker-compose.v4.yml` now maps the var (verified
+  through `docker compose config`, which resolves it non-empty from `.env`), and `callGateway`
+  **throws before the fetch** when the key is missing, naming the var and the compose mapping —
+  a configuration error must cost nothing, not five minutes of gateway time and a review the owner
+  reads as a model failure. A test pins it, and its load-bearing assertion is that **`fetch` never
+  ran**: the guard sits ahead of the stub, so it cannot be mocked past. That test is also what
+  caught the change — the CR040 compare suite stubs the gateway and had no key, so it went red
+  immediately and now sets one explicitly.
+- [x] **FIXED 2026-09-04. Nothing in Fin logged the gateway's `routing.degradations`.**
+  `Scripts/extract-statements-llm.js` read them and refused on `schema_violation`; `aiReview.js`
+  read only `data.response`, so a review served after a fallback, or with the schema guarantee
+  dropped, was indistinguishable from a clean one. `callGateway` now logs one line per call —
+  serving provider:model, `fallback_depth`, `schema_level`, the winning step's
+  `provider_latency_ms` and the degradation list — and escalates `schema_violation` to
+  `console.error`. **Logged, never thrown:** a degraded review is still a review, and the caller is
+  a background worker with nobody to ask. `finance_plan_review` declares no schema
+  (`schema_level: null`), so what this actually surfaces is which model answered and how deep the
+  chain went. See [guides/ocr-llm-integration.md](../guides/ocr-llm-integration.md).
+
 - [x] **CLOSED 2026-09-01 (bank-feed `db953e2`, migration 007).** `external_id` is backfilled from the
   era-3 value and carries a partial unique index; the lookup prefers it, falls back to the historical
   order so a pre-007 store groups unchanged, and **stamps it onto a matched row** so the next scheme

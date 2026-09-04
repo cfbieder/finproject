@@ -629,12 +629,20 @@ quantity 4900 and market value 50, and nothing about that result looks wrong.
 **Coverage by year** (2026-09-04): 2016 8/8 · 2017 7/8 · 2018 8/8 · 2019 8/8 · 2020 9/10 ·
 2021 11/12 · 2022 10/12 · 2023 9/12 · 2024 13/15 · 2025 11/16 · 2026 8/8.
 
-**Still to do before P2 can ship:** **4** account-statements remain. ⚠️ **A handoff is open with ocr-llm** ([Finance → ocr-llm], 2026-09-04) requesting a
-**local-only** catalog task with a JSON `response_shape` so those can be extracted by the gateway
-instead — local-only because the input is a holdings table, the most identifying data in the app, and
-`finance_plan_review` is already routed that way for the same reason. ⚠️ The gateway takes **no
-per-request schema**; schemas are declared per task in its catalog, which is why this needs the other
-repo rather than a call we can just make. Whatever extracts a row, the subtotal gate checks it
+**Still to do before P2 can ship:** **4** account-statements remain. ✅ **The gateway task SHIPPED
+the same day** ([ocr-llm → Finance], 2026-09-04): `finance_statement_extract` is registered,
+schema-enforced and **local-only** — `ollama_heavy → ollama_mid`, **no cloud step**, so naming
+`claude` or `openai` returns `409 routing_unsatisfiable` rather than sending a holdings table off the
+Tailnet. Local-only because the input is the most identifying data in the app, and
+`finance_plan_review` is already routed that way for the same reason. It is registered at
+`max_tokens` **8192** — our proposed 4096 truncates the JSON mid-object, which a schema does not
+prevent. `Scripts/extract-statements-llm.js` calls it and holds its rows to the **same** printed-
+subtotal gate as the regex parser; running it is what took the deterministic parser from 102 to 113.
+⚠️ The gateway takes **no per-request schema**; schemas are declared per task in its catalog, which
+is why this needed the other repo rather than a call we can just make. ⚠️ **Do not pin
+`ollama_mid`** — ocr-llm asked for the pin for the 56-document bulk run this scope no longer has,
+then measured it away (heavy 17.0s/37.9 tok/s vs mid 28.4s/20.2 tok/s, 3/3 subtotal ties on both).
+Protocols: [guides/ocr-llm-integration.md](../guides/ocr-llm-integration.md). Whatever extracts a row, the subtotal gate checks it
 identically. And **the ingest is not written**: nothing
 yet writes these into `security_position_snapshots` / `security_positions` with `source='statement'`,
 and the validation has had to change shape: 🔴 **the two position sources do not overlap at all.**
