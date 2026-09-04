@@ -18,6 +18,7 @@ dbDescribe('aiReview compare (DB)', () => {
   const NAME_B = 'CR040TestCompareVariant';
   let idA, idB;
   let realFetch;
+  let realClientKey;
 
   async function cleanup() {
     // fc_ai_reviews + forecast_entries cascade from scenario deletion
@@ -30,6 +31,13 @@ dbDescribe('aiReview compare (DB)', () => {
       ok: true,
       json: async () => ({ response: 'stubbed compare narrative' }),
     }));
+
+    // The gateway has enforced client identity since 2026-08-31, so callGateway
+    // refuses to send an unkeyed request — including this stubbed one, which is
+    // the point: the guard runs before fetch, so it cannot be stubbed past. The
+    // value is never read by anything (fetch is a mock), only its presence.
+    realClientKey = process.env.OCR_LLM_CLIENT_KEY;
+    process.env.OCR_LLM_CLIENT_KEY = 'test-only-not-a-real-key';
 
     await cleanup();
     idA = (await db.query(
@@ -55,6 +63,8 @@ dbDescribe('aiReview compare (DB)', () => {
 
   afterAll(async () => {
     global.fetch = realFetch;
+    if (realClientKey === undefined) delete process.env.OCR_LLM_CLIENT_KEY;
+    else process.env.OCR_LLM_CLIENT_KEY = realClientKey;
     await cleanup();
     await db.close();
   });
@@ -108,6 +118,28 @@ dbDescribe('aiReview compare (DB)', () => {
       const gatewayBody = JSON.parse(global.fetch.mock.calls.at(-1)[1].body);
       expect(gatewayBody.system).toBe(aiReview.COMPARE_SYSTEM_PROMPT);
       expect(gatewayBody.prompt).toContain('# SCENARIO COMPARISON DATA');
+    });
+
+    // 2026-09-04: the gateway enforces client identity, and this pins the guard
+    // that stops fin discovering that five minutes into a review. The assertion
+    // that matters is `fetch` NEVER RAN — a config error must cost nothing.
+    it('fails the review before calling the gateway when no client key is configured', async () => {
+      const saved = process.env.OCR_LLM_CLIENT_KEY;
+      delete process.env.OCR_LLM_CLIENT_KEY;
+      try {
+        const { review } = await aiReview.createReview(NAME_A, NAME_B);
+        let status;
+        for (let i = 0; i < 40; i++) {
+          status = await aiReview.getReviewStatus(review.id);
+          if (status.status !== 'pending') break;
+          await new Promise((r) => setTimeout(r, 250));
+        }
+        expect(status.status).toBe('failed');
+        expect(status.error_message).toMatch(/OCR_LLM_CLIENT_KEY/);
+        expect(global.fetch).not.toHaveBeenCalled();
+      } finally {
+        process.env.OCR_LLM_CLIENT_KEY = saved;
+      }
     });
 
     it('rejects comparing a scenario to itself and unknown compare targets', async () => {

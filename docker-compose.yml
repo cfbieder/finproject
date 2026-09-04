@@ -49,7 +49,9 @@ services:
       LLM_GATEWAY_URL: ${LLM_GATEWAY_URL:-http://192.168.1.61:8080}
       # CR-020 (ocr-llm): client identity. Mapped explicitly — this service uses
       # an `environment:` block, so a value sitting in .env alone never reaches
-      # the container. Empty default = no headers sent, unchanged behaviour.
+      # the container. The empty default no longer means "unchanged behaviour":
+      # the gateway has enforced identity since 2026-08-31, so an empty value
+      # now makes aiReview.js refuse the call outright.
       OCR_LLM_CLIENT_KEY: ${OCR_LLM_CLIENT_KEY:-}
       BANK_FEED_URL: ${BANK_FEED_URL:-http://host.docker.internal:3007}
       BANK_FEED_API_KEY: ${BANK_FEED_API_KEY:-}

@@ -431,13 +431,25 @@ async function callGateway({ systemPrompt, messages, forecastContext }) {
 
   // CR-020 (ocr-llm): client identity. The gateway records `client_id` only when
   // BOTH headers are present and the key matches — an id sent alone is discarded
-  // — so this sends the pair or nothing. No key configured => no headers => the
-  // request is identical to today's, which is what makes it safe to deploy
-  // before the gateway enforces anything.
+  // — so this sends the pair or nothing.
+  //
+  // This used to fall back to sending NO headers when the key was unset, which
+  // was safe while the gateway merely OBSERVED identity. It has ENFORCED since
+  // 2026-08-31 (`CLIENT_AUTH_MODE=enforce`; measured 2026-09-04: 401
+  // `client_unidentified` with no headers AND with a wrong key), so that
+  // fallback became a guaranteed 401 that reached the owner as "review failed"
+  // rather than as "this container has no key". Fail on the configuration
+  // instead, before spending five minutes of gateway time to learn the same
+  // thing. See docs/guides/ocr-llm-integration.md.
   const clientKey = (process.env.OCR_LLM_CLIENT_KEY || "").trim();
-  const authHeaders = clientKey
-    ? { "X-Client-Id": "finance", "X-Client-Key": clientKey }
-    : {};
+  if (!clientKey) {
+    throw new Error(
+      "OCR_LLM_CLIENT_KEY is not set, so the ocr-llm gateway will reject this call with " +
+      "401 client_unidentified. Set it in .env AND map it in this stack's compose " +
+      "`environment:` block — a value in .env alone never reaches the container."
+    );
+  }
+  const authHeaders = { "X-Client-Id": "finance", "X-Client-Key": clientKey };
 
   const response = await fetch(`${gatewayUrl}/task`, {
     method: "POST",
@@ -457,6 +469,26 @@ async function callGateway({ systemPrompt, messages, forecastContext }) {
   }
 
   const data = await response.json();
+
+  // The gateway tells you what it gave up to answer, and until now nothing here
+  // read it: a review served after a fallback, or with the schema guarantee
+  // dropped, looked identical to a clean one. `finance_plan_review` declares no
+  // schema (so `schema_level` is null and shape degradations cannot arise) —
+  // what this surfaces is WHICH model actually answered and how deep the chain
+  // went. Logged, not thrown: a degraded review is still a review, and the
+  // caller is a background worker with nobody to ask.
+  const routing = data.routing || {};
+  const degradations = routing.degradations || [];
+  console.log(
+    `[ai-review] gateway served by ${data.provider || "?"}:${data.model || "?"} ` +
+    `depth=${routing.fallback_depth ?? "?"} schema=${routing.schema_level ?? "none"} ` +
+    `latency=${data.usage?.provider_latency_ms ?? "?"}ms ` +
+    `degradations=${degradations.length ? degradations.join(",") : "none"}`
+  );
+  if (degradations.includes("schema_violation")) {
+    console.error("[ai-review] gateway reported schema_violation — the body is best-effort, not conforming");
+  }
+
   const content = data.response || "";
 
   const actions = [];

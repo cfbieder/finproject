@@ -53,6 +53,11 @@ services:
       CATEGORY_NAMES_PATH: /app/components/data/category_names.json
       COA_PATH: /app/components/data/coa.json
       LLM_GATEWAY_URL: "${LLM_GATEWAY_URL:-http://192.168.1.61:8080}"
+      # CR-020 (ocr-llm): client identity — mapped explicitly, see prod compose.
+      # Absent here until 2026-09-04, which made AI Review on this stack 401
+      # once the gateway began enforcing identity. Not a v4 flag: the same value
+      # as the v3 stacks, and nothing about it is tenancy-aware.
+      OCR_LLM_CLIENT_KEY: "${OCR_LLM_CLIENT_KEY:-}"
       BANK_FEED_URL: "${BANK_FEED_URL:-http://host.docker.internal:3007}"
       BANK_FEED_API_KEY: "${BANK_FEED_API_KEY:-}"
       # === CR027 v4 flags — ON here, OFF (absent) everywhere else. ===
