@@ -556,7 +556,7 @@ a complete snapshot invents "not reported by the feed" dollars.**
 |---|---|---|
 | **P0** ✅ **BUILT 2026-09-03** (bank-feed `4acbe39`) | **bank-feed**: migration `008_feed_holdings.sql` (`feed_holding_snapshots` + `feed_holdings`), `fetchHoldings`, `convertHoldingsSnapshot`, `fetchHoldingsSnapshots` + `insertHoldingSnapshots`, `routes/holdings.js`, contract §Holding + endpoint row, `HANDOFFS.md`. 13 tests, suite **234/234**. Verified live: one forced sync fetched **6 accounts / 95 positions / 0 errors**. See §8.3 | yes — **CR089 P2 is now unblocked** |
 | **P1** | **fin**: migration 075, securities master + hand-seeded classification, `security_position_snapshots` + `security_positions`, the ingest, **backfill to 2026-07-04**, and the `security_prices` close backfill for the quotable sleeve | **yes — and this is the piece with the clock on it** |
-| **P2** 🔄 **PARSER — 102 of 117 account-statements reconcile (2026-09-04); ingest NOT built** | **statement-derived position backfill to 2016** — parse the per-holding position tables from the 117 statements, cross-check against fintable where they overlap, and explain the month-boundary disagreements the roadmap records. See §8.5 | yes |
+| **P2** 🔄 **113 of 117 account-statements reconcile · ingest + drift report BUILT (2026-09-04); 4 remain** | **statement-derived position backfill to 2016** — parse the per-holding position tables from the 117 statements, cross-check against fintable where they overlap, and explain the month-boundary disagreements the roadmap records. See §8.5 | yes |
 | *(CR090)* | the Investments section and the quote overlay | separate CR |
 | *(CR089 P2)* | dating by evidence — reads P1's fin-local tables | separate CR, and gated on its own §P2.3 discriminant measurement |
 
@@ -604,7 +604,7 @@ prints its own subtotal (`Total Common Stock (35% of account holdings) $241,952.
 extracted must sum to the number the statement itself printed. A section that does not reconcile is
 an **error**, not a warning. Nothing here has to be believed.
 
-**Current state: 102 of 117 account-statements reconcile fully (87%); 0 fail to parse.** The first
+**Current state: 113 of 117 account-statements reconcile fully (97%); 0 fail to parse.** The first
 run reconciled **2**. Every gain came from the check reporting a lie rather than from the parser looking
 right:
 
@@ -618,6 +618,8 @@ right:
 | A rate clause and a footnote marker sit between the identifier and the figures | an FDIC-deposit core account holding **$2,212,567.74** parsed as **0** |
 | `unavailable` is a third way the statement declines to state a figure | a position opened mid-period was skipped entirely — one row, $4,314 |
 | 🔴 **Bond rows have a different grammar, not a variant of the same one** | an extra **accrued interest** column between market value and cost, and the CUSIP printed **after** the figures rather than in parentheses. Read with the ordinary mapping, accrued interest books as cost basis and the cost as the gain |
+| 🔴 The SUBTOTAL reader did not know the absence tokens the ROW reader did | a section whose beginning value read `unavailable` captured nothing, so its printed total silently defaulted to **0** — and the section then "failed" against rows that were **correct** |
+| 🔴 A fourth absence token, `unknown`, on securities out on loan | the whole `Loaned/Collateralized Securities` section parsed as 0 — **and that produced a FALSE DRIFT FINDING**, see below |
 
 ⚠️ **Not one of those failures looked malformed.** Each produced a plausible number, and the only
 reason any was noticed is that the statement's own arithmetic contradicted it. A test pins the
@@ -627,9 +629,7 @@ quantity 4900 and market value 50, and nothing about that result looks wrong.
 **Coverage by year** (2026-09-04): 2016 8/8 · 2017 7/8 · 2018 8/8 · 2019 8/8 · 2020 9/10 ·
 2021 11/12 · 2022 10/12 · 2023 9/12 · 2024 13/15 · 2025 11/16 · 2026 8/8.
 
-**Still to do before P2 can ship:** **15** account-statements remain, and they are the long tail —
-`Other` (6), `Loaned/Collateralized Securities` (3) and single instances elsewhere, rather than one
-systematic cause. ⚠️ **A handoff is open with ocr-llm** ([Finance → ocr-llm], 2026-09-04) requesting a
+**Still to do before P2 can ship:** **4** account-statements remain. ⚠️ **A handoff is open with ocr-llm** ([Finance → ocr-llm], 2026-09-04) requesting a
 **local-only** catalog task with a JSON `response_shape` so those can be extracted by the gateway
 instead — local-only because the input is a holdings table, the most identifying data in the app, and
 `finance_plan_review` is already routed that way for the same reason. ⚠️ The gateway takes **no
@@ -645,6 +645,26 @@ comparison that produces the actual deliverable, since it names date by date whe
 the custodian. The single 2026-06-30 overlap with `bankfeed_balances` (which starts 2026-05-31) comes
 along as a free spot check. **The output is a report; it books nothing** (owner, 2026-09-04) — the
 standing non-goal that this thread does not write to the ledger holds.
+
+### 8.6 🔴 The report's first finding was FALSE, and the gate is what caught it
+
+The 2026-09-04 drift report named **+$74,895.00 (12.66%) on Fidelity Bond at 2024-12-31** as its
+headline result — a specific, dated, plausible number, reported as the concrete thing to investigate.
+
+**It was not drift.** The parser could not read the `Loaned/Collateralized Securities` section (its
+rows use a fourth absence token, `unknown`, for cost and gain on securities out on loan), so the
+statement total came up short by exactly that section. `591,456.17 + 74,895.00 = 666,351.17`, which
+is fin's ledger **to the cent**. fin and the custodian agreed all along.
+
+Once the subtotal reader was taught the same absence tokens the row reader knew, the section stopped
+returning 0, failed its own check, and the statement was **rejected rather than ingested short** —
+which is the gate doing precisely its job, one level up from where it was designed to work. It was
+built to stop bad rows entering the data; here it stopped a bad *conclusion* leaving it.
+
+⚠️ **The lesson is about the shape of the error, not the arithmetic.** A parser that silently drops a
+whole section does not produce an obviously broken number. It produces a number that looks exactly
+like the finding you went looking for — and this one matched the roadmap's prior suspicion that
+Fidelity Bond was the drifting account, which made it more believable, not less.
 
 ### 8.1 Deploy path
 

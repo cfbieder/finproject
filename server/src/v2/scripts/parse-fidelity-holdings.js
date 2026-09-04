@@ -84,7 +84,15 @@ function num(tok, ctx) {
   // mean the same thing: it did not say. `unavailable` appears in the beginning
   // market value of a position opened mid-period; `not applicable` on cash.
   // Returning 0 for any of them would turn "not stated" into a claim.
-  if (t === '-' || t === '--' || /^(not applicable|unavailable)$/i.test(t)) return null;
+  // FOUR ways this statement declines to state a figure, all meaning "we did not
+  // say": `-`, `not applicable` (cash), `unavailable` (a position opened
+  // mid-period, or a loaned security's beginning value) and `unknown` (cost and
+  // gain on securities out on loan). `n/a` is the collapsed form of `not
+  // applicable`, which the subtotal reader joins into one token so positional
+  // slicing keeps working. Returning 0 for any of them turns "not stated" into a
+  // claim — and on a loaned-securities row it would assert a zero cost basis,
+  // making the entire market value look like gain.
+  if (t === '-' || t === '--' || /^(not applicable|n\/a|unavailable|unknown)$/i.test(t)) return null;
   const cleaned = t.replace(/[$,\s]/g, '');
   if (!/^-?\d+(\.\d+)?$/.test(cleaned)) throw new Error(`non-numeric "${tok}" (${ctx})`);
   return Number(cleaned);
@@ -240,7 +248,7 @@ function parseRows(rawBody, sectionName, label, layout) {
   // The ticker or CUSIP is the one stable token on the line, so the scan anchors
   // there and reads the numeric run that follows. The description is then simply
   // whatever preceded it, which no longer has to be described by a grammar.
-  const numTok = String.raw`(?:-?\$?[\d,]+\.\d{1,4}|-|not applicable|unavailable)`;
+  const numTok = String.raw`(?:-?\$?[\d,]+\.\d{1,4}|-|not applicable|unavailable|unknown)`;
   if (BOND_SECTIONS.has(sectionName)) return parseBondRows(rawBody, sectionName, label, numTok);
 
   const rowRe = new RegExp(
@@ -330,7 +338,13 @@ function parseRows(rawBody, sectionName, label, layout) {
 function parseAccountHoldings(block, label, layout) {
   const sections = [];
   const pendingLeaves = [];
-  const totalRe = /Total ([A-Za-z .&'/-]+?)\s*\(\d+% of account holdings\)\s*((?:-?\$?[\d,]+\.\d{2}|-|\s)+)/g;
+  // ⚠️ The subtotal line uses the SAME absence tokens the rows do. A section
+  // whose beginning value is `unavailable` captured nothing here, so the printed
+  // total silently defaulted to 0 and the section "failed" against rows that
+  // were correct — the parser and the LLM independently produced 4,339.60 while
+  // the baseline said 0. Absence was taught to the row tokeniser and not to this
+  // one; the two must agree on what "the statement did not say" looks like.
+  const totalRe = /Total ([A-Za-z .&'/-]+?)\s*\(\d+% of account holdings\)\s*((?:-?\$?[\d,]+\.\d{2}|not applicable|unavailable|unknown|-|\s)+)/g;
   let m;
   let cursor = 0;
   while ((m = totalRe.exec(block)) !== null) {
@@ -340,7 +354,12 @@ function parseAccountHoldings(block, label, layout) {
     const body = block.slice(cursor, m.index);
     cursor = totalRe.lastIndex;
 
-    const printedToks = m[2].trim().split(/\s+/);
+    // ⚠️ An absence token must KEEP ITS PLACE, not be removed. It occupies the
+    // BEGINNING-value slot, and the single layout reads the ENDING value by
+    // position — so deleting it shifts every column left and the ending value is
+    // dropped instead. (Filtering them out cost 3 statements before this note.)
+    // `not applicable` is two words, so it is collapsed to one token first.
+    const printedToks = m[2].trim().replace(/not applicable/gi, 'n/a').split(/\s+/);
     // The single layout prints BEGINNING then ENDING; the combined prints only
     // the ending. Taking [0] in both would compare this month's rows against
     // last month's total.
@@ -396,6 +415,9 @@ function parseFile(pdfPath) {
     pagesByAccount.get(marks[i].acct).push(page);
   }
 
+  const holdingsText = new Map();
+  for (const [acct, pages] of pagesByAccount) holdingsText.set(acct, pages.join(' '));
+
   const byAccount = new Map();
   for (const [acct, pages] of pagesByAccount) {
     const sections = parseAccountHoldings(pages.join(' '), `${label}:${acct}`, layout);
@@ -418,6 +440,11 @@ function parseFile(pdfPath) {
       total_market_value: Number(rows.reduce((s, r) => s + (r.market_value || 0), 0).toFixed(2)),
       checks,
       reconciles: checks.every((c) => c.ok),
+      // Just this account's holdings pages. Exposed so a consumer can send the
+      // TABLE rather than the whole document: a statement runs to ~52k
+      // characters of which the holdings are a fraction, and the rest is
+      // activity, summaries and disclosures that cost context and buy nothing.
+      holdings_text: holdingsText.get(acct) || '',
     };
   });
 
