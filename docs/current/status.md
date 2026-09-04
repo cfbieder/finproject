@@ -113,9 +113,10 @@ already carried the row: the **id**, not the row, was the borrowed fact. Worth k
 at session start: the timezone rule (#3), the red `main` nobody announced (#12 — **mostly closed
 2026-08-12**: a SessionStart hook now puts `main`'s verdict in front of every session, deploy
 **Step 0b** refuses a red/unfinished/unverified gate, `./Scripts/check-ci.sh` asks on demand, and
-`./Scripts/test-fresh-db.sh` catches the ambient-data class before the push. **Owner action, the
-last piece:** turn on GitHub's *Actions → failed workflows* email — a webhook was offered and
-declined, and no agent can set or verify that toggle), **#23 (new):** agent threads on one shared
+`./Scripts/test-fresh-db.sh` catches the ambient-data class before the push. **Last piece CLOSED
+2026-09-04** — the *Actions → failed workflows* email is on **and proven by making one fire** on a
+throwaway PR, never touching `main`; the toggle was not the whole cause, the repo had **zero
+watchers**, and GitHub needs *watching* **and** *runs you triggered*), **#23 (new):** agent threads on one shared
 tree commit over each other — twice today, cosmetic so far, needs a worktree-or-accept call, the ESLint JSX blind
 spot (#10), dirty-tree deploys (#17). #2 and #15 are CLOSED.
 
