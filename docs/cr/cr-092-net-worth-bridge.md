@@ -314,6 +314,30 @@ the owner finds these by looking:
 4. **A control whose promise its content cannot keep** — CR085's defect class one step over: the
    *"Month by month"* section rendered on the mobile month-over-month window containing **exactly one
    row**. Hidden below two periods.
+5. **The eye could not get from a label to its own figure** (owner-reported, shipped inside
+   **v3.58.0**). The waterfall puts the label at the far left and the amount at the far right; on
+   contributor rows there is no bar at all to follow, so on the report page *"Financial Income - UB
+   Dividend"* and *"+$186,089"* sat **~1,500px apart with nothing between them**. A dotted leader now
+   runs the bar column on every row, on **both** surfaces at once because they share `bridgeParts`.
+   ⚠️ **Dotted, not solid, on purpose:** this table draws bars, and a solid hairline on the bar's own
+   centre line reads as a chart **axis** — something that asserts a value — rather than as a
+   connector that asserts nothing. It is painted *under* the bar so no bar appears to rest on a rail
+   it should be measured against.
+   ⚠️ **The leader alone did not work.** The label column was stretching to absorb the table's slack,
+   so the dots began ~400px right of the text they were meant to start from — the gap moved rather
+   than closed. Label and figure columns now shrink to their own content and the middle column owns
+   everything between them, which also took the bar column from **55% to the real remainder** and
+   widened every bar.
+   **Two more measured rather than assumed, both on a 390px phone:** adding `nowrap` to the
+   contributor label *looked* like it belonged in the same rule and took the modal's table from
+   **292px to 538px inside a 292px host** — a page that scrolls sideways — caught by measuring the
+   pre-change baseline and then dropped, since the column is already pinned by the driver label's own
+   `nowrap`; and the contributor's leading gap is `--space-2`, not the driver's `--space-3`, because
+   at `--space-3` that phone wrapped *"Financial Income - Dividend"* onto two lines, which is worse
+   than dots that touch.
+   **It also closed a defect visible in the owner's own screenshot:** the rule above the closing date
+   sat on `> th` alone, so it stopped a third of the way across and read as a stray underline beneath
+   the last driver. It spans the row now.
 
 ⚠️ **And one non-finding worth recording, because it looked like a defect for ten minutes.** The dev
 hero moved 14,363,660 → 14,420,866 mid-session. Not the clamp: dev's `exchange_rates` were stale and

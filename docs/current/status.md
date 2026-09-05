@@ -142,6 +142,15 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   **`Scripts/check-lint-debt.sh` failed SILENTLY** whenever the tree held any eslint error
   (`pipefail` killed it mid-pipe) — a gate that fires with no visible effect, which is this repo's
   most-cited defect class, in a gate. ⚠️ Desktop-only, like `/investment-returns`.
+  **Polished v3.58.0** — a **dotted leader** now runs the bar column on every row of the
+  waterfall, on both surfaces at once (they share `bridgeParts`): the label sits far left and
+  the figure far right, and a contributor row has no bar to follow, so on the report page the
+  two sat **~1,500px apart with nothing between them**. ⚠️ The leader alone did not work — the
+  label column was absorbing the table's slack, so the dots began ~400px right of the text
+  they should start from and the gap merely moved; the label and figure columns now shrink to
+  their own content, which also widened every bar. ⚠️ It shipped **inside v3.58.0 with no
+  mention in that release's note** — committed between the release's feature commit and its
+  tag by a second session, neither able to see the other.
 - 🔴 **[CR092](../cr/cr-092-net-worth-bridge.md) P1 — the LLM narration — is FILED and now waits on
   `ocr-llm`.** `finance_networth_narration`, requested 2026-09-05 via `HANDOFFS.md` (+ ledger twin):
   narration-only in the `recovery_narration` shape, **local-only route** because the prompt is the
