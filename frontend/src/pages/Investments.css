@@ -327,3 +327,29 @@
 .inv-uncovered li { display: flex; gap: 0.75rem; align-items: baseline; padding: 0.3rem 0; border-top: 1px solid var(--border); }
 .inv-uncovered__sym { font-weight: 600; min-width: 4rem; }
 .inv-uncovered__name { flex: 1; color: var(--ink-secondary); font-size: 0.82rem; }
+
+/* CR093 P1 — the uncovered rows are the one place the owner answers a question no
+   data provider will. The BUTTON styling comes from the shared system
+   (.btn .btn--ghost .btn--block); this class only does row layout, which is why
+   it carries no button styling of its own. */
+.inv-uncovered__row {
+  display: flex; gap: 0.75rem; align-items: baseline;
+  justify-content: flex-start; text-align: left; font: inherit;
+}
+.inv-uncovered__row:hover .inv-uncovered__cta,
+.inv-uncovered__row:focus-visible .inv-uncovered__cta { opacity: 1; }
+.inv-uncovered__cta {
+  opacity: 0; color: var(--accent); font-size: 0.78rem; font-weight: 600;
+  white-space: nowrap; transition: opacity 120ms ease;
+}
+
+.sector-picker__note { margin: 0 0 0.9rem; font-size: 0.82rem; line-height: 1.5; color: var(--ink-secondary); }
+.sector-picker__row { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
+.sector-picker__select { flex: 1; min-width: 0; }
+.sector-picker__pct { width: 5.5rem; text-align: right; font-variant-numeric: tabular-nums; }
+.sector-picker__unit { color: var(--ink-secondary); font-size: 0.85rem; }
+.sector-picker__remove { flex: none; }
+.sector-picker__footer { display: flex; gap: 0.6rem; align-items: center; justify-content: flex-end; width: 100%; }
+.sector-picker__total { margin-right: auto; font-size: 0.82rem; font-variant-numeric: tabular-nums; color: var(--growth-negative); }
+.sector-picker__total--ok { color: var(--growth-positive); }
+.sector-picker__error { margin: 0.75rem 0 0; font-size: 0.82rem; color: var(--growth-negative); }

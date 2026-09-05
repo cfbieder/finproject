@@ -46,6 +46,28 @@ router.get('/exposure', async (req, res, next) => {
 });
 
 /**
+ * PUT /api/v2/investments/securities/:id/sectors
+ *
+ * CR093 P1 — hand-classify a holding no data provider can. The FIRST write in
+ * this section (CR090 §0 made it read-only), so it is deliberately narrow: one
+ * security, a set of weights that must sum to 100%, and nothing else. It cannot
+ * create a security, change a position, or touch a price.
+ */
+router.put('/securities/:id/sectors', async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid security id' });
+    const data = await exposure.setSectorWeights(id, (req.body || {}).weights);
+    return res.json({ data });
+  } catch (err) {
+    // The validation errors carry a status because each is a MESSAGE for the
+    // owner — "these sum to 90%" is the whole point, not a generic 400.
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    return next(err);
+  }
+});
+
+/**
  * GET /api/v2/investments/accounts/:id/history
  */
 router.get('/accounts/:id/history', async (req, res, next) => {

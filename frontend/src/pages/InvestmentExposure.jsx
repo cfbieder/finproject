@@ -17,6 +17,7 @@ import Rest from "../js/rest.js";
 import EmptyState from "../components/EmptyState.jsx";
 import LoadingSpinner from "../components/LoadingSpinner.jsx";
 import { money } from "../features/Investments/investmentFormat.js";
+import SectorPicker from "../features/Investments/SectorPicker.jsx";
 import "./PageLayout.css";
 import "./Investments.css";
 
@@ -59,6 +60,11 @@ export default function InvestmentExposure() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null);
+  // Bumped after a save to re-run the fetch. A classification changes the sector
+  // table AND the coverage figures above it, so the whole page must re-read
+  // rather than the row patch itself locally and drift from the totals.
+  const [reloads, setReloads] = useState(0);
 
   useEffect(() => {
     let live = true;
@@ -67,7 +73,7 @@ export default function InvestmentExposure() {
       .catch((e) => live && setError(e.message || String(e)))
       .finally(() => live && setLoading(false));
     return () => { live = false; };
-  }, []);
+  }, [reloads]);
 
   if (loading) return <LoadingSpinner />;
   if (error) {
@@ -163,12 +169,22 @@ export default function InvestmentExposure() {
               report them as <em>financial services</em> — the sector their manager is
               registered in, not what they hold — so that answer is refused rather than shown.
             </p>
+            {/* Each row is a button: this is the one place the owner can answer a
+                question no provider will. Buttons, not links — it opens an editor
+                rather than navigating. */}
             <ul className="inv-uncovered">
               {cov.not_covered.map((x) => (
-                <li key={x.ticker || x.name}>
-                  <span className="inv-uncovered__sym">{x.ticker || "—"}</span>
-                  <span className="inv-uncovered__name">{x.name}</span>
-                  <span className="inv-num">{money(x.market_value, "USD")}</span>
+                <li key={x.security_id}>
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--block inv-uncovered__row"
+                    onClick={() => setEditing(x)}
+                  >
+                    <span className="inv-uncovered__sym">{x.ticker || "—"}</span>
+                    <span className="inv-uncovered__name">{x.name}</span>
+                    <span className="inv-num">{money(x.market_value, "USD")}</span>
+                    <span className="inv-uncovered__cta">Set sector</span>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -177,6 +193,14 @@ export default function InvestmentExposure() {
           <p className="inv-history__caveat">Every equity holding is sectored.</p>
         )}
       </section>
+
+      {editing && (
+        <SectorPicker
+          holding={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); setReloads((n) => n + 1); }}
+        />
+      )}
     </div>
   );
 }

@@ -137,3 +137,72 @@ dbDescribe('CR093 buildExposure (DB)', () => {
     expect(t.share_of_portfolio).toBeCloseTo(0.25, 4);
   });
 });
+
+dbDescribe('CR093 setSectorWeights (DB)', () => {
+  const { setSectorWeights } = require('../exposure');
+  let id;
+
+  beforeEach(async () => {
+    const { rows } = await db.query(`
+      INSERT INTO securities (ticker, name, asset_class, currency, price_basis)
+      VALUES ('ZZMANUAL','ZZMANUAL','equity','USD','per_share') RETURNING id`);
+    id = rows[0].id;
+  });
+  afterEach(async () => {
+    await db.query('DELETE FROM security_sector_weights WHERE security_id = $1', [id]);
+    await db.query('DELETE FROM securities WHERE id = $1', [id]);
+  });
+
+  test('a single sector at 100% is stored and marks the security answered', async () => {
+    await setSectorWeights(id, [{ sector: 'utilities', weight: 1 }]);
+    const { rows } = await db.query(
+      'SELECT sector, weight::float AS w, source FROM security_sector_weights WHERE security_id = $1', [id]);
+    expect(rows).toEqual([{ sector: 'utilities', w: 1, source: 'manual' }]);
+    const { rows: s } = await db.query('SELECT sector_weights_as_of FROM securities WHERE id = $1', [id]);
+    expect(s[0].sector_weights_as_of).not.toBeNull();
+  });
+
+  test('a diversified fund can carry several sectors', async () => {
+    await setSectorWeights(id, [
+      { sector: 'technology', weight: 0.5 },
+      { sector: 'healthcare', weight: 0.3 },
+      { sector: 'energy', weight: 0.2 },
+    ]);
+    const { rows } = await db.query('SELECT COUNT(*)::int AS n FROM security_sector_weights WHERE security_id = $1', [id]);
+    expect(rows[0].n).toBe(3);
+  });
+
+  test('🔴 a set that does not sum to 100% is REFUSED', async () => {
+    // The dangerous case: 90% is well-formed and stores the fund at 90% of its
+    // own value, under-reporting it forever.
+    await expect(setSectorWeights(id, [
+      { sector: 'technology', weight: 0.6 }, { sector: 'energy', weight: 0.3 },
+    ])).rejects.toThrow(/sum to 90.0%/);
+    const { rows } = await db.query('SELECT COUNT(*)::int AS n FROM security_sector_weights WHERE security_id = $1', [id]);
+    expect(rows[0].n).toBe(0);
+  });
+
+  test('🔴 a refused write leaves NOTHING behind — the delete rolls back too', async () => {
+    await setSectorWeights(id, [{ sector: 'utilities', weight: 1 }]);
+    await expect(setSectorWeights(id, [{ sector: 'energy', weight: 0.4 }])).rejects.toThrow();
+    const { rows } = await db.query('SELECT sector FROM security_sector_weights WHERE security_id = $1', [id]);
+    expect(rows.map((r) => r.sector)).toEqual(['utilities']);   // the old answer survives
+  });
+
+  test('replaces rather than merges, so a removed sector actually goes', async () => {
+    await setSectorWeights(id, [{ sector: 'technology', weight: 0.5 }, { sector: 'energy', weight: 0.5 }]);
+    await setSectorWeights(id, [{ sector: 'technology', weight: 1 }]);
+    const { rows } = await db.query('SELECT sector FROM security_sector_weights WHERE security_id = $1', [id]);
+    expect(rows.map((r) => r.sector)).toEqual(['technology']);
+  });
+
+  test('an unknown sector, a duplicate, or a zero weight is rejected', async () => {
+    await expect(setSectorWeights(id, [{ sector: 'crypto', weight: 1 }])).rejects.toThrow(/unknown sector/);
+    await expect(setSectorWeights(id, [
+      { sector: 'energy', weight: 0.5 }, { sector: 'energy', weight: 0.5 },
+    ])).rejects.toThrow(/given twice/);
+    await expect(setSectorWeights(id, [
+      { sector: 'energy', weight: 1 }, { sector: 'utilities', weight: 0 },
+    ])).rejects.toThrow(/must be >0/);
+  });
+});

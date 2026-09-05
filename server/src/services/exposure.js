@@ -80,7 +80,7 @@ async function buildExposure() {
     const noEquitySector = ['bond', 'cash', 'mmf'].includes(p.asset_class)
       || p.price_basis === 'par';
     const bucket = noEquitySector || p.asked ? 'not_applicable' : 'not_covered';
-    gaps[bucket].push({ ticker: p.ticker, name: p.name, asset_class: p.asset_class, market_value: p.mv.toFixed(2) });
+    gaps[bucket].push({ security_id: p.id, ticker: p.ticker, name: p.name, asset_class: p.asset_class, market_value: p.mv.toFixed(2) });
   }
   const sectored = [...bySector.values()].reduce((a, b) => a + b, 0);
 
@@ -115,4 +115,80 @@ async function buildExposure() {
   };
 }
 
-module.exports = { buildExposure };
+/** The eleven the whole feature speaks. Kept in one place so the API, the DB
+ *  CHECK (migration 077) and the page cannot drift apart. */
+const SECTORS = [
+  'technology', 'financial_services', 'healthcare', 'consumer_cyclical',
+  'consumer_defensive', 'industrials', 'energy', 'utilities',
+  'realestate', 'basic_materials', 'communication_services',
+];
+
+/**
+ * Set a security's sector weights BY HAND — the first write in a section CR090
+ * deliberately made read-only, so it is narrow on purpose: one security, a set
+ * of weights, nothing else.
+ *
+ * ⚠️ WEIGHTS, NOT A SECTOR. A single pick would be right for a company and wrong
+ * for a diversified fund — BDJ and EOS hold broad equity portfolios, and calling
+ * either "financial services" by hand is the same error the vendors made, just
+ * with a different wrong answer. The UI defaults to one sector at 100% because
+ * that IS correct for a single name or a sector fund; it permits more because
+ * some holdings need it.
+ *
+ * ⚠️ THE SUM-TO-1 RULE IS ENFORCED HERE TOO, not only in the loader. Migration
+ * 077 records that it cannot be a CHECK constraint (cross-row) and is owned by
+ * whoever writes; a hand-entered 60/30 would otherwise store a fund at 90% of
+ * its own value and under-report it forever, looking perfectly well-formed.
+ *
+ * Replaces rather than merges, for the same reason the loader does: a sector
+ * removed by hand must actually go, or the set stops summing to 1.
+ */
+async function setSectorWeights(securityId, weights) {
+  if (!Array.isArray(weights) || !weights.length) {
+    throw Object.assign(new Error('weights must be a non-empty array'), { status: 400 });
+  }
+  const seen = new Set();
+  for (const w of weights) {
+    if (!SECTORS.includes(w.sector)) {
+      throw Object.assign(new Error(`unknown sector "${w.sector}"`), { status: 400 });
+    }
+    if (seen.has(w.sector)) {
+      throw Object.assign(new Error(`sector "${w.sector}" given twice`), { status: 400 });
+    }
+    seen.add(w.sector);
+    const n = Number(w.weight);
+    if (!(n > 0) || n > 1) {
+      throw Object.assign(new Error(`weight for "${w.sector}" must be >0 and <=1`), { status: 400 });
+    }
+  }
+  const sum = weights.reduce((a, w) => a + Number(w.weight), 0);
+  if (Math.abs(sum - 1) > 0.005) {
+    throw Object.assign(
+      new Error(`weights sum to ${(sum * 100).toFixed(1)}%, not 100% — a partial set silently under-reports the holding`),
+      { status: 400 },
+    );
+  }
+
+  const { rows } = await db.query('SELECT id FROM securities WHERE id = $1', [securityId]);
+  if (!rows.length) throw Object.assign(new Error('no such security'), { status: 404 });
+
+  await db.query('BEGIN');
+  try {
+    await db.query('DELETE FROM security_sector_weights WHERE security_id = $1', [securityId]);
+    for (const w of weights) {
+      await db.query(`INSERT INTO security_sector_weights (security_id, sector, weight, source)
+                      VALUES ($1,$2,$3,'manual')`, [securityId, w.sector, Number(w.weight)]);
+    }
+    // Set on the same transaction: the date means "we have a definitive answer",
+    // and a hand-entered set is exactly that.
+    await db.query(`UPDATE securities SET sector_weights_as_of = CURRENT_DATE, updated_at = now()
+                     WHERE id = $1`, [securityId]);
+    await db.query('COMMIT');
+  } catch (err) {
+    await db.query('ROLLBACK');
+    throw err;
+  }
+  return { security_id: securityId, weights };
+}
+
+module.exports = { buildExposure, setSectorWeights, SECTORS };

@@ -854,6 +854,21 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.2 Completed (chronological, latest first)
 
+- **v3.55.1** (2026-09-05) — **patch: hand-classify what no data provider can.**
+  [CR093](../cr/cr-093-portfolio-xray.md) P1 — the three closed-end funds on the Exposure page are
+  clickable: pick sectors, save, coverage re-reads. **The first write in a section**
+  [CR090](../cr/cr-090-investments-section.md) §0 made read-only, so it is narrow by design — one
+  security, a set of weights, nothing else. ⚠️ **Weights, not a sector:** a single pick is right for a
+  company and wrong for a diversified fund, so hand-labelling BDJ "financial services" would repeat
+  the vendors' error with a different wrong answer. The **100% rule is enforced twice** — a 90% set is
+  well-formed, stores a fund at 90% of its own value and under-reports it forever, so the API refuses
+  it with the arithmetic in the message and the Save button will not submit it; the write is
+  transactional, so a refusal leaves the previous answer intact. 🔴 **Two ratchets caught real
+  defects rather than needing exceptions:** `check-button-css` surfaced that the modal used
+  `btn-primary`/`btn-secondary`/`btn-tertiary`, **none of which exist** (the system is `.btn--primary`,
+  and there is no tertiary), and `check-lint-debt` caught helpers exported beside the component —
+  moving them out also made the 100% rule testable without rendering a dialog.
+
 - **v3.55.0** (2026-09-05) — **minor: what the portfolio is EXPOSED to, not just what it holds.**
   [CR093](../cr/cr-093-portfolio-xray.md) P1 — the Investment Exposure page, migration **077**, and
   the reference data behind it. 🔴 **Four bond funds were classified as equity** — FLDR $533,543,
