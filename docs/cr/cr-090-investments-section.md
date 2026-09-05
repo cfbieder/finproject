@@ -257,7 +257,7 @@ which `Scripts/check-button-css.sh` ratchets.
 |---|---|---|
 | **P1** | the register · reconciliation + residual row · unrealized on covered basis · provenance + weighted freshness · account TTM income · fin-vs-custodian drift · link to `/investment-returns` | nothing beyond CR061 P1 |
 | **P2** | the quote overlay panel · concentration (top-N) · cash/MMF share | nothing |
-| **P3** | **the history view — TWO series, not one** · position value history · **quantity-change log** · position contribution to account change | ✅ **accrued** — [CR061](cr-061-holdings-and-prices.md) P2 landed **117 quarterly statement snapshots back to 2016-03-31** (2026-09-05), so the chart no longer waits on the daily feed. See §5.1 |
+| **P3** ✅ **BUILT 2026-09-05 (v3.52.0)** | **the history view — TWO series, not one** · position value history · **quantity-change log** · position contribution to account change | ✅ **accrued** — [CR061](cr-061-holdings-and-prices.md) P2 landed **117 quarterly statement snapshots back to 2016-03-31** (2026-09-05), so the chart no longer waits on the daily feed. See §5.1 |
 
 **Not carried here** — trailing-12m position return and yield on cost are roadmap items until twelve
 months of snapshots exist. A classification-override *screen* is gold-plating for three `unknown`
@@ -281,7 +281,15 @@ CR058 §12.8 already killed for `Change in Investment Value`.
 
 ## 5.1 P3 — the history view, and why it is **two series**
 
-⚠️ **State as of 2026-09-05: the history is stored and NOTHING RENDERS IT.** Two independent reasons,
+✅ **BUILT 2026-09-05 (v3.52.0).** The account page now carries `AccountHistoryChart` and
+`GET /accounts/:id/history` returns both sources. Measured live on Fidelity Bond: **103 points — 42
+statement (2016-03-31 → 2026-06-30) + 61 feed (2026-07-04 → 2026-09-02)**, feed `valued_on` all null.
+🔴 **A latent defect was fixed on the way:** the query was one `ORDER BY … DESC LIMIT` over both
+sources, which truncates the OLDEST rows first. The feed grows ~365 rows a year against ~4 for
+statements, so the irreplaceable decade would have been squeezed out silently and the chart would
+simply have got shorter over time. The limit now bounds the feed only.
+
+⚠️ **The state this replaced: the history was stored and NOTHING RENDERED IT.** Two independent reasons,
 both measured:
 
 1. `accountHistory()` hardcodes `source = 'bank-feed'`

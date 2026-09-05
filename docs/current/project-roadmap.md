@@ -791,6 +791,23 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.2 Completed (chronological, latest first)
 
+- **v3.52.0** (2026-09-05) — **minor: the decade reaches the page.**
+  [CR090](../cr/cr-090-investments-section.md) **P3** — the per-account history view, and the first
+  consumer of `GET /investments/accounts/:id/history`. Until now
+  [CR061](../cr/cr-061-holdings-and-prices.md) P2's **117 statement snapshots back to 2016-03-31**
+  were in prod and **nothing rendered any of them**: the query filtered `source = 'bank-feed'` and no
+  page called the endpoint at all. 🔴 **The design is that the two series do not become one line** —
+  statements are **quarterly, dated by `valued_on`** (which the custodian states), feed rows are
+  **daily, dated by `polled_on`** with `valued_on` NULL by design, and **they do not overlap**
+  (statements end 2026-06-30, the feed begins 2026-07-04), so no observation validates the join and a
+  continuous line would splice two datings across a seam neither can vouch for. Statement
+  observations render as **discrete markers**, never interpolated; the two sources occupy separate
+  fields so nothing can connect them even by accident. 🔴 **A latent defect fixed on the way:** the
+  query was one `ORDER BY … DESC LIMIT` over both sources, which truncates the OLDEST rows first — the
+  feed grows ~365 rows a year against ~4 for statements, so the irreplaceable decade would have been
+  squeezed out silently and the chart would simply have got shorter. The limit now bounds the feed
+  only. Live on Fidelity Bond: **103 points — 42 statement + 61 feed**.
+
 - **v3.51.0** (2026-09-05) — **minor: the portfolio gets a ten-year memory, and holdings get their
   names back.** [CR061](../cr/cr-061-holdings-and-prices.md) **P2 complete — 117 of 117
   account-statements reconcile back to 2016-03-31**: 113 by the deterministic parser, **4 through the
