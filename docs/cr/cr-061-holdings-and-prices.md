@@ -556,7 +556,7 @@ a complete snapshot invents "not reported by the feed" dollars.**
 |---|---|---|
 | **P0** ✅ **BUILT 2026-09-03** (bank-feed `4acbe39`) | **bank-feed**: migration `008_feed_holdings.sql` (`feed_holding_snapshots` + `feed_holdings`), `fetchHoldings`, `convertHoldingsSnapshot`, `fetchHoldingsSnapshots` + `insertHoldingSnapshots`, `routes/holdings.js`, contract §Holding + endpoint row, `HANDOFFS.md`. 13 tests, suite **234/234**. Verified live: one forced sync fetched **6 accounts / 95 positions / 0 errors**. See §8.3 | yes — **CR089 P2 is now unblocked** |
 | **P1** | **fin**: migration 075, securities master + hand-seeded classification, `security_position_snapshots` + `security_positions`, the ingest, **backfill to 2026-07-04**, and the `security_prices` close backfill for the quotable sleeve | **yes — and this is the piece with the clock on it** |
-| **P2** 🔄 **113 of 117 account-statements reconcile · ingest + drift report BUILT (2026-09-04); 4 remain** | **statement-derived position backfill to 2016** — parse the per-holding position tables from the 117 statements, cross-check against fintable where they overlap, and explain the month-boundary disagreements the roadmap records. See §8.5 | yes |
+| **P2** ✅ **COMPLETE 2026-09-05 — 117 of 117 account-statements reconcile · parser 113 + LLM 4 · ingest, drift report and rows-vs-header check BUILT** | **statement-derived position backfill to 2016** — parse the per-holding position tables from the 117 statements, cross-check against fintable where they overlap, and explain the month-boundary disagreements the roadmap records. See §8.5 | yes |
 | *(CR090)* | the Investments section and the quote overlay | separate CR |
 | *(CR089 P2)* | dating by evidence — reads P1's fin-local tables | separate CR, and gated on its own §P2.3 discriminant measurement |
 
@@ -604,7 +604,9 @@ prints its own subtotal (`Total Common Stock (35% of account holdings) $241,952.
 extracted must sum to the number the statement itself printed. A section that does not reconcile is
 an **error**, not a warning. Nothing here has to be believed.
 
-**Current state: 113 of 117 account-statements reconcile fully (97%); 0 fail to parse.** The first
+**Current state: 117 of 117 account-statements reconcile fully (100%); 0 fail to parse** — 113 by the
+deterministic parser and **4 through the `finance_statement_extract` gateway task**, each carrying the
+model that produced it in `security_position_snapshots.raw.extractor`. The first
 run reconciled **2**. Every gain came from the check reporting a lie rather than from the parser looking
 right:
 
@@ -620,6 +622,7 @@ right:
 | 🔴 **Bond rows have a different grammar, not a variant of the same one** | an extra **accrued interest** column between market value and cost, and the CUSIP printed **after** the figures rather than in parentheses. Read with the ordinary mapping, accrued interest books as cost basis and the cost as the gain |
 | 🔴 The SUBTOTAL reader did not know the absence tokens the ROW reader did | a section whose beginning value read `unavailable` captured nothing, so its printed total silently defaulted to **0** — and the section then "failed" against rows that were **correct** |
 | 🔴 A fourth absence token, `unknown`, on securities out on loan | the whole `Loaned/Collateralized Securities` section parsed as 0 — **and that produced a FALSE DRIFT FINDING**, see below |
+| 🔴 **The page header became the security NAME** — and the gate is blind to it by construction, because it compares SUMS and never reads a name | 13 of 265 securities stored named after their own statement header: Iron Mountain as `st (AI) Sep 30, 2020 Total Cost Basis Un…`, Eaton Vance as `March 31, 2016 Account # X27-230910 CHRI…` (owner name included). Every figure correct, every section tying. `securities` is written once at first sight, so each name was permanent. See §8.7 |
 
 ⚠️ **Not one of those failures looked malformed.** Each produced a plausible number, and the only
 reason any was noticed is that the statement's own arithmetic contradicted it. A test pins the
@@ -673,6 +676,53 @@ built to stop bad rows entering the data; here it stopped a bad *conclusion* lea
 whole section does not produce an obviously broken number. It produces a number that looks exactly
 like the finding you went looking for — and this one matched the roadmap's prior suspicion that
 Fidelity Bond was the drifting account, which made it more believable, not less.
+
+### 8.7 P2 closed — the four the parser could not read, and what their rows exposed
+
+**117 of 117 (2026-09-05).** The last four account-statements went through the ocr-llm gateway task
+`finance_statement_extract`, answering the **same gate**: the statement's own printed section
+subtotals. **24 of 24 sections tie.** Provenance is stored per snapshot in `raw.extractor`, so a row
+produced by a model is answerable later without re-deriving it — 113 `parser`, 4 `llm`
+(`qwen3.6:35b-a3b-q4_K_M`, `CONSTRAINED_DECODE`, heavy tier).
+
+⚠️ **The first run reported four sections missing $159,651, $86,442, $80,393 and $160,067 — and every
+row was correct to the cent.** The model had used the *generic* section names: `Stock Funds` came
+back as `Mutual Funds`, `Common Stock` as `Stocks`, and `Equity ETPs` + `Fixed Income ETPs` merged
+under their own aggregate heading. The gate looks sections up **by name**, so each read 0 against its
+printed subtotal and the delta was the whole subtotal. 8 of 24 "failed" without one wrong figure —
+the §8.6 shape again, a number that looks exactly like the omission you were watching for.
+
+Fixed by **dictating the vocabulary**: the statement's own headings are passed in the prompt. That
+supplies names, never values, so the arithmetic check stays independent. ⚠️ Matching the model's
+labels to ours **by value** was the tempting fix and is the wrong one — it selects whichever mapping
+makes the totals tie, and a gate fitted to its own answer proves nothing.
+
+An **aggregate** section is not one any extractor should emit rows for: FA_2025_12 prints
+`Corporate Bonds` 309,149.26 and then `Bonds` 309,149.26, a heading totalling the first rather than a
+second holding of the same money. The parser already removes these structurally; it kept this one
+only because its own read of Corporate Bonds came to 4,266.62. The same rule now applies to the LLM
+gate, decided from the printed totals alone.
+
+#### Three ingest defects, all silent, all found by adding one check
+
+The LLM rows were the occasion, not the cause — each defect had been live for every statement:
+
+| Defect | What it cost |
+|---|---|
+| 🔴 **Two lots of one security overwrote each other.** Fidelity prints one line per lot — FSMAX at 30.709/$2,563.59 *and* 231.41/$19,318.11, same $83.48 price, both inside the section subtotal. `security_positions` is `UNIQUE (snapshot_id, security_id)` and the insert's `ON CONFLICT DO UPDATE` kept the second | the first line's money vanished — **11 account-statements, 40 lines**. Lots are summed now |
+| 🔴 **A holding with no ticker was dropped.** FA_2025_12 carries a `EURO (EUR)` cash balance, 7,607.47 at 1.174, correctly symbol-less because none is printed | the snapshot stored **$8,934.59 short**. Unticketed holdings key on their description |
+| 🔴 **Provenance was lost on re-ingest** — the snapshot upsert never refreshed `raw` | two of the four LLM statements landed with rows replaced and no record of what produced them |
+
+⚠️ **Each hid the same way the security-name defect did: the check that existed read the column that
+was right.** `sum_market_value` is the statement's *own printed total*, so the header stayed correct
+while the rows beneath it lost money. The ingest now asserts, after every apply, that stored rows
+match `positions_count` **and** sum to `sum_market_value`. **It failed on its first run**, naming the
+EUR row. `positions_count` is now what was *written*; the statement's line count moves to
+`raw.statement_lines`.
+
+**What says the model neither dropped nor invented rows:** the two dates LLM extraction added drift
+**+119.43** and **−81.53** against fin's ledger — the same 0.01% magnitude as their parser-extracted
+neighbours. IRA 42/42 and Cash Mgt 24/24 still tie exactly.
 
 ### 8.1 Deploy path
 

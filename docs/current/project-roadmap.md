@@ -583,7 +583,11 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
   - *Three of the repo's own gates corrected the build, each a real improvement:* `check-button-css` rejected a hand-rolled switcher (it is now **links** on the shared `report-tabs` classes — more correct anyway, since each account has a URL); `check-lint-debt` rejected 5 new Fast-Refresh warnings (shared rendering split three ways so each module exports one kind of thing); and reading the page caught the poll date printed twice.
 
 <a id="cr061"></a>
-- **CR061 — [Investment holdings ingest and market prices](../cr/cr-061-holdings-and-prices.md)** — *✅ **P0 + P1 SHIPPED v3.50.0 (2026-09-03)**; P2 open · v3 · pass 1 `revise` (6 blocking) → pass 2 `revise, GO on the carved increment`.* `securities`, `security_lots`, `security_prices` and four more had been **0 rows since May 2026** — the absence that made [CR056](../cr/cr-056-investment-returns.md) derive returns from ledger postings and [CR020](../cr/cr-020-stock-investment-module.md) sit as a skeleton. **They now hold 305 snapshots over 61 days (2026-07-04..09-02), 5,628 positions, 93 classified securities and 1,978 daily closes.**
+- **CR061 — [Investment holdings ingest and market prices](../cr/cr-061-holdings-and-prices.md)** — *✅ **P0 + P1 SHIPPED v3.50.0 (2026-09-03)**; ✅ **P2 COMPLETE 2026-09-05 — 117/117 account-statements, dev; prod deploy pending** · v3 · pass 1 `revise` (6 blocking) → pass 2 `revise, GO on the carved increment`.* `securities`, `security_lots`, `security_prices` and four more had been **0 rows since May 2026** — the absence that made [CR056](../cr/cr-056-investment-returns.md) derive returns from ledger postings and [CR020](../cr/cr-020-stock-investment-module.md) sit as a skeleton. **They now hold 305 snapshots over 61 days (2026-07-04..09-02), 5,628 positions, 93 classified securities and 1,978 daily closes.**
+  - *✅ **P2 closed 2026-09-05** — the statement backfill reaches **2016-03-31**.* **117 of 117 account-statements reconcile** against their own printed section subtotals: **113 by the deterministic parser, 4 through the ocr-llm `finance_statement_extract` task**, provenance stored per snapshot in `raw.extractor`. Dev now holds **422 snapshots (305 feed + 117 statement), 8,458 positions, 273 securities**. Drift against fin's ledger: **IRA 42/42 and Cash Mgt 24/24 tie**, Stocks 4 dates at 0.00–0.05%, Bond 2 at +35.05 — so the roadmap's *"Fidelity Bond wrong at all four dates by up to +14,163"* item is answered, and the answer is that it is not.
+  - 🔴 *The LLM's first run reported four sections missing **$159,651 / $86,442 / $80,393 / $160,067** with **every row correct to the cent**.* It used the generic section names — `Stock Funds`→`Mutual Funds`, `Common Stock`→`Stocks`, the two ETP leaves merged under their aggregate — and a gate that looks sections up **by name** reads *absent* and *short* identically as 0. Fixed by **dictating the vocabulary** in the prompt (names, never values). ⚠️ Matching labels **by value** was the tempting fix and is wrong: it fits the mapping to the answer, and a gate fitted to its own answer proves nothing.
+  - 🔴 *Four silent defects, each hidden because **the check that existed read the column that was right**.* The reconciliation gate compares SUMS, so it never reads a **name**: 13 securities were stored named after their own page header (Iron Mountain as `st (AI) Sep 30, 2020 Total Cost Basis Un…`, Eaton Vance carrying the owner's name) with every figure correct. And `sum_market_value` is the statement's own printed total, so the header stayed right while the rows beneath it lost money — two **lots** of one security overwrote each other under `UNIQUE (snapshot_id, security_id)` (11 statements, 40 lines), an unticketed `EURO (EUR)` balance was dropped (**$8,934.59 short**), and provenance was lost on re-ingest. The ingest now asserts rows match `positions_count` **and** sum to `sum_market_value` after every apply; **it failed on its first run**, naming the EUR row.
+  - *Consequence for [CR090](../cr/cr-090-investments-section.md):* the name repair also heals `name == symbol`, which is what the bank-feed writes for **everything**, so the live view gained real names — **88 of 94 positions (94%)** — and the **Name column removed in P1** for rendering as dashes is restored.
   - *What shipped:* bank-feed `GET /v1/holdings` + its migration 008 · fin migrations **075** (three tables; `securities.asset_class` **loses `DEFAULT 'stock'`**) and **076** (`per_100_face`) · the classifier · the ingest on the nightly refresh · a `/prices` close backfill · and both backfill scripts, dry-run by default and stating their rollback.
   - 🔴 *The design's own proposed fix was wrong, and measuring it is what found that.* Pass 1 recommended **CUSIP check-digit validation** as what makes the bond rule falsifiable, because a real CUSIP passes and the cash-sweep identifier fails. **It does not fail** — Apple's `037833100` and Microsoft's `594918104` pass, a corrupted digit fails, and `FDIC91125` passes too: the check space is one digit, so ~1 in 10 arbitrary strings validates. What separates it is the **price** — a deposit sits at exactly 1.00 while bonds price at 0.9989 or 98.745 — and the par test runs **before** the CUSIP test. It resolves to **`unknown`, not `cash`**: we can see how it is priced without knowing what it is.
   - *Quotability is **earned**, never inferred:* shape decides only what is safe to probe, and `quote_symbol` stays NULL until a quote actually comes back. Live results — **BRKB → BRK.B** resolved (**$25,202** that a naive lookup drops *silently*, and a missing quote looks exactly like a flat market), while **FCNTX** resolved to nothing and correctly keeps NULL, because an open-end fund has no intraday market.
@@ -784,6 +788,31 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 - **CR015 — [Re-export to PocketSmith](../cr/cr-015-ps-reexport.md)** — *OBSOLETE (PS being removed).*
 
 ### 1.2 Completed (chronological, latest first)
+
+- **v3.51.0** (2026-09-05) — **minor: the portfolio gets a ten-year memory, and holdings get their
+  names back.** [CR061](../cr/cr-061-holdings-and-prices.md) **P2 complete — 117 of 117
+  account-statements reconcile back to 2016-03-31**: 113 by the deterministic parser, **4 through the
+  ocr-llm `finance_statement_extract` task**, both answering the same gate (the statement's own printed
+  section subtotals) with provenance stored per snapshot. No migration — 075/076 already carry the
+  schema. Also restores the **Name column** removed in [CR090](../cr/cr-090-investments-section.md) P1,
+  and fixes AI Review's gateway identity after the gateway began *enforcing* it on 2026-08-31.
+  🔴 **Five silent defects, and every one of them hid the same way — the check that existed read the
+  column that was right.** The reconciliation gate compares SUMS, so it never reads a **name**: 13
+  securities were stored named after their own statement page header (Iron Mountain as
+  `st (AI) Sep 30, 2020 Total Cost Basis Un…`, one carrying the owner's name) with every figure
+  correct and every section tying. And `sum_market_value` is the statement's own printed total, so the
+  header stayed right while the rows beneath it lost money: two **lots** of one security overwrote
+  each other under `UNIQUE (snapshot_id, security_id)` (11 statements, 40 lines), an unticketed
+  `EURO (EUR)` balance was dropped (**$8,934.59 short**), and provenance was lost on re-ingest. The
+  ingest now asserts rows match `positions_count` **and** sum to `sum_market_value` after every apply —
+  **it failed on its first run**, naming the EUR row. 🔴 **The LLM's first pass reported four sections
+  missing $159,651 / $86,442 / $80,393 / $160,067 with every row correct to the cent** — it had used
+  the generic section names, and a gate that looks sections up BY NAME reads *absent* and *short*
+  identically as 0. Fixed by dictating the vocabulary in the prompt; ⚠️ matching labels **by value**
+  was the tempting fix and is wrong, because it fits the mapping to the answer. Drift after all of it:
+  **IRA 42/42 and Cash Mgt 24/24 tie**, Stocks 4 dates at 0.00–0.05%, Bond 2 at +35.05 — so the
+  long-standing *"Fidelity Bond wrong at all four dates by up to +14,163"* item is answered, and the
+  answer is that it was the parser, never the ledger.
 
 - **v3.50.0** (2026-09-03) — **minor: fin can see what it OWNS.** [CR061](../cr/cr-061-holdings-and-prices.md)
   P0+P1 and [CR090](../cr/cr-090-investments-section.md) P1. Migrations **075** + **076**, plus

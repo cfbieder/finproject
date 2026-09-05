@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-09-05 · **Live version:** **v3.50.0** (see `VERSION` / git tags) — **v3.50.0: fin can see what it OWNS.** The securities tables had been **0 rows since May 2026**; they now hold **305 snapshots over 61 days, 5,628 positions, 93 classified securities and 1,978 daily closes**, and a new **Investments** section renders them ([CR061](../cr/cr-061-holdings-and-prices.md) P0+P1, [CR090](../cr/cr-090-investments-section.md) P1; migrations **075**/**076** + bank-feed **008**). 🔴 **Every account carries a residual row**: the total is always the CUSTODIAN balance, positions sum to a labelled subtotal, and the difference is explicit — cents on four accounts and **$31,563.30 on Options**, because fintable does not report option contracts. 🔴 **Three defects this release were found by LOOKING AT THE RENDERED PAGE, all in code whose arithmetic was provably correct** — two CUSIP conventions rendered as one (a bond priced at 98.745 shown as 9874.500), a cash sweep claiming "unrealized $0.00, 100% covered", and a date printed twice. 🔴 **The design's own proposed fix was wrong too**: check-digit validation does NOT reject `FDIC91125` — the price does. ⚠️ `valued_on` ships **nullable and mostly null**, so the page says "Polled", not "Valued"
+**Last updated:** 2026-09-05 · **Live version:** **v3.51.0** (see `VERSION` / git tags) — **v3.51.0: the portfolio gets a ten-year memory, and holdings get their names back.** [CR061](../cr/cr-061-holdings-and-prices.md) **P2 is complete: 117 of 117 Fidelity account-statements reconcile back to 2016-03-31** against their own printed section subtotals — **113 by the deterministic parser, 4 through the ocr-llm `finance_statement_extract` task**, provenance stored per snapshot. No new migration. The [Investments](../cr/cr-090-investments-section.md) **Name column**, removed in P1 because the feed sets `name == symbol` for everything and it rendered as dashes, is **back for 88 of 94 live positions (94%)** — the statement backfill supplies the names. 🔴 **Five silent defects shipped in this release's fixes, and every one hid the same way: the check that existed read the column that was right.** The gate compares SUMS and never reads a **name**, so 13 securities sat stored named after their own page header (Iron Mountain as `st (AI) Sep 30, 2020 Total Cost Basis Un…`) with every figure correct; and `sum_market_value` is the statement's own printed total, so the header stayed right while the rows beneath it lost money — two **lots** of one security overwrote each other, an unticketed `EURO (EUR)` balance was dropped (**$8,934.59**), and provenance vanished on re-ingest. The ingest now asserts rows match `positions_count` **and** sum to `sum_market_value`; **it failed on its first run.** ⚠️ **The month-boundary worry is answered and the answer is no**: IRA **42/42** and Cash Mgt **24/24** tie to fin's ledger, Stocks 4 dates at 0.00–0.05%, Bond 2 at +35.05 — the feared *+14,163 on Fidelity Bond* was the parser, not the ledger
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -141,10 +141,13 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   **id 708**, `ignored`. All three feeds are live again (**0 orphaned of 31 mappings**,
   `attention-summary` 3 → **0**), and **Fintable had not re-fetched Wise as of 07:12Z 2026-09-05**, so
   the 09-03 → now gap fills on its next daily cycle before fin's import is worth running.
-- 📋 **[CR061](../cr/cr-061-holdings-and-prices.md) P2 and [CR090](../cr/cr-090-investments-section.md) P2 are
-  what remain of the Investments work.** P2/CR061 is the **statement-derived position backfill to 2016** — the
-  parser already reads 117 statements, and it is what would explain the month-boundary disagreements where
-  Fidelity Bond is wrong at all four measured dates by up to **+14,163**. P2/CR090 is the **live-quote overlay**,
+- ✅ **[CR061](../cr/cr-061-holdings-and-prices.md) P2 is COMPLETE (2026-09-05) — 117 of 117 account-statements
+  reconcile, back to 2016-03-31.** 113 by the deterministic parser, **4 through the ocr-llm
+  `finance_statement_extract` task**, both answering the same gate and provenance stored per snapshot. Dev holds
+  **422 snapshots / 8,458 positions**; **prod has none of it yet.** The month-boundary question is answered and the
+  answer is that there is no material drift: **IRA 42/42 and Cash Mgt 24/24 tie**, Stocks 4 dates at 0.00–0.05%,
+  Bond 2 at +35.05 — the feared *"+14,163 on Fidelity Bond"* was the parser, not the ledger.
+- 📋 **[CR090](../cr/cr-090-investments-section.md) P2 is what remains of the Investments work** — the **live-quote overlay**,
   the "real-time" half of the original ask: only **47.5% of the portfolio by value is quotable**, so it ships as
   a labelled panel *beside* the custodian total, never as a revaluation of it — repricing the equity sleeve would
   destroy the tie that makes the Options gap legible.
