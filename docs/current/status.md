@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-09-05 · **Live version:** **v3.57.1** (see `VERSION` / git tags) — **v3.57.1: the yield, and it is a different question on each side of the portfolio.** [CR093](../cr/cr-093-portfolio-xray.md) §5b, migration **079**. Owner-asked after the chart shipped. **Only one of the three needed stored data** — the coupon is already off the statements, and the **current yield is arithmetic** (`coupon × par / price`), so it is never stale. ⚠️ **Coupon ≠ current yield**, which is why both were asked for: the IBM 4.75% of 2031 is a **4.750% coupon** and a **4.81% current yield** at 98.745 — and neither is yield to maturity, which the row says. 🔴 **A capital-gains distribution is not a yield**: Tradier returns five distribution types and DGRW carries four at once, so only cash dividends count and the rest is shown beside them. 🔴 **"Pays nothing" is not "we have no data" — the fourth time this project has needed that** (075, 077, 078, 079): 43 of 47 holdings pay, BRK/B and KD genuinely pay none, FCNTX is simply not covered. 🔴 Three defects came from **rendering** the page: `partial_year` fired for every quarterly payer, "Coupon" rendered twice, and a bond's quantity is **units of par, not dollars of face** — 1,000 units is $100,000, and beside a coupon that invites an income 100× too small.
+**Last updated:** 2026-09-05 · **Live version:** **v3.58.0** (see `VERSION` / git tags) — **v3.58.0: what the portfolio PAYS.** [CR093](../cr/cr-093-portfolio-xray.md) **P3** (§4a), new page `/investments/income`, no migration. 🔴 **The derived coupon schedule reproduces Fidelity's OWN printed EAI on all 27 bonds of the 2026-06 statement, to the cent.** ⚠️ **Annual income is not `face × coupon`** — it is the coupons that fall inside the window, and a bond maturing in it pays fewer (BLACKSTONE: **$196.87** against a coupon-implied $393.75). ⚠️ **Scheduled and estimated are never one number**: a coupon is contractual, a distribution is a projection nobody owes. Measured: **$60,317 scheduled · $51,980 estimated · $112,297 together = 2.90%** on the whole portfolio. 🔴 **Validating it found that `quantity` means different things in feed and statement rows** — 150 units of $100 vs 100,000 dollars of face, same security, both market values correct, so nothing ever complained. ⚠️ **$193,138 of cash and money-market DOES pay interest and is not counted** — the rate is printed on the statements and the parser discards it, so the total understates.
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -155,12 +155,12 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   in the views actually read); **#25** gave the three remaining rate lookups the same tie-break, with
   no convention change.
 - ✅ **[CR093](../cr/cr-093-portfolio-xray.md) P1 is COMPLETE — exposure v3.55.0, the sector picker
-  v3.55.1, the fixed-income X-ray v3.56.0, the security detail chart v3.57.0, its yield row v3.57.1.**
+  v3.55.1, the fixed-income X-ray v3.56.0, the security detail chart v3.57.0, its yield row v3.57.1 — and **P3 (income) v3.58.0**.**
   `/investments/exposure` answers *what am I exposed to* by asset class, by sector with funds seen
   through, and by credit / maturity / coupon across the **58%** that is fixed income; any symbol in
-  the register opens its chart. **Open: P2 (risk) and P3 (income)** — ⚠️ P3's `EAI` is a FORWARD
-  estimate that decays near maturity, not `coupon × face`, so they are different columns and only
-  the coupon has shipped. ⚠️ **BDJ and EOS ($40,367) still need a hand-classification** no provider
+  the register opens its chart. **Open: P2 (risk).** ⚠️ P3 shipped, and the `EAI` warning it was written around is now the
+  code's central test: a bond maturing inside the window pays fewer coupons, and the schedule
+  reproduces the custodian's own figure on all 27. ⚠️ **BDJ and EOS ($40,367) still need a hand-classification** no provider
   can give, and **`FMP_API_KEY` remains unverified**.
 - 🔄 **[CR091](../cr/cr-091-reconnect-that-works.md) — the reconnect button failed on its first live
   use (2026-09-04); P1 + U1b SHIPPED v3.53.1 (2026-09-05), P4 still owed by bank-feed.** Three Wise consents expired, which is the event [CR060](../cr/cr-060-feed-connection-health.md)

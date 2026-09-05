@@ -12,6 +12,7 @@ const router = express.Router();
 const investments = require('../../services/investments');
 const exposure = require('../../services/exposure');
 const securityChart = require('../../services/securityChart');
+const income = require('../../services/income');
 
 /**
  * GET /api/v2/investments/portfolio?asOf=YYYY-MM-DD
@@ -57,6 +58,24 @@ router.get('/exposure', async (req, res, next) => {
 router.get('/fixed-income', async (req, res, next) => {
   try {
     res.json({ data: await exposure.buildFixedIncome() });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/v2/investments/income
+ *
+ * CR093 P3 — what the portfolio pays over the next twelve months.
+ *
+ * ⚠️ SCHEDULED and ESTIMATED are reported separately and only then combined. A
+ * bond coupon is contractual and dated; a dividend is a projection from the last
+ * twelve months that nobody owes. One figure would say a fund's distribution is
+ * as reliable as a coupon.
+ */
+router.get('/income', async (req, res, next) => {
+  try {
+    res.json({ data: await income.buildIncome() });
   } catch (err) {
     next(err);
   }

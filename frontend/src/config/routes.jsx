@@ -56,6 +56,7 @@ const NetWorthDrivers = lazy(() => import("../pages/NetWorthDrivers"));
 const Investments = lazy(() => import("../pages/Investments"));
 const InvestmentAccount = lazy(() => import("../pages/InvestmentAccount"));
 const InvestmentExposure = lazy(() => import("../pages/InvestmentExposure"));
+const InvestmentIncome = lazy(() => import("../pages/InvestmentIncome"));
 const FCEquity = lazy(() => import("../pages/FCEquity"));
 const FCLineMapping = lazy(() => import("../pages/FCLineMapping"));
 const FCModuleManage = lazy(() => import("../pages/FCModuleManage"));
@@ -567,6 +568,17 @@ export const routes = [
     category: "Investments",
     description:
       "What the portfolio is exposed to, with funds seen through to their underlying sectors",
+    icon: PieChart,
+  },
+  {
+    // CR093 P3 — what the portfolio PAYS, as opposed to what it is worth or what
+    // it is exposed to. Sits after Exposure because it reads the same terms.
+    path: "/investments/income",
+    component: InvestmentIncome,
+    label: "Investment Income",
+    category: "Investments",
+    description:
+      "What the portfolio pays over the next twelve months — coupons scheduled, distributions estimated",
     icon: PieChart,
   },
   {

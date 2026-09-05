@@ -1,6 +1,6 @@
 # CR-093 — Portfolio X-ray: look-through, sector, credit and the security detail chart
 
-**Status:** IN-PROGRESS — P1 SHIPPED v3.57.1 (2026-09-05) · **Track:** v3 · **Owner-requested**
+**Status:** IN-PROGRESS — P1 + P3 SHIPPED v3.58.0 (2026-09-05); P2 open · **Track:** v3 · **Owner-requested**
 
 Shipped: the Exposure page and sector look-through (v3.55.0, migration 077), the manual
 sector picker (v3.55.1), the **fixed-income X-ray** (v3.56.0, migration 078) — §3's credit,
@@ -397,6 +397,80 @@ covering both.
    face is **$100,000** of face — and printed beside a "coupon on face", the bare quantity invites an
    annual income **100x too small**. The face value is now spelled out. Verified against the
    custodian's own printed EAI: 100,000 x 4.75% = **$4,750**, exactly what the statement shows.
+
+## 4a. Shipped — P3, income (v3.58.0)
+
+`/investments/income` and `GET /api/v2/investments/income`. **No migration** — it reads the bond
+terms (078) and distributions (079) already stored.
+
+### 🔴 The derived coupon schedule reproduces the custodian's own EAI, 27 of 27
+
+The strongest validation available: Fidelity prints an Estimated Annual Income per bond, and this
+code derives its own from coupon, frequency and maturity. **All 27 bonds on the 2026-06 statement
+match to the cent** — including the two the naive form gets wrong.
+
+⚠️ **Annual income is NOT `face x coupon`.** It is the coupons that actually fall inside the window,
+which is fewer as a bond runs off. BLACKSTONE 2.625% of 2026-12-15: statement EAI **$196.87**
+against a coupon-implied **$393.75**, because only one coupon remains. §4 predicted this; the
+schedule now reproduces it.
+
+⚠️ **Walked BACKWARDS from maturity**, which is how a bond's schedule is defined — the last coupon
+lands with the principal and every earlier one is a whole period before it. Walking forward would
+need an issue date we do not have.
+
+### 🔴 `quantity` does not mean the same thing in every row
+
+Found while validating. One security, `price_basis = 'per_100_face'` on both rows:
+
+| source | quantity | price | market value |
+|---|---|---|---|
+| bank-feed | **150** | 99.409 | 14,911.35 |
+| statement | **100,000** | 100.083 | 100,082.61 |
+
+The feed writes **units of $100**; the statement writes **dollars of face** — a factor of 100 apart,
+on the same instrument, under the same label. ⚠️ **Both market values are correct**, each source
+being internally consistent, which is exactly why nothing ever complained: `market_value` is the
+column the reconciliation gate reads. A coupon computed from `quantity` is wrong by 100x on half the
+corpus.
+
+**The fix does not pick a side.** `face = market_value x par / price` uses only the two fields that
+are consistent *within* a row, and returns 15,000 and 100,000 respectively — right from either
+source, with no assumption about which wrote it.
+
+### Decisions
+
+- ⚠️ **Scheduled and estimated are never one number.** A coupon is contractual and dated; a
+  distribution is a projection from the last twelve months that nobody owes. Merged, the page would
+  say a fund's distribution is as reliable as a Treasury coupon. Reported apart, then combined.
+- **Distributions are spread evenly across the months**, and the page says so — we know what was
+  *paid*, not when the next ones land, and projecting last year's dates forward would assert a
+  calendar nobody published.
+- **A callable bond is counted to maturity and flagged.** A call cannot be predicted and a called
+  bond simply stops paying: **$14,231.88** of the scheduled income is callable inside the window.
+- **Yield is quoted on the WHOLE portfolio** (2.90%), not on the income-producing part, which would
+  read far higher and describe a portfolio the owner does not have.
+
+### What it cannot say, in four groups
+
+**$730,604** states no income, and only one group is a gap in our data:
+
+| | | |
+|---|---|---|
+| $348,563 | bonds with no statement yet | closes itself next quarter |
+| **$193,138** | **cash, money-market, deposits** | 🔴 **these DO pay interest** — the statements print `7-day yield: 3.47%` and `Interest rate: 1.82%` and the parser discards both, so the total **understates** by this much |
+| $147,988 | FCNTX | an open-end fund the price provider does not cover |
+| $40,916 | BRK/B, KD, SPCX | measured — they pay nothing |
+
+**Open, and named rather than hidden:** parsing the money-market and deposit rates is the one
+remaining piece that would make the total complete.
+
+### Measured 2026-09-05
+
+| | |
+|---|---|
+| scheduled (32 bonds and CDs) | **$60,317.38** |
+| estimated (43 holdings) | **$51,980.11** |
+| together | **$112,297.49 — 2.90%** on the portfolio |
 
 ## 6. Non-goals
 

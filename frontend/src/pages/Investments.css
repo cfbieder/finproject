@@ -402,3 +402,30 @@
    "not yield to maturity", "less than a full year of history". Smaller and
    dimmer, but on its own line so it is not skimmed past. */
 .inv-detail__note { display: block; font-size: 0.72rem; color: var(--ink-tertiary); font-variant-numeric: normal; }
+
+
+/* ── CR093 P3: the income page ───────────────────────────────────────────── */
+
+/* Scheduled, estimated and the total side by side — the SPLIT is the headline,
+   so the two halves get equal weight and the combined figure sits beside them
+   rather than above them. */
+.inv-income__heads {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  margin: 0.5rem 0 1rem;
+}
+.inv-income__heads > div {
+  border-left: 3px solid var(--border);
+  padding-left: 0.75rem;
+}
+.inv-income__label {
+  display: block; font-size: 0.72rem; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--ink-secondary);
+}
+.inv-income__figure {
+  display: block; font-size: 1.5rem; font-weight: 600;
+  font-variant-numeric: tabular-nums; margin: 0.15rem 0 0.3rem;
+}
+.inv-income__note { display: block; font-size: 0.76rem; color: var(--ink-tertiary); }
+.inv-income__gap { margin-top: -0.4rem; }
