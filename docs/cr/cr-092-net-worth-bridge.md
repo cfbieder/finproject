@@ -273,6 +273,29 @@ and app-wide — a [CR086](cr-086-ui-visual-system.md)-family item, logged rathe
   in `<tfoot>` where it missed the frozen-column selector and scrolled its label away from its
   figures.
 
+### 6d. ⚠️ Where §6c's code actually lives in the history
+
+The totals work in §6c is committed as part of
+**`e5f5f42e feat(cr093): the Exposure page`**, not under a CR092 message. It was not a mistake
+inside that commit — it is what a shared working tree does.
+
+Two sessions were writing at once. This one staged its files and ran a bare commit; the other
+session's commit consumed the shared **index** first, taking these ten files with it, and this
+session's commit reported *"nothing added to commit"* and made nothing. By the time it was noticed
+the commit was pushed, tagged **v3.55.0** and deployed, so correcting it would have meant
+force-pushing over a tag and a running container — declined (owner, 2026-09-05).
+
+**The code is correct, released and live; only the attribution is wrong.** Recorded here because
+history for `bridgeParts.jsx`, `netWorthBridge.js` or `NetWorthDrivers.jsx` otherwise points at a
+message about an Exposure page with no explanation.
+
+⚠️ **The lesson is [git-concurrency.md](../../.claude/rules/git-concurrency.md) §0, and this session
+had already followed it once.** It built P0 and P2 in worktrees, then left the worktree to run
+`/close` — because the deploy script builds from the main tree — and kept working there afterwards.
+**Leaving the worktree for the release is the whole failure.** The rule's escape hatch ("you may
+work directly on main when you are demonstrably the only writer") was not re-checked before
+committing, and by then it was false.
+
 ## 7. What the RENDERED PAGE found that the tests did not
 
 Consistent with [CR085](cr-085-forecast-sensitivity.md)'s lesson — the display half has no gate, and

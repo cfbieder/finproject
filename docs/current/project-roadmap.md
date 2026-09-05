@@ -2099,7 +2099,29 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
     a genuinely solo session (tree clean, one worktree, no other session mentioned), to be
     **re-checked before committing**, not assumed.
 
-24. **`base_amount` carries a rate that is not its own date's rate — 271 rows, −$87,730** *(found
+24. **[x] WRITER FIXED 2026-09-05 — `base_amount` was recomputed from a NEIGHBOURING
+    TRANSACTION's implied rate, not from `exchange_rates`.** The mechanism, found by tracing the
+    stored rate rather than guessing at it: `PATCH /transactions/:id` recomputes `base_amount` when
+    the date changes, and it took the rate from `findImpliedRate` — same currency, within ±3 days,
+    largest amount wins — which never consulted the rate table at all. **Two defects in one.**
+    (a) **It propagates error**: the neighbour's own rate may be wrong and the copy inherits it —
+    measured live, EUR at 2026-03-31 returns an implied **1.185494** against a book **1.149795**,
+    off by **3.10%**, and a stored `CVC Fund VIII` row carries exactly 1.185494, so the spread had
+    already been copied once. (b) **It is not stable over time**: the neighbour set changes as data
+    arrives, so the same edit yields a different rate on a different day. It now uses
+    `fx.rateAsOf` — authoritative, daily, back to 1999 — and keeps the implied rate only as a
+    FALLBACK for a date the table cannot serve, with `rate_source` naming which was used, because
+    silently swapping between two rate sources is how this stayed invisible. ⚠️ **History is
+    deliberately NOT repriced** (owner, 2026-09-05): of the $87,730, **$85,780 is one
+    `Unrealized G/L` posting the default Cash Flow view excludes**, so only ~$1,950 is visible in
+    the views actually read, and rewriting 271 rows would restate published figures for that.
+    ⚠️ **One row remains unattributed**: the United Beverages write-down (`id 2700819`, written
+    2026-07-02 for a 2025-12-31 date, implied **0.266042** = the 2026-06-29 book rate). Consistent
+    with `findImpliedRate` picking a differently-populated neighbourhood on the day it ran, but
+    that cannot be proved after the fact and is not claimed. ⚠️ **The measurement covered
+    2025-11 → 2026-09 only** — the same writer has presumably been doing this for years, so the
+    historical total is unknown.
+    *Original entry:* **271 rows, −$87,730** *(found
     2026-09-05 building [CR092](#cr092), by comparing four FX conventions against the same
     window).* The United Beverages write-down of `2025-12-31` stores a `base_amount` implying
     **0.266042** PLN/USD when `exchange_rates` gives **0.278373** for that day — **$85,780 wrong on
@@ -2114,7 +2136,15 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
     (the manual-entry path is the suspect — 0.266042 is a mid-2026 level, not a Dec-2025 one), a
     decision on whether history is restated, and a guard at write time.
 
-25. **Three rate lookups still order by `ABS(distance)` with no tie-break** *(found 2026-09-05 while
+25. **[x] FIXED 2026-09-05 — the three remaining rate lookups now break their ties.**
+    `forecast/crud.js`, `repositories/budget.js` and `utils/refreshExchangeRates.js` all gained
+    `, rate_date ASC`, matching `reports.js`. Ties break toward the EARLIER rate, so a past date is
+    never valued with a future one, and the same query can no longer return either rate on
+    different calls. ⚠️ **Deliberately NOT `fx.rateAsOf`'s stricter on-or-before rule** (owner,
+    2026-09-05): that would move every weekend and holiday date in the **forecast and budget**, and
+    needs its own before/after measurement across all five scenarios — so `reports.js` and `fx.js`
+    still disagree on non-tie gap dates, on purpose.
+    *Original entry:* **ordered by `ABS(distance)` with no tie-break** *(found 2026-09-05 while
     fixing the same defect in `reports.js` for [CR092](#cr092)).* `forecast/crud.js:309`,
     `repositories/budget.js:396` and `utils/refreshExchangeRates.js:20` pick "the closest rate" with
     nothing deciding a tie — so on a date with no row of its own whose two neighbours are
@@ -2126,6 +2156,29 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
     ⚠️ **Note that `reports.js` and `fx.js` still disagree on non-tie gap dates, deliberately** —
     aligning them would restate every weekend/holiday month-end on a shipped chart
     ([CR092 §4](../cr/cr-092-net-worth-bridge.md)).
+
+26. **A test suite that is GREEN in CI and RED on real data — `exposure.test.js`** *(found
+    2026-09-05, running the full suite on the dev DB after v3.55.0 shipped).* `CR093
+    buildExposure (DB)` fails **7 of 7** locally while CI reports **green on the same commit**
+    (`d7960a7` ✓). The assertions expect fixture-scale figures and meet production ones —
+    `expected 600, received 456,344.58` — and the *"a bond is NOT COVERED-by-nature"* case comes
+    back with three real closed-end funds (`UTF`, `EOS`, `BDJ`). The suite reads whatever positions
+    the database happens to hold.
+    🔴 **This is [#12](#3-known-issues)'s class INVERTED, and that is what makes it worth its own
+    entry.** #12 is *a red `main` nobody announced*, and the answer to it was a SessionStart hook, a
+    `check-ci.sh`, and a deploy Step 0b that all ask **GitHub** for the verdict. None of them can
+    see this: CI passes precisely **because** `ci-seed.sql` has no positions, so the assertions
+    never meet data. Every gate built to catch a red suite reports green, and the failure is only
+    visible to a person who runs the suite locally — which is the one place this project has
+    repeatedly proven nobody looks until they lose an hour to it.
+    ⚠️ **It shipped inside v3.55.0.** Nothing in production is broken by it — `exposure.js` is
+    exercised by the Exposure page, not by the test — but the suite currently protects nothing
+    while appearing to.
+    **Fix is the pattern already used by `fbarMaxValue.test.js` and
+    `netWorthBridge.test.js`: build the fixture.** Seed throwaway securities and positions, assert
+    against those, clean up by name. Left to CR093's author rather than fixed from here (owner,
+    2026-09-05) — it is their in-flight work, and this session had already collided with that
+    session once the same day ([CR092 §6d](../cr/cr-092-net-worth-bridge.md)).
 
 ---
 

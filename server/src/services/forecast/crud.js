@@ -306,7 +306,16 @@ async function buildAddFromActualsTree(scenarioId, baseYear) {
         from_currency, rate
       FROM exchange_rates
       WHERE from_currency = ANY($1) AND to_currency = 'USD'
-      ORDER BY from_currency, ABS(rate_date - $2::date) ASC
+      -- rate_date ASC is the TIE-BREAK, not decoration: without it this ordering
+      -- is non-deterministic on any date with two equidistant rates, and the same
+      -- query can return either on different calls. Measured on the Home chart
+      -- (CR092): 2026-06-30 sits between 06-29 and 07-01 and the same date returned
+      -- 14,398,878 then 14,373,541 within one session, a $25,337 swing on unchanged
+      -- data. Ties break toward the EARLIER rate — never a future rate for a past
+      -- date. Deliberately NOT fx.rateAsOf's stricter on-or-before rule: that
+      -- would move every weekend and holiday date in the forecast and budget, which
+      -- needs its own before/after measurement (roadmap #25).
+      ORDER BY from_currency, ABS(rate_date - $2::date) ASC, rate_date ASC
     `, [Array.from(currencies), asOfDate]);
     for (const row of ratesResult.rows) {
       const rate = parseFloat(row.rate);
@@ -480,7 +489,7 @@ async function getBaseYearValues(scenarioId, baseYear = null, client = db) {
       FROM cat_tree ct
       JOIN accounts ch ON ch.parent_id = ct.id
     ),
-    -- Each leaf counted once per fc_line. The same CTE \`fcLines.getBudgetTotals\` uses, so the
+    -- Each leaf counted once per fc_line. The same CTE \fcLines.getBudgetTotals\ uses, so the
     -- base-year column and the stream cards' budget reference cannot disagree about which
     -- accounts a line covers.
     distinct_leaves AS (

@@ -12,6 +12,8 @@ const accountsRepo = require('../repositories').accounts;
 const transferMatchGroupsRepo = require('../repositories').transferMatchGroups;
 const categorySuggest = require('../services/categorySuggest');
 const incomeRestatement = require('../services/incomeRestatement');
+const db = require('../db');
+const { rateAsOf } = require('../services/fx');
 
 /**
  * Transform v1-style field names to v2 format
@@ -404,22 +406,56 @@ router.patch('/:id', async (req, res, next) => {
       delete data.category_name;
     }
 
-    // If the date is changing, recalculate base_amount using implied FX rate
+    // If the date is changing, recalculate base_amount at the BOOK rate for the
+    // transaction's own date.
+    //
+    // 🔴 This used to take the rate IMPLIED BY A NEIGHBOURING TRANSACTION
+    // (`findImpliedRate`: same currency, within ±3 days, largest amount wins)
+    // and never consulted `exchange_rates` at all. Two things wrong with that,
+    // both measured on live data 2026-09-05 (CR092 §24):
+    //
+    //   1. It PROPAGATES ERROR. The neighbour's own rate may be wrong, and the
+    //      copy inherits it. For EUR at 2026-03-31 it returns 1.185494 against
+    //      a book rate of 1.149795 — off by 3.10% — and a stored CVC Fund VIII
+    //      row carries exactly 1.185494, so the spread is observable.
+    //   2. It is NOT STABLE OVER TIME. The neighbour set changes as data
+    //      arrives, so re-running the same edit on a different day yields a
+    //      different rate for the same transaction date.
+    //
+    // `exchange_rates` is authoritative, daily, goes back to 1999, and was sitting
+    // right there. The implied rate survives only as a FALLBACK for a date the
+    // table genuinely cannot serve, and `rate_source` says which was used —
+    // silently swapping between two rate sources is how this stayed invisible.
     let rateInfo = null;
     if (data.transaction_date && data.base_amount === undefined) {
       const existing = await repo.findById(id);
       if (existing && existing.currency && existing.base_currency
           && existing.currency !== existing.base_currency) {
-        const implied = await repo.findImpliedRate(
-          existing.currency,
-          data.transaction_date,
-          id
-        );
-        if (implied && Number.isFinite(implied.rate) && implied.rate !== 0) {
-          const amount = parseFloat(existing.amount);
-          if (Number.isFinite(amount)) {
+        const amount = parseFloat(existing.amount);
+        const book = await rateAsOf(db, existing.currency.trim(), data.transaction_date);
+
+        if (Number.isFinite(amount) && Number.isFinite(Number(book)) && Number(book) > 0) {
+          // `rateAsOf` is USD per unit; base_amount is the USD side.
+          data.base_amount = parseFloat((amount * Number(book)).toFixed(2));
+          rateInfo = {
+            rate_source: 'exchange_rates',
+            implied_rate: 1 / Number(book), // units per USD, the shape callers had
+            source_date: data.transaction_date,
+            source_id: null,
+            old_base_amount: parseFloat(existing.base_amount),
+            new_base_amount: data.base_amount,
+          };
+        } else {
+          const implied = await repo.findImpliedRate(
+            existing.currency,
+            data.transaction_date,
+            id
+          );
+          if (implied && Number.isFinite(implied.rate) && implied.rate !== 0
+              && Number.isFinite(amount)) {
             data.base_amount = parseFloat((amount / implied.rate).toFixed(2));
             rateInfo = {
+              rate_source: 'nearby_transaction',
               implied_rate: implied.rate,
               source_date: implied.source_date,
               source_id: implied.source_id,
