@@ -71,6 +71,63 @@ right one — the shape [CR090](cr-090-investments-section.md) §6 already refus
 
 ## 2. The provider
 
+### Measured 2026-09-05 — Tradier (the owner already holds an account)
+
+Probed live against the owner's token. **A split verdict, and it fails the two requirements the owner
+ranked highest.**
+
+| requirement | priority | Tradier |
+|---|---|---|
+| Fund **asset class** | 1 | 🔴 `asset_classification: null` for **both** QQQ and FLDR |
+| Fund **sector weights** | 2 | 🔴 not offered by any endpoint |
+| **Single-name** sector | 3 | ✅ **12 of 12** via `historical_asset_classification.morningstar_sector_code` |
+| Daily price history | prerequisite | ✅ **3,112 bars, 2014-04-17 → 2026-09-04 — 12.4 years**, OHLCV |
+
+For an ETF, `/beta/markets/fundamentals/company` returns `company_profile`, `asset_classification`
+and `historical_asset_classification` **all null**; the only fund signal is
+`share_class.security_type`, and it is inconsistent — QQQ reports `"ETF"`, FLDR reports
+`"ST00000005"`.
+
+⚠️ The docs' claim that history covers *"the entire lifetime of the company"* **did not hold** — DIA
+launched in 1998 and Tradier starts at 2014. 12.4 years is far more than this CR needs, but the claim
+was checked rather than repeated.
+
+Sector arrives as a **Morningstar sector code**, not a name (`311` = Technology). Eleven values,
+stable — a local lookup table, not a dependency.
+
+⚠️ `BRKB` returned no sector because Tradier expects **`BRK.B`** — the same symbol-form split already
+recorded against fintable. Normalisation, not a coverage gap: **12/12 once applied.**
+
+**Conclusion: Tradier is adopted for price history and single-name sector, and is NOT the fund-data
+provider.** It supersedes fintable for `security_prices` — 12.4 years against fintable's measured
+floor of ~2020-08 — and settles requirement 3.
+
+### 🔴 Requirement 1 never needed a vendor, and treating it as procurement was the error
+
+FLDR, HYG, NVG and AGG are recognisably bond funds. Classifying **28 funds by asset class is 28
+judgements, once** — and it is the highest-value item in this CR at **$566,716, 14.6% of the
+portfolio**. No purchased feed improves on the owner knowing what FLDR is, and Tradier — an actual
+market-data vendor — could not answer it at all. This is [CR061](cr-061-holdings-and-prices.md) P1's
+lesson repeating: it hand-seeded 95 positions after a proposed classifier *could not reproduce its
+own test's answers*.
+
+### Still open: fund sector weights
+
+The only genuinely vendor-shaped requirement left, and it is small — **28 funds × ~11 weights,
+refreshed at most quarterly**.
+
+**Financial Modeling Prep** publishes a dedicated ETF sector-weighting endpoint plus ETF holdings and
+asset exposure. Verified 2026-09-05 that both `/api/v3/etf-sector-weightings/{sym}` and
+`/stable/etf/sector-weightings` **exist and require a key** (HTTP 401 key-invalid, not 404). Coverage
+against *our* 28 funds is unverified and needs a free key to test — a ten-minute experiment, not a
+procurement decision.
+
+**Fallback:** the issuers publish sector breakdowns themselves (SPDR, Invesco, iShares, Fidelity).
+Rejected at decision 3 as per-issuer scraping — but the premise there was that one API would cover
+everything, and that premise is now measured false.
+
+### Selection rules
+
 **Not yet chosen, deliberately.** Candidate assessment must be *measured*, not recalled: this
 agent's knowledge of current API coverage and pricing is a year stale, and the repo has a standing
 rule that an objection or endorsement used to steer a decision must be verified rather than
@@ -137,6 +194,13 @@ Click a ticker → a chart of that security, with:
 - **index overlay**: S&P 500 and Dow, rebased to the same start so shapes compare
 - **MACD 12/26/9** — the conventional parameterisation (fast EMA 12, slow EMA 26, signal 9); the
   owner's "9/26/12" is read as the same three numbers reversed
+- **the "other relevant details" the owner asked for**, pinned rather than left vague — the first
+  draft dropped it, which is the wrong way to handle an ambiguous ask. Three groups: **our position**
+  (quantity, cost basis, unrealized, share of account, and which accounts hold it — DIA is held in
+  two), **the instrument** (asset class, price basis, sector once known; for a bond its rating,
+  coupon and maturity, all statement-derived), and **the quote** (last close and its date, 52-week
+  range, and the freshness band [CR090](cr-090-investments-section.md) §2 already defines).
+  ⚠️ Nothing the level series cannot support — no annualized return, no volatility, no beta (§6).
 
 ### 🔴 It is blocked on a price backfill, and would be wrong without one
 
