@@ -79,7 +79,8 @@ export default function SectorPicker({ holding, onClose, onSaved }) {
       </p>
 
       {rows.map((r, i) => (
-        // eslint-disable-next-line react/no-array-index-key -- rows are positional and reorderable only by add/remove
+        // Keyed by index on purpose: a weight row has no identity of its own and
+        // is only ever added or removed at the end.
         <div className="sector-picker__row" key={i}>
           <select
             className="sector-picker__select"

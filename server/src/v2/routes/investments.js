@@ -11,6 +11,7 @@ const express = require('express');
 const router = express.Router();
 const investments = require('../../services/investments');
 const exposure = require('../../services/exposure');
+const securityChart = require('../../services/securityChart');
 
 /**
  * GET /api/v2/investments/portfolio?asOf=YYYY-MM-DD
@@ -58,6 +59,29 @@ router.get('/fixed-income', async (req, res, next) => {
     res.json({ data: await exposure.buildFixedIncome() });
   } catch (err) {
     next(err);
+  }
+});
+
+/**
+ * GET /api/v2/investments/securities/:id/chart?period=1Y
+ *
+ * CR093 §5 — one security's price history with the index overlay and MACD
+ * 12/26/9 the owner asked for, plus the position / instrument / quote details.
+ *
+ * ⚠️ An unquotable instrument is a 200 with `chartable: false` and a REASON, not
+ * a 404 and not an empty series. 45 of the 91 live holdings — 52% of the money —
+ * are bonds, CDs and deposits with no market quote by nature; an empty axis
+ * reads as "this did not move".
+ */
+router.get('/securities/:id/chart', async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid security id' });
+    const data = await securityChart.buildSecurityChart(id, { period: req.query.period });
+    return res.json({ data });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    return next(err);
   }
 });
 

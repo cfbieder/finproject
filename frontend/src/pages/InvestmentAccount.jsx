@@ -22,12 +22,15 @@ import {
   Reconciliation,
 } from "../features/Investments/investmentView.jsx";
 import { POSITION_COLUMNS } from "../features/Investments/positionColumns.jsx";
+import SecurityChartModal from "../features/Investments/SecurityChartModal.jsx";
 import AccountHistoryChart from "../features/Investments/AccountHistoryChart.jsx";
 import "../components/ReportTabs/ReportTabs.css";
 import "./PageLayout.css";
 import "./Investments.css";
 
 export default function InvestmentAccount() {
+  // CR093 §5 — which security's chart is open, if any.
+  const [picked, setPicked] = useState(null);
   const { accountId } = useParams();
   const [portfolio, setPortfolio] = useState(null);
   const [error, setError] = useState(null);
@@ -155,7 +158,7 @@ export default function InvestmentAccount() {
         )}
 
         <DataTable
-          columns={POSITION_COLUMNS(a.currency)}
+          columns={POSITION_COLUMNS(a.currency, setPicked)}
           rows={a.positions}
           rowKey={(r) => `${a.account_id}-${r.symbol}`}
           emptyMessage="No positions in this snapshot."
@@ -163,6 +166,14 @@ export default function InvestmentAccount() {
 
         <Reconciliation a={a} />
       </section>
+
+      {picked && (
+        <SecurityChartModal
+          securityId={picked.security_id}
+          symbol={picked.symbol}
+          onClose={() => setPicked(null)}
+        />
+      )}
 
       {String(history?.accountId) === String(a.account_id) && history.rows.length > 0 && (
         <section className="panel inv-account">

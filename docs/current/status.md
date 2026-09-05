@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-09-05 · **Live version:** **v3.56.0** (see `VERSION` / git tags) — **v3.56.0: the fixed-income X-ray.** [CR093](../cr/cr-093-portfolio-xray.md) P1 §3a, migration **078**. 58% of this portfolio is fixed income and the register could say nothing about any of it beyond a market value; rating, coupon and maturity are now read from the **custodian's own statements**, so no vendor is involved and none can contradict it. Measured live: **$2,243,163 = 58.0%** — $633,712 rated (89.7% investment grade), $694,010 FDIC-insured CDs, $566,878 bond funds, $348,563 with no statement yet; weighted average coupon **4.51%**. ⚠️ **Four reasons a bond has no rating, kept as four buckets** — a CD is *insured*, not unrated. 🔴 Building it found **161 CD rows whose accrued interest was stored as cost basis** ($9,991,277 of market value carrying $19,356 of cost) — invisible because the gate compares **market value**, the one column that could not move; the gate now reads the second column, and disabling the fix turns 1 failure into 18. 🔴 And **name healing was defeated by its own cache**: `healName` ran once per symbol per run, on the OLDEST statement, so `AGG` kept a 2017 page header against 61 later sightings. **0 furniture names remain.**
+**Last updated:** 2026-09-05 · **Live version:** **v3.57.0** (see `VERSION` / git tags) — **v3.57.0: click a ticker, see what it did.** [CR093](../cr/cr-093-portfolio-xray.md) §5a, and **P1 is complete**. A dialog on any symbol in the register: rebased price line with **SPY and DIA overlaid**, **MACD 12/26/9**, 1M–Max, and the position / instrument / quote details. No migration — it reads the Tradier backfill (**426,614 closes back to 2014**), which is what unblocked it. 🔴 **MACD's warm-up looks exactly like its signal**, so the indicator is seeded from **120 trading days before the window** and only the points inside are drawn (IBM/1Y: 121 lead-in bars, every returned point computed). ⚠️ **Three numbers here all look like "gain"** — IBM is **−4.97% over 1Y** while its position shows **+$8,761 unrealized**; each is labelled. ⚠️ **An unquoted instrument gets a sentence, never an empty axis, and that is the MAJORITY case**: 45 of 91 live holdings, **52% of the value**. 🔴 Two defects came from **rendering** the page, not reading it — a CD read *"Sector: not classified yet"*, and price bases rendered as raw enums.
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -154,14 +154,14 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   sits in an `Unrealized G/L` posting the default Cash Flow view excludes, so only ~$1,950 is visible
   in the views actually read); **#25** gave the three remaining rate lookups the same tie-break, with
   no convention change.
-- 🔄 **[CR093](../cr/cr-093-portfolio-xray.md) P1 is PARTLY SHIPPED — exposure v3.55.0, the sector
-  picker v3.55.1, the fixed-income X-ray v3.56.0.** `/investments/exposure` now answers *what am I
-  exposed to* by asset class, by sector with funds seen through, and by credit / maturity / coupon
-  across the **58%** of the portfolio that is fixed income. **Open:** the security detail chart (§5 —
-  period selector, index overlay rebased to 100, MACD 12/26/9; the Tradier backfill already
-  unblocked it, and only **46 of 273** securities can be charted at all), P2 risk, P3 income.
-  ⚠️ **BDJ and EOS ($40,367) still need a hand-classification** no provider can give, and
-  **`FMP_API_KEY` remains unverified**.
+- ✅ **[CR093](../cr/cr-093-portfolio-xray.md) P1 is COMPLETE — exposure v3.55.0, the sector picker
+  v3.55.1, the fixed-income X-ray v3.56.0, the security detail chart v3.57.0.**
+  `/investments/exposure` answers *what am I exposed to* by asset class, by sector with funds seen
+  through, and by credit / maturity / coupon across the **58%** that is fixed income; any symbol in
+  the register opens its chart. **Open: P2 (risk) and P3 (income)** — ⚠️ P3's `EAI` is a FORWARD
+  estimate that decays near maturity, not `coupon × face`, so they are different columns and only
+  the coupon has shipped. ⚠️ **BDJ and EOS ($40,367) still need a hand-classification** no provider
+  can give, and **`FMP_API_KEY` remains unverified**.
 - 🔄 **[CR091](../cr/cr-091-reconnect-that-works.md) — the reconnect button failed on its first live
   use (2026-09-04); P1 + U1b SHIPPED v3.53.1 (2026-09-05), P4 still owed by bank-feed.** Three Wise consents expired, which is the event [CR060](../cr/cr-060-feed-connection-health.md)
   built **Re-authorise** for; all three were reconnected **by hand against bank-feed's API**. The error

@@ -1,11 +1,11 @@
 # CR-093 — Portfolio X-ray: look-through, sector, credit and the security detail chart
 
-**Status:** IN-PROGRESS — P1 PARTLY SHIPPED v3.56.0 (2026-09-05) · **Track:** v3 · **Owner-requested**
+**Status:** IN-PROGRESS — P1 SHIPPED v3.57.0 (2026-09-05) · **Track:** v3 · **Owner-requested**
 
 Shipped: the Exposure page and sector look-through (v3.55.0, migration 077), the manual
-sector picker (v3.55.1), and **the fixed-income X-ray** (v3.56.0, migration 078) — §3's
-credit, maturity and coupon slices. Still open: the security detail chart (§5) and
-P2/P3 (§4).
+sector picker (v3.55.1), the **fixed-income X-ray** (v3.56.0, migration 078) — §3's credit,
+maturity and coupon slices — and **the security detail chart** (v3.57.0, §5a). **P1 is now
+complete.** Still open: P2 risk and P3 income (§4).
 
 ## Why
 
@@ -275,6 +275,68 @@ never render an empty axis, which reads as "no movement" rather than "no data".
 
 ⚠️ **Rebase the overlay, never plot two price axes.** DIA at ~$534 against a $25 holding on one axis
 makes the holding a flat line. Both series start at 100.
+
+## 5a. Shipped — the security detail chart (v3.57.0)
+
+`GET /api/v2/investments/securities/:id/chart?period=…`, opened by clicking a symbol in the
+positions register. No migration: it reads the Tradier backfill already in `security_prices`.
+
+**§5's blocker is gone.** The backfill landed in v3.54.0 — **426,614 closes over 146 securities,
+2014-01-02 -> 2026-09-04**, against the 2,023 rows and 44 days §5 was written under. 1M through Max
+all have data, and MACD is a real indicator rather than warm-up.
+
+### 🔴 The warm-up has to be computed and then thrown away
+
+MACD 12/26/9 emits nothing for 26 bars (the slow EMA) plus 9 more (the signal seeded on top of it),
+and the slow EMA is not worth trusting for roughly 3x its period. Computing it over the **display
+window** would mean a 1M chart drew almost nothing and a 3M chart drew mostly warm-up **while
+looking exactly like a chart that drew signal**. So the query fetches **120 trading days before the
+window**, the indicator runs over the whole thing, and only points inside the window are returned —
+measured on IBM/1Y, 121 lead-in bars and every returned point a computed value. The response carries
+`macd_complete`, and the page says which case it is instead of leaving the reader to assume.
+
+⚠️ **The signal line is seeded from the first DEFINED MACD value**, not from index 0. Seeding it
+across the leading nulls drags the line toward zero and shifts every crossover — a defect that looks
+like a slightly different indicator rather than a broken one. Pinned by a test on a steadily rising
+series, where signal must converge *to* MACD rather than approach it from below.
+
+### The three numbers that all look like "gain"
+
+| | what it is | what it is not |
+|---|---|---|
+| **price change** | what the quote did over the chosen period | not total return — **no dividends** |
+| **unrealized G/L** | this position against its own cost basis | over a holding period that is **not** the chosen one |
+| **the overlay's %** | what SPY or DIA did in the same window | not the index itself |
+
+Measured 2026-09-05: IBM over 1Y is **-4.97%** while its position shows **+$8,761 unrealized**. Both
+are true and they are not in conflict — and a page that showed them without saying which is which
+would be the same error [CR056](cr-056-investment-returns.md) §3.3 and
+[CR058](cr-058-quicken-valuation-anchors.md) §12.8 have each settled once already.
+
+### Decisions
+
+- **The overlay is SPY and DIA, and the label says so.** They track the S&P 500 and the Dow but
+  carry fees and their own dividend treatment; a line labelled "S&P 500" that is really SPY would be
+  a small permanent lie on every chart. They also cost nothing — both are holdings this portfolio
+  already prices, so the overlay needs no vendor call.
+- **A security is never overlaid on itself** — SPY charted against SPY drew two identical lines.
+- **Rebased to 100**, per §5. Both series' shapes compare; neither price level intrudes.
+- ⚠️ **An unquoted instrument gets a sentence and its bond terms, not an empty axis.** This is the
+  MAJORITY case, not an edge: **45 of 91 live holdings, $2,026,180 — 52% of the value** — are bonds,
+  CDs and deposits with no market quote by nature. Every row is clickable, and the dialog is where
+  the reason lives, so a bond row is not a dead end.
+
+### 🔴 Two defects the RENDERED PAGE caught that reading the code did not
+
+1. **`Sector: not classified yet` on a brokered CD** — which reads as outstanding work on something
+   that can never carry an equity sector. It is the same not-applicable / not-covered split §3
+   already makes, and it had simply not been carried into the detail panel. Now three answers, with
+   `price_basis = 'par'` as the structural tell for the FDIC deposits classed `unknown`.
+2. **`per_1_face` and `per_share` rendered raw** — internal enum values in a document the owner
+   reads.
+
+Both now live in `securityDetail.js` with tests, extracted from the component so the rules can be
+pinned without rendering a dialog.
 
 ## 6. Non-goals
 

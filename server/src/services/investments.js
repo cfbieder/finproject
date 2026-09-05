@@ -207,6 +207,10 @@ async function buildPortfolio({ asOf } = {}) {
       unrealized: summariseUnrealized(pos),
       freshness: summariseFreshness(pos),
       positions: pos.map((p) => ({
+        // CR093 §5 — the stable handle for the security-detail chart. The symbol
+        // cannot serve: a bond has none, and two custodians can spell one
+        // instrument differently.
+        security_id: p.security_id,
         symbol: p.symbol,
         // `—` rather than an echo of the symbol: for a CUSIP the upstream sets
         // name == symbol, and repeating it down 31 rows is noise, while a blank

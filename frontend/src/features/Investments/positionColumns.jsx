@@ -16,8 +16,30 @@ import { ProvenanceChip } from "./investmentView.jsx";
    The remaining 6 are CUSIPs the feed holds but no statement covers, bought
    after the last statement date (2026-06-30); they still render "—", which is
    the honest answer rather than a repeated symbol. */
-export const POSITION_COLUMNS = (currency) => [
-  { key: "symbol", header: "Symbol", sortable: true },
+export const POSITION_COLUMNS = (currency, onPickSecurity) => [
+  {
+    key: "symbol",
+    header: "Symbol",
+    sortable: true,
+    /* CR093 §5 — the symbol opens that security's chart. A BUTTON, not a link:
+       it opens a dialog rather than navigating, and there is no URL for it.
+
+       ⚠️ Every row is clickable, including the 52% of value that cannot be
+       charted. The dialog is where the reason lives ("this instrument is not
+       quoted on a market") along with the bond's rating, coupon and maturity —
+       so a bond row is not a dead end, and the affordance does not have to
+       predict what the server will say. */
+    render: (r) => (onPickSecurity && r.security_id ? (
+      <button
+        type="button"
+        className="btn btn--ghost btn--xs inv-symbol"
+        onClick={() => onPickSecurity(r)}
+        title={`Chart and details for ${r.symbol}`}
+      >
+        {r.symbol}
+      </button>
+    ) : r.symbol),
+  },
   {
     key: "name",
     header: "Name",

@@ -358,3 +358,43 @@
 .sector-picker__total { margin-right: auto; font-size: 0.82rem; font-variant-numeric: tabular-nums; color: var(--growth-negative); }
 .sector-picker__total--ok { color: var(--growth-positive); }
 .sector-picker__error { margin: 0.75rem 0 0; font-size: 0.82rem; color: var(--growth-negative); }
+
+
+/* ── CR093 §5: the security detail chart ─────────────────────────────────── */
+
+/* The symbol cell is a button that must not LOOK like one in a dense table: it
+   carries the affordance on hover and focus and otherwise reads as data. The
+   button styling itself comes from the shared `.btn btn--ghost btn--xs`; this
+   class only does typography, which is why it is not named `*-btn` — same
+   shape as `.inv-uncovered__row`, and `check-button-css.sh` greps class NAMES,
+   so a layout class carrying that suffix reads to the gate as new sprawl. */
+.inv-symbol {
+  font-weight: 600;
+  padding: 0 0.15rem;
+  min-height: 0;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+
+.inv-periods { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.75rem; }
+
+.inv-chart { margin: 0.5rem 0 1rem; }
+.inv-macd__title { font-size: 0.92rem; margin: 0.75rem 0 0.25rem; }
+
+/* Three groups side by side on a wide dialog, stacking on a narrow one. */
+.inv-details {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+.inv-details h3 { font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--ink-secondary); margin: 0 0 0.5rem; }
+.inv-details dl { margin: 0; }
+.inv-detail { display: flex; justify-content: space-between; gap: 0.75rem;
+  padding: 0.25rem 0; border-bottom: 1px solid var(--border); font-size: 0.82rem; }
+.inv-detail dt { color: var(--ink-secondary); white-space: nowrap; }
+.inv-detail dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
