@@ -209,15 +209,29 @@ function parseBondRows(rawBody, sectionName, label, numTok) {
     'g',
   );
   let m;
+  let lastEnd = 0;
   while ((m = runRe.exec(rawBody)) !== null) {
     const after = rawBody.slice(runRe.lastIndex);
     const cusip = after.match(/CUSIP:\s*([0-9A-Z]{9})/);
     if (!cusip) continue;
     const mv = num(m[4], `${label}/${sectionName}/mv`);
     if (mv === null) continue;
+    // 🔴 This was the constant string 'BOND' for every bond ever parsed, so 40
+    // securities — $1,064,132 of the live portfolio — rendered a Name column
+    // reading "BOND" over and over. The description is available in exactly the
+    // same place as in every other section: the text before the figures. It was
+    // never captured because bonds anchor on the numeric run rather than on an
+    // identifier, and nothing downstream reads a name, so nothing complained.
+    const desc = describe(rawBody.slice(lastEnd, m.index)).replace(/^(?:[A-Z] )+/, '');
+    // ⚠️ Advance past the CUSIP, not merely past the figures. A bond prints its
+    // issuer name BEFORE the numbers and its coupon, ratings, call schedule and
+    // CUSIP AFTER them, so stopping at the numeric run leaves that whole trailer
+    // in the window the NEXT row inherits — and every bond then took its
+    // predecessor's ratings as its name ("FIXED COUPON MOODYS A3 S&P BBB+ …").
+    lastEnd = runRe.lastIndex + cusip.index + cusip[0].length;
     rows.push({
       section: sectionName,
-      description: 'BOND',
+      description: desc.slice(0, 120) || 'BOND',
       symbol: cusip[1],
       quantity: num(m[2], `${label}/${sectionName}/qty`),
       price: num(m[3], `${label}/${sectionName}/price`),

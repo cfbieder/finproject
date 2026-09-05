@@ -221,3 +221,50 @@ describe('describe — the name column the reconciliation gate cannot see', () =
     )[0].description).toMatch(/^ACME CNTY TR CO MO CD/);
   });
 });
+
+describe('bond descriptions — the column that read "BOND" 40 times', () => {
+  // A bond prints its issuer BEFORE the figures and its coupon, ratings, call
+  // schedule and CUSIP AFTER them. `parseBondRows` anchors on the numeric run,
+  // so the name was simply never captured — it was the constant 'BOND' for every
+  // bond ever parsed. 40 securities, $1,064,132 of the live portfolio, rendering
+  // one repeated word. Nothing downstream reads a name, so nothing complained.
+  const two = 'M B ACME INTL CAP PTE LTD NOTE 02/05/31 98,600.70 100,000.000 98.6007 98,600.70 '
+    + '171.87 99,554.60 -953.90 412.50 4.125 FIXED COUPON MOODYS A3 S&P BBB+ SEMIANNUALLY '
+    + 'MAKE WHOLE CUSIP: 449276AD6 '
+    + 'ACME HONDA FIN CORP MTN 01/08/31 72,804.00 75,000.000 97.0720 72,804.00 '
+    + '96.10 74,010.00 -1,206.00 300.00 4.000 FIXED COUPON MOODYS A1 SEMIANNUALLY CUSIP: 02665WGS4';
+
+  test('each bond takes the issuer printed before ITS OWN figures', () => {
+    const rows = parseRows(two, 'Corporate Bonds', 'test', 'combined');
+    expect(rows).toHaveLength(2);
+    expect(rows[0].symbol).toBe('449276AD6');
+    expect(rows[0].description).toBe('ACME INTL CAP PTE LTD NOTE 02/05/31');
+    expect(rows[1].symbol).toBe('02665WGS4');
+    expect(rows[1].description).toBe('ACME HONDA FIN CORP MTN 01/08/31');
+  });
+
+  test('🔴 the trailer does not become the NEXT bond’s name', () => {
+    // Stopping at the numeric run leaves "412.50 4.125 FIXED COUPON MOODYS A3
+    // S&P BBB+ SEMIANNUALLY MAKE WHOLE CUSIP: …" in the window the next row
+    // inherits, and every bond then took its predecessor's ratings as its name.
+    const [, second] = parseRows(two, 'Corporate Bonds', 'test', 'combined');
+    expect(second.description).not.toMatch(/FIXED COUPON|MOODYS|S&P|SEMIANNUALLY|MAKE WHOLE/);
+    expect(second.description).not.toMatch(/449276AD6/);
+  });
+
+  test('the figures are untouched by the description change', () => {
+    const [first] = parseRows(two, 'Corporate Bonds', 'test', 'combined');
+    expect(first.quantity).toBe(100000);
+    expect(first.price).toBe(98.6007);
+    expect(first.market_value).toBe(98600.70);
+    expect(first.cost_basis).toBe(99554.60);   // NOT the 171.87 accrued interest
+    expect(first.unrealized).toBe(-953.90);
+  });
+
+  test('a bond with no readable issuer still parses, falling back to BOND', () => {
+    const bare = '9,451.20 10,000.000 94.5750 9,457.50 171.87 9,554.60 -97.10 CUSIP: 302635AE7';
+    const [r] = parseRows(bare, 'Corporate Bonds', 'test', 'combined');
+    expect(r.symbol).toBe('302635AE7');
+    expect(r.description).toBe('BOND');
+  });
+});

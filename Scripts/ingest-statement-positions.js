@@ -183,6 +183,11 @@ function nameLooksWrong(name, symbol) {
   // brokered CDs were stored as " B FINWISE BANK (UTAH) CD …" — the old tail-
   // slice cutting mid-token — and read as perfectly well-formed once trimmed.
   if (raw !== n) return true;
+  // `BOND` is a PLACEHOLDER, not a name — parseBondRows wrote it as a constant
+  // for every bond, so 40 securities carried it. It passes every other test here
+  // (trimmed, alphabetic, unlike its symbol), which is why it had to be named.
+  // `CASH` is left alone: for the core-account sweep that IS the name.
+  if (n === 'BOND') return true;
   return !n || n === symbol || FURNITURE_IN_NAME.test(n) || !/^[A-Za-z]/.test(n);
 }
 
