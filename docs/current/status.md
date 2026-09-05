@@ -140,7 +140,7 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   tie-break**, and `2026-06-30` sits equidistant between two rates — **the same date returned
   14,398,878 then 14,373,541 in one session on unchanged data** ($25,337), which a residual driver
   absorbs silently. Owner took the **tie-break alone** (11 of 12 boundaries byte-identical) over
-  matching `fx.rateAsOf`. ⚠️ **Four defects were found by RENDERING the page and none by a test** —
+  matching `fx.rateAsOf`. Each driver **names its item** — the re-valuation line reads **United Beverages −$1,873,619** beneath it — by account for balance drivers and by **category** for spending, because the top spending *account* is only whichever card paid. 🔴 **That judged weight against the NET at first and had to be corrected**: transfers (−23,621 net on ~1.75M gross) printed four ±$500K items, true individually and a lie about the line. ⚠️ **Five defects in total were found by RENDERING the page and none by a test** —
   including a hero series that **ended on a future date**. The modal test asserts **every driver
   reaches the DOM** (CR085's missing display gate) and was **falsified before being trusted**. Two
   items deliberately left open ([roadmap §3](project-roadmap.md#3-known-issues) **#24/#25**): a

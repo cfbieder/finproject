@@ -139,6 +139,46 @@ changed?"* button **inside the delta row**, beside the figure it explains.
   their own total (−1.74M against +412K inside a −1.9M net), and scaling to the net pushes every bar
   off its row.
 
+### 6a. Named items under each driver (owner request, 2026-09-05)
+
+*"If there is one or more larger items (e.g. United Beverages) this should be shown with the account
+name attached."* A driver line says a re-valuation cost 1.74M; it does not say the re-valuation **was
+United Beverages**. Each driver now carries `contributors[]` and renders them as indented rows:
+
+| Driver | Named item |
+|---|---|
+| Investments & property re-valued −1,741,398 | **United Beverages −1,873,619** |
+| Money earned +412,492 | **Financial Income - UB Dividend +186,089** |
+| Exchange-rate moves −65,231 | **United Beverages −58,629** |
+| Money spent −482,691 | *no single item — spread across many categories* |
+| Transfers that didn't net out −23,621 | *$1.75M moved in both directions and cancelled* |
+
+Three rules, each of which is a decision rather than a default:
+
+1. ⚠️ **The label is the ACCOUNT for balance drivers and the CATEGORY for income and spending**
+   (`namedBy` says which, so the page can say which). Measured on prod before choosing: the top
+   spending **accounts** are `PKO` and `Chase Checking` — *which card paid* — while the top spending
+   **items** are `Kasia Spending` and `FL - Flights`. Naming the account under "Money spent" answers a
+   question nobody asked. The owner's request said "account name"; this follows it everywhere the
+   account *is* the item, and departs from it only where it is not.
+2. 🔴 **Weight is judged against the GROSS, never the net — and the first version got this wrong.**
+   A net-relative floor let `Transfers that didn't net out` (−23,621 net on **~1.75M** of movement)
+   print four items of **±$500K** beneath it, and `Uncategorised` (−$39 net) print ±$27K legs.
+   Individually true, collectively a lie about what the line means. A driver whose net is under 40%
+   of its gross is a **cancelling** driver: it names no item and instead reports the gross, which is
+   the actual answer to *"did I lose that money?"* — the thing the owner asked this modal for.
+   **Found by reading the first render, not by a test.**
+3. ⚠️ **No share percentage is emitted at all.** United Beverages is −1,873,619 against a −1,741,398
+   driver, because other marks were positive — a truthful "108%" reads as an error rather than as
+   "the rest offset it". A driver with no dominant item says so (*"spread across many categories"*)
+   rather than rendering blank, which would read as missing data.
+
+Gated the same way as the drivers: the modal test asserts **every contributor in the payload reaches
+the DOM**, that a cancelling driver's legs are **absent**, and that no `%` appears anywhere —
+falsified before being trusted. Server-side, the rules are asserted **as rules** (label kind, the
+net-of-gross ratio) rather than against figures dev happens to hold; the first draft asserted the
+fixture's own mark was listed and failed, because prod's −1.87M correctly outranks it.
+
 ## 7. What the RENDERED PAGE found that the tests did not
 
 Consistent with [CR085](cr-085-forecast-sensitivity.md)'s lesson — the display half has no gate, and
@@ -178,7 +218,7 @@ in flight.
   [CR085](cr-085-forecast-sensitivity.md) says does not exist: **it asserts that every driver in the
   payload reaches the DOM**, by name and by figure. **Falsified before being trusted** — dropping one
   driver from the render makes it fail.
-- Full suites green: **server 1172 passed / 89 suites**, **frontend 594 passed / 49 files**. All six
+- Full suites green: **server 1175 passed / 89 suites**, **frontend 597 passed / 49 files**. All six
   ratchet gates at baseline.
 
 ## 9. P1 — the LLM narration (open, blocked on `ocr-llm`)

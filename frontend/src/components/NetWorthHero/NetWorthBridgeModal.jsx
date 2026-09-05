@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
 import Modal from "../Modal/Modal.jsx";
 import { useNetWorthBridge } from "../../hooks/useReports.js";
@@ -151,24 +151,62 @@ function Waterfall({ data }) {
           <td className="nwb__amount">{fullUSD.format(data.from.netWorth)}</td>
         </tr>
         {data.drivers.map((d) => (
-          <tr className="nwb__row" key={d.key}>
-            <th scope="row">{d.label}</th>
-            <td className="nwb__bar-cell">
-              <span
+          <Fragment key={d.key}>
+            <tr className="nwb__row">
+              <th scope="row">{d.label}</th>
+              <td className="nwb__bar-cell">
+                <span
+                  className={
+                    "nwb__bar " + (d.amount < 0 ? "is-negative" : "is-positive")
+                  }
+                  style={{ width: `${(Math.abs(d.amount) / widest) * 100}%` }}
+                />
+              </td>
+              <td
                 className={
-                  "nwb__bar " + (d.amount < 0 ? "is-negative" : "is-positive")
+                  "nwb__amount " + (d.amount < 0 ? "is-negative" : "is-positive")
                 }
-                style={{ width: `${(Math.abs(d.amount) / widest) * 100}%` }}
-              />
-            </td>
-            <td
-              className={
-                "nwb__amount " + (d.amount < 0 ? "is-negative" : "is-positive")
-              }
-            >
-              {signedUSD(d.amount)}
-            </td>
-          </tr>
+              >
+                {signedUSD(d.amount)}
+              </td>
+            </tr>
+
+            {/* What the driver WAS, named. The whole point of the modal for a
+                case like United Beverages: "re-valued −$1.74M" is a category,
+                "United Beverages −$1,873,619" is an answer. */}
+            {d.contributors?.map((c) => (
+              <tr className="nwb__row nwb__row--contrib" key={d.key + "|" + c.label}>
+                <td className="nwb__contrib-label">{c.label}</td>
+                <td className="nwb__bar-cell" />
+                <td className={"nwb__amount " + signClass(c.amount)}>
+                  {signedUSD(c.amount)}
+                </td>
+              </tr>
+            ))}
+
+            {/* A cancelling driver names no item, because naming its biggest
+                legs under a near-zero net is what misleads. It says the thing
+                the reader actually wants instead: the money moved, it did not
+                go anywhere. */}
+            {d.offsetting && (
+              <tr className="nwb__row nwb__row--contrib" key={d.key + "|offset"}>
+                <td className="nwb__contrib-label" colSpan={3}>
+                  {fullUSD.format(d.gross)} moved in both directions and almost
+                  entirely cancelled — {signedUSD(d.amount)} is all that reached
+                  net worth.
+                </td>
+              </tr>
+            )}
+
+            {!d.offsetting && d.contributors?.length === 0 && (
+              <tr className="nwb__row nwb__row--contrib" key={d.key + "|none"}>
+                <td className="nwb__contrib-label" colSpan={3}>
+                  Spread across many {d.namedBy === "category" ? "categories" : "accounts"} —
+                  no single one stands out.
+                </td>
+              </tr>
+            )}
+          </Fragment>
         ))}
         <tr className="nwb__row nwb__row--anchor">
           <th scope="row">{prettyDate(data.to.date)}</th>

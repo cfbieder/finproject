@@ -338,6 +338,74 @@ dbDescribe('buildNetWorthBridge — the drivers add up (DB)', () => {
     expect(card.change).toBeCloseTo(-800, 2);
   });
 
+  it('names the big item under its driver — by ACCOUNT, and by CATEGORY for spending', async () => {
+    const { data } = await buildNetWorthBridge({
+      fromDate: FROM, toDate: TO, granularity: 'month', moverLimit: 500,
+    });
+    const driver = (k) => data.drivers.find((d) => d.key === k);
+
+    // A re-valuation IS an account. Asserted as the label KIND, not as "the
+    // fixture's own mark is listed" — dev carries prod's data, where the
+    // re-valuation is United Beverages at −1.87M and this fixture's −13,500
+    // is correctly below the floor. That first draft failed for exactly the
+    // ambient-data reason this suite exists to avoid.
+    const reval = driver('revaluation');
+    expect(reval.namedBy).toBe('account');
+    for (const c of reval.contributors) {
+      const { rows } = await q('SELECT section FROM accounts WHERE name = $1', [c.label]);
+      expect(rows[0] && rows[0].section).toBe('balance_sheet');
+    }
+
+    // Spending is a CATEGORY. Measured on prod, the top spending ACCOUNT is
+    // whichever card paid (`PKO`, `Chase Checking`) while the top spending item
+    // is `Kasia Spending` — naming the account there answers nothing.
+    expect(driver('spending').namedBy).toBe('category');
+    expect(driver('income').namedBy).toBe('category');
+    // Dev carries prod's own rows under these drivers, so the assertion is the
+    // LABEL KIND rather than the fixture's amounts: every listed spending
+    // contributor must resolve to a P&L account, i.e. a category.
+    for (const c of driver('spending').contributors) {
+      const { rows } = await q('SELECT section FROM accounts WHERE name = $1', [c.label]);
+      expect(rows[0] && rows[0].section).toBe('profit_loss');
+    }
+  });
+
+  it('refuses to name legs under a CANCELLING driver, and says it cancelled', async () => {
+    // Prod's transfers line nets to −23,621 on ~1.75M of movement. Listing its
+    // ±$500K legs under that figure is individually true and collectively a lie
+    // about what the line means — which is what a net-relative floor did.
+    const { data } = await buildNetWorthBridge({
+      fromDate: FROM, toDate: TO, granularity: 'month', moverLimit: 500,
+    });
+    const transfers = data.drivers.find((d) => d.key === 'transfers');
+    expect(transfers).toBeDefined();
+
+    // Asserted as the RULE, not as a figure this database happens to produce.
+    const gross = data.movers.reduce((a, m) => a + Math.abs(m.drivers.transfers), 0);
+    if (Math.abs(transfers.amount) < gross * 0.4) {
+      expect(transfers.offsetting).toBe(true);
+      expect(transfers.contributors).toEqual([]);
+      expect(transfers.gross).toBeGreaterThan(Math.abs(transfers.amount));
+    } else {
+      expect(transfers.offsetting).toBeUndefined();
+      expect(Array.isArray(transfers.contributors)).toBe(true);
+    }
+  });
+
+  it('emits no share percentage, because a contributor can exceed its driver', async () => {
+    // United Beverages is −1,873,619 against a −1,741,398 re-valuation, because
+    // other marks were positive. "108%" would read as an error rather than as
+    // "the rest offset it", so no share is emitted at all.
+    const { data } = await buildNetWorthBridge({
+      fromDate: FROM, toDate: TO, granularity: 'month', moverLimit: 500,
+    });
+    for (const d of data.drivers) {
+      for (const c of d.contributors) {
+        expect(Object.keys(c).sort()).toEqual(['amount', 'label']);
+      }
+    }
+  });
+
   it('states the basis and the caveats rather than leaving them to the page', async () => {
     const { meta } = await buildNetWorthBridge({
       fromDate: FROM, toDate: TO, granularity: 'month', moverLimit: 500,

@@ -73,6 +73,17 @@ const HERO_SECTIONS = ['assets', 'liabilities'];
 
 const MAX_PERIODS = 60;
 const MAX_MOVERS = 12;
+// A named item is listed under its driver when it is worth at least this share
+// of it, up to MAX_CONTRIBUTORS. 15% keeps "one thing did this" legible and
+// stays silent where a driver is genuinely diffuse — measured on prod, spending
+// has no item above 13.5%, and that silence is itself the answer.
+const CONTRIBUTOR_FLOOR = 0.15;
+const MAX_CONTRIBUTORS = 4;
+// Below this ratio of net-to-gross a driver is CANCELLING, and naming its
+// biggest legs under its net figure misleads rather than explains. Transfers
+// net to −23,621 out of ~2.0M gross (0.012); a re-valuation of −1,741,398 out
+// of ~2.1M gross (0.83) genuinely IS its largest item.
+const NET_OF_GROSS_FLOOR = 0.4;
 // A tie worse than this is a bug in this file, not a rounding artefact: the
 // decomposition is exact, and the live 12-month window ties to 1.2e-10.
 const TIE_TOLERANCE = 0.01;
@@ -257,6 +268,7 @@ async function fetchDriverSums(accountIds, fromDate, boundaries) {
              WHEN c.account_type = 'income' THEN 'income'
              ELSE 'spending'
            END AS driver,
+           c.name AS category_name,
            SUM(t.amount) AS local_amount
       FROM transactions t
       JOIN accounts a ON a.id = t.account_id
@@ -271,7 +283,7 @@ async function fetchDriverSums(accountIds, fromDate, boundaries) {
      WHERE t.account_id = ANY($1)
        AND t.transaction_date >= a.opening_balance_date
        AND t.transaction_date > $2
-     GROUP BY 1, 2, 3
+     GROUP BY 1, 2, 3, 4
   `;
   const { rows } = await db.query(sql, [
     accountIds, fromDate, boundaries, UNREALIZED_CATEGORY, UNREALIZED_CATEGORY_ID,
@@ -285,6 +297,59 @@ async function fetchDriverSums(accountIds, fromDate, boundaries) {
 
 const round = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const emptyDrivers = () => Object.fromEntries(DRIVER_KEYS.map((k) => [k, 0]));
+
+// Drivers whose named item is the CATEGORY rather than the account it moved
+// through. See the note at `contributions`.
+const CATEGORY_LABELLED = new Set(['income', 'spending']);
+
+const labelFor = (driver, categoryName, accountName) =>
+  (CATEGORY_LABELLED.has(driver) ? categoryName : accountName) || accountName;
+
+/**
+ * The named items worth printing under a driver.
+ *
+ * A driver line on its own says a re-valuation cost 1.74M; it does not say the
+ * re-valuation WAS United Beverages. Only items that carry their own weight are
+ * listed — a list of every account is the table further down the modal, not an
+ * answer.
+ *
+ * ⚠️ **Weight is judged against the GROSS, never the net**, and the difference
+ * is not academic. `Transfers that didn't net out` nets to −23,621 out of ~2.0M
+ * of movement, so a net-relative floor cleared everything and printed four
+ * items of ±$500K under a −$23,621 line — figures that are individually true
+ * and collectively a lie about what that line means. Same shape on
+ * `Uncategorised`: −$39 net, ±$27K of legs.
+ *
+ * A driver whose net is small against its gross is a CANCELLING driver, and its
+ * biggest legs are not "what it was made of". Those report `offsetting` with
+ * the gross instead — which is the actual answer to "did I lose that money?",
+ * and the thing the owner asked this modal to say.
+ *
+ * ⚠️ A listed contributor may still exceed its driver's total (UB is −1,873,619
+ * against a −1,741,398 driver, because other marks were positive). That is real,
+ * and is why no percentage is emitted: "108%" reads as an error rather than as
+ * "the rest offset it".
+ */
+function topContributors(byLabel, driverTotal) {
+  if (!byLabel || !byLabel.size) return { contributors: [] };
+
+  const entries = [...byLabel.entries()];
+  const gross = entries.reduce((a, [, v]) => a + Math.abs(v), 0);
+  if (!gross) return { contributors: [] };
+
+  if (Math.abs(driverTotal) < gross * NET_OF_GROSS_FLOOR) {
+    return { contributors: [], offsetting: true, gross: round(gross / 2) };
+  }
+
+  const floor = gross * CONTRIBUTOR_FLOOR;
+  return {
+    contributors: entries
+      .filter(([, amount]) => Math.abs(amount) >= floor)
+      .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+      .slice(0, MAX_CONTRIBUTORS)
+      .map(([label, amount]) => ({ label, amount: round(amount) })),
+  };
+}
 
 async function buildNetWorthBridge({
   fromDate, toDate, granularity = 'month', moverLimit = MAX_MOVERS,
@@ -334,12 +399,29 @@ async function buildNetWorthBridge({
     if (!cell.has(key)) cell.set(key, emptyDrivers());
     return cell.get(key);
   };
+  // Named contributors per driver — "which ONE thing was this?".
+  //
+  // The label differs by driver on purpose, because the answer does. For a
+  // re-valuation or a rate move the ACCOUNT is the item: `United Beverages`.
+  // For money spent it is the CATEGORY — measured on prod, the top spending
+  // ACCOUNT is `PKO` and `Chase Checking`, i.e. which card paid, while the top
+  // spending item is `Kasia Spending`; naming the account there answers a
+  // question nobody asked.
+  const contributions = new Map(); // driver → Map(label → usd)
+  const contribute = (driver, label, amount) => {
+    if (!label) return;
+    const byLabel = contributions.get(driver) || new Map();
+    byLabel.set(label, (byLabel.get(label) || 0) + amount);
+    contributions.set(driver, byLabel);
+  };
+
   for (const row of driverRows) {
     const leaf = leafById.get(row.account_id);
     if (!leaf) continue; // a P&L or parent account — not part of the hero's sum
     const rate = rates[currencyOf(leaf.name)] ?? 1;
-    cellFor(row.account_id, Number(row.period_index))[row.driver] +=
-      (Number(row.local_amount) || 0) * rate;
+    const usd = (Number(row.local_amount) || 0) * rate;
+    cellFor(row.account_id, Number(row.period_index))[row.driver] += usd;
+    contribute(row.driver, labelFor(row.driver, row.category_name, leaf.name), usd);
   }
 
   // `currency` is the residual per (account, period): the part of the USD move
@@ -367,6 +449,10 @@ async function buildNetWorthBridge({
 
       change += delta;
       for (const k of DRIVER_KEYS) drivers[k] += perLeaf[k];
+
+      // `currency` has no transactions to group — it is the residual — so its
+      // contributors are accumulated here, from the per-account residual itself.
+      contribute('currency', leaf.name, perLeaf.currency);
 
       const mover = moverTotals.get(leaf.id) || { change: 0, drivers: emptyDrivers() };
       mover.change += delta;
@@ -418,7 +504,15 @@ async function buildNetWorthBridge({
     to: { date: toDate, netWorth: round(closingNetWorth) },
     change: round(change),
     drivers: DRIVERS
-      .map((d) => ({ ...d, amount: round(totals[d.key]) }))
+      .map((d) => ({
+        ...d,
+        amount: round(totals[d.key]),
+        // What the driver WAS, named. `namedBy` says which kind of name it is,
+        // so the page can label the list rather than leaving the reader to
+        // infer whether "Kasia Spending" is an account.
+        namedBy: CATEGORY_LABELLED.has(d.key) ? 'category' : 'account',
+        ...topContributors(contributions.get(d.key), totals[d.key]),
+      }))
       .filter((d) => Math.abs(d.amount) >= 1)
       .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)),
     periods,

@@ -24,12 +24,33 @@ const payload = {
     change: -1900487.67,
     summary: ["Net worth fell $1,900,488.", "Most of it is one thing."],
     drivers: [
-      { key: "revaluation", label: "Investments & property re-valued", amount: -1741398 },
-      { key: "spending", label: "Money spent", amount: -482691 },
-      { key: "income", label: "Money earned", amount: 412492 },
-      { key: "currency", label: "Exchange-rate moves", amount: -65231 },
-      { key: "transfers", label: "Transfers that didn't net out", amount: -23621 },
-      { key: "uncategorised", label: "Uncategorised", amount: -39 },
+      {
+        key: "revaluation", label: "Investments & property re-valued", amount: -1741398,
+        namedBy: "account",
+        // Larger than its own driver, because other marks were positive. Real,
+        // and the reason no percentage is rendered.
+        contributors: [{ label: "United Beverages", amount: -1873619 }],
+      },
+      {
+        key: "spending", label: "Money spent", amount: -482691,
+        namedBy: "category", contributors: [],
+      },
+      {
+        key: "income", label: "Money earned", amount: 412492, namedBy: "category",
+        contributors: [{ label: "Financial Income - UB Dividend", amount: 186089 }],
+      },
+      {
+        key: "currency", label: "Exchange-rate moves", amount: -65231, namedBy: "account",
+        contributors: [{ label: "United Beverages", amount: -58629 }],
+      },
+      {
+        key: "transfers", label: "Transfers that didn't net out", amount: -23621,
+        namedBy: "account", contributors: [], offsetting: true, gross: 1746678,
+      },
+      {
+        key: "uncategorised", label: "Uncategorised", amount: -39, namedBy: "account",
+        contributors: [], offsetting: true, gross: 27224,
+      },
     ],
     periods: [
       {
@@ -88,6 +109,8 @@ afterEach(() => {
   queryState = { data: payload, isPending: false, isError: false, error: null };
 });
 
+const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 describe("NetWorthBridgeModal", () => {
   it("draws EVERY driver it was handed, with a bar and a figure", () => {
     renderModal();
@@ -102,6 +125,48 @@ describe("NetWorthBridgeModal", () => {
       });
       expect(within(row).getByText(new RegExp(abs.replace(/[$.]/g, "\\$&")))).toBeTruthy();
     }
+  });
+
+  it("NAMES the big item under its driver, with its own figure", () => {
+    // The owner's ask: "re-valued −$1.74M" is a category, "United Beverages
+    // −$1,873,619" is an answer. Every contributor in the payload must reach
+    // the DOM, same rule as the drivers themselves.
+    renderModal();
+    for (const d of payload.data.drivers) {
+      for (const c of d.contributors) {
+        // getAllBy, not getBy: `United Beverages` is legitimately the named
+        // item under BOTH the re-valuation and the currency move, so a unique
+        // lookup here would fail on correct output.
+        const rows = screen.getAllByRole("row", { name: new RegExp(escape(c.label)) });
+        const abs = Math.abs(c.amount).toLocaleString("en-US", {
+          style: "currency", currency: "USD", maximumFractionDigits: 0,
+        });
+        const matched = rows.filter(
+          (r) => within(r).queryByText(new RegExp(escape(abs))) !== null
+        );
+        expect(matched.length).toBeGreaterThan(0);
+      }
+    }
+    // …and no percentage anywhere near it: the UB figure EXCEEDS its own driver
+    // (other marks were positive), so a share would render as "108%".
+    expect(screen.queryByText(/\d+%/)).toBeNull();
+  });
+
+  it("says a cancelling driver cancelled, instead of naming its biggest legs", () => {
+    // Transfers net to −$23,621 out of $1,746,678 of movement. Listing the
+    // ±$500K legs under that line is individually true and collectively a lie
+    // about what the line means — the server suppresses them and the page says
+    // what actually happened to the money.
+    renderModal();
+    expect(screen.getByText(/\$1,746,678 moved in both directions and almost entirely cancelled/)).toBeTruthy();
+    expect(screen.queryByText("SP - Panorama Mar 4")).toBeNull();
+  });
+
+  it("says so when a driver has no dominant item, rather than showing nothing", () => {
+    // Spending is genuinely diffuse — its biggest item is 13.5%. Silence there
+    // would read as missing data.
+    renderModal();
+    expect(screen.getByText(/Spread across many categories/)).toBeTruthy();
   });
 
   it("anchors the waterfall on both endpoints, so the bars have something to span", () => {
@@ -144,7 +209,9 @@ describe("NetWorthBridgeModal", () => {
     expect(screen.getByText(/\(part\)/)).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: /Which accounts moved/i }));
-    expect(screen.getByText("United Beverages")).toBeTruthy();
+    // Keyed on the mover's own TOTAL, which appears nowhere else — the account
+    // name itself is now also a named contributor in the waterfall above.
+    expect(screen.getByText("−$1,932,248")).toBeTruthy();
   });
 
   it("renders the basis and every caveat rather than dropping meta", () => {

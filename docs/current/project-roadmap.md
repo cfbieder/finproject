@@ -40,6 +40,16 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
     **ended on a future date** (`monthEndISO(0)` returned the current month's *end*, so the modal
     headed *"to Sep 30, 2026"* under a figure read on the 5th), and a money column that truncated to
     `−$453,29`, which reads as corrupted data rather than as something scrolled out of view.
+  - **Named items under each driver** (owner request): the re-valuation line now reads
+    **United Beverages −$1,873,619** beneath it, income names
+    **Financial Income - UB Dividend**, and currency names UB again. ⚠️ Labelled by **account** for
+    balance drivers and by **CATEGORY** for income/spending — measured first: the top spending
+    *accounts* are `PKO` and `Chase Checking` (which card paid), the top spending *items* are
+    `Kasia Spending` and `FL - Flights`. 🔴 **The first version judged weight against the NET and had
+    to be corrected**: `Transfers that didn't net out` (−23,621 net on ~1.75M gross) printed four
+    ±$500K items beneath it — true individually, a lie about the line. A driver netting under 40% of
+    its gross now names nothing and reports the gross instead. No share % is emitted anywhere,
+    because a contributor can legitimately exceed its driver (UB is 108% of it).
   - **The modal test asserts every driver in the payload reaches the DOM** — the display-side gate
     [CR085](../cr/cr-085-forecast-sensitivity.md) says does not exist — and was **falsified before
     being trusted** (dropping one driver from the render makes it fail).
