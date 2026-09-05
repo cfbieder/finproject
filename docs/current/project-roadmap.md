@@ -31,7 +31,7 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
     fund sector weights in use came from FinImpulse.
 
 <a id="cr092"></a>
-- **CR092 — Why did net worth change? ✅ *P0 SHIPPED v3.53.0 · P2 COMPLETE 2026-09-05*; P1 filed with `ocr-llm`, awaiting them.**
+- **CR092 — Why did net worth change? ✅ *P0 SHIPPED v3.53.0 · P2 v3.54.0 · P1 COMPLETE 2026-09-05* — CR COMPLETE.** ⚠️ One item is open with `ocr-llm`, not with us: `deadline_ms=90000` (see §3 Known Issues).
   Full spec: [cr-092-net-worth-bridge.md](../cr/cr-092-net-worth-bridge.md). Owner-asked from the
   Home hero: *"we show a drop of 1.9mln — what were the main causes?"*
   - **A "What changed?" button beside the delta** opens a **net-worth bridge**: the change split
@@ -99,7 +99,9 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
     read as a different claim. Ordering now carries the direction and nothing new is handed to the
     model to repeat.
   - **Deliberately left open** — see §3 Known Issues #24 and #25: the `base_amount` rate drift, and
-    the three remaining ABS-only rate lookups.
+    the three remaining ABS-only rate lookups. **#27** is P1's one open item and it is not ours:
+    `ocr-llm` has no `deadline_ms` on the task, so an abandoned narration pins their GPU tier for up
+    to 600 s until they set the measured 90 s we proposed.
 
 <a id="cr088"></a>
 - **CR088 — Budget Analysis: the LE grid's typography everywhere, and three comparisons instead of one. ✅ COMPLETE — *P1+P2 v3.43.0, P3 v3.44.0, P4 v3.45.0 (all 2026-08-26), P5 v3.46.0, P6 v3.47.0 (both 2026-08-27); frontend + one new endpoint, NO migration.*** ([CR088](../cr/cr-088-budget-vs-actual-le-table.md))
@@ -2232,6 +2234,28 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
     are no longer constrained to what a fixture can express. **`buildExposure`'s 7 are unchanged and
     this issue stays open for them** — the same split applies, and is now a worked example one file
     away rather than a suggestion.
+
+
+27. **An abandoned net-worth narration pins ocr-llm's GPU tier for up to 600 s — waiting on THEM,
+    not on us** *(opened 2026-09-05 with [CR092](../cr/cr-092-net-worth-bridge.md) P1).*
+    `finance_networth_narration` was registered with **no `deadline_ms`**, because we gave them no
+    number when we filed it and they refused to guess one — the standing lesson from
+    `finance_statement_extract`, where a deadline guessed *below* its own chain would have silently
+    deleted the fallback step. So the bound that applies is the gateway's **600 s global default**.
+    🔴 **Our 120 s abort does not help.** ocr-llm measured on 2026-09-04 that uvicorn does not cancel
+    a handler on client disconnect, so `httpx` never closes the socket and Ollama never learns the
+    caller is gone: **our abort has never reached the GPU.** A narration the owner walked away from
+    holds `ollama_heavy` — a tier 21 other tasks lead with, across six client apps — for the full
+    600 s, and their throughput canary cannot see it because `tok/s` is computed from work actually
+    done.
+    ✅ **Our side is finished.** We measured **both** chain steps rather than scaling one
+    (`ollama_heavy` 7.1–16.4 s over five probes; `ollama_mid` 10.5–10.6 s over two — mid is *faster*
+    here, the reverse of `finance_statement_extract`, because at 559 input tokens against a 768 cap
+    the dense 32b beats the MoE), giving a **~27 s observed worst-case chain**, and proposed
+    **`deadline_ms = 90000`** — 3.3× that, and 30 s under our own abort so their typed 504 lands
+    before we give up. Sent 2026-09-05 in `HANDOFFS.md`, thread closed from our side.
+    **Nothing in Fin is broken by it** and no user sees it; the cost is borne by a shared resource in
+    another repo. Re-ping if it is still unset after two business days — their own CR-023 advice.
 
 ---
 

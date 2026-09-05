@@ -74,16 +74,18 @@ irrelevant to Fin, because neither Fin task declares a frontier step at all.
 `no_providers_available` · `504 deadline_exceeded` (body separates steps **never started**
 — unbilled — from those cancelled in flight).
 
-## Fin's two tasks — both LOCAL-ONLY by construction
+## Fin's three tasks — all LOCAL-ONLY by construction
 
 | task | caller | route | schema | `max_tokens` |
 |---|---|---|---|---|
 | `finance_plan_review` | `server/src/v2/services/aiReview.js` (AI Review + the CR040 compare narrative) | `ollama_heavy` (`qwen3.6:35b-a3b-q4_K_M`) → `ollama_mid` (`qwen3:32b`) | none — free text with embedded ` ```action ` blocks, so `schema_level` is `null` | 4096 |
 | `finance_statement_extract` | `Scripts/extract-statements-llm.js` ([CR061](../cr/cr-061-holdings-and-prices.md) P2) | same | JSON `{positions:[…]}`, server-side system prefix | 8192 |
+| `finance_networth_narration` | `server/src/services/netWorthNarration.js` (`POST /v2/reports/net-worth-bridge/narration`, [CR092](../cr/cr-092-net-worth-bridge.md) P1) | same | JSON `{headline, why[{driver,note}], watch_outs[]}` — obtained `CONSTRAINED_DECODE`; five guardrails server-side | 768 (temp 0.3) |
 
 **Local-only means there is no cloud step to fall back to**, which is the point: a holdings table
-is every position, quantity and cost basis in a real portfolio, and a forecast context is the
-owner's whole retirement plan. Neither can leave the Tailnet. ocr-llm **verified** this rather
+is every position, quantity and cost basis in a real portfolio, a forecast context is the owner's
+whole retirement plan, and a net-worth bridge is the balance sheet broken down by named account —
+strictly more revealing than the holdings table. None can leave the Tailnet. ocr-llm **verified** this rather
 than asserting it — naming `claude` or `openai` returns `409 routing_unsatisfiable`. The chain
 hard-fails rather than degrading to the cloud.
 
@@ -95,6 +97,25 @@ bulk run only.
 
 ⚠️ **The gateway takes no per-request schema.** Schemas are declared per task in its catalog, so a
 new response shape needs a handoff, not a call we can make ourselves.
+
+### Three things measured while adopting `finance_networth_narration` (2026-09-05)
+
+⚠️ **Vocabulary put in the prompt comes back AS the answer.** Tagging each driver
+`(with the change)` to fix a leading-driver ordering problem made the model return the *tags* as
+the note text — six schema-valid lines carrying no figure. Convey intent by ORDERING what you send,
+not by inventing labels the model can echo. Validate defensively for the class, not the instance:
+`netWorthNarration.js` drops any note containing no digit.
+
+⚠️ **A response field can arrive as a duplicate of another.** `watch_outs` came back byte-identical
+to the `why` notes (2/2 on one run, 6/6 on another), so the page rendered everything twice. Reported
+upstream; de-duplicated in our parser meanwhile.
+
+⚠️ **An EMPTY required-context array reads as MISSING.** `{"drivers": []}` returns
+`422 missing_required_context` — the check is truthiness, not presence — so short-circuit before the
+call rather than spending a round trip. Equally: an **unknown key inside `routing` is silently
+ignored** (the field is `routing.provider`; a mistyped `routing.prefer` returned 200 on the default
+chain and said nothing), so a routing preference you did not verify is a routing preference you do
+not have.
 
 ## Before non-trivial gateway API work
 
@@ -124,3 +145,12 @@ AI Review ([CR006](../cr/cr-006-ai-review.md)) and the [CR040](../cr/cr-040-fore
 compare narrative call the gateway from `server/src/v2/services/aiReview.js` via
 `LLM_GATEWAY_URL` (see `.env.example`); reviews are stored in `fc_ai_reviews` (migrations
 014/035). CR061 P2's statement extraction runs offline from `Scripts/extract-statements-llm.js`.
+
+[CR092](../cr/cr-092-net-worth-bridge.md) P1's net-worth narration
+(`server/src/services/netWorthNarration.js`) is the **only caller that DEGRADES rather than
+fails**: every failure path — no key, a 4xx/5xx, a timeout, a `schema_violation`, an unparseable
+body, an empty `drivers[]`, or a bridge whose drivers do not reconcile — returns
+`{data: null, meta:{available:false, reason}}` and the page keeps the deterministic summary it was
+already showing. Nothing here is a dependency, which is why an unset `OCR_LLM_CLIENT_KEY` **warns**
+here where `aiReview.js` deliberately **throws**: a review that silently produces nothing is a bug,
+a narration that silently produces nothing is the designed fallback.

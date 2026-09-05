@@ -151,20 +151,12 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   their own content, which also widened every bar. ⚠️ It shipped **inside v3.58.0 with no
   mention in that release's note** — committed between the release's feature commit and its
   tag by a second session, neither able to see the other.
-- ✅ **[CR092](../cr/cr-092-net-worth-bridge.md) P1 — the LLM narration — is COMPLETE.** `ocr-llm`
-  registered `finance_networth_narration` the same day (task 52; local-only `ollama_heavy →
-  ollama_mid`, **no cloud step declared**, so there is none to reach); all five guardrails run
-  server-side. `POST /v2/reports/net-worth-bridge/narration` rebuilds the window server-side rather
-  than trusting a caller-supplied payload, and answers `{data: null, reason}` — never a 5xx — when
-  the prose cannot be trusted. The deterministic summary renders first and the prose replaces it,
-  so a slow or dead gateway costs the reader nothing. **Six live runs over two windows: every figure
-  traced to the payload, zero percentages, zero invented drivers**, 12.6–14.6 s. 🔴 **Three defects,
-  all found by RENDERING the page and none by a test** — `watch_outs` returned as verbatim copies of
-  the `why` notes (page printed everything twice); the leading-driver fix tagged each driver
-  *"(with the change)"* and the model **returned the tags as the notes**, six lines carrying no
-  figure; and raw `96705.06` beside the page's own `$96,705`. Direction is now carried by ORDERING —
-  vocabulary handed to a narrator is vocabulary it will narrate — with a second lock that drops any
-  note containing no digit. ⚠️ **#24 and #25 both SHIPPED in v3.55.2**
+- ✅ **[CR092](../cr/cr-092-net-worth-bridge.md) is COMPLETE — P1, the LLM narration, shipped
+  2026-09-05.** `ocr-llm` registered `finance_networth_narration` the day it was filed; the caller,
+  the three defects that only RENDERING found, and the measurements are in
+  [CR092 §9](../cr/cr-092-net-worth-bridge.md). ⚠️ **One item stays open and it is theirs, not
+  ours** — no `deadline_ms` is set, so an abandoned narration pins their GPU tier for up to 600 s
+  ([§3 #27](project-roadmap.md#3-known-issues)). ⚠️ **#24 and #25 both SHIPPED in v3.55.2**
   ([roadmap §3](project-roadmap.md#3-known-issues)), on owner decisions taken 2026-09-05: **#24** fixed
   the `base_amount` writer and **deliberately left the 271 historical rows** unrepriced (the $85,780
   sits in an `Unrealized G/L` posting the default Cash Flow view excludes, so only ~$1,950 is visible

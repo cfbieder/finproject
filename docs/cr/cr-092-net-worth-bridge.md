@@ -359,8 +359,10 @@ in flight.
   [CR085](cr-085-forecast-sensitivity.md) says does not exist: **it asserts that every driver in the
   payload reaches the DOM**, by name and by figure. **Falsified before being trusted** — dropping one
   driver from the render makes it fail.
-- Full suites green: **server 1175 passed / 89 suites**, **frontend 597 passed / 49 files**. All six
-  ratchet gates at baseline.
+- Full suites green **at P2**: **server 1175 passed / 89 suites**, **frontend 597 passed / 49 files**,
+  six ratchet gates at baseline. **At P1 (2026-09-05): server 1402 / 99 suites, frontend 652 / 54
+  files, all seven gates at baseline**, backend run through `Scripts/test-fresh-db.sh` against a
+  from-scratch CI database.
 
 ## 9. P1 — the LLM narration (COMPLETE, 2026-09-05)
 
@@ -398,9 +400,17 @@ either side edited one.
   not add up; prose explaining them would argue with that warning), an unset client key, a
   `schema_violation`, an unparseable body, a timeout, or any non-200. A 502 here would page someone
   about prose.
-- **Nested timeouts, outermost loosest:** gateway `deadline_ms` (requested) < caller abort 120 s <
-  browser 150 s. Getting this backwards is the mistake `ocr-llm` nearly made to us in September — a
-  deadline guessed *below* the chain it bounds silently deletes the fallback step.
+- ⚠️ **The timeout chain is NOT yet nested, and this is the one open item.** `ocr-llm` deliberately
+  attached **no `deadline_ms`** (we gave them no number when we filed), so the bound that actually
+  applies on their side is the **600 s global default**. Ours are tighter — caller abort 120 s,
+  browser 150 s — but per their own 2026-09-04 Hop-B measurement **our abort never reaches the GPU**:
+  uvicorn does not cancel a handler on client disconnect, so an abandoned narration keeps
+  `ollama_heavy` pinned for the full 600 s while we have long since stopped waiting. **We proposed
+  `deadline_ms = 90000` on 2026-09-05** — 3.3× the *measured* 27 s worst-case chain (heavy 16.4 s
+  worst + mid 10.6 s worst, both observed, neither scaled) and 30 s under our abort so their typed
+  504 lands before we give up. Until they set it, the exposure stands. Getting the order backwards
+  is the mistake they nearly made to us in September: a deadline guessed *below* the chain it bounds
+  silently deletes the fallback step.
 - `periods` and `movers` are **withheld** from the prompt though the task accepts them: they would
   multiply the token count for a 150-word answer, and the tables beneath already carry that detail.
   What is narrated is what sits immediately beside it.
