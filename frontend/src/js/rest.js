@@ -738,6 +738,23 @@ export default class Rest {
   }
 
   /**
+   * CR092 — why net worth changed between two dates.
+   *
+   * Both halves for the same reason as the returns report above: `meta` carries
+   * the FX basis, the two caveats the method cannot see past, and `tieOk` — the
+   * one field that says whether the drivers actually reconstruct the change.
+   * `unwrap()` would drop all of it and leave the modal asserting an
+   * explanation it never checked.
+   */
+  static async fetchNetWorthBridgeV2({ fromDate, toDate, granularity = "month" } = {}) {
+    const params = new URLSearchParams({ fromDate, toDate, granularity });
+    const payload = await Rest.fetchJson(
+      `/api/v2/reports/net-worth-bridge?${params.toString()}`
+    );
+    return { data: payload?.data ?? null, meta: payload?.meta ?? null };
+  }
+
+  /**
    * Fetch budget summary (actual vs budget by month) from v2 API
    */
   static async fetchBudgetBalancesV2({

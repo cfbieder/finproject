@@ -33,10 +33,20 @@ const topLevelTotal = (report, name) => {
   return node?.totalUSD ?? 0;
 };
 
-// Month-end ISO date for `offset` months before this month (0 = this month-end).
+// Month-end ISO date for `offset` months before this month, CLAMPED to today
+// for the current month (offset 0).
+//
+// CR092: this used to return the current month's END — a future date for all but
+// one day a month. Harmless while nothing was dated ahead, and wrong the moment
+// something is: the chart plotted a point the calendar has not reached, the hero
+// printed today's net worth beside a delta measured to month-end, and the
+// "What changed?" window opened on "to Sep 30, 2026" while sitting under a
+// figure read on the 5th. Found by rendering the page, not by a test — dev
+// carries future-dated rows and prod happens not to.
 const monthEndISO = (offset) => {
   const now = new Date();
-  return formatLocalDate(new Date(now.getFullYear(), now.getMonth() + 1 - offset, 0));
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1 - offset, 0);
+  return formatLocalDate(monthEnd > now ? now : monthEnd);
 };
 
 /**
@@ -78,6 +88,21 @@ export function useNetWorthSeries(monthCount = 12) {
   }, [dates, isLoading, failed]);
 
   return { data, isLoading, failed };
+}
+
+/**
+ * CR092 — the net-worth bridge for one window, fetched lazily.
+ *
+ * `enabled` is the point: the Home hero mounts on every visit, and this is a
+ * dozen balance builds. It runs only once the modal is actually opened.
+ */
+export function useNetWorthBridge({ fromDate, toDate, granularity = "month", enabled = true }) {
+  return useQuery({
+    queryKey: ["netWorthBridge", { fromDate: fromDate ?? null, toDate: toDate ?? null, granularity }],
+    queryFn: () => Rest.fetchNetWorthBridgeV2({ fromDate, toDate, granularity }),
+    enabled: Boolean(enabled && fromDate && toDate),
+    staleTime: 5 * 60 * 1000,
+  });
 }
 
 /** Cash-flow (P&L) for a date range. */

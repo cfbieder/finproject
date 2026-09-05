@@ -10,6 +10,46 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.1 Open / In-Progress
 
+<a id="cr092"></a>
+- **CR092 — Why did net worth change? ✅ *P0 COMPLETE 2026-09-05*; P1 (LLM narration) open.**
+  Full spec: [cr-092-net-worth-bridge.md](../cr/cr-092-net-worth-bridge.md). Owner-asked from the
+  Home hero: *"we show a drop of 1.9mln — what were the main causes?"*
+  - **A "What changed?" button beside the delta** opens a **net-worth bridge**: the change split
+    into *re-valued · earned · spent · currency · transfers · uncategorised*, a waterfall, a
+    month-by-month table and the accounts that moved. New service
+    `services/netWorthBridge.js` + `GET /api/v2/reports/net-worth-bridge` (**192 ms**, no migration).
+  - **It can be exact, not estimated.** Net worth is `opening_balance + SUM(tx)` at the as-of rate and
+    CR024's feed override has **zero rows on prod** — so every dollar is a transaction or a rate
+    move. The live 12-month window ties to **1.2e-10**, as do all eleven month-steps; the server
+    reports `tieOk` rather than the page assuming it.
+  - 🔴 **The answer is ONE posting.** `United Beverages`, `2025-12-31`, **−6,956,000 PLN** —
+    **98% of the year**, with the other ten months summing to **+94,242**. A decline that reads as a
+    slow bleed is a single manual mark, and nothing on the page could say so.
+  - 🔴 **Net worth was NON-DETERMINISTIC and had to be fixed first.** The rate lookup ordered by
+    `ABS(rate_date − asOf)` with **no tie-break**, and `2026-06-30` sits equidistant between two
+    rates — **the same date returned 14,398,878 then 14,373,541 within one session on unchanged
+    data**, a **$25,337** swing that the residual `currency` driver would have absorbed in silence.
+    Owner chose the **tie-break alone** (`rate_date ASC`; **11 of 12 boundaries byte-identical**)
+    over adopting `fx.rateAsOf`'s stricter rule, which would have restated every weekend month-end
+    (Nov-30-2025 **−112,229**, Jul-31 **−94,901**, Aug-31 **+33,696**).
+  - **Four FX conventions were built and measured; all four tie.** The chosen one fixes the
+    translation rate at `toDate` for *every* sub-period, which is what makes the months sum to the
+    year exactly. Stated cost: income reads **412,492** where the Cash Flow page reads **418,675**
+    (1.5%), because that page converts at each transaction's own date.
+  - **Four defects found by RENDERING the page**, none by a test — including a hero series that
+    **ended on a future date** (`monthEndISO(0)` returned the current month's *end*, so the modal
+    headed *"to Sep 30, 2026"* under a figure read on the 5th), and a money column that truncated to
+    `−$453,29`, which reads as corrupted data rather than as something scrolled out of view.
+  - **The modal test asserts every driver in the payload reaches the DOM** — the display-side gate
+    [CR085](../cr/cr-085-forecast-sensitivity.md) says does not exist — and was **falsified before
+    being trusted** (dropping one driver from the render makes it fail).
+  - **P1 — the LLM narration** over exactly this payload, following the gateway's existing
+    *narration-only* pattern (the caller computes every figure, the model never calculates).
+    **Blocked on a local-only task registration in `ocr-llm`**, requested via `HANDOFFS.md`; the
+    deterministic summary is the floor and a gateway failure must degrade to it, never to an error.
+  - **Deliberately left open** — see §3 Known Issues #24 and #25: the `base_amount` rate drift, and
+    the three remaining ABS-only rate lookups.
+
 <a id="cr088"></a>
 - **CR088 — Budget Analysis: the LE grid's typography everywhere, and three comparisons instead of one. ✅ COMPLETE — *P1+P2 v3.43.0, P3 v3.44.0, P4 v3.45.0 (all 2026-08-26), P5 v3.46.0, P6 v3.47.0 (both 2026-08-27); frontend + one new endpoint, NO migration.*** ([CR088](../cr/cr-088-budget-vs-actual-le-table.md))
   **P1 — the restyle.** Owner-requested (*"the same format as [the LE grid] … much easier to read"*),
@@ -1973,6 +2013,34 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
     3105/5434, so parallel sessions still take turns on tests and the dev stack. Escape hatch for
     a genuinely solo session (tree clean, one worktree, no other session mentioned), to be
     **re-checked before committing**, not assumed.
+
+24. **`base_amount` carries a rate that is not its own date's rate — 271 rows, −$87,730** *(found
+    2026-09-05 building [CR092](#cr092), by comparing four FX conventions against the same
+    window).* The United Beverages write-down of `2025-12-31` stores a `base_amount` implying
+    **0.266042** PLN/USD when `exchange_rates` gives **0.278373** for that day — **$85,780 wrong on
+    one line.** Across 2025-11 → 2026-09, **271 of 2,169** non-USD transactions (12.5%) sit more
+    than 1% off their own date's book rate, aggregating to **−$87,730**; PLN carries essentially
+    all of it. **This is why CR092 does not use `base_amount`**, even though doing so is the only
+    option that matches the Cash Flow page to the dollar: the error would land inside the largest
+    figure in the modal with the offsetting error hidden in the currency row. ⚠️ **The Cash Flow
+    page, `/budget-vs-actual` and everything else reading `base_amount` still carry it.** Not fixed
+    in CR092 because repricing those rows **restates Cash Flow history** — a deliberate change to
+    published figures, not a bug fix to slip into a UI release. Needs: which writer sets the rate
+    (the manual-entry path is the suspect — 0.266042 is a mid-2026 level, not a Dec-2025 one), a
+    decision on whether history is restated, and a guard at write time.
+
+25. **Three rate lookups still order by `ABS(distance)` with no tie-break** *(found 2026-09-05 while
+    fixing the same defect in `reports.js` for [CR092](#cr092)).* `forecast/crud.js:309`,
+    `repositories/budget.js:396` and `utils/refreshExchangeRates.js:20` pick "the closest rate" with
+    nothing deciding a tie — so on a date with no row of its own whose two neighbours are
+    equidistant, **the same query can return either rate on different calls**. That is not
+    theoretical: it is exactly what made net worth non-deterministic on `2026-06-30`, a **$25,337**
+    swing measured on the Home chart. `reports.js` now breaks the tie (`rate_date ASC`) and
+    `v2/services/fx.js` uses the stricter *last rate on or before*; these three are untouched
+    because they move **forecast and budget** figures and want their own before/after measurement.
+    ⚠️ **Note that `reports.js` and `fx.js` still disagree on non-tie gap dates, deliberately** —
+    aligning them would restate every weekend/holiday month-end on a shipped chart
+    ([CR092 §4](../cr/cr-092-net-worth-bridge.md)).
 
 ---
 

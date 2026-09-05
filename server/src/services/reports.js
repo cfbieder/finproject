@@ -129,13 +129,34 @@ async function fetchAccountBalances(asOfDate) {
       console.warn('[v2/reports/balance] Stale rate refresh failed (non-fatal):', err.message);
     }
 
-    // Try local exchange_rates table first (closest date match)
+    // Nearest rate to the as-of date, ties broken toward the EARLIER one.
+    //
+    // ⚠️ The `rate_date ASC` tie-break is not cosmetic — without it this query was
+    // NON-DETERMINISTIC and the Home chart moved because of it (CR092, measured
+    // 2026-09-05). `exchange_rates` has no row for 2026-06-30, and 06-29 (PLN
+    // 0.266042) and 07-01 (0.265252) are EQUIDISTANT, so nothing decided which
+    // won: the same date returned 14,398,878 and then 14,373,541 within one
+    // session, on unchanged data — a $25,337 swing across ~28.5M PLN and ~2.4M
+    // EUR. That is why the net-worth bridge could not be trusted until this was
+    // fixed: an ambiguous boundary moves two adjacent months by ±$25K in
+    // opposite directions, and the difference lands in the `currency` driver,
+    // which is a residual and so absorbs it silently.
+    //
+    // Owner decision (2026-09-05) was the tie-break ALONE, deliberately not
+    // `fx.rateAsOf`'s stricter "last rate on or before" rule: matching fx.js
+    // would also move every weekend/holiday month-end (measured on the live
+    // 12-month window: Nov-30-2025 −112,229, Jul-31 −94,901, Aug-31 +33,696),
+    // restating a shipped chart to fix a defect that only ever bit on ties.
+    // 11 of those 12 boundaries are byte-identical under this version.
+    // ⚠️ So reports.js and fx.js still disagree on non-tie gap dates, on purpose.
+    // The same ABS-only ordering (without even the tie-break) survives in
+    // forecast/crud.js, repositories/budget.js and utils/refreshExchangeRates.js.
     const localRates = await db.query(`
       SELECT DISTINCT ON (from_currency)
         from_currency, rate
       FROM exchange_rates
       WHERE from_currency = ANY($1) AND to_currency = 'USD'
-      ORDER BY from_currency, ABS(rate_date - $2::date) ASC
+      ORDER BY from_currency, ABS(rate_date - $2::date) ASC, rate_date ASC
     `, [currencyArr, asOfDate]);
 
     const foundLocal = new Set();

@@ -129,6 +129,23 @@ the dev-first migration rule, and the fact that **an engine change moves nothing
 scenarios are REGENERATED**. It changes far less often than this file does.
 
 ## Next
+- 🔴 **[CR092](../cr/cr-092-net-worth-bridge.md) P0 is BUILT (2026-09-05, not yet released).** The
+  Home hero's delta now has a **"What changed?"** button: a net-worth bridge splitting the change
+  into *re-valued · earned · spent · currency · transfers*. It can be **exact** — net worth is
+  `opening_balance + SUM(tx)` and CR024's feed override has **zero rows on prod**, so every dollar
+  is a transaction or a rate move; the live 12-month window ties to **1.2e-10**, as do all eleven
+  month-steps. 🔴 **The answer to the owner's −$1,900,488 is ONE posting** — `United Beverages`,
+  `2025-12-31`, **−6,956,000 PLN**, 98% of the year, the other ten months summing to **+94,242**.
+  🔴 **Net worth was NON-DETERMINISTIC and had to be fixed first:** the rate lookup had **no
+  tie-break**, and `2026-06-30` sits equidistant between two rates — **the same date returned
+  14,398,878 then 14,373,541 in one session on unchanged data** ($25,337), which a residual driver
+  absorbs silently. Owner took the **tie-break alone** (11 of 12 boundaries byte-identical) over
+  matching `fx.rateAsOf`. ⚠️ **Four defects were found by RENDERING the page and none by a test** —
+  including a hero series that **ended on a future date**. The modal test asserts **every driver
+  reaches the DOM** (CR085's missing display gate) and was **falsified before being trusted**. Two
+  items deliberately left open ([roadmap §3](project-roadmap.md#3-known-issues) **#24/#25**): a
+  **$87,730** `base_amount` rate drift across 271 rows, and three rate lookups still untie-broken.
+  **P1** — an LLM narration over this payload — is blocked on a local-only task in `ocr-llm`.
 - 🔴 **[CR091](../cr/cr-091-reconnect-that-works.md) — the reconnect button failed on its first live
   use (2026-09-04).** Three Wise consents expired, which is the event [CR060](../cr/cr-060-feed-connection-health.md)
   built **Re-authorise** for; all three were reconnected **by hand against bank-feed's API**. The error

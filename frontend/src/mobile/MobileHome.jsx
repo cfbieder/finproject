@@ -13,7 +13,9 @@ import {
   Scale,
   Loader2,
 } from "lucide-react";
+import { useState } from "react";
 import { useOverview, formatOverviewKpi } from "../hooks/useOverview.js";
+import NetWorthBridgeModal from "../components/NetWorthHero/NetWorthBridgeModal.jsx";
 import { setForceDesktop, isCoarsePointer } from "./useIsMobile";
 
 const CARDS = [
@@ -32,6 +34,7 @@ const formatKpi = formatOverviewKpi;
 
 export default function MobileHome() {
   const { data, isLoading, failed } = useOverview();
+  const [explaining, setExplaining] = useState(false);
 
   const handleSwitchToDesktop = () => {
     setForceDesktop(true);
@@ -67,8 +70,28 @@ export default function MobileHome() {
                 {up ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
                 {formatKpi(Math.abs(data.delta))} vs last month
               </span>
+              {/* CR092. Mobile's delta is month-over-month, NOT the desktop
+                  hero's 12 months — so it passes its own window rather than
+                  reusing the hero's, or the phone would explain a change it is
+                  not showing. */}
+              <button
+                type="button"
+                className="m-kpi__explain"
+                onClick={() => setExplaining(true)}
+              >
+                What changed?
+              </button>
             </div>
           </div>
+
+          {explaining && (
+            <NetWorthBridgeModal
+              open
+              onClose={() => setExplaining(false)}
+              fromDate={data.deltaFrom}
+              toDate={data.deltaTo}
+            />
+          )}
 
           <h2 className="m-section-h">This Month</h2>
           <div className="m-kpis m-kpis--grid">

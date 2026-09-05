@@ -64,11 +64,15 @@ export function useOverview() {
     return {
       netWorth,
       delta: netWorth - netWorthOf(balPriorQ.data),
+      // The window `delta` is measured over, so a consumer explaining it
+      // (CR092's bridge modal) cannot explain a different one by accident.
+      deltaFrom: priorMonthEnd,
+      deltaTo: today,
       income,
       expense,
       net: income + expense,
     };
-  }, [isLoading, failed, balNowQ.data, balPriorQ.data, cfQ.data]);
+  }, [isLoading, failed, balNowQ.data, balPriorQ.data, cfQ.data, priorMonthEnd, today]);
 
   return { data, isLoading, failed };
 }

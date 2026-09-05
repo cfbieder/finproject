@@ -7,8 +7,10 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { TrendingUp, TrendingDown } from "lucide-react";
+import { useState } from "react";
+import { TrendingUp, TrendingDown, HelpCircle } from "lucide-react";
 import { useChartTheme, ChartTooltip } from "../../utils/chartTheme.jsx";
+import NetWorthBridgeModal from "./NetWorthBridgeModal.jsx";
 import "./NetWorthHero.css";
 
 /**
@@ -38,9 +40,17 @@ const monthLabel = (m) => {
 
 export default function NetWorthHero({ series, current, delta, isLoading }) {
   const chart = useChartTheme();
+  const [explaining, setExplaining] = useState(false);
   const hasData = Array.isArray(series) && series.length > 1;
   const up = (delta ?? 0) >= 0;
   const months = hasData ? series.length : 0;
+
+  // The window the DELTA is measured over, not the one the chart happens to
+  // draw: `delta` is series[last] − series[0], so the explanation has to run
+  // between those same two dates or it would explain a different number from
+  // the one the button sits beside.
+  const fromDate = hasData ? series[0].date : null;
+  const toDate = hasData ? series[series.length - 1].date : null;
 
   return (
     <section className="nw-hero panel" aria-label="Net worth over time">
@@ -56,6 +66,16 @@ export default function NetWorthHero({ series, current, delta, isLoading }) {
             <span className="nw-hero__delta-note">
               {up ? "up" : "down"} over {months} mo
             </span>
+            {hasData && (
+              <button
+                type="button"
+                className="nw-hero__explain"
+                onClick={() => setExplaining(true)}
+              >
+                <HelpCircle size={14} aria-hidden="true" />
+                What changed?
+              </button>
+            )}
           </span>
         )}
       </header>
@@ -112,6 +132,17 @@ export default function NetWorthHero({ series, current, delta, isLoading }) {
           </div>
         )}
       </div>
+
+      {/* Mounted only while open: the bridge is a dozen balance builds, and the
+          hero renders on every visit to Home. */}
+      {explaining && (
+        <NetWorthBridgeModal
+          open
+          onClose={() => setExplaining(false)}
+          fromDate={fromDate}
+          toDate={toDate}
+        />
+      )}
     </section>
   );
 }

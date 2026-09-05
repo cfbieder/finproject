@@ -9,6 +9,7 @@ const express = require('express');
 const router = express.Router();
 const reportsService = require('../../services/reports');
 const investmentReturnsService = require('../../services/investmentReturns');
+const netWorthBridgeService = require('../../services/netWorthBridge');
 
 const { isValidDateString } = reportsService;
 
@@ -221,6 +222,50 @@ router.get('/investment-returns', async (req, res, next) => {
   } catch (error) {
     if (error.status === 400) return res.status(400).json({ error: error.message });
     console.error('[v2/reports/investment-returns] Failed:', error);
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v2/reports/net-worth-bridge
+ *   ?fromDate=&toDate=&granularity=month|quarter|year|none
+ *
+ * Why net worth changed between two dates, split into drivers a person
+ * recognises. Powers the Home hero's "What changed?" modal, so the window it is
+ * asked for is the window the hero draws — and `data.from/to.netWorth` are the
+ * hero's own endpoints, not a second opinion about them.
+ *
+ * `{ data, meta }` envelope (CR043 N8). `meta` carries the FX basis, the
+ * caveats, and `tie` / `tieOk` — the decomposition is exact, so a consumer that
+ * discards `meta` is hiding the one field that says whether it added up.
+ */
+router.get('/net-worth-bridge', async (req, res, next) => {
+  try {
+    const { fromDate, toDate, granularity = 'month' } = req.query;
+
+    if (!fromDate || !toDate) {
+      return res.status(400).json({
+        error: "Missing required query parameters 'fromDate' and 'toDate'"
+      });
+    }
+    if (!isValidDateString(fromDate) || !isValidDateString(toDate)) {
+      return res.status(400).json({
+        error: "Invalid date query parameter; expected YYYY-MM-DD"
+      });
+    }
+    if (!['month', 'quarter', 'year', 'none'].includes(granularity)) {
+      return res.status(400).json({
+        error: "Invalid 'granularity'; expected month, quarter, year or none"
+      });
+    }
+
+    const { data, meta } = await netWorthBridgeService.buildNetWorthBridge({
+      fromDate, toDate, granularity
+    });
+    res.json({ data, meta });
+  } catch (error) {
+    if (error.status === 400) return res.status(400).json({ error: error.message });
+    console.error('[v2/reports/net-worth-bridge] Failed:', error);
     next(error);
   }
 });

@@ -48,13 +48,23 @@ describe("useOverview", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     expect(result.current.failed).toBe(false);
-    expect(result.current.data).toEqual({
+    expect(result.current.data).toMatchObject({
       netWorth: 800, // 1000 + (-200)
       delta: 100, // 800 - 700
       income: 500,
       expense: -300,
       net: 200, // 500 + (-300)
     });
+
+    // CR092 — the window `delta` was measured over, so the bridge modal cannot
+    // explain a different one. Asserted RELATIONALLY: these are derived from
+    // today, and literals here would pass until the month rolled over.
+    const { deltaFrom, deltaTo } = result.current.data;
+    expect(deltaFrom).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(deltaTo).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(deltaFrom < deltaTo).toBe(true);
+    // prior month-end, so a different month from today's
+    expect(deltaFrom.slice(0, 7)).not.toBe(deltaTo.slice(0, 7));
   });
 
   it("reports failed (and null data) when a report query errors", async () => {

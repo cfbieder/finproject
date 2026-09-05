@@ -1,0 +1,247 @@
+.nwb {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.nwb__state {
+  color: var(--ink-secondary);
+  font-size: var(--text-sm);
+  margin: 0;
+  padding: var(--space-4) 0;
+}
+
+.nwb__state--error {
+  color: var(--growth-negative);
+}
+
+.nwb__tie-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--growth-negative);
+  border-radius: var(--radius-md);
+  color: var(--growth-negative);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+}
+
+/* The plain-English lead. Set as prose, not as a list of stats — it is the
+   half a reader who does not want a table is here for. */
+.nwb__summary {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--ink);
+}
+
+.nwb__summary li::before {
+  content: "";
+}
+
+/* ── Waterfall ─────────────────────────────────────────────────────────── */
+
+.nwb__waterfall {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.nwb__caption {
+  text-align: left;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  color: var(--ink-tertiary);
+  padding-bottom: var(--space-2);
+}
+
+.nwb__row > th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--ink-secondary);
+  padding: var(--space-2) var(--space-3) var(--space-2) 0;
+  white-space: nowrap;
+}
+
+.nwb__row--anchor > th,
+.nwb__row--anchor .nwb__amount {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.nwb__row--anchor > th {
+  border-top: 1px solid var(--border);
+}
+
+.nwb__bar-cell {
+  width: 55%;
+  padding: var(--space-2) var(--space-3);
+}
+
+.nwb__bar {
+  display: block;
+  height: 12px;
+  min-width: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.nwb__bar.is-positive {
+  background: var(--growth-positive);
+}
+
+.nwb__bar.is-negative {
+  background: var(--growth-negative);
+}
+
+.nwb__amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+  padding: var(--space-2) 0;
+}
+
+.is-positive.nwb__amount,
+.nwb__num.is-positive {
+  color: var(--growth-positive);
+}
+
+.is-negative.nwb__amount,
+.nwb__num.is-negative {
+  color: var(--growth-negative);
+}
+
+.nwb__num.is-zero {
+  color: var(--ink-tertiary);
+}
+
+/* ── Collapsible sections ──────────────────────────────────────────────── */
+
+.nwb__section {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-3);
+}
+
+.nwb__section-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  background: none;
+  border: none;
+  padding: var(--space-1) 0;
+  cursor: pointer;
+  color: var(--ink);
+  text-align: left;
+}
+
+.nwb__section-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+  border-radius: var(--radius-sm);
+}
+
+.nwb__section-label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.nwb__section-hint {
+  font-size: var(--text-xs);
+  color: var(--ink-tertiary);
+  font-weight: 500;
+}
+
+.nwb__section-body {
+  padding-top: var(--space-3);
+}
+
+/* Wide tables scroll inside their own box rather than widening the dialog. */
+.nwb__scroll {
+  overflow-x: auto;
+}
+
+.nwb__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-xs);
+}
+
+.nwb__table th,
+.nwb__table td {
+  padding: var(--space-2) var(--space-2);
+  white-space: nowrap;
+}
+
+/* The account column wraps; the figures never do.
+ *
+ * With every cell nowrap, "SP - Panorama Mar 4 EUR" pushed the last money
+ * column past the dialog edge and it rendered as "−$453,29" — a truncated
+ * FIGURE, which reads as corrupted data rather than as something scrolled out
+ * of view. Found on the rendered page; no test would have called it. */
+.nwb__table tbody th {
+  white-space: normal;
+  max-width: 15ch;
+  overflow-wrap: anywhere;
+}
+
+.nwb__table thead th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--ink-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+}
+
+.nwb__table tbody th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.nwb__table tbody tr + tr th,
+.nwb__table tbody tr + tr td {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.nwb__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.nwb__table thead th.nwb__num {
+  text-align: right;
+}
+
+.nwb__partial,
+.nwb__ccy {
+  color: var(--ink-tertiary);
+  font-weight: 500;
+}
+
+/* ── Caveats ───────────────────────────────────────────────────────────── */
+
+.nwb__notes {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.nwb__note {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--ink-tertiary);
+}

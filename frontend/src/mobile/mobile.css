@@ -581,6 +581,25 @@
   color: var(--danger);
 }
 
+/* CR092 — "What changed?" under the delta it explains. Its own line rather than
+   inline: the delta row is already icon + figure + "vs last month", and a fourth
+   element on it wraps mid-phrase at 360px. 44px min-height is the touch target,
+   not decoration. */
+.m-kpi--hero .m-kpi__explain {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 2px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 /* ── Variance card list (Budget Realization) ── */
 .m-var-list {
   display: flex;
