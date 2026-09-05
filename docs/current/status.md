@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-09-03 · **Live version:** **v3.50.0** (see `VERSION` / git tags) — **v3.50.0: fin can see what it OWNS.** The securities tables had been **0 rows since May 2026**; they now hold **305 snapshots over 61 days, 5,628 positions, 93 classified securities and 1,978 daily closes**, and a new **Investments** section renders them ([CR061](../cr/cr-061-holdings-and-prices.md) P0+P1, [CR090](../cr/cr-090-investments-section.md) P1; migrations **075**/**076** + bank-feed **008**). 🔴 **Every account carries a residual row**: the total is always the CUSTODIAN balance, positions sum to a labelled subtotal, and the difference is explicit — cents on four accounts and **$31,563.30 on Options**, because fintable does not report option contracts. 🔴 **Three defects this release were found by LOOKING AT THE RENDERED PAGE, all in code whose arithmetic was provably correct** — two CUSIP conventions rendered as one (a bond priced at 98.745 shown as 9874.500), a cash sweep claiming "unrealized $0.00, 100% covered", and a date printed twice. 🔴 **The design's own proposed fix was wrong too**: check-digit validation does NOT reject `FDIC91125` — the price does. ⚠️ `valued_on` ships **nullable and mostly null**, so the page says "Polled", not "Valued"
+**Last updated:** 2026-09-05 · **Live version:** **v3.50.0** (see `VERSION` / git tags) — **v3.50.0: fin can see what it OWNS.** The securities tables had been **0 rows since May 2026**; they now hold **305 snapshots over 61 days, 5,628 positions, 93 classified securities and 1,978 daily closes**, and a new **Investments** section renders them ([CR061](../cr/cr-061-holdings-and-prices.md) P0+P1, [CR090](../cr/cr-090-investments-section.md) P1; migrations **075**/**076** + bank-feed **008**). 🔴 **Every account carries a residual row**: the total is always the CUSTODIAN balance, positions sum to a labelled subtotal, and the difference is explicit — cents on four accounts and **$31,563.30 on Options**, because fintable does not report option contracts. 🔴 **Three defects this release were found by LOOKING AT THE RENDERED PAGE, all in code whose arithmetic was provably correct** — two CUSIP conventions rendered as one (a bond priced at 98.745 shown as 9874.500), a cash sweep claiming "unrealized $0.00, 100% covered", and a date printed twice. 🔴 **The design's own proposed fix was wrong too**: check-digit validation does NOT reject `FDIC91125` — the price does. ⚠️ `valued_on` ships **nullable and mostly null**, so the page says "Polled", not "Valued"
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -129,6 +129,18 @@ the dev-first migration rule, and the fact that **an engine change moves nothing
 scenarios are REGENERATED**. It changes far less often than this file does.
 
 ## Next
+- 🔴 **[CR091](../cr/cr-091-reconnect-that-works.md) — the reconnect button failed on its first live
+  use (2026-09-04).** Three Wise consents expired, which is the event [CR060](../cr/cr-060-feed-connection-health.md)
+  built **Re-authorise** for; all three were reconnected **by hand against bank-feed's API**. The error
+  text blames a timeout and is misleading — nothing hung (mint returns **201 in 54 ms**). Fintable
+  **429'd** and asked for **58 s**; fin's `mintConnectionLink` is the only upstream call passing no
+  `timeoutMs`, so it aborted at the inherited **8000 ms**. bank-feed then honored `Retry-After: 0`
+  literally and burned its retries **26 ms apart**. 🔴 A reconnect also **re-pointed a connection at a
+  different account** — the Wise consent is a single-select of balances — leaving the same real account
+  twice upstream under two ids with identical names; fenced by hand as `account_source_mappings`
+  **id 708**, `ignored`. All three feeds are live again (**0 orphaned of 31 mappings**,
+  `attention-summary` 3 → **0**), and **Fintable had not re-fetched Wise as of 07:12Z 2026-09-05**, so
+  the 09-03 → now gap fills on its next daily cycle before fin's import is worth running.
 - 📋 **[CR061](../cr/cr-061-holdings-and-prices.md) P2 and [CR090](../cr/cr-090-investments-section.md) P2 are
   what remain of the Investments work.** P2/CR061 is the **statement-derived position backfill to 2016** — the
   parser already reads 117 statements, and it is what would explain the month-boundary disagreements where
