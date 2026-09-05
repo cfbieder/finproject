@@ -1,6 +1,8 @@
 **Status:** ✅ **P0 shipped v3.53.0 · P2 COMPLETE (2026-09-05).** **Track: v3.** No migration.
-**P1 (the LLM narration) is COMPLETE** — `ocr-llm` registered `finance_networth_narration`
-on **2026-09-05**, the same day it was filed, and the caller shipped against it.
+**P1 (the LLM narration) is COMPLETE — shipped v3.59.0** — `ocr-llm` registered
+`finance_networth_narration` on **2026-09-05**, the same day it was filed, and the caller shipped
+against it. One item stays open and it is theirs, not ours: no `deadline_ms`
+([roadmap §3 #27](../current/project-roadmap.md#3-known-issues)).
 
 # CR092 — Why did net worth change?
 
@@ -364,7 +366,7 @@ in flight.
   files, all seven gates at baseline**, backend run through `Scripts/test-fresh-db.sh` against a
   from-scratch CI database.
 
-## 9. P1 — the LLM narration (COMPLETE, 2026-09-05)
+## 9. P1 — the LLM narration (COMPLETE — v3.59.0, 2026-09-05)
 
 The deterministic summary is the floor; the narration reads better. It follows the gateway's
 existing **narration-only** pattern (`recovery_narration`, `market_regime_narration`,
