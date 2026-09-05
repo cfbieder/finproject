@@ -195,9 +195,17 @@ describe('parseNarration — a half-formed object is worse than no prose', () =>
   });
 
   it('drops a watch-out that merely repeats a why note', () => {
-    // Found by rendering the live report: every `watch_outs` entry came back a
+    // Asserts OUR parser on a synthetic duplicate, and deliberately no longer
+    // implies the gateway still emits them: ocr-llm fixed this at the task
+    // prefix on 2026-09-05 (their rule 6) and it is re-verified against the raw
+    // gateway. The check stays as defence in depth — their fix is a prompt rule
+    // and so probabilistic, this is structural — so the fixture has to be
+    // constructed rather than borrowed from a live response.
+    //
+    // The original, for the record: every `watch_outs` entry came back a
     // verbatim copy of a `why` note, and the page printed the same sentences
     // twice — once as prose, again as a bullet list headed like a caution.
+    // Found by RENDERING, not by a test.
     const parsed = parseNarration(JSON.stringify({
       headline: 'h',
       why: [

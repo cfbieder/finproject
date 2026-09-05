@@ -175,18 +175,27 @@ function parseNarration(raw) {
     }));
   if (!why.length) return null;
 
-  // 🔴 De-duplicated against `why`, because the model repeats itself.
+  // De-duplicated against `why`: a watch-out that restates a driver is not a
+  // watch-out, and rendering the same sentence twice is worse than not
+  // rendering it at all.
   //
-  // Found by RENDERING the report, not by a test: on the live YTD window every
-  // `watch_outs` entry was a verbatim copy of a `why` note, so the page printed
-  // the same six sentences twice — once as prose and again as a bullet list
-  // headed like a caution. Measured, not suspected: 2/2 exact matches on one
-  // run, 6/6 on another.
+  // 🔴 Found by RENDERING the report, not by a test: on the live YTD window
+  // every `watch_outs` entry was a verbatim copy of a `why` note, so the page
+  // printed the same six sentences twice — once as prose and again as a bullet
+  // list headed like a caution. Measured, not suspected: 2/2 exact matches on
+  // one run, 6/6 on another.
   //
-  // Dropped here rather than asked for in the prompt: a watch-out that restates
-  // a driver is not a watch-out, and this is cheaper and more reliable than one
-  // more instruction. Reported upstream to ocr-llm, whose registry prompt owns
-  // what the field means.
+  // ✅ ocr-llm FIXED IT AT THE PREFIX the same day (their rule 6, 2026-09-05):
+  // `why` explains a driver that moved, `watch_outs` flags something a reader
+  // could misread, and an empty array is correct where a duplicate is not.
+  // Re-verified against the raw gateway, bypassing this parser — 3 runs, 0
+  // verbatim duplicates, and the watch-out now carries the contributor that
+  // exceeds its own driver, which is the most misreadable fact on the page.
+  //
+  // This stays anyway, as defence in depth rather than distrust: their fix is a
+  // PROMPT rule and so probabilistic, this is a structural check that one
+  // response field is not a copy of another. The two fail independently and
+  // this one costs four lines.
   const notes = new Set(why.map((w) => w.note.toLowerCase()));
   const watchOuts = (Array.isArray(body.watch_outs) ? body.watch_outs : [])
     .filter((s) => typeof s === 'string' && s.trim())
