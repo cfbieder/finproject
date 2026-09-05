@@ -66,9 +66,20 @@ async function main() {
 
     if (!APPLY) continue;
 
+    // 🔴 `sector_weights_as_of` means WE GOT A DEFINITIVE ANSWER — either weights,
+    // or a category telling us the fund has no equity sectors ("Ultrashort Bond").
+    // Setting it when the vendor returned NEITHER claims we established there are
+    // none, when in fact it could not classify the instrument at all. That is
+    // exactly the closed-end funds (BDJ, EOS, NVG, quote_type "stock", no
+    // category) — and it put them in the permanent "not applicable" bucket while
+    // Scripts/load-equity-sectors.js was refusing them for the opposite reason.
+    // Two loaders, one column, contradictory claims.
+    const definitive = Boolean(r.category) || keys.length > 0;
     await db.query(`UPDATE securities
-                       SET fund_category = $2, sector_weights_as_of = $3, updated_at = now()
-                     WHERE id = $1`, [id, r.category || null, TODAY]);
+                       SET fund_category = $2,
+                           sector_weights_as_of = CASE WHEN $4 THEN $3::date ELSE NULL END,
+                           updated_at = now()
+                     WHERE id = $1`, [id, r.category || null, TODAY, definitive]);
     // Replace rather than merge: a fund that DROPS a sector must lose the row,
     // or a stale sector lingers forever and the set stops summing to 1.
     await db.query('DELETE FROM security_sector_weights WHERE security_id = $1', [id]);

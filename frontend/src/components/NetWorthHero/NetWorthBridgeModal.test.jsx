@@ -74,6 +74,15 @@ const payload = {
         drivers: { revaluation: -1873619, income: 186089, spending: 0, currency: -58629, transfers: -186089, other: 0, uncategorised: 0 },
       },
     ],
+    // −1,900,487.67 change − (−1,932,248 shown) = +31,760.33 unshown.
+    remainder: {
+      accounts: 41,
+      change: 31760.33,
+      drivers: {
+        revaluation: 191221, income: 226403, spending: -482691,
+        currency: 6602, transfers: 90225, other: 0, uncategorised: 0,
+      },
+    },
   },
   meta: {
     basis: "ending-rate",
@@ -81,6 +90,9 @@ const payload = {
     granularity: "month",
     rates: { USD: 1, PLN: 0.269353 },
     accountsExplained: 58,
+    moversShown: 1,
+    moversTotal: 42,
+    moversComplete: false,
     excludedSections: [],
     tie: 0,
     tieOk: true,
@@ -212,6 +224,30 @@ describe("NetWorthBridgeModal", () => {
     // Keyed on the mover's own TOTAL, which appears nowhere else — the account
     // name itself is now also a named contributor in the waterfall above.
     expect(screen.getByText("−$1,932,248")).toBeTruthy();
+  });
+
+  it("foots a CAPPED grid honestly, via the Other accounts row", () => {
+    // The modal shows only the largest handful, so a bare "Total" beneath it
+    // would be a subtotal wearing a total's name. The remainder row is what
+    // makes the column true: shown rows + Other accounts = All accounts.
+    renderModal();
+    fireEvent.click(screen.getByRole("button", { name: /Which accounts moved/i }));
+
+    const other = screen.getByRole("row", { name: /Other accounts/ });
+    expect(within(other).getByText("(41)")).toBeTruthy();
+    const total = screen.getByRole("row", { name: /All accounts/ });
+    expect(within(total).getByText("−$1,900,488")).toBeTruthy();
+
+    // The fixture's one shown mover plus its remainder really do add up.
+    const shown = payload.data.movers.reduce((a, m) => a + m.change, 0);
+    expect(shown + payload.data.remainder.change).toBeCloseTo(payload.data.change, 2);
+  });
+
+  it("DOES foot the month table, which is never capped", () => {
+    renderModal();
+    fireEvent.click(screen.getByRole("button", { name: /Month by month/i }));
+    const totalRow = screen.getByRole("row", { name: /^Total/ });
+    expect(within(totalRow).getByText("−$1,900,488")).toBeTruthy();
   });
 
   it("renders the basis and every caveat rather than dropping meta", () => {

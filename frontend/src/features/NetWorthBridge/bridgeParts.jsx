@@ -135,7 +135,31 @@ export function Section({ open, onToggle, label, hint, children }) {
   );
 }
 
-export function PeriodTable({ periods }) {
+/**
+ * A footing row for either grid.
+ *
+ * The figures come from `data.drivers` — the server's own totals — NOT from
+ * summing the rendered rows. That is the point of footing this table at all:
+ * the rows and the headline are computed on different paths, so a footer that
+ * re-adds the rows would agree with itself no matter what and prove nothing.
+ * Taking the authoritative totals means the reader can check the column with
+ * their eye, which is the check that has value.
+ */
+function TotalsRow({ label, change, drivers }) {
+  return (
+    <tr className="nwb__row--total">
+      <th scope="row">{label}</th>
+      <td className={"nwb__num " + signClass(change)}>{signedUSD(change)}</td>
+      {COLUMNS.map((c) => (
+        <td className={"nwb__num " + signClass(drivers[c.key])} key={c.key}>
+          {drivers[c.key] ? signedUSD(drivers[c.key]) : "—"}
+        </td>
+      ))}
+    </tr>
+  );
+}
+
+export function PeriodTable({ periods, totals }) {
   return (
     <div className="nwb__scroll">
       <table className="nwb__table">
@@ -167,6 +191,12 @@ export function PeriodTable({ periods }) {
               ))}
             </tr>
           ))}
+          {/* In <tbody>, not <tfoot>: CR054 put a total in <tfoot>, where it
+              missed the more-specific half of the frozen-column selector and
+              scrolled its own label away from its figures. */}
+          {totals && (
+            <TotalsRow label="Total" change={totals.change} drivers={totals.drivers} />
+          )}
         </tbody>
       </table>
     </div>
@@ -186,7 +216,7 @@ export function PeriodTable({ periods }) {
  * a driver column holds both signs, and ranking it raw would bury the biggest
  * negative under every small positive.
  */
-export function MoverTable({ movers, sortable = false }) {
+export function MoverTable({ movers, sortable = false, totals, remainder }) {
   const [sort, setSort] = useState({ key: "change", dir: "desc" });
 
   const rows = useMemo(() => {
@@ -253,6 +283,29 @@ export function MoverTable({ movers, sortable = false }) {
               ))}
             </tr>
           ))}
+          {/* Everything not shown, as one row — the accounts below the
+              materiality floor, plus anything past the cap in the modal. It is
+              what lets a top-12 list be footed honestly instead of printing a
+              subtotal labelled "Total". */}
+          {remainder && (
+            <tr className="nwb__row--remainder">
+              <th scope="row">
+                Other accounts
+                <span className="nwb__ccy"> ({remainder.accounts})</span>
+              </th>
+              <td className={"nwb__num " + signClass(remainder.change)}>
+                {signedUSD(remainder.change)}
+              </td>
+              {COLUMNS.map((c) => (
+                <td className={"nwb__num " + signClass(remainder.drivers[c.key])} key={c.key}>
+                  {remainder.drivers[c.key] ? signedUSD(remainder.drivers[c.key]) : "—"}
+                </td>
+              ))}
+            </tr>
+          )}
+          {totals && (
+            <TotalsRow label="All accounts" change={totals.change} drivers={totals.drivers} />
+          )}
         </tbody>
       </table>
     </div>
@@ -269,6 +322,15 @@ export function BridgeNotes({ meta }) {
   return (
     <div className="nwb__notes">
       <p className="nwb__note">{meta.basisNote}</p>
+      {/* The decomposition is exact; the PIXELS are rounded. 42 rows each
+          rounded to the dollar sum to −$96,707 against a −$96,705 total — a
+          $2 rounding difference, measured. Saying so is cheaper than a reader
+          adding the column and concluding the page cannot count. */}
+      <p className="nwb__note">
+        Figures are rounded to the nearest dollar, so adding a long column by
+        hand can differ from its total by a few dollars. The underlying
+        decomposition is exact — that is what the totals are taken from.
+      </p>
       {meta.caveats?.map((c) => (
         <p className="nwb__note" key={c}>
           {c}

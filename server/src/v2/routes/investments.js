@@ -10,6 +10,7 @@
 const express = require('express');
 const router = express.Router();
 const investments = require('../../services/investments');
+const exposure = require('../../services/exposure');
 
 /**
  * GET /api/v2/investments/portfolio?asOf=YYYY-MM-DD
@@ -24,6 +25,21 @@ router.get('/portfolio', async (req, res, next) => {
     }
     const data = await investments.buildPortfolio({ asOf });
     res.json({ data, meta: { as_of: asOf || null } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/v2/investments/exposure
+ *
+ * CR093 P1 — what the portfolio is EXPOSED to, funds seen through, as opposed to
+ * what it holds. Read-only and derived entirely from cached reference data
+ * (migration 077); no vendor is called on page load.
+ */
+router.get('/exposure', async (req, res, next) => {
+  try {
+    res.json({ data: await exposure.buildExposure() });
   } catch (err) {
     next(err);
   }

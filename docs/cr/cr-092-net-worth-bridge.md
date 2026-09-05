@@ -244,6 +244,35 @@ regression — a stated limit.
 Verified identical on `/investment-returns`, a page this CR does not touch, so it is pre-existing
 and app-wide — a [CR086](cr-086-ui-visual-system.md)-family item, logged rather than fixed here.
 
+### 6c. Totals, and the row that makes them true (owner request, 2026-09-05)
+
+*"We should have totals at top or bottom."* Both grids now foot. What made it more than a
+`reduce()`:
+
+- **The footer reads `data.drivers`, not the rendered rows.** The rows and the driver totals are
+  computed on different paths, so a footer that re-added the rows would agree with itself no matter
+  what and prove nothing. Falsified: switching it to sum the rows fails the test.
+- 🔴 **A footed column did not actually foot, and the test caught it.** The grid filtered out
+  accounts with `|change| < 1` — **16 of prod's 58 leaves** — so the columns missed their totals by
+  **$0.48**: small enough to read as rounding, and it was not. Two fixes. The filter now keeps an
+  account if its change **or any driver** is material, since an account with income +500 and
+  spending −500 nets to zero and was taking $1,000 of real activity out of the columns. And the
+  server emits a **remainder** — everything not shown, derived **by subtraction** from the
+  authoritative totals — so shown rows **+ remainder = total**, by construction rather than nearly.
+- ⚠️ **The modal foots too, and only because of that remainder row.** It shows a top-12 of 42; a
+  bare `Total` beneath a top-N list is a subtotal wearing a total's name — the same shape as §6a's
+  legs-under-a-cancelling-driver. `Other accounts (30)` is what makes its column honest. The
+  first cut instead *refused* to foot and printed "showing the 12 largest of 42"; the remainder row
+  is strictly better, so that note is gone.
+- ⚠️ **The PIXELS still do not foot exactly, and the page says so.** Figures render to whole
+  dollars, so 42 rounded rows sum to **−$96,707** against a **−$96,705** total — measured. The
+  decomposition is exact; the display is rounded. A note states it, because a reader adding the
+  column and finding $2 missing would rightly stop trusting the rest, and the hint that claimed the
+  months add up *"exactly"* was softened for the same reason.
+- The totals row sits in `<tbody>`, not `<tfoot>` — [CR054](cr-054-cash-flow-by-account.md) put one
+  in `<tfoot>` where it missed the frozen-column selector and scrolled its label away from its
+  figures.
+
 ## 7. What the RENDERED PAGE found that the tests did not
 
 Consistent with [CR085](cr-085-forecast-sensitivity.md)'s lesson — the display half has no gate, and

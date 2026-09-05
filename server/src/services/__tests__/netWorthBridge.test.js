@@ -441,6 +441,57 @@ dbDescribe('buildNetWorthBridge — the drivers add up (DB)', () => {
       fromDate: FROM, toDate: TO, granularity: 'month', moverLimit: 10 ** 6,
     });
     expect(absurd.data.movers.length).toBeLessThanOrEqual(500);
+
+    // `moversComplete` must tell the truth: the report foots its grid only when
+    // this is true, and a wrong `true` would print a subtotal labelled "Total".
+    expect(capped.meta.moversComplete).toBe(false);
+    expect(capped.meta.moversShown).toBe(2);
+    expect(capped.meta.moversTotal).toBe(full.data.movers.length);
+    expect(full.meta.moversComplete).toBe(true);
+    expect(full.meta.moversShown).toBe(full.meta.moversTotal);
+  });
+
+  it('the full mover list FOOTS to the driver totals, column by column', async () => {
+    // What the report's footing row asserts on screen. It prints the driver
+    // totals; this is the check that the rows beneath them actually add up to
+    // those figures, which no front-end test can make.
+    const { data } = await buildNetWorthBridge({
+      fromDate: FROM, toDate: TO, granularity: 'month', moverLimit: 500,
+    });
+    // Shown rows PLUS the remainder row equal the driver totals. Not "close
+    // to": the remainder is derived by subtraction precisely so the footed
+    // column is true by construction.
+    //
+    // The rows alone are NOT enough, which is why the remainder exists: 16 of
+    // prod's 58 leaves sit below the materiality floor and never reach the
+    // grid. An earlier version of this test asserted the rows alone and failed
+    // by $0.48 — small enough to look like rounding, and it was not.
+    const rem = data.remainder || { change: 0, drivers: {} };
+    // The bound is the REMAINDER-SUPPRESSION threshold, not a fudge factor: a
+    // remainder below $1 per column is deliberately not given a row (a line
+    // reading "Other accounts −$0.04" invites a question with no answer), so
+    // the residual after footing can be up to that. The page rounds to whole
+    // dollars, so anything inside it is invisible on screen. Per-row cent
+    // rounding adds N half-cents on top.
+    const bound = 1 + data.movers.length * 0.01;
+    for (const key of DRIVER_KEYS) {
+      const rowSum = data.movers.reduce((a, m) => a + m.drivers[key], 0)
+        + (rem.drivers[key] || 0);
+      const headline = data.drivers.find((d) => d.key === key)?.amount ?? 0;
+      expect(Math.abs(rowSum - headline)).toBeLessThanOrEqual(bound);
+    }
+    const changeSum = data.movers.reduce((a, m) => a + m.change, 0) + rem.change;
+    expect(Math.abs(changeSum - data.change)).toBeLessThanOrEqual(bound);
+
+    // And it closes a CAPPED grid too — the modal foots on the same mechanism.
+    const capped = await buildNetWorthBridge({
+      fromDate: FROM, toDate: TO, granularity: 'month', moverLimit: 2,
+    });
+    const cRem = capped.data.remainder;
+    expect(cRem).not.toBeNull();
+    expect(cRem.accounts).toBeGreaterThan(0);
+    const cSum = capped.data.movers.reduce((a, m) => a + m.change, 0) + cRem.change;
+    expect(Math.abs(cSum - capped.data.change)).toBeLessThanOrEqual(bound);
   });
 
   it('rejects an inverted window instead of returning a mirrored answer', async () => {

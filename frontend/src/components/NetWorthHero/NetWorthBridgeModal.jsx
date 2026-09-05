@@ -9,7 +9,7 @@ import {
   MoverTable,
   BridgeNotes,
 } from "../../features/NetWorthBridge/bridgeParts.jsx";
-import { fullUSD, prettyDate } from "../../features/NetWorthBridge/bridgeFormat.js";
+import { fullUSD, prettyDate, totalsFrom } from "../../features/NetWorthBridge/bridgeFormat.js";
 
 /**
  * NetWorthBridgeModal (CR092) — what drove the hero's change.
@@ -89,9 +89,9 @@ export default function NetWorthBridgeModal({ open, onClose, fromDate, toDate })
               open={showMonths}
               onToggle={() => setShowMonths((v) => !v)}
               label="Month by month"
-              hint="These add up to the total above, exactly"
+              hint="These add up to the total above"
             >
-              <PeriodTable periods={data.periods} />
+              <PeriodTable periods={data.periods} totals={totalsFrom(data)} />
             </Section>
           )}
 
@@ -101,7 +101,14 @@ export default function NetWorthBridgeModal({ open, onClose, fromDate, toDate })
             label="Which accounts moved"
             hint="Largest first — money moved between accounts nets to nothing"
           >
-            <MoverTable movers={data.movers} />
+            {/* Foots even though the list is capped: the `Other accounts` row
+                carries everything not shown, so "All accounts" is a real total
+                rather than a subtotal wearing one's name. */}
+            <MoverTable
+              movers={data.movers}
+              totals={totalsFrom(data)}
+              remainder={data.remainder}
+            />
           </Section>
 
           <BridgeNotes meta={meta} />

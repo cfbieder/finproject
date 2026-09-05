@@ -308,3 +308,22 @@
 .inv-chart-tip { padding: 0.45rem 0.6rem; }
 .inv-chart-tip__val { font-weight: 600; margin-bottom: 0.15rem; }
 .inv-chart-tip__meta { font-size: 0.72rem; color: var(--ink-secondary); }
+
+/* CR093 P1 — the exposure tables. Plain rows with a proportional bar; the number
+   beside the bar is the fact, the bar only makes the ordering scannable. */
+.inv-exposure { width: 100%; border-collapse: collapse; }
+.inv-exposure th[scope="row"] { text-align: left; font-weight: 500; padding: 0.4rem 0.75rem 0.4rem 0; white-space: nowrap; }
+.inv-exposure thead th { text-align: left; font-size: 0.75rem; font-weight: 600; color: var(--ink-secondary); padding-bottom: 0.35rem; }
+.inv-exposure thead th.inv-num { text-align: right; }
+.inv-exposure td { padding: 0.4rem 0; }
+.inv-exposure .inv-num { text-align: right; font-variant-numeric: tabular-nums; padding-left: 1rem; white-space: nowrap; }
+.inv-exposure__pct { color: var(--ink-secondary); }
+.inv-exposure__bar { width: 40%; padding-right: 0.75rem; }
+
+.inv-bar { background: var(--accent-lighter); border-radius: 3px; height: 8px; overflow: hidden; }
+.inv-bar__fill { background: var(--accent); height: 100%; border-radius: 3px; }
+
+.inv-uncovered { list-style: none; margin: 0.5rem 0 0; padding: 0; }
+.inv-uncovered li { display: flex; gap: 0.75rem; align-items: baseline; padding: 0.3rem 0; border-top: 1px solid var(--border); }
+.inv-uncovered__sym { font-weight: 600; min-width: 4rem; }
+.inv-uncovered__name { flex: 1; color: var(--ink-secondary); font-size: 0.82rem; }

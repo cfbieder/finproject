@@ -295,3 +295,27 @@
   box-shadow: var(--shadow-focus);
   border-radius: var(--radius-sm);
 }
+
+/* ── Footing row (CR092 P2, owner request) ─────────────────────────────── */
+
+.nwb__row--total > th,
+.nwb__row--total > td {
+  border-top: 2px solid var(--border-strong);
+  font-weight: 700;
+  color: var(--ink);
+  padding-top: var(--space-3);
+}
+
+/* The label stays neutral; only the figures carry red/green, so the row reads
+   as a summation rather than as one more account that happened to move. */
+.nwb__row--total > th {
+  white-space: nowrap;
+}
+
+/* The unshown balance. Muted: it is a completeness device, not an account you
+   can go and look at. */
+.nwb__row--remainder > th,
+.nwb__row--remainder > td {
+  color: var(--ink-tertiary);
+  font-style: italic;
+}

@@ -8,7 +8,7 @@ import {
   MoverTable,
   BridgeNotes,
 } from "../features/NetWorthBridge/bridgeParts.jsx";
-import { fullUSD, prettyDate } from "../features/NetWorthBridge/bridgeFormat.js";
+import { fullUSD, prettyDate, totalsFrom } from "../features/NetWorthBridge/bridgeFormat.js";
 import { windowFor } from "../features/NetWorthBridge/reportWindow.js";
 import "./NetWorthDrivers.css";
 
@@ -180,7 +180,12 @@ export default function NetWorthDrivers() {
                 by any column; money moved between accounts nets to nothing
               </span>
             </h2>
-            <MoverTable movers={data.movers} sortable />
+            <MoverTable
+              movers={data.movers}
+              sortable
+              totals={totalsFrom(data)}
+              remainder={data.remainder}
+            />
           </section>
 
           {data.periods.length > 1 && (
@@ -188,10 +193,10 @@ export default function NetWorthDrivers() {
               <h2 className="nw-drivers__panel-title">
                 Period by period
                 <span className="nw-drivers__panel-hint">
-                  These add up to the total above, exactly
+                  These add up to the total above
                 </span>
               </h2>
-              <PeriodTable periods={data.periods} />
+              <PeriodTable periods={data.periods} totals={totalsFrom(data)} />
             </section>
           )}
 

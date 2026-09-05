@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, within } from "@testing-library/react";
 import NetWorthDrivers from "../NetWorthDrivers.jsx";
 
 /**
@@ -32,11 +32,20 @@ const payload = {
     to: { date: "2026-09-05", netWorth: 14500000 },
     change: -1500000,
     summary: ["Net worth fell $1,500,000."],
+    // ⚠️ Deliberately NOT the sum of `movers` below (those add to −1,300,200 of
+    // re-valuation, not −1,700,000). That inconsistency is the point: a footer
+    // that re-added the rendered rows would print the row sum, and a footer
+    // reading the server's authoritative totals prints these. Only one of those
+    // can pass the assertion.
     drivers: [
       {
         key: "revaluation", label: "Investments & property re-valued",
-        amount: -1500000, namedBy: "account",
+        amount: -1700000, namedBy: "account",
         contributors: [{ label: "United Beverages", amount: -1873619 }],
+      },
+      {
+        key: "income", label: "Money earned", amount: 200000,
+        namedBy: "category", contributors: [],
       },
     ],
     periods: [
@@ -68,6 +77,9 @@ const payload = {
     granularity: "month",
     rates: { USD: 1 },
     accountsExplained: 3,
+    moversShown: 3,
+    moversTotal: 3,
+    moversComplete: true,
     excludedSections: [],
     tie: 0,
     tieOk: true,
@@ -160,6 +172,30 @@ describe("NetWorthDrivers", () => {
     // and the query is disabled rather than sent to an endpoint that 400s
     expect(calls[calls.length - 1].enabled).toBe(false);
     expect(calls.length).toBeGreaterThan(callsBefore);
+  });
+
+  it("FOOTS both grids, and the footer reconstructs the drivers", () => {
+    // The reason to foot at all: the rows and the driver totals are computed on
+    // different paths, so a footer that re-added the rows would agree with
+    // itself no matter what. These come from `data.drivers`.
+    render(<NetWorthDrivers />);
+    const accountsTotal = screen.getByRole("row", { name: /All accounts/ });
+    // The server's re-valuation total, NOT the −$1,300,200 the rendered rows sum
+    // to. A footer that added up the grid would print the latter.
+    expect(within(accountsTotal).getByText("−$1,700,000")).toBeTruthy();
+    expect(within(accountsTotal).getByText("+$200,000")).toBeTruthy();
+    const rowRevaluation = payload.data.movers.reduce((a, m) => a + m.drivers.revaluation, 0);
+    expect(rowRevaluation).toBe(-1300200);
+    expect(within(accountsTotal).queryByText("−$1,300,200")).toBeNull();
+    // This fixture shows every account, so there is nothing left over and no
+    // remainder row — the shown rows are the whole story.
+    expect(screen.queryByRole("row", { name: /Other accounts/ })).toBeNull();
+
+    const periodTotal = screen.getByRole("row", { name: /^Total/ });
+    expect(within(periodTotal).getByText("−$1,500,000")).toBeTruthy();
+    // …and the period rows it foots really do add to it.
+    const rowSum = payload.data.periods.reduce((a, p) => a + p.change, 0);
+    expect(rowSum).toBe(payload.data.change);
   });
 
   it("renders the caveats rather than dropping meta", () => {

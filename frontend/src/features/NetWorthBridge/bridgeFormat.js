@@ -38,3 +38,22 @@ export const COLUMNS = [
   { key: "currency", head: "Currency" },
   { key: "transfers", head: "Transfers" },
 ];
+
+/**
+ * `data.drivers` (a sorted, filtered array) → the `{change, drivers}` shape the
+ * footing row wants.
+ *
+ * Derived from the server's own driver totals rather than by summing rendered
+ * rows: the rows and these totals are computed on different paths, so a footer
+ * that re-added the rows would agree with itself no matter what and prove
+ * nothing. Drivers below the $1 render floor are absent from the array and
+ * default to 0 here, which is why every column is initialised.
+ */
+export const totalsFrom = (data) => {
+  if (!data) return null;
+  const drivers = Object.fromEntries(COLUMNS.map((c) => [c.key, 0]));
+  for (const d of data.drivers) {
+    if (d.key in drivers) drivers[d.key] = d.amount;
+  }
+  return { change: data.change, drivers };
+};

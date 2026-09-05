@@ -55,6 +55,7 @@ const InvestmentReturns = lazy(() => import("../pages/InvestmentReturns"));
 const NetWorthDrivers = lazy(() => import("../pages/NetWorthDrivers"));
 const Investments = lazy(() => import("../pages/Investments"));
 const InvestmentAccount = lazy(() => import("../pages/InvestmentAccount"));
+const InvestmentExposure = lazy(() => import("../pages/InvestmentExposure"));
 const FCEquity = lazy(() => import("../pages/FCEquity"));
 const FCLineMapping = lazy(() => import("../pages/FCLineMapping"));
 const FCModuleManage = lazy(() => import("../pages/FCModuleManage"));
@@ -554,6 +555,18 @@ export const routes = [
     label: "Investment Summary",
     category: "Investments",
     description: "Every account's balance, positions and reconciliation, in one table",
+    icon: PieChart,
+  },
+  {
+    // CR093 P1 — exposure, not holdings. Sits between the summary and the
+    // per-account register because it answers the question they cannot: what the
+    // portfolio is exposed to once funds are seen through.
+    path: "/investments/exposure",
+    component: InvestmentExposure,
+    label: "Investment Exposure",
+    category: "Investments",
+    description:
+      "What the portfolio is exposed to, with funds seen through to their underlying sectors",
     icon: PieChart,
   },
   {

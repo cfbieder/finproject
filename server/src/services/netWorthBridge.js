@@ -481,7 +481,7 @@ async function buildNetWorthBridge({
   const change = closingNetWorth - openingNetWorth;
   const tie = change - DRIVER_KEYS.reduce((a, k) => a + totals[k], 0);
 
-  const movers = [...moverTotals.entries()]
+  const allMovers = [...moverTotals.entries()]
     .map(([id, m]) => ({
       account: leafById.get(id).name,
       path: leafById.get(id).path,
@@ -492,14 +492,53 @@ async function buildNetWorthBridge({
       change: round(m.change),
       drivers: mapValues(m.drivers, round),
     }))
-    .filter((m) => Math.abs(m.change) >= 1)
-    .sort((a, b) => Math.abs(b.change) - Math.abs(a.change))
-    // Capped for the modal, uncappable enough for a test: a fixture account on
-    // a database full of real ones never ranks in a fixed top 12, so asserting
-    // the per-account split would silently assert nothing.
-    .slice(0, Math.min(Math.max(1, Number(moverLimit) || MAX_MOVERS), 500));
+    // Kept if the account moved AT ALL — its net change, or ANY driver.
+    //
+    // `|change| >= 1` alone was not enough once the report started FOOTING this
+    // grid: an account whose drivers offset (income +500, spending −500) has a
+    // net change of zero and would be dropped, taking $1,000 of real activity
+    // out of the columns while the footer still printed the driver totals. The
+    // footer would then visibly fail to add up — the exact failure this CR
+    // spent two rounds preventing elsewhere. Costs nothing on the modal, whose
+    // top-N is ranked on |change| regardless.
+    .filter((m) => Math.abs(m.change) >= 1 || DRIVER_KEYS.some((k) => Math.abs(m.drivers[k]) >= 1))
+    .sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
+
+  // Capped for the modal, uncappable enough for a test: a fixture account on
+  // a database full of real ones never ranks in a fixed top 12, so asserting
+  // the per-account split would silently assert nothing.
+  const cap = Math.min(Math.max(1, Number(moverLimit) || MAX_MOVERS), 500);
+  const movers = allMovers.slice(0, cap);
+
+  // Everything the grid does NOT show, as one row — so a footed column is true
+  // BY CONSTRUCTION rather than nearly true.
+  //
+  // Two things are missing from `movers` and both matter: accounts below the
+  // materiality filter (16 of 58 on prod), and accounts beyond the cap (30 of
+  // 42 in the modal). Derived by SUBTRACTION from the authoritative driver
+  // totals, never by re-summing what was dropped: that way the shown rows plus
+  // this row equal the totals exactly, which is the only property a "Total"
+  // row is worth printing for.
+  const shownSum = { change: 0, ...emptyDrivers() };
+  for (const m of movers) {
+    shownSum.change += m.change;
+    for (const k of DRIVER_KEYS) shownSum[k] += m.drivers[k];
+  }
+  const remainderDrivers = Object.fromEntries(
+    DRIVER_KEYS.map((k) => [k, round(totals[k] - shownSum[k])])
+  );
+  const remainderChange = round(change - shownSum.change);
+  const remainderCount = leaves.length - movers.length;
+  // Rendered only when it is worth a row: below a dollar it is rounding, and a
+  // row reading "Other accounts −$0.04" invites a question with no answer.
+  const hasRemainder =
+    Math.abs(remainderChange) >= 1 ||
+    DRIVER_KEYS.some((k) => Math.abs(remainderDrivers[k]) >= 1);
 
   const data = {
+    remainder: hasRemainder
+      ? { accounts: remainderCount, change: remainderChange, drivers: remainderDrivers }
+      : null,
     from: { date: fromDate, netWorth: round(openingNetWorth) },
     to: { date: toDate, netWorth: round(closingNetWorth) },
     change: round(change),
@@ -532,6 +571,17 @@ async function buildNetWorthBridge({
       granularity,
       rates: mapValues(rates, (r) => Math.round(r * 1e6) / 1e6),
       accountsExplained: leaves.length,
+      // Whether `data.movers` is the WHOLE list or a top-N slice.
+      //
+      // Load-bearing for the totals row: summing a capped list and labelling
+      // the result "Total" is a subtotal wearing a total's name — the shape
+      // this CR has already been bitten by twice (contributor weights judged
+      // against a net, legs listed under a cancelling driver). A surface may
+      // only foot the column when `moversComplete` is true; when it is false
+      // it should say what it is showing instead.
+      moversShown: movers.length,
+      moversTotal: allMovers.length,
+      moversComplete: movers.length === allMovers.length,
       excludedSections: excluded,
       // Not a formality: the decomposition is exact, so a non-zero tie means
       // this file is wrong. It is reported rather than swallowed.
