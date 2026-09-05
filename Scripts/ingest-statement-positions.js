@@ -54,7 +54,11 @@ const { classify } = require('../server/src/v2/services/investmentClassification
 const args = process.argv.slice(2);
 const APPLY = args.includes('--apply');
 const REPORT_ONLY = args.includes('--report');
-const files = args.filter((a) => !a.startsWith('--'));
+// ⚠️ `--llm <path>` takes a VALUE, so a plain "drop everything starting with --"
+// filter leaves the path behind as a positional, and the script then tries to
+// parse the JSON sidecar as a statement PDF.
+const FLAGS_WITH_VALUES = new Set(['--llm']);
+const files = args.filter((a, i) => !a.startsWith('--') && !FLAGS_WITH_VALUES.has(args[i - 1]));
 
 /**
  * Fidelity account number → fin account id.
@@ -81,8 +85,42 @@ const ACCOUNT_MAP = {
 
 const SOURCE = 'statement';
 
+/**
+ * The hybrid's second half, arriving as data.
+ *
+ * `Scripts/extract-statements-llm.js --emit <file>` writes the account-statements
+ * the deterministic parser cannot reconcile, but ONLY those whose every printed
+ * section subtotal tied against the model's rows — the same gate the parser
+ * answers to, applied to the same statement. Rows that did not tie are never
+ * written, so this file cannot carry an unverified extraction for us to trust
+ * here on the strength of a flag.
+ *
+ * ⚠️ The substitution is per ACCOUNT-STATEMENT, not per file: one PDF holds
+ * several accounts and the parser routinely reconciles two of three.
+ */
+const LLM_FILE = (() => { const i = process.argv.indexOf('--llm'); return i >= 0 ? process.argv[i + 1] : null; })();
+const llmByAccount = new Map();
+if (LLM_FILE) {
+  for (const e of JSON.parse(fs.readFileSync(LLM_FILE, 'utf8'))) {
+    llmByAccount.set(`${e.file}|${e.account_number}`, e);
+  }
+}
+
 async function resolveSecurity(position, cache) {
-  const symbol = String(position.symbol || '').trim();
+  /**
+   * ⚠️ Not every holding has a ticker, and dropping the ones that do not loses
+   * money silently. FA_2025_12 carries a EURO (EUR) cash balance — 7,607.47 at
+   * 1.174 = $8,934.59 — with no symbol, correctly, because none is printed. It
+   * was skipped, and the snapshot stored $8,934.59 short of the header total
+   * that the statement itself supplies. Caught by the rows-vs-header check, not
+   * by anything that reads a name or a symbol.
+   *
+   * The mapping is keyed on `external_name`, which need not be a ticker, so an
+   * unticketed holding keys on its description instead and carries a NULL
+   * ticker. Refusing it would be defensible; storing an account short is not.
+   */
+  const symbol = String(position.symbol || '').trim()
+    || String(position.description || '').trim();
   if (!symbol) return null;
   if (cache.has(symbol)) return cache.get(symbol);
 
@@ -199,7 +237,7 @@ async function main() {
   const cache = new Map();
   const firstSeen = new Map();
   const drift = [];
-  const stats = { files: 0, accounts: 0, ingested: 0, skipped_unreconciled: 0, unmapped: new Set(), positions: 0 };
+  const stats = { files: 0, accounts: 0, ingested: 0, skipped_unreconciled: 0, llm_substituted: 0, unmapped: new Set(), positions: 0, unresolved: 0, merged_lines: 0 };
 
   for (const f of list) {
     let parsed;
@@ -215,8 +253,21 @@ async function main() {
       if (!accountId) { stats.unmapped.add(a.account_number); continue; }
 
       // Owner decision 2026-09-04: only a statement whose every section ties to
-      // its own printed subtotal is ingested. One that does not is left absent.
-      if (!a.reconciles) { stats.skipped_unreconciled += 1; continue; }
+      // its own printed subtotal is ingested. One that does not is left absent —
+      // unless the LLM sidecar carries an extraction that DID tie, which is the
+      // same condition met by a different reader.
+      const sub = llmByAccount.get(`${path.basename(f)}|${a.account_number}`);
+      if (!a.reconciles && !sub) { stats.skipped_unreconciled += 1; continue; }
+      if (!a.reconciles) stats.llm_substituted += 1;
+
+      // ⚠️ Take the TOTAL from the sidecar too, never from `a`. The parser's
+      // `total_market_value` is the sum of the rows IT read, and on a statement
+      // it could not reconcile those rows are precisely what is wrong: on
+      // FA_2025_12 it read Corporate Bonds as 4,266.62 against a printed
+      // 309,149.26. Using it would book a snapshot $305k short and report the
+      // gap as fin/custodian drift.
+      const positions = sub ? sub.positions : a.positions;
+      const totalMv = sub ? sub.total_market_value : a.total_market_value;
 
       if (!firstSeen.has(accountId)) firstSeen.set(accountId, await firstRecordedOn(accountId));
       const first = firstSeen.get(accountId);
@@ -225,15 +276,49 @@ async function main() {
       drift.push({
         date: a.as_of,
         account_id: accountId,
-        statement: a.total_market_value,
+        statement: totalMv,
         ledger,
         // No comparison outside fin's own record for the account. Reporting a
         // drift there would be measuring fin against a period it never claimed.
-        drift: inFinEra && ledger !== null ? Number((ledger - a.total_market_value).toFixed(2)) : null,
+        drift: inFinEra && ledger !== null ? Number((ledger - totalMv).toFixed(2)) : null,
         no_fin_record: !inFinEra,
       });
 
-      if (!APPLY || REPORT_ONLY) { stats.ingested += 1; stats.positions += a.positions.length; continue; }
+      // ⚠️ A security can appear on the SAME statement TWICE, and both lines are
+      // real. Fidelity prints separate lines for separate lots: FA_2020_12 lists
+      // FSMAX at 30.709 units / $2,563.59 and again at 231.41 / $19,318.11, same
+      // $83.48 price, and the section subtotal contains both.
+      //
+      // `security_positions` is UNIQUE (snapshot_id, security_id), so the insert's
+      // ON CONFLICT DO UPDATE **overwrote** the first line with the second and the
+      // money on it simply vanished — 11 account-statements affected, and the
+      // header still read right because `sum_market_value` is the statement's own
+      // printed total. Rows that do not add up to a header that does is the same
+      // shape as the name defect: the check that exists reads the column that is
+      // correct.
+      //
+      // Two lots of one holding ARE one position, so they are summed here rather
+      // than fought over by the database.
+      const merged = new Map();
+      for (const p of positions) {
+        const securityId = await resolveSecurity(p, cache);
+        if (!securityId) { stats.unresolved += 1; continue; }
+        const prev = merged.get(securityId);
+        if (!prev) { merged.set(securityId, { ...p, securityId, lines: 1 }); continue; }
+        prev.lines += 1;
+        prev.quantity = Number(prev.quantity || 0) + Number(p.quantity || 0);
+        prev.market_value = Number(prev.market_value || 0) + Number(p.market_value || 0);
+        prev.cost_basis = prev.cost_basis === null && p.cost_basis === null
+          ? null : Number(prev.cost_basis || 0) + Number(p.cost_basis || 0);
+        // Lots of one security are priced identically. If they ever are not,
+        // derive the price rather than keep an arbitrary one of the two.
+        if (Number(prev.price) !== Number(p.price)) {
+          prev.price = prev.quantity ? Number((prev.market_value / prev.quantity).toFixed(8)) : prev.price;
+        }
+      }
+
+      stats.merged_lines += positions.length - merged.size;
+      if (!APPLY || REPORT_ONLY) { stats.ingested += 1; stats.positions += merged.size; continue; }
 
       const { rows } = await db.query(`
         INSERT INTO security_position_snapshots
@@ -245,18 +330,34 @@ async function main() {
                       custodian_balance = EXCLUDED.custodian_balance,
                       positions_count = EXCLUDED.positions_count,
                       sum_market_value = EXCLUDED.sum_market_value,
+                      -- Provenance has to be refreshed too. Without this an
+                      -- existing snapshot re-read by a different extractor kept
+                      -- its OLD raw column: two of the four LLM statements landed
+                      -- with rows replaced and no record of what produced them.
+                      raw = EXCLUDED.raw,
                       fetched_at = NOW()
         RETURNING id`,
       // ⚠️ polled_on AND valued_on both get the statement's period end. Unlike
       // the feed, a statement states the date its figures are true for.
-      [accountId, a.as_of, SOURCE, a.total_market_value, a.positions.length,
-        JSON.stringify({ file: parsed.file, account_number: a.account_number })]);
+      // positions_count is the number of rows actually WRITTEN, not the number of
+      // lines the statement printed — a header that cannot disagree with its rows.
+      [accountId, a.as_of, SOURCE, totalMv, merged.size,
+        // Provenance is recorded per snapshot: which reader produced these rows,
+        // and on which tier. A row that came from a model must be answerable for
+        // later without re-deriving it.
+        JSON.stringify({
+          file: parsed.file,
+          account_number: a.account_number,
+          statement_lines: positions.length,
+          extractor: sub ? { kind: 'llm', ...sub.extractor } : { kind: 'parser' },
+        })]);
       const snapshotId = rows[0].id;
 
       await db.query('DELETE FROM security_positions WHERE snapshot_id = $1', [snapshotId]);
-      for (const p of a.positions) {
-        const securityId = await resolveSecurity(p, cache);
-        if (!securityId) continue;
+
+
+      for (const p of merged.values()) {
+        const securityId = p.securityId;
         const { rows: sec } = await db.query('SELECT price_basis FROM securities WHERE id = $1', [securityId]);
         await db.query(`
           INSERT INTO security_positions
@@ -268,7 +369,7 @@ async function main() {
                 market_value = EXCLUDED.market_value, cost_basis = EXCLUDED.cost_basis`,
         [snapshotId, accountId, securityId, p.quantity, p.price,
           sec[0] ? sec[0].price_basis : null, p.market_value, p.cost_basis,
-          JSON.stringify({ symbol: p.symbol, section: p.section })]);
+          JSON.stringify({ symbol: p.symbol, section: p.section, lines: p.lines })]);
         stats.positions += 1;
       }
       stats.ingested += 1;
@@ -278,6 +379,16 @@ async function main() {
   console.log(`statements parsed: ${stats.files} · account-statements: ${stats.accounts}`);
   console.log(`${APPLY && !REPORT_ONLY ? 'ingested' : 'would ingest'}: ${stats.ingested}  ·  positions: ${stats.positions}`);
   console.log(`skipped (did not reconcile): ${stats.skipped_unreconciled}`);
+  if (stats.merged_lines) {
+    console.log(`merged ${stats.merged_lines} duplicate lot line(s) into their security`
+      + ' — Fidelity prints one line per lot and both belong to the section subtotal');
+  }
+  if (stats.unresolved) console.log(`⚠️ ${stats.unresolved} position(s) had no usable symbol and were NOT stored`);
+  if (stats.llm_substituted) {
+    console.log(`LLM-extracted (parser could not reconcile; every printed subtotal tied): ${stats.llm_substituted}`);
+  } else if (LLM_FILE) {
+    console.log(`⚠️ --llm ${LLM_FILE} matched no account-statement — check the file names in it`);
+  }
   if (healed) console.log(`repaired ${healed} security name(s) that held statement furniture or the bare symbol`);
   if (stats.unmapped.size) {
     console.log(`\n⚠️ ${stats.unmapped.size} account number(s) are not in the pinned map and were REFUSED,`);
@@ -317,6 +428,37 @@ async function main() {
     }
     if (material.length > 8) console.log(`   … and ${material.length - 8} earlier date(s)`);
     if (!material.length && compared) console.log(`   ✓ all ${compared} comparable date(s) tie within $1`);
+  }
+
+  /**
+   * The integrity check that did not exist, and whose absence let a real defect
+   * live: `sum_market_value` is the statement's own printed total, so the header
+   * stayed correct while the rows beneath it lost money to an ON CONFLICT that
+   * overwrote one lot with another. A header that cannot disagree with its rows
+   * has to be asserted, because nothing else reads both.
+   */
+  if (APPLY && !REPORT_ONLY) {
+    const { rows: bad } = await db.query(`
+      SELECT s.id, a.name, s.valued_on, s.positions_count, s.sum_market_value,
+             COUNT(p.id) AS actual_rows,
+             COALESCE(SUM(p.market_value), 0) AS rows_sum
+        FROM security_position_snapshots s
+        JOIN accounts a ON a.id = s.account_id
+        LEFT JOIN security_positions p ON p.snapshot_id = s.id
+       WHERE s.source = $1
+       GROUP BY s.id, a.name, s.valued_on, s.positions_count, s.sum_market_value
+      HAVING COUNT(p.id) <> s.positions_count
+          OR ABS(COALESCE(SUM(p.market_value), 0) - s.sum_market_value) >= 0.02
+       ORDER BY s.valued_on`, [SOURCE]);
+    if (!bad.length) {
+      console.log('\n✓ every statement snapshot: stored rows match positions_count AND sum to sum_market_value');
+    } else {
+      console.log(`\n🔴 ${bad.length} snapshot(s) whose rows do not reconcile with their own header:`);
+      for (const b of bad.slice(0, 10)) {
+        console.log(`   ${b.name} ${b.valued_on}  header ${b.positions_count} rows / ${b.sum_market_value}`
+          + `  ·  stored ${b.actual_rows} rows / ${Number(b.rows_sum).toFixed(2)}`);
+      }
+    }
   }
 
   if (!APPLY) console.log('\nDRY RUN — nothing was written. Re-run with --apply.');

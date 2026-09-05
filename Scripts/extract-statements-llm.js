@@ -62,14 +62,38 @@ const args = process.argv.slice(2);
 const PIN_MID = args.includes('--pin-mid');
 const SAMPLE = (() => { const i = args.indexOf('--sample'); return i >= 0 ? parseInt(args[i + 1], 10) : 0; })();
 const files = args.filter((a) => !a.startsWith('--') && a.endsWith('.pdf'));
+const EMIT = (() => { const i = args.indexOf('--emit'); return i >= 0 ? args[i + 1] : null; })();
 
-const INSTRUCTION = [
-  'Extract the holdings table from this Fidelity account statement.',
-  'Return every position exactly as printed — do not compute, round or infer any value.',
-  'Do NOT emit section subtotal lines or the account total as positions.',
-  'Use the section heading exactly as it appears (e.g. "Common Stock", "Equity ETPs", "Core Account").',
-  'A figure the statement declines to state ("not applicable", "unavailable", "-") is null, never 0.',
-].join(' ');
+/**
+ * ⚠️ The section vocabulary is DICTATED, not requested.
+ *
+ * Asked to "use the section heading exactly as it appears", the model instead
+ * used the generic names for them: `Stock Funds` came back as `Mutual Funds`,
+ * `Common Stock` as `Stocks`, and `Equity ETPs` + `Fixed Income ETPs` were
+ * merged under their own aggregate heading `Exchange Traded Products`. Every sum
+ * was exact to the cent — the rows were right and only the labels moved — but
+ * the gate looks sections up BY NAME, so each one read 0 against its printed
+ * subtotal and reported the whole subtotal as missing. 8 of 24 sections "failed"
+ * without a single wrong figure.
+ *
+ * Passing the statement's actual headings is not leading the answer: it supplies
+ * the vocabulary, never a value, so the arithmetic check stays independent.
+ * Matching the model's labels to ours BY VALUE would have been the cheating fix —
+ * it chooses whichever mapping makes the totals tie, and a gate that fits itself
+ * to the answer proves nothing.
+ */
+function instructionFor(checks) {
+  const names = checks.map((c) => c.section);
+  return [
+    'Extract the holdings table from this Fidelity account statement.',
+    'Return every position exactly as printed — do not compute, round or infer any value.',
+    'Do NOT emit section subtotal lines or the account total as positions.',
+    `Every position MUST carry one of these EXACT section values: ${names.map((n) => `"${n}"`).join(', ')}.`,
+    'Use them verbatim. Do not substitute a synonym, do not merge two of them under a broader heading,',
+    'and do not invent a section outside this list.',
+    'A figure the statement declines to state ("not applicable", "unavailable", "-") is null, never 0.',
+  ].join(' ');
+}
 
 // The client abort must sit ABOVE any server-side deadline, not below it, or it
 // wins the race and a typed `504 deadline_exceeded` never arrives — the caller
@@ -79,10 +103,10 @@ const INSTRUCTION = [
 // in the corpus (17,622 chars ⇒ heavy ~100s + mid ~170s), so it would abort a
 // slow-but-working statement, and it would pre-empt the 420s deadline offered to
 // ocr-llm on 2026-09-04. 480s clears both and stays under their 600s default.
-async function extractOne(text, timeoutMs = 480000) {
+async function extractOne(text, checks, timeoutMs = 480000) {
   const body = {
     task: 'finance_statement_extract',
-    prompt: `${INSTRUCTION}\n\n${text}`,
+    prompt: `${instructionFor(checks)}\n\n${text}`,
   };
   // BACKFILL ONLY — see the header. Omitted for any normal call.
   if (PIN_MID) body.routing = { provider: 'ollama_mid' };
@@ -133,16 +157,59 @@ function checkAgainstPrinted(positions, checks) {
     const k = String(p.section || '').trim();
     bySection.set(k, (bySection.get(k) || 0) + (Number(p.market_value) || 0));
   }
-  return checks.map((c) => {
+  /**
+   * ⚠️ An AGGREGATE section is not a section anyone should emit rows for.
+   *
+   * FA_2025_12 prints `Corporate Bonds` 309,149.26 and then `Bonds` 309,149.26 —
+   * the second is a heading TOTALLING the first, not a second holding of the same
+   * money. The deterministic parser already knows this and removes such a section
+   * when its printed total equals the sum of a suffix of the leaves just parsed;
+   * it kept this one only because its OWN read of Corporate Bonds came to
+   * 4,266.62, so nothing summed. The model read that section correctly, and was
+   * then marked down for not also filing the same $309,149.26 a second time
+   * under the aggregate.
+   *
+   * Same structural rule, same gate: a check whose printed total equals the sum
+   * of a suffix of the checks before it is a heading, and is excluded rather
+   * than failed. Determined from the PRINTED totals alone, so it does not depend
+   * on what any extractor returned.
+   */
+  const isAggregate = checks.map((c, i) => {
+    for (let k = 1; k <= i; k += 1) {
+      const tail = checks.slice(i - k, i).reduce((a, b) => a + b.printed, 0);
+      if (Math.abs(tail - c.printed) < 0.02) return true;
+    }
+    return false;
+  });
+
+  const rows = checks.map((c, i) => {
     const sum = bySection.get(c.section) ?? 0;
+    if (isAggregate[i] && !bySection.has(c.section)) {
+      return { section: c.section, printed: c.printed, parsed: null, delta: 0, ok: true, aggregate: true };
+    }
     return {
       section: c.section,
       printed: c.printed,
       parsed: Number(sum.toFixed(2)),
       delta: Number((sum - c.printed).toFixed(2)),
       ok: Math.abs(sum - c.printed) < 0.02,
+      // ⚠️ A section the model never used is NOT a section it got wrong. Both
+      // read `0` against the printed subtotal, and the delta is then the whole
+      // subtotal — a number that looks exactly like "the model dropped $159,651"
+      // when the rows may be present under a different label. Distinguish them,
+      // or this reports a fabricated loss the same way a dropped
+      // Loaned/Collateralized section once reported a fabricated +$74,895 drift.
+      absent: !bySection.has(c.section),
     };
   });
+  // Labels the model emitted that no check asked about — the other half of a
+  // mismatch, and the only way to tell a rename from a genuine omission.
+  const expected = new Set(checks.map((c) => c.section));
+  const unmatched = [...bySection.entries()]
+    .filter(([k]) => !expected.has(k))
+    .map(([section, sum]) => ({ section, sum: Number(sum.toFixed(2)) }))
+    .sort((a, b) => b.sum - a.sum);
+  return { rows, unmatched };
 }
 
 async function main() {
@@ -165,6 +232,7 @@ async function main() {
 
   console.log(`${targets.length} statement(s) · tier: ${PIN_MID ? 'ollama_mid (PINNED — bulk run)' : 'task default (ollama_heavy first)'}\n`);
 
+  const emitted = [];
   let tiedSections = 0;
   let totalSections = 0;
   let refused = 0;
@@ -185,22 +253,57 @@ async function main() {
       let out;
       const started = Date.now();
       try {
-        out = await extractOne(text);
+        out = await extractOne(text, acct.checks);
       } catch (e) {
         refused += 1;
         console.log(`${label.padEnd(18)} ${acct.account_number}  🔴 ${e.message}`);
         continue;
       }
-      const secs = checkAgainstPrinted(out.positions, acct.checks);
+      const { rows: secs, unmatched } = checkAgainstPrinted(out.positions, acct.checks);
       const ok = secs.filter((s) => s.ok).length;
+      const step = out.routing?.attempts?.[0];
+      if (EMIT && ok === secs.length) {
+        // ⚠️ The snapshot total is the sum of the statement's own PRINTED leaf
+        // subtotals, not of the model's rows. They are equal here — every leaf
+        // tied, which is the condition for emitting at all — but taking the
+        // custodian's arithmetic keeps the stored total independent of the
+        // extractor that produced the rows. Aggregates are excluded or the money
+        // under them is counted twice.
+        const total = secs.filter((x) => !x.aggregate).reduce((a, b) => a + b.printed, 0);
+        const rowSum = out.positions.reduce((a, b) => a + (Number(b.market_value) || 0), 0);
+        if (Math.abs(rowSum - total) >= 0.02) {
+          console.log(`      🔴 refusing to emit: rows sum ${rowSum.toFixed(2)} vs printed leaves ${total.toFixed(2)}`);
+        } else {
+          emitted.push({
+            file: label,
+            account_number: acct.account_number,
+            as_of: acct.as_of,
+            total_market_value: Number(total.toFixed(2)),
+            positions: out.positions,
+            extractor: {
+              provider: step?.provider ?? null,
+              model: step?.model ?? null,
+              schema_level: out.routing?.schema_level ?? null,
+              sections_tied: `${ok}/${secs.length}`,
+              extracted_at: new Date().toISOString(),
+            },
+          });
+        }
+      }
       tiedSections += ok;
       totalSections += secs.length;
-      const step = out.routing?.attempts?.[0];
+      const aggs = secs.filter((x) => x.aggregate).length;
       console.log(`${label.padEnd(18)} ${acct.account_number}  ${String(out.positions.length).padStart(3)} positions  `
-        + `${ok}/${secs.length} sections tie  ${((Date.now() - started) / 1000).toFixed(1)}s  `
+        + `${ok}/${secs.length} sections tie${aggs ? ` (${aggs} aggregate)` : ''}  ${((Date.now() - started) / 1000).toFixed(1)}s  `
         + `${step ? `${step.provider}:${step.model}` : ''} ${out.routing?.schema_level || ''}`);
       for (const s of secs.filter((x) => !x.ok)) {
-        console.log(`      🔴 ${s.section.padEnd(26)} printed ${String(s.printed).padStart(13)}  llm ${String(s.parsed).padStart(13)}  Δ ${s.delta}`);
+        console.log(`      ${s.absent ? '❔' : '🔴'} ${s.section.padEnd(26)} printed ${String(s.printed).padStart(13)}`
+          + `  llm ${String(s.absent ? 'NO SUCH SECTION' : s.parsed).padStart(15)}`
+          + (s.absent ? '' : `  Δ ${s.delta}`));
+      }
+      if (unmatched.length) {
+        console.log(`      ↳ labels the model used that no check expects:`);
+        for (const u of unmatched) console.log(`         ${u.section.padEnd(30)} ${String(u.sum).padStart(13)}`);
       }
     }
   }
@@ -208,6 +311,13 @@ async function main() {
   console.log(`\nsections tied: ${tiedSections}/${totalSections}`
     + (totalSections ? ` (${(100 * tiedSections / totalSections).toFixed(0)}%)` : '')
     + ` · refusals: ${refused} · ${((Date.now() - t0) / 1000).toFixed(0)}s total`);
+  if (EMIT) {
+    fs.writeFileSync(EMIT, `${JSON.stringify(emitted, null, 2)}\n`);
+    const n = emitted.reduce((a, e) => a + e.positions.length, 0);
+    console.log(`\nwrote ${emitted.length} account-statement(s) / ${n} positions to ${EMIT}`);
+    console.log('Only account-statements whose EVERY section tied are emitted — the gate is the');
+    console.log('condition for writing, not a note attached afterwards.');
+  }
   if (SAMPLE) {
     console.log('\nSample run. ocr-llm validated extraction on HEAVY, not mid — compare this tie rate');
     console.log('against a heavy run before committing the corpus to a pinned tier.');
