@@ -188,6 +188,12 @@ function nameLooksWrong(name, symbol) {
 
 let healed = 0;
 async function healName(db, row, symbol, position) {
+  // 🔴 A DRY RUN MUST NOT WRITE. This repair sits inside resolveSecurity, which
+  // the merge loop calls BEFORE the `!APPLY` early return, so without this guard
+  // `node ingest-statement-positions.js` with no flags silently UPDATEd
+  // securities.name — and did so against prod before it was caught. The repairs
+  // themselves were correct, which is exactly why it would have gone unnoticed.
+  if (!APPLY || REPORT_ONLY) return;
   const better = String(position.description || '').trim();
   if (!better || nameLooksWrong(better, symbol)) return;
   if (!nameLooksWrong(row.name, symbol)) return;
