@@ -22,6 +22,7 @@ import {
   Reconciliation,
 } from "../features/Investments/investmentView.jsx";
 import { POSITION_COLUMNS } from "../features/Investments/positionColumns.jsx";
+import AccountHistoryChart from "../features/Investments/AccountHistoryChart.jsx";
 import "../components/ReportTabs/ReportTabs.css";
 import "./PageLayout.css";
 import "./Investments.css";
@@ -31,6 +32,16 @@ export default function InvestmentAccount() {
   const [portfolio, setPortfolio] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  // History is fetched per account and SEPARATELY from the register: it is the
+  // slower call and the page is useful without it, so a failure here must not
+  // take the positions down with it.
+  //
+  // Stored WITH the account it belongs to rather than cleared on switch. The
+  // obvious `setHistory(null)` at the top of the effect is a synchronous setState
+  // in an effect body (cascading render; `Scripts/check-lint-debt.sh` ratchets
+  // it) — and comparing the id is also stricter, because it cannot briefly show
+  // one account's history under another's name.
+  const [history, setHistory] = useState(null);
 
   useEffect(() => {
     let live = true;
@@ -46,6 +57,20 @@ export default function InvestmentAccount() {
       live = false;
     };
   }, []);
+
+  const shownId = accountId || portfolio?.accounts?.[0]?.account_id;
+  useEffect(() => {
+    if (!shownId) return undefined;
+    let live = true;
+    Rest.fetchJson(`/api/v2/investments/accounts/${shownId}/history`)
+      .then((res) => live && setHistory({ accountId: shownId, rows: Rest.unwrap(res) }))
+      // Deliberately silent: the register above is the page, and an empty chart
+      // area says less wrong than an error banner over correct positions.
+      .catch(() => live && setHistory({ accountId: shownId, rows: [] }));
+    return () => {
+      live = false;
+    };
+  }, [shownId]);
 
   if (loading) return <LoadingSpinner />;
   if (error) {
@@ -138,6 +163,12 @@ export default function InvestmentAccount() {
 
         <Reconciliation a={a} />
       </section>
+
+      {String(history?.accountId) === String(a.account_id) && history.rows.length > 0 && (
+        <section className="panel inv-account">
+          <AccountHistoryChart rows={history.rows} currency={a.currency} />
+        </section>
+      )}
     </div>
   );
 }

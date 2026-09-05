@@ -38,7 +38,10 @@ router.get('/accounts/:id/history', async (req, res, next) => {
     if (!Number.isInteger(id)) {
       return res.status(400).json({ error: 'Invalid account id' });
     }
-    const limit = Math.min(parseInt(req.query.limit, 10) || 120, 400);
+    // The cap bounds the FEED series only; statements are always returned in
+    // full (see accountHistory) so a decade of quarterly rows cannot be crowded
+    // out by daily polls.
+    const limit = Math.min(parseInt(req.query.limit, 10) || 400, 2000);
     const data = await investments.accountHistory(id, { limit });
     res.json({ data, meta: { account_id: id, points: data.length } });
   } catch (err) {

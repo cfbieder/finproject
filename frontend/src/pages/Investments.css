@@ -280,3 +280,31 @@
 
 .inv-back:hover { color: var(--primary); }
 
+
+/* CR090 P3 — the account history chart.
+   Two series that must stay visually distinct: quarterly statement observations
+   as discrete markers, the daily feed as a line. The coverage sentence above the
+   chart is not decoration — a chart that begins where its data begins otherwise
+   claims the account began there. */
+.inv-history__head { margin-bottom: 0.75rem; }
+
+.inv-history__head h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.inv-history__coverage,
+.inv-history__caveat {
+  margin: 0 0 0.3rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--ink-secondary);
+}
+
+.inv-history__caveat { color: var(--ink-tertiary); }
+
+.inv-chart-tip { padding: 0.45rem 0.6rem; }
+.inv-chart-tip__val { font-weight: 600; margin-bottom: 0.15rem; }
+.inv-chart-tip__meta { font-size: 0.72rem; color: var(--ink-secondary); }

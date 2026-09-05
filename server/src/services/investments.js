@@ -247,19 +247,67 @@ async function buildPortfolio({ asOf } = {}) {
 }
 
 /** A single account's series — how its value moved, poll by poll. */
-async function accountHistory(accountId, { limit = 120 } = {}) {
+/**
+ * One account's snapshot history — BOTH sources, each labelled and each carrying
+ * its own dating.
+ *
+ * ⚠️ This filtered on `source = 'bank-feed'` until CR090 P3, which was correct
+ * when statements did not exist and silently wrong afterwards: CR061 P2 put 117
+ * quarterly snapshots back to 2016-03-31 into the same table and this query
+ * returned 64 rows starting 2026-07-04. A decade of history was queryable and
+ * unreachable.
+ *
+ * ⚠️ `observed_on` is the date the row is TRUE FOR, and it is not the same column
+ * for both sources. A statement states its own period end (`valued_on`); the feed
+ * knows only when it asked (`polled_on`) and its `valued_on` is NULL by design
+ * (CR089 — nothing upstream states it). Coalescing them into one field is exactly
+ * the conflation CR089 exists to prevent, so `source` ships beside it and the
+ * caller must render the two differently. Both raw columns are returned as well,
+ * so nothing downstream has to guess which one it got.
+ *
+ * Ordered by the date each row describes, NOT by `polled_on` — a statement
+ * ingested today describes 2016.
+ *
+ * 🔴 `limit` applies to the FEED ONLY, and that is not a detail. A single
+ * `ORDER BY … DESC LIMIT n` over both sources truncates the OLDEST rows first —
+ * which are precisely the decade of quarterly statements, thrown away to make
+ * room for daily polls of last week. The feed grows by 365 rows a year against
+ * roughly 4 for statements, so the irreplaceable series would have been squeezed
+ * out silently and the chart would simply have got shorter over time.
+ *
+ * Statements are returned in full. Their cadence bounds them: ~4 a year per
+ * account, 42 for the longest-running one.
+ */
+async function accountHistory(accountId, { limit = 400 } = {}) {
   const { rows } = await db.query(`
-    SELECT polled_on::text AS polled_on,
+    WITH shaped AS (
+      SELECT source,
+             COALESCE(valued_on, polled_on) AS observed_on,
+             polled_on, valued_on, status, positions_count,
+             sum_market_value, custodian_balance
+        FROM security_position_snapshots
+       WHERE account_id = $1 AND status = 'fetched'
+    )
+    SELECT source,
+           observed_on::text AS observed_on,
+           polled_on::text   AS polled_on,
+           valued_on::text   AS valued_on,
            status,
            positions_count,
            sum_market_value::text  AS sum_market_value,
            custodian_balance::text AS custodian_balance
-      FROM security_position_snapshots
-     WHERE account_id = $1 AND source = $2 AND status = 'fetched'
-     ORDER BY polled_on DESC
-     LIMIT $3
-  `, [accountId, SOURCE, limit]);
-  return rows.reverse();
+      FROM (
+        SELECT * FROM shaped WHERE source = 'statement'
+        UNION ALL
+        SELECT * FROM (
+          SELECT * FROM shaped WHERE source <> 'statement'
+           ORDER BY observed_on DESC
+           LIMIT $2
+        ) recent_feed
+      ) merged_series
+     ORDER BY observed_on, source
+  `, [accountId, limit]);
+  return rows;
 }
 
 module.exports = {
