@@ -30,16 +30,31 @@
 const GATEWAY_TASK = 'finance_networth_narration';
 
 // Measured 2026-09-05 against the live gateway with the owner's real figures:
-// 7.8 s end-to-end, fallback_depth 0, 559 in / 270 out. 120 s bounds the
-// two-step chain with a wide margin.
+// heavy 7.1-16.4 s over five probes, mid 10.5-10.6 s over two, both at
+// fallback_depth 0 — so ~27 s is the OBSERVED worst-case chain, not a scaled
+// one. 120 s bounds it with a wide margin.
 //
-// ⚠️ This abort does NOT free the GPU. ocr-llm measured on 2026-09-04 that
-// uvicorn does not cancel a handler on client disconnect, so an abandoned
-// request keeps its tier pinned until the gateway's own deadline — and this
-// task has no `deadline_ms`, so that is the 600 s global default. The abort
-// bounds what the OWNER waits for, not what the tier holds; only a
-// `deadline_ms` below this number does that, which is why 120000 was sent to
-// them rather than left as a local constant.
+// This number is a CONTRACT TERM, not a local constant, which is why it was
+// sent to ocr-llm rather than just chosen. The layering only works one way
+// round, and each bound must be looser than the one it wraps:
+//
+//     chain ~27 s  <  their deadline_ms 90 s  <  this abort 120 s  <  browser 150 s
+//
+// ⚠️ This abort does NOT free the GPU, and that is why their deadline matters
+// more than ours. ocr-llm measured on 2026-09-04 that uvicorn does not cancel a
+// handler on client disconnect, so an abandoned request keeps its tier pinned
+// until THEIR deadline fires. The abort bounds what the owner waits for; only
+// `deadline_ms` bounds what the tier holds. They registered 90 000 on
+// 2026-09-05 (their handoff), replacing the 600 s global default that was the
+// only bound before it.
+//
+// ⚠️ We cannot verify that 90 000 from here — neither `GET /task/routes` nor
+// `TASK_CATALOG.md` exposes a deadline for ANY task, so the assurance is a
+// sentence in `HANDOFFS.md`. Filed with them as its own thread
+// (`finance-deadline-not-introspectable`). If this constant is ever changed,
+// re-read that thread first: raising it above their deadline is harmless, but
+// lowering their deadline below the chain would silently delete the fallback
+// step.
 const ABORT_MS = 120_000;
 
 // Grouped, because the model echoes the format it is handed and the page prints

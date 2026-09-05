@@ -1,8 +1,10 @@
 **Status:** ✅ **P0 shipped v3.53.0 · P2 COMPLETE (2026-09-05).** **Track: v3.** No migration.
 **P1 (the LLM narration) is COMPLETE — shipped v3.59.0** — `ocr-llm` registered
 `finance_networth_narration` on **2026-09-05**, the same day it was filed, and the caller shipped
-against it. One item stays open and it is theirs, not ours: no `deadline_ms`
-([roadmap §3 #27](../current/project-roadmap.md#3-known-issues)).
+against it. `deadline_ms = 90000` was registered by them the same day, so the timeout chain now
+nests correctly ([roadmap §3 #27](../current/project-roadmap.md#3-known-issues), **fixed**); the
+only residue is that a caller cannot read a deadline back from the gateway, filed with them as its
+own thread.
 
 # CR092 — Why did net worth change?
 
@@ -402,17 +404,32 @@ either side edited one.
   not add up; prose explaining them would argue with that warning), an unset client key, a
   `schema_violation`, an unparseable body, a timeout, or any non-200. A 502 here would page someone
   about prose.
-- ⚠️ **The timeout chain is NOT yet nested, and this is the one open item.** `ocr-llm` deliberately
-  attached **no `deadline_ms`** (we gave them no number when we filed), so the bound that actually
-  applies on their side is the **600 s global default**. Ours are tighter — caller abort 120 s,
-  browser 150 s — but per their own 2026-09-04 Hop-B measurement **our abort never reaches the GPU**:
-  uvicorn does not cancel a handler on client disconnect, so an abandoned narration keeps
-  `ollama_heavy` pinned for the full 600 s while we have long since stopped waiting. **We proposed
-  `deadline_ms = 90000` on 2026-09-05** — 3.3× the *measured* 27 s worst-case chain (heavy 16.4 s
-  worst + mid 10.6 s worst, both observed, neither scaled) and 30 s under our abort so their typed
-  504 lands before we give up. Until they set it, the exposure stands. Getting the order backwards
-  is the mistake they nearly made to us in September: a deadline guessed *below* the chain it bounds
-  silently deletes the fallback step.
+- ✅ **The timeout chain nests correctly, as of 2026-09-05.** Each bound is looser than the one it
+  wraps, and every number in it is observed rather than scaled:
+
+  ```
+  chain ~27 s  <  their deadline_ms 90 s  <  our abort 120 s  <  browser 150 s
+  ```
+
+  It was **not** nested when P1 first shipped. `ocr-llm` attached no `deadline_ms` — we gave them no
+  number when we filed — so the only bound was the **600 s global default**, and per their own
+  2026-09-04 Hop-B measurement **our abort never reaches the GPU** (uvicorn does not cancel a handler
+  on client disconnect), meaning an abandoned narration pinned `ollama_heavy` for the full 600 s
+  while we had long since stopped waiting. We measured **both** steps — heavy 7.1–16.4 s over five
+  probes, mid 10.5–10.6 s over two, mid *faster* here, which is the reverse of
+  `finance_statement_extract` and now recorded in their registry — and proposed 90 000. They
+  registered it the same day, choosing it over the tighter 60 000 we also offered, correctly weighing
+  it against the contention we had reported to them.
+
+  ⚠️ **We cannot verify it from a client, and that is now its own open thread with them.** Neither
+  `GET /task/routes` nor `TASK_CATALOG.md` exposes a deadline for **any** task — checked against
+  `finance_statement_extract`, known to carry 420 000, which shows none either — so absence proves
+  nothing and the assurance is a sentence in `HANDOFFS.md`. The deadline is the one contract term
+  our abort must be reasoned against, and the only one a caller cannot read back; filed as
+  `finance-deadline-not-introspectable`, explicitly not urgent.
+
+  Getting the order backwards is the mistake they nearly made to us in September: a deadline guessed
+  *below* the chain it bounds silently deletes the fallback step.
 - `periods` and `movers` are **withheld** from the prompt though the task accepts them: they would
   multiply the token count for a 150-word answer, and the tables beneath already carry that detail.
   What is narrated is what sits immediately beside it.

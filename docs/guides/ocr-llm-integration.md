@@ -98,6 +98,16 @@ bulk run only.
 ⚠️ **The gateway takes no per-request schema.** Schemas are declared per task in its catalog, so a
 new response shape needs a handoff, not a call we can make ourselves.
 
+⚠️ **You cannot read back a task's `deadline_ms`.** Neither `GET /task/routes` nor `TASK_CATALOG.md`
+exposes one for **any** task — checked against `finance_statement_extract`, known to carry 420 000,
+which shows none either — so absence there is evidence of nothing. This matters because the deadline
+is the term a caller's own abort must be reasoned against, and **the ordering is load-bearing**: each
+bound must be looser than the one it wraps (chain < their `deadline_ms` < our abort < the browser).
+A deadline *below* its own chain silently deletes the fallback step; one *above* the caller's abort
+leaves an abandoned request pinning a serialised tier, because our abort never reaches their GPU.
+`finance_networth_narration` is at **90 000** on their word, filed with them as
+`finance-deadline-not-introspectable`.
+
 ### Three things measured while adopting `finance_networth_narration` (2026-09-05)
 
 ⚠️ **Vocabulary put in the prompt comes back AS the answer.** Tagging each driver
@@ -107,15 +117,21 @@ not by inventing labels the model can echo. Validate defensively for the class, 
 `netWorthNarration.js` drops any note containing no digit.
 
 ⚠️ **A response field can arrive as a duplicate of another.** `watch_outs` came back byte-identical
-to the `why` notes (2/2 on one run, 6/6 on another), so the page rendered everything twice. Reported
-upstream; de-duplicated in our parser meanwhile.
+to the `why` notes (2/2 on one run, 6/6 on another), so the page rendered everything twice.
+✅ **ocr-llm fixed it at the task PREFIX the same day** (their rule 6: `why` explains a driver that
+moved, `watch_outs` flags what a reader could misread, and an empty array beats a duplicate) —
+re-verified against the raw gateway, 3 runs, 0 duplicates. Our parser still de-duplicates as defence
+in depth: their fix is a prompt rule and so probabilistic, ours is a structural check that one
+response field is not a copy of another, and the two fail independently.
 
 ⚠️ **An EMPTY required-context array reads as MISSING.** `{"drivers": []}` returns
 `422 missing_required_context` — the check is truthiness, not presence — so short-circuit before the
-call rather than spending a round trip. Equally: an **unknown key inside `routing` is silently
-ignored** (the field is `routing.provider`; a mistyped `routing.prefer` returned 200 on the default
-chain and said nothing), so a routing preference you did not verify is a routing preference you do
-not have.
+call rather than spending a round trip. Equally: the routing field is `routing.provider`, **not
+`routing.prefer`** — a mistyped key used to return 200 on the default chain and say nothing, which
+cost us a measurement (we believed we had timed the fallback step and had timed the first step
+twice). ✅ **Now a `422 extra_forbidden` naming the bad key**, shipped 2026-09-05 in v1 on the
+grounds that no correct caller changes behaviour. A routing preference you did not verify is still a
+routing preference you do not have.
 
 ## Before non-trivial gateway API work
 
