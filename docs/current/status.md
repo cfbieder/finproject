@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-09-05 · **Live version:** **v3.53.0** (see `VERSION` / git tags) — **v3.53.0: the hero's delta explains itself, and the answer was ONE posting.** [CR092](../cr/cr-092-net-worth-bridge.md) P0 — a **"What changed?"** button beside the Home hero opens a **net-worth bridge**: the change split into *re-valued · earned · spent · currency · transfers*, each driver **naming its item**. It is **exact, not estimated** — net worth is `opening_balance + SUM(tx)` at the as-of rate and CR024's feed override has **zero rows on prod**, so every dollar is a transaction or a rate move; the live 12-month window ties to **1.2e-10**, as do all eleven month-steps, and the server ships `tieOk` rather than the page assuming it. 🔴 **The owner's −$1,900,488 is ONE posting** — `United Beverages`, `2025-12-31`, **−6,956,000 PLN**, 98% of the year, the other ten months summing to **+94,242**; a decline that reads as a slow bleed is a single manual mark. 🔴 **Net worth was NON-DETERMINISTIC and had to be fixed first**: the rate lookup had **no tie-break**, and `2026-06-30` sits equidistant between two rates — **the same date returned 14,398,878 then 14,373,541 in one session on unchanged data** ($25,337), which a residual driver absorbs silently. Owner took the **tie-break alone** (11 of 12 boundaries byte-identical). **Four FX conventions were built and measured; all four tie** — the chosen one fixes the translation rate at `toDate` for every sub-period, which is what makes the months sum to the year exactly. ⚠️ **FIVE defects were found by RENDERING the page and none by a test**, including a hero series that **ended on a future date** and a driver breakdown whose weights were judged against the NET, printing four ±$500K legs under a −$23,621 line. The modal test asserts **every driver and contributor reaches the DOM** — the display gate [CR085](../cr/cr-085-forecast-sensitivity.md) says does not exist — and was **falsified before being trusted**
+**Last updated:** 2026-09-05 · **Live version:** **v3.53.1** (see `VERSION` / git tags) — **v3.53.0: the hero's delta explains itself, and the answer was ONE posting.** [CR092](../cr/cr-092-net-worth-bridge.md) P0 — a **"What changed?"** button beside the Home hero opens a **net-worth bridge**: the change split into *re-valued · earned · spent · currency · transfers*, each driver **naming its item**. It is **exact, not estimated** — net worth is `opening_balance + SUM(tx)` at the as-of rate and CR024's feed override has **zero rows on prod**, so every dollar is a transaction or a rate move; the live 12-month window ties to **1.2e-10**, as do all eleven month-steps, and the server ships `tieOk` rather than the page assuming it. 🔴 **The owner's −$1,900,488 is ONE posting** — `United Beverages`, `2025-12-31`, **−6,956,000 PLN**, 98% of the year, the other ten months summing to **+94,242**; a decline that reads as a slow bleed is a single manual mark. 🔴 **Net worth was NON-DETERMINISTIC and had to be fixed first**: the rate lookup had **no tie-break**, and `2026-06-30` sits equidistant between two rates — **the same date returned 14,398,878 then 14,373,541 in one session on unchanged data** ($25,337), which a residual driver absorbs silently. Owner took the **tie-break alone** (11 of 12 boundaries byte-identical). **Four FX conventions were built and measured; all four tie** — the chosen one fixes the translation rate at `toDate` for every sub-period, which is what makes the months sum to the year exactly. ⚠️ **FIVE defects were found by RENDERING the page and none by a test**, including a hero series that **ended on a future date** and a driver breakdown whose weights were judged against the NET, printing four ±$500K legs under a −$23,621 line. The modal test asserts **every driver and contributor reaches the DOM** — the display gate [CR085](../cr/cr-085-forecast-sensitivity.md) says does not exist — and was **falsified before being trusted**
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -141,8 +141,8 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   **#24/#25**): an **$87,730** `base_amount` rate drift across **271 rows** (its fix restates Cash
   Flow history, so it is an owner call), and three rate lookups in forecast/budget code still
   without a tie-break.
-- 🔴 **[CR091](../cr/cr-091-reconnect-that-works.md) — the reconnect button failed on its first live
-  use (2026-09-04).** Three Wise consents expired, which is the event [CR060](../cr/cr-060-feed-connection-health.md)
+- 🔄 **[CR091](../cr/cr-091-reconnect-that-works.md) — the reconnect button failed on its first live
+  use (2026-09-04); P1 + U1b SHIPPED v3.53.1 (2026-09-05), P4 still owed by bank-feed.** Three Wise consents expired, which is the event [CR060](../cr/cr-060-feed-connection-health.md)
   built **Re-authorise** for; all three were reconnected **by hand against bank-feed's API**. The error
   text blames a timeout and is misleading — nothing hung (mint returns **201 in 54 ms**). Fintable
   **429'd** and asked for **58 s**; fin's `mintConnectionLink` is the only upstream call passing no
@@ -153,6 +153,16 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   **id 708**, `ignored`. All three feeds are live again (**0 orphaned of 31 mappings**,
   `attention-summary` 3 → **0**), and **Fintable had not re-fetched Wise as of 07:12Z 2026-09-05**, so
   the 09-03 → now gap fills on its next daily cycle before fin's import is worth running.
+  ✅ **The fix found THREE ceilings under that 58 s budget, not one:** fin's 8000 ms fired first, but
+  the browser helper defaults to **30 s** and the `/api/v2/` nginx block sets **no**
+  `proxy_read_timeout`, so nginx's **60 s** default sat *two seconds* above the observed chain —
+  raising only the server would have moved the cut to the browser and changed nothing visible. All
+  three move together; a 429 now says *"try again in about 58s"* instead of *"bank-feed request timed
+  out"*. ⚠️ **Four of its five tests were worth little** — they assert the exported constant, so
+  deleting `timeoutMs` from the call left it correct-and-unused and all four still passed; only the
+  fake-timer wiring test fails against the unfixed code. 🔴 **The button still cannot SUCCEED during a
+  rate limit** — bank-feed still honors `Retry-After: 0` literally — so P1 buys a true error, not a
+  working button, until P4 lands in that repo.
 - ✅ **[CR061](../cr/cr-061-holdings-and-prices.md) P2 is COMPLETE (2026-09-05) — 117 of 117 account-statements
   reconcile, back to 2016-03-31.** 113 by the deterministic parser, **4 through the ocr-llm
   `finance_statement_extract` task**, both answering the same gate and provenance stored per snapshot. Dev holds
