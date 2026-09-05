@@ -79,3 +79,95 @@ export function signedPct(n) {
   if (n === null || n === undefined) return "—";
   return `${n >= 0 ? "+" : ""}${(n * 100).toFixed(2)}%`;
 }
+
+/** A per-SHARE distribution. Up to four decimals because a monthly bond-ETF
+ *  distribution is sub-cent (FLDR pays $0.163), with trailing zeros trimmed so a
+ *  quarterly $6.74 does not read as $6.7400. */
+export function perShare(n) {
+  return `$${Number(Number(n).toFixed(4))}/sh`;
+}
+
+/** A rate as a percentage, or a dash. Two decimals: a yield quoted to four
+ *  implies a precision the trailing-twelve-month measurement does not have. */
+export function ratePct(n) {
+  return n === null || n === undefined ? "—" : `${(n * 100).toFixed(2)}%`;
+}
+
+/**
+ * The yield row, and it says something DIFFERENT on each side of the portfolio —
+ * which is why the owner asked for both.
+ *
+ * ⚠️ For a bond, coupon and current yield are not the same number. The coupon is
+ * what it pays on its FACE and never moves; the current yield is that income
+ * against what it costs TODAY, so it rises as the price falls. The IBM 4.75% of
+ * 2031 is a 4.75% coupon and a 4.81% current yield at 98.60.
+ *
+ * ⚠️ And current yield is NOT yield to maturity — YTM adds the pull to par over
+ * the remaining life. Calling this "yield" unqualified overstates a discount
+ * bond, so the label carries the qualifier.
+ *
+ * ⚠️ For an equity it is a TRAILING TWELVE MONTH figure with capital-gains
+ * distributions excluded, and "we never asked" is not "it pays nothing".
+ */
+export function yieldRows(y, terms) {
+  if (!y) return [];
+  if (y.kind === "coupon") {
+    if (!y.covered) return [{ label: "Yield", value: y.reason, muted: true }];
+    // The coupon's type and frequency belong ON the coupon row. Rendered
+    // separately they became a SECOND "Coupon" line directly under this one,
+    // reading as two different rates on the same bond.
+    const detail = [terms && terms.coupon_type, terms && terms.payment_frequency]
+      .filter(Boolean).join(" · ");
+    return [
+      { label: "Coupon", value: `${y.coupon_rate}% of face${detail ? ` · ${detail}` : ""}` },
+      {
+        label: "Current yield",
+        value: y.current_yield === null
+          ? "no price"
+          : `${ratePct(y.current_yield)} at ${y.price}`,
+        muted: y.current_yield === null,
+        note: "income against today's price — not yield to maturity",
+      },
+    ];
+  }
+  if (!y.covered) return [{ label: "Yield", value: y.reason, muted: true }];
+  if (y.pays_nothing) {
+    // ⚠️ A measured zero. We asked, and this security pays no distribution —
+    // which is a fact about it, not a hole in our data.
+    return [{ label: "Dividend yield", value: "none — pays no distribution" }];
+  }
+  const rows = [{
+    label: "Dividend yield",
+    value: `${ratePct(y.dividend_yield)} · ${perShare(y.ttm_income)} over 12 months`,
+    note: y.partial_year ? "less than a full year of history — this understates" : null,
+  }];
+  if (y.ttm_excluded > 0) {
+    rows.push({
+      label: "Also distributed",
+      value: `${perShare(y.ttm_excluded)} of ${y.ttm_excluded_types.join("/")}`,
+      note: "capital gains — real money, but not an income rate",
+      muted: true,
+    });
+  }
+  return rows;
+}
+
+/**
+ * The dollars of face behind a bond position.
+ *
+ * ⚠️ A bond's `quantity` is units of PAR, not dollars: 1,000 units of a bond
+ * priced `per $100 of face` is **$100,000** of face, and the coupon is paid on
+ * that. Printed beside a coupon rate, the bare quantity invites an income figure
+ * that is wrong by 100x. Verified against the custodian's own printed EAI:
+ * 100,000 x 4.75% = $4,750, exactly what the statement shows.
+ *
+ * Null for anything not priced against par — a share count is already in the
+ * unit the reader expects.
+ */
+const PAR_PER_UNIT = { per_100_face: 100, per_1_face: 1 };
+
+export function faceValue(position, security) {
+  const par = PAR_PER_UNIT[security && security.price_basis];
+  if (!par || position.quantity === null || position.quantity === undefined) return null;
+  return Number(position.quantity) * par;
+}

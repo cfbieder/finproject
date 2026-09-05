@@ -22,6 +22,7 @@
  */
 
 const db = require('../v2/db');
+const { trailingTwelveMonths } = require('../v2/services/tradierDividends');
 
 /** Periods the page offers. `months: null` means everything we hold. */
 const PERIODS = [
@@ -320,6 +321,113 @@ async function buildSecurityChart(securityId, { period = '1Y' } = {}) {
   };
 }
 
+/** Par per quantity unit. A bond quoted `per_100_face` prices $100 of face per
+ *  unit; a brokered CD quoted `per_1_face` prices $1. */
+const PAR_PER_UNIT = { per_100_face: 100, per_1_face: 1 };
+
+/**
+ * What this holding PAYS — the owner's ask, and it is a different question for
+ * each side of the portfolio.
+ *
+ * ⚠️ COUPON AND CURRENT YIELD ARE NOT THE SAME NUMBER, which is exactly why the
+ * owner asked for both. The coupon is what the bond pays on its FACE and never
+ * moves; the current yield is that income against what the bond COSTS TODAY, so
+ * it rises as the price falls. Measured on the IBM 4.75% of 2031: coupon
+ * 4.750%, price 98.6007, current yield 4.817%.
+ *
+ * ⚠️ CURRENT YIELD IS NOT YIELD TO MATURITY, and the gap is not small for a bond
+ * away from par. YTM adds the pull to par over the remaining life and needs a
+ * reinvestment assumption; current yield deliberately ignores both. Labelling
+ * this "yield" unqualified would overstate a discount bond and understate a
+ * premium one — so the page names it.
+ *
+ * ⚠️ It is derived from the PRICE, not from the position. `coupon x par / price`
+ * is a property of the instrument at today's quote; computing it from
+ * `face x coupon / market value` gives the identical answer and makes it look
+ * like it depends on how much we hold.
+ *
+ * For anything priced per share the answer is a TRAILING TWELVE MONTH dividend
+ * yield instead, and capital-gains distributions are excluded from it — see
+ * `tradierDividends.js`.
+ */
+async function yieldFor(securityId, sec, quote) {
+  const par = PAR_PER_UNIT[sec.price_basis];
+
+  if (par) {
+    const { rows } = await db.query(
+      'SELECT coupon_rate::float AS coupon_rate, as_of::text FROM security_bond_terms WHERE security_id = $1',
+      [securityId],
+    );
+    const t = rows[0];
+    if (!t || t.coupon_rate === null) {
+      return { kind: 'coupon', covered: false, reason: 'No statement covers this bond yet, so its coupon is not known.' };
+    }
+    const { rows: p } = await db.query(`
+      WITH latest AS (
+        SELECT DISTINCT ON (account_id) id FROM security_position_snapshots
+         WHERE source = 'bank-feed' AND status = 'fetched'
+         ORDER BY account_id, polled_on DESC)
+      SELECT price::float AS price FROM security_positions
+       WHERE security_id = $1 AND snapshot_id IN (SELECT id FROM latest) AND price IS NOT NULL
+       LIMIT 1`, [securityId]);
+    const price = p.length ? p[0].price : null;
+    return {
+      kind: 'coupon',
+      covered: true,
+      coupon_rate: t.coupon_rate,
+      as_of: t.as_of,
+      price,
+      // `null` rather than the coupon when there is no price: a current yield we
+      // could not compute must not silently become the coupon again.
+      current_yield: price ? (t.coupon_rate * par) / price / 100 : null,
+    };
+  }
+
+  const { rows: askedRows } = await db.query(
+    'SELECT dividends_as_of::text FROM securities WHERE id = $1', [securityId],
+  );
+  const asked = askedRows[0] && askedRows[0].dividends_as_of;
+  if (!asked) {
+    // ⚠️ NOT "pays nothing". We never asked, and saying 0.00% would be a
+    // measurement we did not take.
+    return { kind: 'dividend', covered: false, reason: 'Distributions have not been loaded for this security.' };
+  }
+
+  const { rows: divs } = await db.query(`
+    SELECT ex_date::text, cash_amount::float AS cash_amount, dividend_type
+      FROM security_dividends WHERE security_id = $1 ORDER BY ex_date DESC`, [securityId]);
+
+  const ttm = trailingTwelveMonths(divs, asked);
+  const close = quote ? quote.last_close : null;
+  return {
+    kind: 'dividend',
+    covered: true,
+    as_of: asked,
+    ttm_income: ttm.income,
+    ttm_from: ttm.from,
+    // ⚠️ Excluded, not dropped. A fund's year-end capital-gains distribution is
+    // real money and is NOT an income rate; hiding it entirely would be as
+    // misleading as counting it.
+    ttm_excluded: ttm.excluded,
+    ttm_excluded_types: ttm.excluded_types,
+    // ⚠️ A security whose whole distribution HISTORY begins inside the window
+    // has an incomplete trailing year and its yield understates — a fund listed
+    // eight months ago shows two thirds of a year's income against a full year's
+    // price. Said, not hidden.
+    //
+    // 🔴 The first cut asked whether the first payment INSIDE the window was
+    // more than a month after it opened, which is true of every quarterly payer
+    // alive: IBM, which has paid without interruption since well before the
+    // window, was flagged partial. The question is about the SECURITY's history,
+    // not about where its payments happen to fall.
+    partial_year: divs.length > 0
+      && divs[divs.length - 1].ex_date > ttm.from,
+    dividend_yield: close && ttm.income ? ttm.income / close : (ttm.income === 0 ? 0 : null),
+    last_close: close,
+    pays_nothing: divs.length === 0,
+  };
+}
+
 /**
  * The "other relevant details" the owner asked for, in the three groups CR093 §5
  * pins: our position, the instrument, and the quote.
@@ -371,6 +479,14 @@ async function details(securityId, sec) {
       FROM security_prices
      WHERE security_id = $1 AND price_date >= CURRENT_DATE - INTERVAL '52 weeks'`, [securityId]);
 
+  const q = quote.length ? {
+    last_close: quote[0].last_close,
+    last_close_on: quote[0].last_close_on,
+    age_days: quote[0].age_days,
+    week52_high: band[0].high,
+    week52_low: band[0].low,
+  } : null;
+
   const mv = pos.reduce((a, p) => a + (p.market_value || 0), 0);
   // ⚠️ NULL, not 0, when no lot carries a basis. A money-market sweep has market
   // value and no cost, and reading that as "cost 0" turns the whole balance into
@@ -407,16 +523,11 @@ async function details(securityId, sec) {
       sector_asked: sec.sector_asked,
       bond_terms: terms[0] || null,
     },
-    quote: quote.length ? {
-      last_close: quote[0].last_close,
-      last_close_on: quote[0].last_close_on,
-      age_days: quote[0].age_days,
-      week52_high: band[0].high,
-      week52_low: band[0].low,
-    } : null,
+    quote: q,
+    yield: await yieldFor(securityId, sec, q),
   };
 }
 
 module.exports = {
-  buildSecurityChart, buildSeries, ema, macd, rebase, windowStart, PERIODS,
+  buildSecurityChart, buildSeries, ema, macd, rebase, windowStart, PERIODS, PAR_PER_UNIT,
 };

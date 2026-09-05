@@ -32,7 +32,7 @@ import { chartChrome, seriesColors, tooltipStyle } from "../Forecast/utils/fcSer
 import { money } from "./investmentFormat.js";
 import Rest from "../../js/rest.js";
 import {
-  BASIS_LABEL, SECTOR_LABEL, sectorAbsence, ratingLabel, signedPct,
+  BASIS_LABEL, SECTOR_LABEL, sectorAbsence, ratingLabel, signedPct, yieldRows, faceValue,
 } from "./securityDetail.js";
 
 /** Merge the subject and its overlays onto one date axis for recharts. */
@@ -71,6 +71,15 @@ function Details({ d, security }) {
               <Detail label="Quantity">
                 {Number(position.quantity).toLocaleString()} {position.quantity_unit || ""}
               </Detail>
+              {/* ⚠️ A bond's QUANTITY is units of par, not dollars of face: 1,000
+                  units priced per $100 of face is $100,000 of face. Beside a
+                  "coupon on face" the bare quantity invites an annual income
+                  100x too small, so the face value is spelled out. */}
+              {faceValue(position, security) !== null && (
+                <Detail label="Face value">
+                  {money(faceValue(position, security), security.currency)}
+                </Detail>
+              )}
               <Detail label="Market value">{money(position.market_value, security.currency)}</Detail>
               <Detail label="Cost basis">
                 {position.cost_basis === null
@@ -114,13 +123,18 @@ function Details({ d, security }) {
                 <span className="inv-muted">{sectorAbsence(instrument)}</span>
               )}
           </Detail>
+          {/* What it PAYS — a coupon and a current yield for fixed income, a
+              trailing-twelve-month dividend yield for everything else. */}
+          {yieldRows(d.yield, terms).map((r) => (
+            <Detail key={r.label} label={r.label}>
+              <span className={r.muted ? "inv-muted" : undefined}>{r.value}</span>
+              {r.note && <span className="inv-detail__note">{r.note}</span>}
+            </Detail>
+          ))}
           {terms && (
             <>
               <Detail label="Rating">
                 {ratingLabel(terms) || <span className="inv-muted">none printed</span>}
-              </Detail>
-              <Detail label="Coupon">
-                {terms.coupon_rate === null ? "—" : `${terms.coupon_rate}% ${terms.coupon_type || ""} ${terms.payment_frequency ? `· ${terms.payment_frequency}` : ""}`}
               </Detail>
               <Detail label="Matures">{terms.maturity_date || "—"}</Detail>
               {terms.next_call_date && <Detail label="Next call">{terms.next_call_date}</Detail>}

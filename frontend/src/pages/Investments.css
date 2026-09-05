@@ -398,3 +398,7 @@
   padding: 0.25rem 0; border-bottom: 1px solid var(--border); font-size: 0.82rem; }
 .inv-detail dt { color: var(--ink-secondary); white-space: nowrap; }
 .inv-detail dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+/* The qualifier that keeps a number from being read as a different number —
+   "not yield to maturity", "less than a full year of history". Smaller and
+   dimmer, but on its own line so it is not skimmed past. */
+.inv-detail__note { display: block; font-size: 0.72rem; color: var(--ink-tertiary); font-variant-numeric: normal; }

@@ -1,11 +1,11 @@
 # CR-093 — Portfolio X-ray: look-through, sector, credit and the security detail chart
 
-**Status:** IN-PROGRESS — P1 SHIPPED v3.57.0 (2026-09-05) · **Track:** v3 · **Owner-requested**
+**Status:** IN-PROGRESS — P1 SHIPPED v3.57.1 (2026-09-05) · **Track:** v3 · **Owner-requested**
 
 Shipped: the Exposure page and sector look-through (v3.55.0, migration 077), the manual
 sector picker (v3.55.1), the **fixed-income X-ray** (v3.56.0, migration 078) — §3's credit,
-maturity and coupon slices — and **the security detail chart** (v3.57.0, §5a). **P1 is now
-complete.** Still open: P2 risk and P3 income (§4).
+maturity and coupon slices — the **security detail chart** (v3.57.0, §5a) and its **yield row** (v3.57.1, §5b,
+migration 079). **P1 is now complete.** Still open: P2 risk and P3 income (§4).
 
 ## Why
 
@@ -337,6 +337,66 @@ would be the same error [CR056](cr-056-investment-returns.md) §3.3 and
 
 Both now live in `securityDetail.js` with tests, extracted from the component so the rules can be
 pinned without rendering a dialog.
+
+## 5b. Shipped — the yield, and it is a different question on each side (v3.57.1)
+
+Owner-asked, after seeing §5a: *"we should show the yield (div or coupon) — for fixed income both
+coupon and current yield."* Migration **079**, `Scripts/load-dividends.js`, no new endpoint.
+
+**Only one of the three numbers needed stored data.**
+
+| | source | stale? |
+|---|---|---|
+| coupon | migration 078, off the custodian statements | up to a quarter |
+| **current yield** | **arithmetic** — `coupon x par / price` | never; it moves with the price |
+| dividend yield | migration 079, Tradier distributions | as of the last load |
+
+⚠️ **Coupon and current yield are not the same number, which is exactly why both were asked for.**
+The coupon is what the bond pays on its FACE and never moves; the current yield is that income
+against what it costs TODAY. Measured on the IBM 4.75% of 2031: coupon **4.750%**, price **98.745**,
+current yield **4.81%**. ⚠️ And current yield is **not yield to maturity** — YTM adds the pull to par
+over the remaining life and needs a reinvestment assumption. Unqualified, "yield" overstates a
+discount bond, so the row carries the qualifier on screen.
+
+### 🔴 A capital-gains distribution is not a yield
+
+fin had **no distribution data at all** — `security_transactions` holds 0 rows. Tradier serves it,
+including for ETFs, and returns five types: `CD` cash · `SC` special cash · `LT`/`ST` capital gains ·
+`NP` non-periodic. **DGRW carries four of them at once.** Summing them lets one year-end turnover
+distribution present itself as a permanent income rate — and it would look entirely plausible. The
+yield counts **CD only**; the rest is shown beside it rather than hidden, because the money is real.
+An unrecognised sixth type is a hard error at parse time rather than a silent addition to the yield.
+
+⚠️ **Trailing twelve months, not `latest x frequency`.** The forward form looks more current and
+rests on a field that is not stable — UTF reports frequencies of **12, 0 and 4** across its history.
+Twelve months of actual payments is a measurement; the other extrapolates from one data point.
+
+### 🔴 "Pays nothing" is not "we have no data" — the fourth time in this project
+
+After [075](../current/migrations.md) `polled_on`/`valued_on`, 077 `sector_weights_as_of` and 078
+`fdic_insured`. Measured: **43 of 47** live quotable holdings return distributions. Of the four that
+do not, **BRK/B and KD genuinely pay none** — a fact about the company — while **FCNTX is an
+open-end fund Tradier does not cover at all**. `securities.dividends_as_of` records that we asked and
+is set even when zero rows come back, so a measured **0.00%** is distinguishable from a blank.
+
+⚠️ **This corrects §2's note in one respect.** Tradier's *fundamentals* return null for funds — that
+was measured on `company_profile` and `asset_classification`, and it still holds. Its **dividends**
+endpoint does cover ETFs: QQQ, SPY and FLDR all return full histories. The endpoint that failed and
+the endpoint that works are different endpoints, and the earlier finding should not be read as
+covering both.
+
+### 🔴 Three defects the rendered page caught
+
+1. **`partial_year` fired for every quarterly payer.** The first cut asked whether the first payment
+   inside the window was more than a month after it opened — true of IBM, which has paid without
+   interruption for decades. The question is about the SECURITY's history, not where its payments
+   fall: it is partial only if the whole distribution history begins inside the window.
+2. **"Coupon" rendered twice**, once from the yield row and once from the terms block, reading as two
+   different rates on one bond.
+3. ⚠️ **A bond's `quantity` is units of par, not dollars of face.** 1,000 units priced per $100 of
+   face is **$100,000** of face — and printed beside a "coupon on face", the bare quantity invites an
+   annual income **100x too small**. The face value is now spelled out. Verified against the
+   custodian's own printed EAI: 100,000 x 4.75% = **$4,750**, exactly what the statement shows.
 
 ## 6. Non-goals
 

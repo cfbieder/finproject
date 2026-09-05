@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-09-05 · **Live version:** **v3.57.0** (see `VERSION` / git tags) — **v3.57.0: click a ticker, see what it did.** [CR093](../cr/cr-093-portfolio-xray.md) §5a, and **P1 is complete**. A dialog on any symbol in the register: rebased price line with **SPY and DIA overlaid**, **MACD 12/26/9**, 1M–Max, and the position / instrument / quote details. No migration — it reads the Tradier backfill (**426,614 closes back to 2014**), which is what unblocked it. 🔴 **MACD's warm-up looks exactly like its signal**, so the indicator is seeded from **120 trading days before the window** and only the points inside are drawn (IBM/1Y: 121 lead-in bars, every returned point computed). ⚠️ **Three numbers here all look like "gain"** — IBM is **−4.97% over 1Y** while its position shows **+$8,761 unrealized**; each is labelled. ⚠️ **An unquoted instrument gets a sentence, never an empty axis, and that is the MAJORITY case**: 45 of 91 live holdings, **52% of the value**. 🔴 Two defects came from **rendering** the page, not reading it — a CD read *"Sector: not classified yet"*, and price bases rendered as raw enums.
+**Last updated:** 2026-09-05 · **Live version:** **v3.57.1** (see `VERSION` / git tags) — **v3.57.1: the yield, and it is a different question on each side of the portfolio.** [CR093](../cr/cr-093-portfolio-xray.md) §5b, migration **079**. Owner-asked after the chart shipped. **Only one of the three needed stored data** — the coupon is already off the statements, and the **current yield is arithmetic** (`coupon × par / price`), so it is never stale. ⚠️ **Coupon ≠ current yield**, which is why both were asked for: the IBM 4.75% of 2031 is a **4.750% coupon** and a **4.81% current yield** at 98.745 — and neither is yield to maturity, which the row says. 🔴 **A capital-gains distribution is not a yield**: Tradier returns five distribution types and DGRW carries four at once, so only cash dividends count and the rest is shown beside them. 🔴 **"Pays nothing" is not "we have no data" — the fourth time this project has needed that** (075, 077, 078, 079): 43 of 47 holdings pay, BRK/B and KD genuinely pay none, FCNTX is simply not covered. 🔴 Three defects came from **rendering** the page: `partial_year` fired for every quarterly payer, "Coupon" rendered twice, and a bond's quantity is **units of par, not dollars of face** — 1,000 units is $100,000, and beside a coupon that invites an income 100× too small.
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -155,7 +155,7 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   in the views actually read); **#25** gave the three remaining rate lookups the same tie-break, with
   no convention change.
 - ✅ **[CR093](../cr/cr-093-portfolio-xray.md) P1 is COMPLETE — exposure v3.55.0, the sector picker
-  v3.55.1, the fixed-income X-ray v3.56.0, the security detail chart v3.57.0.**
+  v3.55.1, the fixed-income X-ray v3.56.0, the security detail chart v3.57.0, its yield row v3.57.1.**
   `/investments/exposure` answers *what am I exposed to* by asset class, by sector with funds seen
   through, and by credit / maturity / coupon across the **58%** that is fixed income; any symbol in
   the register opens its chart. **Open: P2 (risk) and P3 (income)** — ⚠️ P3's `EAI` is a FORWARD
