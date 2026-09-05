@@ -42,8 +42,25 @@ RULES='react-hooks/set-state-in-effect|react-refresh/only-export-components'
 cd "$ROOT/frontend"
 
 # Count per rule from eslint's JSON output. Node is already a build dependency.
+#
+# ⚠️ eslint EXITS 1 when the tree has any error, and its JSON is still complete
+# and correct when it does. Piping it directly under `set -o pipefail` therefore
+# killed this script with NO OUTPUT AND NO REASON the moment an unrelated error
+# existed — a gate that fires and produces no visible effect, which is the
+# defect class this repo has been bitten by a dozen times, here in a gate.
+# It cost two debugging detours in one session (CR092 P2).
+#
+# So: tolerate eslint's exit code, and fail LOUDLY if it genuinely produced
+# nothing. Errors are CI's lint step to block on, not this ratchet's.
 count_debt() {
-  npx eslint src -f json 2>/dev/null | node -e '
+  local json
+  json="$(npx eslint src -f json 2>/dev/null || true)"
+  if [[ -z "$json" ]]; then
+    echo "check-lint-debt: eslint produced no output — cannot count debt." >&2
+    echo "  Run 'npx eslint src' in frontend/ to see why." >&2
+    return 1
+  fi
+  printf '%s' "$json" | node -e '
     const rules = new Set(["react-hooks/set-state-in-effect", "react-refresh/only-export-components"]);
     let raw = "";
     process.stdin.on("data", (c) => (raw += c));

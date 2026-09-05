@@ -1,5 +1,6 @@
-**Status:** ✅ **P0 COMPLETE — shipped v3.53.0 (2026-09-05).** **Track: v3.** No migration.
-**P1 (the LLM narration) is open** and blocked on a local-only task registration in `ocr-llm`.
+**Status:** ✅ **P0 shipped v3.53.0 · P2 COMPLETE (2026-09-05).** **Track: v3.** No migration.
+**P1 (the LLM narration) is open** — the `ocr-llm` handoff was **filed 2026-09-05**
+(`finance_networth_narration`), so it now waits on them, not on us.
 
 # CR092 — Why did net worth change?
 
@@ -178,6 +179,70 @@ the DOM**, that a cancelling driver's legs are **absent**, and that no `%` appea
 falsified before being trusted. Server-side, the rules are asserted **as rules** (label kind, the
 net-of-gross ratio) rather than against figures dev happens to hold; the first draft asserted the
 fixture's own mark was listed and failed, because prod's −1.87M correctly outranks it.
+
+## 6b. P2 — the drivers report (owner request, 2026-09-05)
+
+*"I really like this graph — can we make this a report in the reports section where the user can
+select the period?"* `/net-worth-drivers`, under **Reports & Graphs › Reports**, beside
+`/investment-returns` and deliberately shaped like it.
+
+- **Period** via the existing `PeriodSelector` (owner decision over presets and over free date
+  pickers: it is the proven control on the sibling report, and day precision invites comparing a
+  43-day span to a 31-day one without noticing). Plus a **Break down by** control —
+  month / quarter / year / whole period — since the endpoint already took `granularity`.
+- ⚠️ **The chosen period is NOT the dates sent.** A period of *Jan–Dec 2026* is sent as
+  `fromDate = 2025-12-31`, because the bridge reads `fromDate` as the **opening boundary** and
+  attributes transactions *after* it — passing `2026-01-01` would bury that day's transactions in
+  the opening balance and drop them from the explanation. The page says so on screen rather than
+  leaving a reader wondering why January's report starts on 31 December. `toDate` is clamped to
+  today, the same defect P0 had to fix in the hero. `windowFor` is its own module with seven tests,
+  `today` injected — a "clamps to today" test pinned against the real clock passes for a month and
+  then fails on its own.
+- **Every account, not the modal's twelve.** New `movers=<n>` query param, bounded at 500 by the
+  service; an unbounded caller-supplied limit is a payload-size hole, not a feature. The grid is
+  **sortable by any driver column**, on absolute value — a driver column holds both signs, and
+  ranking it raw would bury the biggest negative under every small positive. An unsorted 58-row
+  grid is a worse object than the capped 12-row one it replaces.
+- **One rendering, not two.** The waterfall, period table and account grid moved to
+  `features/NetWorthBridge/bridgeParts.jsx` and are now rendered by **both** the modal and the
+  report. Copying them would have been faster and is exactly how a modal and a report start
+  disagreeing about the same number while each stays internally consistent. The refactor's gate is
+  that all 11 modal tests pass **unchanged**.
+
+🔴 **Rendering the report on a different window exposed a defect in P0's prose that P0's own window
+could never show.** On year-to-date the page said:
+
+> *"Net worth fell $96,705. **Almost all of it is one thing: money earned added $368,591.**"*
+
+Earning money does not cause a fall. `buildSummary` took `drivers[0]` — the largest by **absolute**
+value — and asserted it explained the change. On the 12-month window that happened to be a
+re-valuation of −1.74M against a −1.9M fall, so it read correctly and shipped. Two rules now:
+
+1. **The leading driver must share the CHANGE's sign.**
+2. **When the drivers largely cancel, no driver leads at all** — the same net-of-gross test §6a
+   introduced for contributors. That window's change is **7.7%** of its **$1,259,734** of gross
+   driver movement, so it now reads *"No single thing accounts for that — $581,515 of gains against
+   $678,220 of losses, and the change is what is left over"*, and those two figures reconstruct the
+   change exactly.
+
+`buildSummary` is exported and tested **directly** for this: both rules depend on a driver *mix*
+that whichever database a suite runs against may simply not contain, so a DB-backed assertion would
+have kept passing while the page kept lying.
+
+⚠️ **Also fixed in passing: `Scripts/check-lint-debt.sh` failed SILENTLY.** eslint exits 1 when the
+tree holds any error, and its JSON is still complete — but piped under `set -o pipefail` that killed
+the gate with no output and no reason. A gate that fires and produces no visible effect, in a repo
+whose most-cited defect class is exactly that. It cost two debugging detours in one session; it now
+tolerates eslint's exit code and fails loudly if eslint genuinely produced nothing. Falsified by
+introducing an error and confirming the counts still print.
+
+⚠️ **Desktop-only**, like `/investment-returns`: a phone gets the `/m/*` shell, which has its own
+curated route set. Reachable there through the existing *switch to desktop* control. Not a
+regression — a stated limit.
+
+⚠️ **Not mine, observed while checking:** in dark mode the top nav renders on a light cream ground.
+Verified identical on `/investment-returns`, a page this CR does not touch, so it is pre-existing
+and app-wide — a [CR086](cr-086-ui-visual-system.md)-family item, logged rather than fixed here.
 
 ## 7. What the RENDERED PAGE found that the tests did not
 

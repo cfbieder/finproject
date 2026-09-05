@@ -746,8 +746,13 @@ export default class Rest {
    * `unwrap()` would drop all of it and leave the modal asserting an
    * explanation it never checked.
    */
-  static async fetchNetWorthBridgeV2({ fromDate, toDate, granularity = "month" } = {}) {
+  static async fetchNetWorthBridgeV2({
+    fromDate, toDate, granularity = "month", movers,
+  } = {}) {
     const params = new URLSearchParams({ fromDate, toDate, granularity });
+    // Omitted, not defaulted: the server's own cap is the modal's answer, and
+    // only the report has a reason to override it.
+    if (movers) params.set("movers", String(movers));
     const payload = await Rest.fetchJson(
       `/api/v2/reports/net-worth-bridge?${params.toString()}`
     );

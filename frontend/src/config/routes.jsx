@@ -31,6 +31,7 @@ import {
   PieChart,
   Palette,
   LineChart,
+  Scale,
   Landmark,
 } from "lucide-react";
 
@@ -51,6 +52,7 @@ const BudgetLE = lazy(() => import("../pages/BudgetLE"));
 // CR042 U5: the two cash-flow pages are now tabs inside CashFlowTabs.
 const CashFlowTabs = lazy(() => import("../pages/CashFlowTabs"));
 const InvestmentReturns = lazy(() => import("../pages/InvestmentReturns"));
+const NetWorthDrivers = lazy(() => import("../pages/NetWorthDrivers"));
 const Investments = lazy(() => import("../pages/Investments"));
 const InvestmentAccount = lazy(() => import("../pages/InvestmentAccount"));
 const FCEquity = lazy(() => import("../pages/FCEquity"));
@@ -429,6 +431,17 @@ export const routes = [
     description:
       "Realized income and price return per period for an account, absolute and as a Modified Dietz %",
     icon: LineChart,
+  },
+
+  {
+    path: "/net-worth-drivers",
+    component: NetWorthDrivers,
+    label: "Net Worth Drivers",
+    category: "Reports & Graphs",
+    subcategory: "Reports",
+    description:
+      "Why net worth changed over a period — re-valued, earned, spent, currency, transfers — and which accounts did it",
+    icon: Scale,
   },
 
   // Reports & Graphs > Graphs

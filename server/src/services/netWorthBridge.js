@@ -616,9 +616,35 @@ function buildSummary(data) {
   // its driver, and "most of it is one thing" where that thing was the ONLY
   // driver — prose asserting more than the arithmetic supports, on a page whose
   // entire claim is that the arithmetic is exact.
-  const top = data.drivers[0];
+  //
+  // 🔴 Two rules here, and the SECOND was found by rendering a different window
+  // (CR092 P2, year-to-date rather than 12 months):
+  //
+  //   1. The leading driver must share the CHANGE's sign. `drivers[0]` is the
+  //      largest by absolute value, which on a YTD window was `income +368,591`
+  //      against a net FALL of 96,705 — so the page read "Net worth fell
+  //      $96,705. Almost all of it is one thing: money earned added $368,591."
+  //      Earning money does not cause a fall.
+  //   2. When the drivers largely CANCEL, no single one is the story at all.
+  //      Same net-of-gross test the contributor lists use: that window's change
+  //      is 7.7% of its 1,259,734 of gross driver movement, and picking any
+  //      "leading" driver from it overstates by an order of magnitude.
+  const grossDrivers = data.drivers.reduce((a, d) => a + Math.abs(d.amount), 0);
+  const dominated =
+    grossDrivers > 0 && Math.abs(data.change) >= grossDrivers * NET_OF_GROSS_FLOOR;
+  const top = dominated
+    ? data.drivers.find((d) => Math.sign(d.amount) === Math.sign(data.change))
+    : null;
+
   let ledWith = null;
-  if (top && Math.abs(top.amount) > Math.abs(data.change) * 0.4) {
+  if (!dominated && data.drivers.length > 1) {
+    const gains = data.drivers.filter((d) => d.amount > 0).reduce((a, d) => a + d.amount, 0);
+    const losses = data.drivers.filter((d) => d.amount < 0).reduce((a, d) => a + d.amount, 0);
+    lines.push(
+      `No single thing accounts for that — ${usd(gains)} of gains against ` +
+        `${usd(losses)} of losses, and the change is what is left over.`
+    );
+  } else if (top && Math.abs(top.amount) > Math.abs(data.change) * 0.4) {
     ledWith = top.key;
     const soleDriver = data.drivers.length === 1;
     const verb = top.amount < 0 ? 'took' : 'added';
@@ -683,6 +709,11 @@ function buildSummary(data) {
 
 module.exports = {
   buildNetWorthBridge,
+  // Pure, and exported for its own tests: its two hardest rules (a leading
+  // driver must share the change's sign; cancelling drivers have no leader)
+  // depend on driver MIXES that whichever data a DB happens to hold may not
+  // contain, so they are tested directly rather than hoped for.
+  buildSummary,
   isValidDateString,
   periodEnds,
   DRIVERS,

@@ -228,12 +228,18 @@ router.get('/investment-returns', async (req, res, next) => {
 
 /**
  * GET /api/v2/reports/net-worth-bridge
- *   ?fromDate=&toDate=&granularity=month|quarter|year|none
+ *   ?fromDate=&toDate=&granularity=month|quarter|year|none&movers=<n>
  *
  * Why net worth changed between two dates, split into drivers a person
  * recognises. Powers the Home hero's "What changed?" modal, so the window it is
  * asked for is the window the hero draws — and `data.from/to.netWorth` are the
  * hero's own endpoints, not a second opinion about them.
+ *
+ * `movers` (CR092 P2) caps `data.movers`. The modal wants the top handful; the
+ * `/net-worth-drivers` report wants every account, and a cap it cannot lift
+ * would silently truncate the grid that report exists to show. Bounded at 500
+ * by the service — an unbounded caller-supplied limit is a payload-size hole,
+ * not a feature.
  *
  * `{ data, meta }` envelope (CR043 N8). `meta` carries the FX basis, the
  * caveats, and `tie` / `tieOk` — the decomposition is exact, so a consumer that
@@ -241,7 +247,7 @@ router.get('/investment-returns', async (req, res, next) => {
  */
 router.get('/net-worth-bridge', async (req, res, next) => {
   try {
-    const { fromDate, toDate, granularity = 'month' } = req.query;
+    const { fromDate, toDate, granularity = 'month', movers } = req.query;
 
     if (!fromDate || !toDate) {
       return res.status(400).json({
@@ -259,8 +265,21 @@ router.get('/net-worth-bridge', async (req, res, next) => {
       });
     }
 
+    // Rejected rather than silently coerced: a typo'd `movers=all` quietly
+    // falling back to the modal's 12 would truncate the report's grid with
+    // nothing to say it had.
+    let moverLimit;
+    if (movers !== undefined) {
+      moverLimit = Number(movers);
+      if (!Number.isInteger(moverLimit) || moverLimit < 1) {
+        return res.status(400).json({
+          error: "Invalid 'movers'; expected a positive integer"
+        });
+      }
+    }
+
     const { data, meta } = await netWorthBridgeService.buildNetWorthBridge({
-      fromDate, toDate, granularity
+      fromDate, toDate, granularity, ...(moverLimit ? { moverLimit } : {})
     });
     res.json({ data, meta });
   } catch (error) {

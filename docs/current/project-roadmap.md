@@ -11,7 +11,7 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 ### 1.1 Open / In-Progress
 
 <a id="cr092"></a>
-- **CR092 — Why did net worth change? ✅ *P0 SHIPPED v3.53.0 (2026-09-05)*; P1 (LLM narration) open.**
+- **CR092 — Why did net worth change? ✅ *P0 SHIPPED v3.53.0 · P2 COMPLETE 2026-09-05*; P1 filed with `ocr-llm`, awaiting them.**
   Full spec: [cr-092-net-worth-bridge.md](../cr/cr-092-net-worth-bridge.md). Owner-asked from the
   Home hero: *"we show a drop of 1.9mln — what were the main causes?"*
   - **A "What changed?" button beside the delta** opens a **net-worth bridge**: the change split
@@ -53,10 +53,23 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
   - **The modal test asserts every driver in the payload reaches the DOM** — the display-side gate
     [CR085](../cr/cr-085-forecast-sensitivity.md) says does not exist — and was **falsified before
     being trusted** (dropping one driver from the render makes it fail).
+  - **P2 — `/net-worth-drivers`** (owner-requested from the modal): the same bridge over any period
+    under Reports & Graphs, via the sibling report's `PeriodSelector`, with **every** account in a
+    grid sortable by any driver column (`movers=<n>`, bounded at 500). ⚠️ A period of *Jan–Dec* is
+    sent as `fromDate = 31 Dec` — the bridge's **opening boundary** — and the page states it rather
+    than leaving a January report starting in December unexplained. The rendering is **shared** with
+    the modal (`features/NetWorthBridge/`), gated by all 11 modal tests passing unchanged.
+    🔴 **Rendering it on a YTD window exposed a P0 prose defect that P0's own window could not
+    show**: the lead named the largest driver by ABSOLUTE value, so a **$96,705 fall** read
+    *"almost all of it is one thing: money earned added $368,591"*. Fixed by two rules — the leading
+    driver must share the change's sign, and cancelling drivers get no leader — and `buildSummary` is
+    now tested **directly**, because both rules depend on a driver mix no particular database is
+    guaranteed to hold. ⚠️ Desktop-only, like `/investment-returns`.
   - **P1 — the LLM narration** over exactly this payload, following the gateway's existing
     *narration-only* pattern (the caller computes every figure, the model never calculates).
-    **Blocked on a local-only task registration in `ocr-llm`**, requested via `HANDOFFS.md`; the
-    deterministic summary is the floor and a gateway failure must degrade to it, never to an error.
+    **Filed with `ocr-llm` 2026-09-05** as `finance_networth_narration` (local-only route, four
+    server-side guardrails), so it now waits on them rather than on us; the deterministic summary is
+    the floor and a gateway failure must degrade to it, never to an error.
   - **Deliberately left open** — see §3 Known Issues #24 and #25: the `base_amount` rate drift, and
     the three remaining ABS-only rate lookups.
 

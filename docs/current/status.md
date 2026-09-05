@@ -129,18 +129,30 @@ the dev-first migration rule, and the fact that **an engine change moves nothing
 scenarios are REGENERATED**. It changes far less often than this file does.
 
 ## Next
-- 🔴 **[CR092](../cr/cr-092-net-worth-bridge.md) P1 — the LLM narration — is BLOCKED on `ocr-llm`.**
-  P0 shipped in v3.53.0 (headline above). P1 would put a written narration over exactly that
-  payload, following the gateway's existing **narration-only** pattern (`recovery_narration`,
-  `market_regime_narration`): the caller computes every figure and inlines them as GIVEN, the model
-  never calculates. ⚠️ Fin's tasks are **local-only** — personal financial detail must not leave the
-  tailnet — so it needs a new local-only task registered in `ocr-llm` via `HANDOFFS.md`, **not yet
-  filed**. Two rules for when it lands: the modal renders the table from the API with the narration
-  **above** it, never instead of it; and a gateway failure degrades to the deterministic summary,
-  never to an error. ⚠️ **Two items were deliberately left open** ([roadmap §3](project-roadmap.md#3-known-issues)
-  **#24/#25**): an **$87,730** `base_amount` rate drift across **271 rows** (its fix restates Cash
-  Flow history, so it is an owner call), and three rate lookups in forecast/budget code still
-  without a tie-break.
+- ✅ **[CR092](../cr/cr-092-net-worth-bridge.md) P2 — `/net-worth-drivers`** (owner-requested from
+  the modal: *"make this a report where the user can select the period"*). The same bridge over any
+  period under **Reports & Graphs**, via the sibling report's `PeriodSelector`, with **every**
+  account in a grid sortable by any driver column. The rendering is **shared** with the hero's modal
+  (`features/NetWorthBridge/`) rather than copied — gated by all 11 modal tests passing unchanged.
+  🔴 **Rendering it on a YTD window exposed a P0 prose defect that P0's own window could not show:**
+  the lead named the largest driver by ABSOLUTE value, so a **$96,705 fall** read *"almost all of it
+  is one thing: money earned added $368,591"*. Two rules now — a leading driver must share the
+  change's sign, and cancelling drivers get **no** leader — and `buildSummary` is tested directly,
+  since both depend on a driver mix no particular database is guaranteed to hold. ⚠️ Also fixed:
+  **`Scripts/check-lint-debt.sh` failed SILENTLY** whenever the tree held any eslint error
+  (`pipefail` killed it mid-pipe) — a gate that fires with no visible effect, which is this repo's
+  most-cited defect class, in a gate. ⚠️ Desktop-only, like `/investment-returns`.
+- 🔴 **[CR092](../cr/cr-092-net-worth-bridge.md) P1 — the LLM narration — is FILED and now waits on
+  `ocr-llm`.** `finance_networth_narration`, requested 2026-09-05 via `HANDOFFS.md` (+ ledger twin):
+  narration-only in the `recovery_narration` shape, **local-only route** because the prompt is the
+  owner's whole balance sheet by named account, with four guardrails asked for server-side — two of
+  them data-specific (an `offsetting` driver moved and cancelled and is neither gain nor loss; no
+  percentages, since a contributor can exceed its own driver). No deadline: the deterministic
+  summary is the fallback. ⚠️ **Two items still deliberately open**
+  ([roadmap §3](project-roadmap.md#3-known-issues) **#24/#25**), both with owner decisions taken
+  2026-09-05: **#24** — fix the `base_amount` writer, leave the 271 historical rows (the $85,780 sits
+  in an `Unrealized G/L` posting the default Cash Flow view excludes, so only ~$1,950 is visible);
+  **#25** — apply the same tie-break to the three remaining rate lookups, no convention change.
 - 🔄 **[CR091](../cr/cr-091-reconnect-that-works.md) — the reconnect button failed on its first live
   use (2026-09-04); P1 + U1b SHIPPED v3.53.1 (2026-09-05), P4 still owed by bank-feed.** Three Wise consents expired, which is the event [CR060](../cr/cr-060-feed-connection-health.md)
   built **Re-authorise** for; all three were reconnected **by hand against bank-feed's API**. The error

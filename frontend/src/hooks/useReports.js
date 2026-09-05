@@ -96,10 +96,18 @@ export function useNetWorthSeries(monthCount = 12) {
  * `enabled` is the point: the Home hero mounts on every visit, and this is a
  * dozen balance builds. It runs only once the modal is actually opened.
  */
-export function useNetWorthBridge({ fromDate, toDate, granularity = "month", enabled = true }) {
+export function useNetWorthBridge({
+  fromDate, toDate, granularity = "month", movers, enabled = true,
+}) {
   return useQuery({
-    queryKey: ["netWorthBridge", { fromDate: fromDate ?? null, toDate: toDate ?? null, granularity }],
-    queryFn: () => Rest.fetchNetWorthBridgeV2({ fromDate, toDate, granularity }),
+    // `movers` is IN the key: the modal's capped answer and the report's full
+    // one are different payloads for the same window, and sharing a key would
+    // serve whichever landed first.
+    queryKey: [
+      "netWorthBridge",
+      { fromDate: fromDate ?? null, toDate: toDate ?? null, granularity, movers: movers ?? null },
+    ],
+    queryFn: () => Rest.fetchNetWorthBridgeV2({ fromDate, toDate, granularity, movers }),
     enabled: Boolean(enabled && fromDate && toDate),
     staleTime: 5 * 60 * 1000,
   });

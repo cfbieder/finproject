@@ -417,6 +417,32 @@ dbDescribe('buildNetWorthBridge — the drivers add up (DB)', () => {
     expect(meta.caveats.join(' ')).toMatch(/Closing an account/i);
   });
 
+  it('caps the mover list, and lets a caller lift the cap', async () => {
+    // CR092 P2: the modal wants a top handful, the /net-worth-drivers report
+    // wants every account. A cap the report cannot lift would truncate the grid
+    // it exists to show, with nothing on screen to say it had.
+    const capped = await buildNetWorthBridge({
+      fromDate: FROM, toDate: TO, granularity: 'month', moverLimit: 2,
+    });
+    expect(capped.data.movers).toHaveLength(2);
+
+    const full = await buildNetWorthBridge({
+      fromDate: FROM, toDate: TO, granularity: 'month', moverLimit: 500,
+    });
+    expect(full.data.movers.length).toBeGreaterThan(capped.data.movers.length);
+
+    // Capping must not reorder: the two lists agree on the biggest movers.
+    expect(capped.data.movers.map((m) => m.account))
+      .toEqual(full.data.movers.slice(0, 2).map((m) => m.account));
+
+    // And the cap is bounded server-side — an unbounded caller-supplied limit
+    // is a payload-size hole, not a feature.
+    const absurd = await buildNetWorthBridge({
+      fromDate: FROM, toDate: TO, granularity: 'month', moverLimit: 10 ** 6,
+    });
+    expect(absurd.data.movers.length).toBeLessThanOrEqual(500);
+  });
+
   it('rejects an inverted window instead of returning a mirrored answer', async () => {
     await expect(
       buildNetWorthBridge({ fromDate: TO, toDate: FROM, granularity: 'month' })
