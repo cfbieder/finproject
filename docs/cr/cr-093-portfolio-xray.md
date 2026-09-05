@@ -1,4 +1,4 @@
-# CR-092 — Portfolio X-ray: look-through, sector, credit and the security detail chart
+# CR-093 — Portfolio X-ray: look-through, sector, credit and the security detail chart
 
 **Status:** DRAFT (2026-09-05) · **Track:** v3 · **Owner-requested**
 
