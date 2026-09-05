@@ -201,7 +201,24 @@ async function healName(db, row, symbol, position) {
   if (!APPLY || REPORT_ONLY) return;
   const better = String(position.description || '').trim();
   if (!better || nameLooksWrong(better, symbol)) return;
-  if (!nameLooksWrong(row.name, symbol)) return;
+  if (String(row.name || '').trim() === better) return;
+
+  /**
+   * ⚠️ THE MOST RECENT STATEMENT WINS, not the first one seen.
+   *
+   * Healing only names that "look wrong" left the real failure untouched: a wrong
+   * name that looks perfectly plausible. FLDR was stored as `COLLATERAL DELV TO
+   * US BANK NA SECURITIES ON …` because its FIRST sighting sat in
+   * `Loaned/Collateralized Securities` beneath a collateral line with no ticker.
+   * Six of the seven statements naming it say `FIDELITY LOW DURATION BOND FACTOR
+   * ETF`; first-seen-wins picked the seventh, and no predicate over the string
+   * alone could tell — it is trimmed, alphabetic, unlike its symbol and reads
+   * like an instrument.
+   *
+   * Statements are now read in date order and the latest good description wins,
+   * which is also the right answer when an instrument is genuinely RENAMED. The
+   * value of a name is that it is current, not that it was first.
+   */
   await db.query('UPDATE securities SET name = $2, updated_at = now() WHERE id = $1', [row.id, better]);
   healed += 1;
 }
@@ -241,6 +258,13 @@ async function main() {
     ? files
     : fs.readdirSync(path.join(__dirname, '..', 'Samples', 'Fidelity'))
       .filter((f) => f.endsWith('.pdf'))
+      // ⚠️ Chronological, not readdir order (which is not sorted at all). The
+      // name a security ends up with depends on the order statements are read,
+      // and `FA_`/`FS_` interleave in time while sorting apart alphabetically.
+      .sort((x, y) => {
+        const k = (f) => (f.match(/(\d{4})_(\d{2})/) || ['', '0', '0']).slice(1).join('');
+        return k(x).localeCompare(k(y)) || x.localeCompare(y);
+      })
       .map((f) => path.join('Samples', 'Fidelity', f));
 
   console.log(`${APPLY ? 'APPLY' : 'DRY RUN'} — ${list.length} statement file(s)\n`);
@@ -400,7 +424,7 @@ async function main() {
   } else if (LLM_FILE) {
     console.log(`⚠️ --llm ${LLM_FILE} matched no account-statement — check the file names in it`);
   }
-  if (healed) console.log(`repaired ${healed} security name(s) that held statement furniture or the bare symbol`);
+  if (healed) console.log(`updated ${healed} security name(s) to what the most recent statement calls them`);
   if (stats.unmapped.size) {
     console.log(`\n⚠️ ${stats.unmapped.size} account number(s) are not in the pinned map and were REFUSED,`);
     console.log('   not guessed — assigning by closest balance would hide the very drift this measures:');

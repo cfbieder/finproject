@@ -283,6 +283,20 @@ const FURNITURE = new RegExp([
   String.raw`Unrealized Gain\/Loss`,
   String.raw`EAI \(\$\) \/ EY \(%\)`,
   String.raw`Est\. Annual Income \(EAI\)\s*Est\.\s?Yield \(EY\)`,
+  String.raw`Income Earned`,
+  // 🔴 A run of figures ends the row BEFORE this one — whether or not that row
+  // was matched. A holding with no ticker matches no row at all, so its whole
+  // line stays in the window and the head-slice takes IT as the next holding's
+  // name. FLDR was stored as `COLLATERAL DELV TO US BANK NA SECURITIES ON …`
+  // because the collateral line above it in `Loaned/Collateralized Securities`
+  // has no identifier: `… X unavailable 76,393.000 - unavailable unknown unknown
+  // - -` then the real name. Six of the seven statements naming FLDR say
+  // "FIDELITY LOW DURATION BOND FACTOR ETF"; the one that did not was the FIRST,
+  // and securities.name is written at first sight.
+  //
+  // Three or more consecutive figure-or-absence tokens, so a name carrying one
+  // number of its own (`CD 5.55000% 10/18/2033`) is not cut in half.
+  String.raw`(?:(?:-{1,2}|not applicable|unavailable|unknown|-?\$?[\d,]+(?:\.\d+)?%?)\s+){3,}`,
   // A section subtotal and the figures trailing it. `[^A-Za-z]*` eats the
   // numbers so they cannot be read as part of the next row's name.
   String.raw`Total [A-Za-z .&'-]+\(\d+% of account holdings\)[^A-Za-z]*`,
