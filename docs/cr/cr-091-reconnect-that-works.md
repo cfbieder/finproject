@@ -148,6 +148,17 @@ trailing-slash redirect (the reason the AI Review block is shaped that way too).
 **P2 — make the page legible.** *(fin)*
 - U1: a column identifying each connection — mapped fin account and currency, falling back to the
   fintable account id. Institution name alone is not an identifier.
+- **U1b — the account-mapping table is not grouped by institution.** ✅ **BUILT 2026-09-05.** It
+  rendered in mapping-id order, i.e. the order rows were first created, which scattered one bank's
+  accounts down the whole table: the Wise USD account sat **eleven rows above** the other three Wise
+  rows. That is the table's main job when a reconnect has just re-keyed one account of several at a
+  bank — comparing a bank's accounts *to each other* — and it required hunting. Grouped by
+  institution, then by name; rows whose institution is unknown (bank-feed unreachable — observed
+  once during this work, so the null path is real, not defensive) sort last rather than under an
+  invented heading. **It also makes the U3 duplicate self-evident:** the two identical
+  `Christopher Biedermann (USD) (1446)` rows now sit adjacent, one MAPPED and one IGNORED, where
+  before the pair could not be seen on one screen. Sorted in the page, not in SQL — nothing else
+  consumes the endpoint's order.
 - U2: rank connection-level truth above job-derived text; a connection with `needs_reconnect: false`
   and a fresh `last_successful_update` is not `unhealthy` because yesterday's job failed.
 

@@ -9,7 +9,7 @@
  * Never mutates anything in fin or bank-feed.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Rest from "../js/rest";
 import {
   AccountPicker,
@@ -45,6 +45,29 @@ export default function BankFeedDiagnostic() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [mappings, setMappings] = useState(null);
+
+  // CR091 U1 — group the rows by INSTITUTION, then by name.
+  //
+  // The API returns them in mapping-id order, i.e. the order they were first
+  // created, which scatters one bank's accounts down the whole table: the Wise
+  // USD account sat eleven rows above the other three Wise rows, so comparing a
+  // bank's accounts to each other — the thing this table is FOR when a reconnect
+  // has just re-keyed one of them — meant hunting. Sorting here rather than in
+  // SQL keeps the endpoint's contract unchanged; nothing else consumes an order.
+  //
+  // Institution is null when bank-feed was unreachable (the column renders "—"),
+  // and those sort LAST rather than under an invented heading.
+  const sortedMappings = useMemo(() => {
+    if (!mappings) return null;
+    const collator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
+    return [...mappings].sort((a, b) => {
+      const ai = a.institution;
+      const bi = b.institution;
+      if (!ai !== !bi) return ai ? -1 : 1;          // unknown institution last
+      if (ai && bi && ai !== bi) return collator.compare(ai, bi);
+      return collator.compare(a.name || "", b.name || "");
+    });
+  }, [mappings]);
   const [accountOptions, setAccountOptions] = useState([]);
   const [savingId, setSavingId] = useState(null);
   const [mapError, setMapError] = useState(null);
@@ -287,7 +310,7 @@ export default function BankFeedDiagnostic() {
               </tr>
             </thead>
             <tbody>
-              {mappings.map((m) => (
+              {sortedMappings.map((m) => (
                 <tr key={m.external_id}>
                   <td>{m.name}</td>
                   {/* Which bank this account is at. Several feed accounts carry
