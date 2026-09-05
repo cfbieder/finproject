@@ -71,6 +71,25 @@ router.get('/transactions',   proxy((req) => client.transactions({
  * ⚠️ There is deliberately no delete/disconnect route here. Upstream's DELETE
  * purges the connection's data; "reset" means the reconnect link above.
  */
+/**
+ * CR091 — pull a retry delay out of whatever bank-feed passed through.
+ * It forwards fintable's envelope, so the number may arrive as a field or only
+ * inside the message text. Returns null rather than a guess: "try again
+ * shortly" is honest, an invented countdown is not.
+ */
+function retryAfterSeconds(err) {
+  const body = err && err.body;
+  const direct = body && (body.retry_after_seconds ?? body.retry_after);
+  const n = Number(direct);
+  if (Number.isFinite(n) && n > 0) return Math.ceil(n);
+  const m = /retry[- ]after[^0-9]{0,12}(\d{1,5})/i.exec(String((err && err.message) || ''));
+  if (m) {
+    const parsed = Number(m[1]);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return null;
+}
+
 async function mintLink(req, res) {
   try {
     const out = await client.mintConnectionLink({
@@ -83,6 +102,23 @@ async function mintLink(req, res) {
     // "no plan headroom" reply (connection limit, monthly attempts, volume).
     // Flattening it to 502 would report fintable's clear refusal as our outage.
     const status = err.status && err.status >= 400 && err.status < 500 ? err.status : 502;
+
+    // CR091 — 429 is the same case and did not get the same treatment. fintable
+    // rate-limits link creation; on 2026-09-04 it asked for 58s and the owner
+    // was shown "bank-feed request timed out", which reads as OUR service being
+    // broken and sent a whole session looking at container networking. Say what
+    // it is, and when to try again — a rate limit is a wait, not a failure.
+    if (status === 429) {
+      const retryAfter = retryAfterSeconds(err);
+      return res.status(429).json({
+        error: retryAfter
+          ? `Fintable is rate-limiting link creation. Try again in about ${retryAfter}s.`
+          : 'Fintable is rate-limiting link creation. Try again shortly.',
+        rate_limited: true,
+        retry_after_seconds: retryAfter,
+        bank_feed_url: client.baseUrl,
+      });
+    }
     res.status(status).json({ error: err.message, bank_feed_url: client.baseUrl });
   }
 }

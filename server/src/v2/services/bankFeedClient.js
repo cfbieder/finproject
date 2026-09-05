@@ -28,6 +28,26 @@ const APP = process.env.BANK_FEED_APP || 'fin';
 
 const DEFAULT_TIMEOUT_MS = 8000;
 
+/**
+ * CR091 — the mint's ceiling must clear bank-feed's own retry chain.
+ *
+ * bank-feed retries an upstream 429 up to `BANK_FEED_MINT_MAX_ATTEMPTS` times,
+ * sleeping for the `Retry-After` fintable sends. Measured 2026-09-04: fintable
+ * asked for **58 s** on the first wait, so the chain ran ~58 s while this client
+ * aborted at the inherited 8000 ms and reported a TIMEOUT — for a call that
+ * returns in 54 ms when it is not rate-limited.
+ *
+ * ⚠️ A client ceiling below the server's retry budget does not make success
+ * unlikely, it makes it IMPOSSIBLE — the request can only ever be abandoned.
+ * That is CR059's floor lesson in a second place, so the number below is
+ * DERIVED from the chain and guarded by a test, never tuned by feel. Raise
+ * bank-feed's attempts or fintable's Retry-After and the test fails here first.
+ */
+const BANK_FEED_MINT_MAX_ATTEMPTS = 4;
+const BANK_FEED_MINT_MAX_RETRY_AFTER_MS = 60_000;  // fintable's observed ceiling
+const MINT_TIMEOUT_MS =
+  (BANK_FEED_MINT_MAX_ATTEMPTS - 1) * BANK_FEED_MINT_MAX_RETRY_AFTER_MS + 15_000;
+
 function ensureConfigured() {
   if (!API_KEY) {
     throw new Error('BANK_FEED_API_KEY env var is not set on fin-server');
@@ -113,7 +133,11 @@ function mintConnectionLink({ connectionId = null, institution = null } = {}) {
   const path = connectionId
     ? `/v1/connections/${encodeURIComponent(connectionId)}/link`
     : '/v1/connections/link';
-  return request(path, { method: 'POST', body: institution ? { institution } : {} });
+  return request(path, {
+    method: 'POST',
+    body: institution ? { institution } : {},
+    timeoutMs: MINT_TIMEOUT_MS,
+  });
 }
 
 function transactions({ since, until, accountId, limit = 500, offset = 0 } = {}) {
@@ -191,4 +215,8 @@ module.exports = {
   manualSaveProfile,
   // exposed for diagnostic / config readback
   baseUrl: BASE_URL,
+  // CR091 — exported so the timeout/backoff relationship is testable, not folklore.
+  MINT_TIMEOUT_MS,
+  BANK_FEED_MINT_MAX_ATTEMPTS,
+  BANK_FEED_MINT_MAX_RETRY_AFTER_MS,
 };

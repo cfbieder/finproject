@@ -155,11 +155,12 @@ export default class Rest {
     return [];
   }
 
-  static async post(path, body) {
+  static async post(path, body, options = {}) {
     return Rest.fetchJson(`/api/v2${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: body ? JSON.stringify(body) : undefined,
+      ...options,
     });
   }
 

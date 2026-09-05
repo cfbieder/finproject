@@ -1,4 +1,4 @@
-# CR091 — The reconnect button, and the three things its first live use found — PROPOSED
+# CR091 — The reconnect button, and the three things its first live use found — **P1 BUILT (fin side)** · P2/P3 PROPOSED · P4 handed to bank-feed
 
 **Track: v3. No schema change, no migration.**
 
@@ -105,11 +105,42 @@ did not point at nothing, it pointed at something **real, live, and wrong**.
 
 ## Scope
 
-**P1 — make the button work.** *(fin)*
+### ⚠️ P1 and P4 are ONE fix, and the first draft split them as if either helped alone
+
+Replaying the logged sequence against a larger fin timeout: attempt 1 waits 58 s, attempts 2 and 3
+fire instantly on `Retry-After: 0`, attempt 4 is not retried (`attempt < maxAttempts` is false) and
+the chain **throws a 429 at ~58 s**. So P1 alone buys a 58-second spinner ending in the same
+failure, and P4 alone is a fix nothing is waiting long enough to collect. **Neither is shippable as
+a fix on its own** — P1 makes the error TRUE, P4 makes the call SUCCEED.
+
+### ⚠️ There were THREE ceilings under that budget, not one
+
+Found while building P1. The 8000 ms was merely the tightest:
+
+| ceiling | value | where |
+|---|---|---|
+| fin's bank-feed client | **8000 ms** ← fired first | `bankFeedClient.js` `DEFAULT_TIMEOUT_MS` |
+| the browser helper | **30 s** | `frontend/src/js/rest.js` `DEFAULT_TIMEOUT_MS` |
+| nginx | **60 s** (its default — the `/api/v2/` block sets no `proxy_read_timeout`) | `frontend/nginx.conf` |
+
+Against a chain that runs ~58 s, nginx's default sat **two seconds** above it. **Raising only the
+server-side ceiling would have moved the cut from fin to the browser and changed nothing the owner
+could see** — the same failure with a different number in it. All three are raised together, and
+the nginx block is a dedicated regex location so a POST is not turned into a GET by a
+trailing-slash redirect (the reason the AI Review block is shaped that way too).
+
+**P1 — make the button work.** *(fin)* ✅ **BUILT 2026-09-05, not yet deployed.**
 - Give `mintConnectionLink` an explicit timeout **above bank-feed's worst-case retry chain**, not a
   round number that feels generous. Derive it: `maxAttempts × max(Retry-After)` + margin.
   **The gate is a stated relationship, not a value** — a test asserting fin's mint timeout exceeds
   bank-feed's documented backoff ceiling, so the next person to tune either side is told.
+  Built as `MINT_TIMEOUT_MS = (attempts − 1) × max Retry-After + 15 s` = **195 s**, derived from two
+  exported constants rather than typed, with nginx at 240 s and the browser at 210 s above it.
+  ⚠️ **The first four tests were worth little and are kept as the lesson:** they assert the exported
+  constant, so a regression that deleted `timeoutMs: MINT_TIMEOUT_MS` from the call — leaving the
+  constant sitting there, correct and unused — passed all four. Only the fifth, which drives a
+  never-settling fetch under fake timers and asserts the request is still in flight at 60 s, fails
+  against the unfixed code. **Falsified exactly that way before being kept.**
 - Surface upstream 429 as itself (D2), with the retry-in-progress fact and the wait remaining.
 - The button spins for up to a minute on a rate limit, so it needs a real pending state saying what
   it is waiting for.
@@ -128,7 +159,12 @@ did not point at nothing, it pointed at something **real, live, and wrong**.
   the one taken by hand this time.
 
 **P4 — hand D3 to bank-feed.** *(cross-repo — write it into `HANDOFFS.md`, do not patch from here.)*
-Treat `Retry-After: 0` as the documented fallback rather than as an instruction to retry instantly.
+Treat `Retry-After: 0` as the documented fallback rather than as an instruction to retry instantly,
+**and do not retry the mint at all**: a human is standing at a button, so the interactive call
+should return fintable's 429 and its `Retry-After` immediately and let fin say *"try again in 58s"*.
+Retrying is right for the nightly sync and wrong here. **⚠️ Until this lands the button still cannot
+succeed during a rate limit** — P1 only makes the failure legible. Not yet written into
+`HANDOFFS.md`; that repo has its own git history and is not edited from fin.
 
 ## What this CR deliberately does not do
 

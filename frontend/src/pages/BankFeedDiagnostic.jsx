@@ -128,11 +128,18 @@ export default function BankFeedDiagnostic() {
     setLink(null);
     setLinkError(null);
     try {
+      // CR091 — this call can legitimately run ~a minute. fintable rate-limits
+      // link creation and bank-feed waits out the `Retry-After` it sends (58s,
+      // measured 2026-09-04). THREE ceilings sat below that budget and the
+      // tightest one won: fin's client aborted at 8s, nginx's /api/v2/ block
+      // has no proxy_read_timeout so nginx's default 60s applied, and this
+      // helper's own default is 30s. Raising one alone just moves the cut.
       const res = await Rest.post(
         connectionId
           ? `/bank-feed/connections/${connectionId}/link`
           : "/bank-feed/connections/link",
-        {}
+        {},
+        { timeoutMs: 210000 }
       );
       setLink({ ...res.link, label, connectionId: connectionId || null });
     } catch (err) {
@@ -461,6 +468,13 @@ export default function BankFeedDiagnostic() {
                     Single use, expires {fmtDateTime(link.expires_at)}. If it lapses, mint
                     another.
                   </div>
+                </div>
+              )}
+              {minting && (
+                <div className="bfd-subtitle" role="status">
+                  Asking fintable for a single-use link… If it is rate-limiting
+                  link creation this waits for its retry window, which has taken
+                  up to a minute. It is not stuck.
                 </div>
               )}
               {linkError && <div className="bfd-error" role="alert">{linkError}</div>}
