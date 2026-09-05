@@ -147,7 +147,13 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   **422 snapshots / 8,458 positions**; **prod has none of it yet.** The month-boundary question is answered and the
   answer is that there is no material drift: **IRA 42/42 and Cash Mgt 24/24 tie**, Stocks 4 dates at 0.00–0.05%,
   Bond 2 at +35.05 — the feared *"+14,163 on Fidelity Bond"* was the parser, not the ledger.
-- 📋 **[CR090](../cr/cr-090-investments-section.md) P2 is what remains of the Investments work** — the **live-quote overlay**,
+- 🔴 **[CR061](../cr/cr-061-holdings-and-prices.md) P2's decade of history is in prod and NO PAGE RENDERS IT.**
+  `accountHistory()` hardcodes `source = 'bank-feed'` so the endpoint returns 64 rows from 2026-07-04, and
+  **nothing in `frontend/src` calls that endpoint at all**. Specified as **[CR090](../cr/cr-090-investments-section.md)
+  P3** (§5.1). ⚠️ Not wiring: the statement series is **quarterly, dated by `valued_on`**, the feed series is
+  **daily, dated by `polled_on`**, and **they do not overlap** (statements end 2026-06-30, the feed starts
+  2026-07-04) — so one continuous line would splice two datings across a seam no observation validates.
+- 📋 **[CR090](../cr/cr-090-investments-section.md) P2 is the other half of the Investments work** — the **live-quote overlay**,
   the "real-time" half of the original ask: only **47.5% of the portfolio by value is quotable**, so it ships as
   a labelled panel *beside* the custodian total, never as a revaluation of it — repricing the equity sleeve would
   destroy the tie that makes the Options gap legible.

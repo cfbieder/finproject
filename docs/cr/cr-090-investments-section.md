@@ -257,7 +257,7 @@ which `Scripts/check-button-css.sh` ratchets.
 |---|---|---|
 | **P1** | the register · reconciliation + residual row · unrealized on covered basis · provenance + weighted freshness · account TTM income · fin-vs-custodian drift · link to `/investment-returns` | nothing beyond CR061 P1 |
 | **P2** | the quote overlay panel · concentration (top-N) · cash/MMF share | nothing |
-| **P3** | position value history chart · **quantity-change log** · position contribution to account change | 2 days for quantity-change; ~1 month before the chart is worth drawing; 3 before it is worth reading |
+| **P3** | **the history view — TWO series, not one** · position value history · **quantity-change log** · position contribution to account change | ✅ **accrued** — [CR061](cr-061-holdings-and-prices.md) P2 landed **117 quarterly statement snapshots back to 2016-03-31** (2026-09-05), so the chart no longer waits on the daily feed. See §5.1 |
 
 **Not carried here** — trailing-12m position return and yield on cost are roadmap items until twelve
 months of snapshots exist. A classification-override *screen* is gold-plating for three `unknown`
@@ -278,6 +278,88 @@ a buy-and-hold owner) · benchmarking a 53%-fixed-income-and-cash portfolio agai
 blended benchmark) · **deriving realized gains from consecutive snapshots** — a quantity drop is a
 sale *or* a transfer *or* a corporate action, and they book differently. That last is the shape
 CR058 §12.8 already killed for `Change in Investment Value`.
+
+## 5.1 P3 — the history view, and why it is **two series**
+
+⚠️ **State as of 2026-09-05: the history is stored and NOTHING RENDERS IT.** Two independent reasons,
+both measured:
+
+1. `accountHistory()` hardcodes `source = 'bank-feed'`
+   ([`services/investments.js`](../../server/src/services/investments.js#L27)), so the 117 statement
+   snapshots are filtered out — the endpoint returns 64 rows beginning 2026-07-04.
+2. **No page calls the endpoint at all.** Nothing under `frontend/src` references
+   `/investments/accounts/:id/history`.
+
+So P1 shipped a register with no time axis, and CR061 P2 put a decade of history behind it that the
+app cannot see. P3 is the first consumer, and the endpoint change is part of it.
+
+### 🔴 The two series must not become one line
+
+This is the whole design, and everything else is detail.
+
+| | statement series | feed series |
+|---|---|---|
+| cadence | **quarterly** (period end) | **daily** |
+| dated by | `valued_on` — the custodian states the date its figures are true for | `polled_on` — when we ASKED. `valued_on` is **NULL** and must stay so ([CR089](cr-089-month-end-observation-dating.md)) |
+| span | 2016-03-31 → 2026-06-30 | 2026-07-04 → today |
+| total | the statement's own printed account total | `custodian_balance` from the same fetch |
+
+⚠️ **They do not overlap.** Statements end **2026-06-30**, the feed begins **2026-07-04** — a four-day
+gap with no shared date anywhere, which is the finding that already cost CR061 its planned
+cross-check. So there is **no observation that validates the join**, and a single continuous line
+would splice two differently-dated series across a seam neither one can vouch for. It would look
+smooth and be unverifiable.
+
+**Therefore:** statement observations render as **discrete markers** — they *are* discrete quarterly
+observations — and the feed renders as a continuous line. **Never interpolate between statement
+points.** A straight segment from 2016-06-30 to 2016-09-30 asserts a path through a quarter nobody
+observed, and on an account taking 1.46M of additions while losing 1.17M of value in one year
+([CR058](cr-058-quicken-valuation-anchors.md) §9) that path is not merely unknown, it is wrong.
+
+The axis legend states both datings in words. "Polled" vs "Valued" is already the vocabulary P1 uses
+on the account header, so the page does not have to teach a new one.
+
+### Each account starts on its own date, and that is not when the account started
+
+| account | statement snapshots | earliest |
+|---|---|---|
+| Fidelity IRA | 42 | 2016-03-31 |
+| Fidelity Bond | 42 | 2016-03-31 |
+| Fidelity Cash Mgt | 24 | 2020-09-30 |
+| Fidelity Stocks | 9 | **2024-06-30** |
+
+⚠️ **A chart that simply begins where its data begins claims the account began there.** Fidelity
+Stocks has value long before 2024 — what it lacks is a *statement* we hold. This is the same class as
+the drift report's *"33 statement date(s) predate fin's first record for this account"*, which is
+stated in words precisely so it cannot be read as drift. The chart must say **"statements held from
+2024-06-30"**, not draw an axis that starts there silently.
+
+### What P3 must NOT do
+
+- **No returns derived from the series.** A level series is not a performance series. This is settled
+  three times over — [CR056](cr-056-investment-returns.md) §3.3, [CR058](cr-058-quicken-valuation-anchors.md)
+  §9 step 5 (which left the return column `—` for 25 years *by design*), and §12.8's
+  *"CHANGE IN INVESTMENT VALUE IS NOT A RETURN"*. The link to `/investment-returns` is the answer.
+- **No interpolation, no smoothing, no area fill** under the quarterly series — each is a visual claim
+  about unobserved time.
+- **No mixing into one downloadable/tabular series** without the `source` and dating column, or the
+  distinction survives only in the picture.
+
+### Quantity-change log — now decade-wide, and coarser than it looks
+
+P1's note assumed two days of daily snapshots. There are now **~40 quarterly observations per
+account**, which is far more useful — and coarser in a way that must be labelled: ⚠️ **a buy and a
+sell inside one quarter are invisible**, and so is everything about *when* within the quarter. The
+existing rule stands and is now more important, not less: call it **`quantity change`, never
+`trade`**, and corroborate against the ledger's `Transfer - Securities Trades` legs.
+
+### Scope
+
+Endpoint returns both sources with `source` and both dates per row; one page consumes it; the
+markers-vs-line distinction and the two coverage statements above are acceptance criteria, not
+polish. **Position-level** history and contribution stay behind the account-level chart — the
+`security_positions` rows exist for all 2,830 statement positions, but per-position quarterly history
+needs the quantity-change decomposition shipped alongside it or it misleads exactly as §5 records.
 
 ## 6. Open
 
