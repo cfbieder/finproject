@@ -89,18 +89,28 @@ const payload = {
 
 let queryState = { data: payload, isPending: false, isFetching: false, isError: false, error: null };
 const calls = [];
+// CR092 P1. Defaults to no prose: the report has to be correct before the
+// narration lands and in every case where it never does.
+let narrationState = { data: null };
+const narrationCalls = [];
 
 vi.mock("../../hooks/useReports.js", () => ({
   useNetWorthBridge: (args) => {
     calls.push(args);
     return queryState;
   },
+  useNetWorthNarration: (args) => {
+    narrationCalls.push(args);
+    return narrationState;
+  },
 }));
 
 afterEach(() => {
   cleanup();
   calls.length = 0;
+  narrationCalls.length = 0;
   queryState = { data: payload, isPending: false, isFetching: false, isError: false, error: null };
+  narrationState = { data: null };
 });
 
 // The account cell renders "PL Small PLN" — name plus a currency badge — so
@@ -215,5 +225,56 @@ describe("NetWorthDrivers", () => {
     queryState = { data: null, isPending: false, isFetching: false, isError: true, error: new Error("boom") };
     render(<NetWorthDrivers />);
     expect(screen.getByText(/boom/)).toBeTruthy();
+  });
+});
+
+
+/**
+ * CR092 P1 — the narration on the report.
+ *
+ * The report and the modal are two surfaces over ONE measurement, which is why
+ * `bridgeParts.jsx` exists at all. The prose must behave identically on both,
+ * and it must not fork the request that produces it.
+ */
+describe("NetWorthDrivers — the narration (CR092 P1)", () => {
+  const narration = {
+    headline: "Net worth fell 1,900,487.67 USD",
+    why: [{ driver: "Re-valued", note: "A revaluation of -1,741,398.00 USD." }],
+    watchOuts: [],
+    disclaimer: "Informational only — not financial advice.",
+  };
+
+  it("asks for the narration WITHOUT movers, so it shares the modal's answer", () => {
+    render(<NetWorthDrivers />);
+
+    // The report caps `movers` at 500 and the modal takes the server default,
+    // but the prose is built from drivers and contributors alone — so passing
+    // `movers` here would fork the cache key and spend a second ~8s of a GPU
+    // tier shared with the other clients on this gateway to say the same thing.
+    expect(calls.at(-1)).toMatchObject({ movers: 500 });
+    expect(narrationCalls.at(-1)).not.toHaveProperty("movers");
+  });
+
+  it("shows the deterministic summary until the prose arrives", () => {
+    render(<NetWorthDrivers />);
+    for (const line of payload.data.summary) {
+      expect(screen.getByText(line)).toBeTruthy();
+    }
+  });
+
+  it("swaps in the prose, and keeps the drivers table beneath it", () => {
+    narrationState = { data: { data: narration, meta: { available: true } } };
+    render(<NetWorthDrivers />);
+
+    expect(screen.getByText(narration.headline)).toBeTruthy();
+    for (const line of payload.data.summary) {
+      expect(screen.queryByText(line)).toBeNull();
+    }
+    // Above the table, never in place of it.
+    for (const d of payload.data.drivers) {
+      expect(
+        screen.getByRole("row", { name: new RegExp(d.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) })
+      ).toBeTruthy();
+    }
   });
 });

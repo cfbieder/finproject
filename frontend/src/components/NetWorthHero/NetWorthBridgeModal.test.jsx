@@ -101,9 +101,15 @@ const payload = {
 };
 
 let queryState = { data: payload, isPending: false, isError: false, error: null };
+// CR092 P1. Defaults to "the gateway said nothing", because that is the state
+// the modal must be correct in FIRST: the narration is a second, slower request
+// and every render before it lands — plus every render where it never does —
+// has to show the deterministic summary.
+let narrationState = { data: null };
 
 vi.mock("../../hooks/useReports.js", () => ({
   useNetWorthBridge: () => queryState,
+  useNetWorthNarration: () => narrationState,
 }));
 
 const renderModal = () =>
@@ -119,6 +125,7 @@ const renderModal = () =>
 afterEach(() => {
   cleanup();
   queryState = { data: payload, isPending: false, isError: false, error: null };
+  narrationState = { data: null };
 });
 
 const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -269,5 +276,72 @@ describe("NetWorthBridgeModal", () => {
     queryState = { data: null, isPending: false, isError: true, error: new Error("boom") };
     renderModal();
     expect(screen.getByText(/boom/)).toBeTruthy();
+  });
+});
+
+
+/**
+ * CR092 P1 — the narration swap.
+ *
+ * The rule this enforces is the one the CR gated the feature on: a gateway that
+ * is slow, down, or degraded must cost the reader NOTHING, because the
+ * deterministic summary was computed by `netWorthBridge.js` and shipped inside
+ * the payload the table is already drawn from. So the assertions run in both
+ * directions — the summary is present until prose arrives, and gone once it
+ * does. Rendering both would say the same thing twice in two voices.
+ */
+describe("NetWorthBridgeModal — the narration (CR092 P1)", () => {
+  const narration = {
+    headline: "Net worth fell 1,900,487.67 USD",
+    why: [
+      { driver: "Investments & property re-valued", note: "A revaluation of -1,741,398.00 USD, largely United Beverages." },
+      { driver: "Transfers that didn't net out", note: "1,746,678.00 USD moved between accounts and cancelled out." },
+    ],
+    watchOuts: ["The gross transfer movement is not a change in wealth."],
+    disclaimer: "Informational only — not financial advice.",
+  };
+
+  it("shows the deterministic summary while no narration has arrived", () => {
+    renderModal();
+    for (const line of payload.data.summary) {
+      expect(screen.getByText(line)).toBeTruthy();
+    }
+  });
+
+  it("replaces the summary with the prose once it lands, and never shows both", () => {
+    narrationState = { data: { data: narration, meta: { available: true } } };
+    renderModal();
+
+    expect(screen.getByText(narration.headline)).toBeTruthy();
+    for (const w of narration.why) {
+      expect(screen.getByText(w.note)).toBeTruthy();
+    }
+    expect(screen.getByText(narration.watchOuts[0])).toBeTruthy();
+
+    // The deterministic lead is gone, not merely pushed down.
+    for (const line of payload.data.summary) {
+      expect(screen.queryByText(line)).toBeNull();
+    }
+  });
+
+  it("marks the prose as model-written and carries the gateway's own disclaimer", () => {
+    narrationState = { data: { data: narration, meta: { available: true } } };
+    renderModal();
+
+    // On a page whose entire claim is that the arithmetic is exact, the line
+    // between the figures and the sentences around them is owed to the reader.
+    expect(screen.getByText(/narrates them and never recalculates them/)).toBeTruthy();
+    expect(screen.getByText(/not financial advice/)).toBeTruthy();
+  });
+
+  it("still draws every driver in the table when prose is showing", () => {
+    narrationState = { data: { data: narration, meta: { available: true } } };
+    renderModal();
+
+    // The narration sits ABOVE the table, never in place of it — the CR's own
+    // rule, and the reason this repeats the display gate under the swap.
+    for (const d of payload.data.drivers) {
+      expect(screen.getByRole("row", { name: new RegExp(escape(d.label)) })).toBeTruthy();
+    }
   });
 });

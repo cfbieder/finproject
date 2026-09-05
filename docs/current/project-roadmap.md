@@ -85,11 +85,19 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
     driver must share the change's sign, and cancelling drivers get no leader — and `buildSummary` is
     now tested **directly**, because both rules depend on a driver mix no particular database is
     guaranteed to hold. ⚠️ Desktop-only, like `/investment-returns`.
-  - **P1 — the LLM narration** over exactly this payload, following the gateway's existing
-    *narration-only* pattern (the caller computes every figure, the model never calculates).
-    **Filed with `ocr-llm` 2026-09-05** as `finance_networth_narration` (local-only route, four
-    server-side guardrails), so it now waits on them rather than on us; the deterministic summary is
-    the floor and a gateway failure must degrade to it, never to an error.
+  - ✅ **P1 — the LLM narration — SHIPPED 2026-09-05.** `ocr-llm` registered
+    `finance_networth_narration` (task 52, local-only `ollama_heavy → ollama_mid`, no cloud step)
+    and all five guardrails are enforced server-side. `POST /v2/reports/net-worth-bridge/narration`
+    rebuilds the same window and narrates it; the deterministic `data.summary` renders immediately
+    and the prose replaces it when it lands, so a gateway that is slow, down or degraded costs the
+    reader nothing. Measured over six live runs on two windows: **every figure traced to the
+    payload, zero percentages, zero invented drivers**, 12.6–14.6 s. 🔴 **Three defects found by
+    RENDERING, none by a test** — `watch_outs` came back a verbatim copy of the `why` notes so the
+    page printed everything twice; the fix for the leading-driver order (tagging each driver
+    *"(with the change)"*) was **echoed back as the notes themselves**, six lines reading
+    *"Money spent — with the change"*; and unseparated `96705.06` beside the page's own `$96,705`
+    read as a different claim. Ordering now carries the direction and nothing new is handed to the
+    model to repeat.
   - **Deliberately left open** — see §3 Known Issues #24 and #25: the `base_amount` rate drift, and
     the three remaining ABS-only rate lookups.
 

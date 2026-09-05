@@ -229,4 +229,37 @@ dbDescribe('reports router contract (DB)', () => {
       expect(r.body.meta.currency).toBe('lc');
     });
   });
+
+  /**
+   * CR092 P1 — the narration endpoint validates the window IDENTICALLY to the
+   * bridge it narrates, because it rebuilds that bridge server-side.
+   *
+   * That shared validation is the whole point of these cases: a parameter one
+   * route accepted and the other rejected would put prose about one window
+   * beside a table of another, and both halves would look internally
+   * consistent. No gateway is reached — every assertion here returns before the
+   * bridge is built, let alone narrated.
+   */
+  describe('POST /net-worth-bridge/narration — validation parity', () => {
+    const WINDOW = 'fromDate=2025-01-01&toDate=2025-12-31';
+
+    test.each([
+      ['missing dates', ''],
+      ['a malformed date', 'fromDate=2025-1-1&toDate=2025-12-31'],
+      ['an unknown granularity', `${WINDOW}&granularity=fortnight`],
+      ['a non-integer movers', `${WINDOW}&movers=all`],
+    ])('rejects %s with the same 400 the bridge gives', async (_label, qs) => {
+      const narration = await req('POST', `/net-worth-bridge/narration?${qs}`);
+      const bridge = await req('GET', `/net-worth-bridge?${qs}`);
+
+      expect(narration.status).toBe(400);
+      expect(bridge.status).toBe(400);
+      expect(narration.body.error).toBe(bridge.body.error);
+    });
+
+    test('an inverted window 400s rather than narrating backwards', async () => {
+      const r = await req('POST', '/net-worth-bridge/narration?fromDate=2026-01-01&toDate=2025-01-01');
+      expect(r.status).toBe(400);
+    });
+  });
 });

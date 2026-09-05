@@ -10,6 +10,7 @@ const router = express.Router();
 const reportsService = require('../../services/reports');
 const investmentReturnsService = require('../../services/investmentReturns');
 const netWorthBridgeService = require('../../services/netWorthBridge');
+const netWorthNarrationService = require('../../services/netWorthNarration');
 
 const { isValidDateString } = reportsService;
 
@@ -245,46 +246,85 @@ router.get('/investment-returns', async (req, res, next) => {
  * caveats, and `tie` / `tieOk` — the decomposition is exact, so a consumer that
  * discards `meta` is hiding the one field that says whether it added up.
  */
+// Shared by the bridge and its narration (CR092 P1): the narration is prose
+// over the SAME window, so a parameter either route accepted alone would
+// narrate a different bridge than the one on screen. Returns `{ error }` with
+// the message to send, or the validated arguments for the builder.
+function parseBridgeQuery({ fromDate, toDate, granularity = 'month', movers }) {
+  if (!fromDate || !toDate) {
+    return { error: "Missing required query parameters 'fromDate' and 'toDate'" };
+  }
+  if (!isValidDateString(fromDate) || !isValidDateString(toDate)) {
+    return { error: "Invalid date query parameter; expected YYYY-MM-DD" };
+  }
+  if (!['month', 'quarter', 'year', 'none'].includes(granularity)) {
+    return { error: "Invalid 'granularity'; expected month, quarter, year or none" };
+  }
+
+  // Rejected rather than silently coerced: a typo'd `movers=all` quietly
+  // falling back to the modal's 12 would truncate the report's grid with
+  // nothing to say it had.
+  let moverLimit;
+  if (movers !== undefined) {
+    moverLimit = Number(movers);
+    if (!Number.isInteger(moverLimit) || moverLimit < 1) {
+      return { error: "Invalid 'movers'; expected a positive integer" };
+    }
+  }
+
+  return { args: { fromDate, toDate, granularity, ...(moverLimit ? { moverLimit } : {}) } };
+}
+
 router.get('/net-worth-bridge', async (req, res, next) => {
   try {
-    const { fromDate, toDate, granularity = 'month', movers } = req.query;
+    const { error, args } = parseBridgeQuery(req.query);
+    if (error) return res.status(400).json({ error });
 
-    if (!fromDate || !toDate) {
-      return res.status(400).json({
-        error: "Missing required query parameters 'fromDate' and 'toDate'"
-      });
-    }
-    if (!isValidDateString(fromDate) || !isValidDateString(toDate)) {
-      return res.status(400).json({
-        error: "Invalid date query parameter; expected YYYY-MM-DD"
-      });
-    }
-    if (!['month', 'quarter', 'year', 'none'].includes(granularity)) {
-      return res.status(400).json({
-        error: "Invalid 'granularity'; expected month, quarter, year or none"
-      });
-    }
-
-    // Rejected rather than silently coerced: a typo'd `movers=all` quietly
-    // falling back to the modal's 12 would truncate the report's grid with
-    // nothing to say it had.
-    let moverLimit;
-    if (movers !== undefined) {
-      moverLimit = Number(movers);
-      if (!Number.isInteger(moverLimit) || moverLimit < 1) {
-        return res.status(400).json({
-          error: "Invalid 'movers'; expected a positive integer"
-        });
-      }
-    }
-
-    const { data, meta } = await netWorthBridgeService.buildNetWorthBridge({
-      fromDate, toDate, granularity, ...(moverLimit ? { moverLimit } : {})
-    });
+    const { data, meta } = await netWorthBridgeService.buildNetWorthBridge(args);
     res.json({ data, meta });
   } catch (error) {
     if (error.status === 400) return res.status(400).json({ error: error.message });
     console.error('[v2/reports/net-worth-bridge] Failed:', error);
+    next(error);
+  }
+});
+
+/**
+ * POST /net-worth-bridge/narration — CR092 P1. The same bridge, in prose.
+ *
+ * A SEPARATE call on purpose, and POST on purpose.
+ *
+ * Separate, because the table must not wait for it. The bridge answers in
+ * milliseconds and the gateway takes ~8 s (measured); folding the narration
+ * into `GET /net-worth-bridge` would put an LLM in front of the arithmetic that
+ * is the point of this feature. The page renders the deterministic
+ * `data.summary` immediately and swaps the prose in when it lands.
+ *
+ * POST, because a GET that costs eight seconds of somebody else's GPU is a
+ * thing browsers and caches feel free to issue on their own. Nothing is
+ * written; the verb is about the cost, not the state.
+ *
+ * The window is REBUILT here from the query rather than accepted from the
+ * client. The narration's only claim is that every figure in it was computed by
+ * this server — narrating a payload the caller handed back would surrender
+ * exactly that.
+ *
+ * Never 5xx for a gateway failure: `{ data: null, meta: { available: false,
+ * reason } }` is the honest answer, and the caller already holds the
+ * deterministic summary. A 502 here would page someone about prose.
+ */
+router.post('/net-worth-bridge/narration', async (req, res, next) => {
+  try {
+    const { error, args } = parseBridgeQuery(req.query);
+    if (error) return res.status(400).json({ error });
+
+    const { data, meta } = await netWorthBridgeService.buildNetWorthBridge(args);
+    const { narration, meta: narrationMeta } =
+      await netWorthNarrationService.narrateNetWorthBridge(data, { meta });
+    res.json({ data: narration, meta: narrationMeta });
+  } catch (error) {
+    if (error.status === 400) return res.status(400).json({ error: error.message });
+    console.error('[v2/reports/net-worth-bridge/narration] Failed:', error);
     next(error);
   }
 });

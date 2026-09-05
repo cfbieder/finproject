@@ -760,6 +760,40 @@ export default class Rest {
   }
 
   /**
+   * CR092 P1 — the same window, in prose. A SECOND request on purpose: the
+   * bridge answers in milliseconds and the local model takes ~8 s, so the table
+   * never waits on it.
+   *
+   * POST because the call costs real GPU time on a shared local gateway, and a
+   * GET is something a browser or a cache may reissue on its own. Nothing is
+   * written.
+   *
+   * Never throws for an unavailable narration — the server answers 200 with
+   * `data: null` and a reason, because the deterministic summary is already on
+   * screen and a missing paragraph is not a failed report.
+   */
+  static async fetchNetWorthNarrationV2({
+    fromDate, toDate, granularity = "month", movers,
+  } = {}) {
+    const params = new URLSearchParams({ fromDate, toDate, granularity });
+    if (movers) params.set("movers", String(movers));
+    const payload = await Rest.fetchJson(
+      `/api/v2/reports/net-worth-bridge/narration?${params.toString()}`,
+      // Above the server's own 120 s abort on the gateway call, which is in
+      // turn above the deadline requested of the gateway. Each layer must be
+      // looser than the one it wraps, or the outer one fires first and the
+      // inner one's typed answer is thrown away — the same ordering mistake
+      // ocr-llm nearly made to us with a guessed deadline in September.
+      //
+      // 150 s costs the reader nothing: the deterministic summary is already
+      // rendered, so this request has no spinner to hold open. Measured
+      // 2026-09-05 over five live runs: 7.1–16.4 s, all at fallback_depth 0.
+      { method: "POST", timeoutMs: 150000 }
+    );
+    return { data: payload?.data ?? null, meta: payload?.meta ?? null };
+  }
+
+  /**
    * Fetch budget summary (actual vs budget by month) from v2 API
    */
   static async fetchBudgetBalancesV2({

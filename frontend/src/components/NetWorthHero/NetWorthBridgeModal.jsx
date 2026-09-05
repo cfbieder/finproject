@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import Modal from "../Modal/Modal.jsx";
-import { useNetWorthBridge } from "../../hooks/useReports.js";
+import { useNetWorthBridge, useNetWorthNarration } from "../../hooks/useReports.js";
 import {
   Waterfall,
   Section,
   PeriodTable,
   MoverTable,
   BridgeNotes,
+  BridgeNarrative,
 } from "../../features/NetWorthBridge/bridgeParts.jsx";
 import { fullUSD, prettyDate, totalsFrom } from "../../features/NetWorthBridge/bridgeFormat.js";
 
@@ -38,6 +39,16 @@ export default function NetWorthBridgeModal({ open, onClose, fromDate, toDate })
 
   const data = payload?.data ?? null;
   const meta = payload?.meta ?? null;
+
+  // CR092 P1 — asked for only once the bridge itself has landed, and never
+  // when the drivers failed to reconcile: the narration re-derives the same
+  // window server-side, and prose over figures the page is already warning
+  // about would argue with that warning.
+  const { data: narrationPayload } = useNetWorthNarration({
+    fromDate,
+    toDate,
+    enabled: open && Boolean(data) && meta?.tieOk !== false,
+  });
 
   return (
     <Modal
@@ -72,11 +83,10 @@ export default function NetWorthBridgeModal({ open, onClose, fromDate, toDate })
             </p>
           )}
 
-          <ul className="nwb__summary">
-            {data.summary.map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
+          <BridgeNarrative
+            summary={data.summary}
+            narration={narrationPayload?.data ?? null}
+          />
 
           <Waterfall data={data} />
 

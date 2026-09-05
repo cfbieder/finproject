@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import PeriodSelector from "../components/PeriodSelector/PeriodSelector.jsx";
-import { useNetWorthBridge } from "../hooks/useReports.js";
+import { useNetWorthBridge, useNetWorthNarration } from "../hooks/useReports.js";
 import {
   Waterfall,
   PeriodTable,
   MoverTable,
   BridgeNotes,
+  BridgeNarrative,
 } from "../features/NetWorthBridge/bridgeParts.jsx";
 import { fullUSD, prettyDate, totalsFrom } from "../features/NetWorthBridge/bridgeFormat.js";
 import { windowFor } from "../features/NetWorthBridge/reportWindow.js";
@@ -66,6 +67,18 @@ export default function NetWorthDrivers() {
 
   const data = payload?.data ?? null;
   const meta = payload?.meta ?? null;
+
+  // CR092 P1 — deliberately WITHOUT `movers`. The prose is built from the
+  // drivers and their named contributors only, so the page's `movers: 500` and
+  // the modal's default produce identical narration for the same window —
+  // passing it would fork the cache key and spend a second ~8 s of the shared
+  // GPU tier to say the same thing.
+  const { data: narrationPayload } = useNetWorthNarration({
+    fromDate,
+    toDate,
+    granularity,
+    enabled: !inverted && Boolean(data) && meta?.tieOk !== false,
+  });
 
   return (
     <main className="page-main nw-drivers">
@@ -158,11 +171,10 @@ export default function NetWorthDrivers() {
             </p>
           )}
 
-          <ul className="nwb__summary">
-            {data.summary.map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
+          <BridgeNarrative
+            summary={data.summary}
+            narration={narrationPayload?.data ?? null}
+          />
 
           <section className="panel nw-drivers__panel" aria-label="Drivers">
             <Waterfall data={data} />

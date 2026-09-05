@@ -113,6 +113,36 @@ export function useNetWorthBridge({
   });
 }
 
+/**
+ * CR092 P1 — prose over the same window, fetched separately so the table never
+ * waits for it.
+ *
+ * `enabled` is gated on the bridge having loaded, not just on the dates: the
+ * narration re-derives the same window server-side, and firing both at once
+ * would build the bridge twice concurrently for no gain.
+ *
+ * `staleTime: Infinity` and `retry: false`, both deliberate. The window is a
+ * fixed pair of dates over settled data, so the prose for it cannot go stale
+ * within a session — and every re-fetch is ~8 s of a GPU tier shared with the
+ * other clients on this gateway. A failed narration is not worth retrying
+ * either: the deterministic summary is already on screen, so a retry spends
+ * that tier again to replace text the reader is already reading.
+ */
+export function useNetWorthNarration({
+  fromDate, toDate, granularity = "month", movers, enabled = true,
+}) {
+  return useQuery({
+    queryKey: [
+      "netWorthNarration",
+      { fromDate: fromDate ?? null, toDate: toDate ?? null, granularity, movers: movers ?? null },
+    ],
+    queryFn: () => Rest.fetchNetWorthNarrationV2({ fromDate, toDate, granularity, movers }),
+    enabled: Boolean(enabled && fromDate && toDate),
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
 /** Cash-flow (P&L) for a date range. */
 export function useCashFlowReport({
   fromDate,

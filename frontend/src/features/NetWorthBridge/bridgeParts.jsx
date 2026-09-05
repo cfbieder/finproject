@@ -117,6 +117,72 @@ export function Waterfall({ data }) {
   );
 }
 
+/**
+ * The plain-English lead — model prose when it arrived, the deterministic
+ * sentences otherwise (CR092 P1).
+ *
+ * One slot, never both. `summary` is computed by `netWorthBridge.js` and ships
+ * inside the payload, so it is on screen the instant the table is; the
+ * narration is a second, slower request that REPLACES it when it lands. That
+ * ordering is the whole fallback story: a gateway that is slow, down, or
+ * degraded costs the reader nothing, because what they were already reading
+ * simply stays.
+ *
+ * The prose is marked as model-written and the table below it is not. On a page
+ * whose entire claim is that the arithmetic is exact, the reader is owed the
+ * line between the figures and the sentences wrapped around them.
+ */
+export function BridgeNarrative({ summary, narration }) {
+  if (!narration) {
+    return (
+      <ul className="nwb__summary">
+        {(summary || []).map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
+    );
+  }
+
+  return (
+    <div className="nwb__narrative">
+      <p className="nwb__narrative-headline">{narration.headline}</p>
+
+      {narration.why.map((w) => {
+        // The chip is dropped when the note already opens with the driver's
+        // name. The model does this on some runs and not others, and when it
+        // does, printing both renders "Money spent — Money spent reduced net
+        // worth by…". Handled here rather than forbidden in the prompt: one
+        // more instruction is one more thing that holds until it doesn't, and
+        // this reads the actual text.
+        const echoesDriver =
+          w.driver && w.note.toLowerCase().startsWith(w.driver.toLowerCase());
+        return (
+          <p key={`${w.driver}-${w.note}`} className="nwb__narrative-why">
+            {w.driver && !echoesDriver && (
+              <span className="nwb__narrative-driver">{w.driver}</span>
+            )}
+            {w.note}
+          </p>
+        );
+      })}
+
+      {narration.watchOuts?.length > 0 && (
+        <ul className="nwb__narrative-watch">
+          {narration.watchOuts.map((w) => (
+            <li key={w}>{w}</li>
+          ))}
+        </ul>
+      )}
+
+      <p className="nwb__narrative-mark">
+        Written by the local model from the exact figures below — it narrates
+        them and never recalculates them.
+        {narration.disclaimer ? ` ${narration.disclaimer}` : ""}
+      </p>
+    </div>
+  );
+}
+
 export function Section({ open, onToggle, label, hint, children }) {
   return (
     <div className="nwb__section">

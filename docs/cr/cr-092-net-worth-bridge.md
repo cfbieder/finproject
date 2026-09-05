@@ -1,6 +1,6 @@
 **Status:** ✅ **P0 shipped v3.53.0 · P2 COMPLETE (2026-09-05).** **Track: v3.** No migration.
-**P1 (the LLM narration) is open** — the `ocr-llm` handoff was **filed 2026-09-05**
-(`finance_networth_narration`), so it now waits on them, not on us.
+**P1 (the LLM narration) is COMPLETE** — `ocr-llm` registered `finance_networth_narration`
+on **2026-09-05**, the same day it was filed, and the caller shipped against it.
 
 # CR092 — Why did net worth change?
 
@@ -362,20 +362,83 @@ in flight.
 - Full suites green: **server 1175 passed / 89 suites**, **frontend 597 passed / 49 files**. All six
   ratchet gates at baseline.
 
-## 9. P1 — the LLM narration (open, blocked on `ocr-llm`)
+## 9. P1 — the LLM narration (COMPLETE, 2026-09-05)
 
-The deterministic summary is the floor; a narration would read better. The pattern already exists on
-the gateway across other clients — **narration-only** tasks (`recovery_narration`,
-`market_regime_narration`, `year_in_review_narration`): the caller computes every figure and inlines
-them as GIVEN facts, and the model narrates and never calculates. That is exactly this payload.
+The deterministic summary is the floor; the narration reads better. It follows the gateway's
+existing **narration-only** pattern (`recovery_narration`, `market_regime_narration`,
+`year_in_review_narration`): the caller computes every figure and inlines it as a GIVEN fact, and
+the model narrates and never calculates. That is exactly this payload.
 
-**Blocked, and not on us.** Fin's tasks are **local-only** — personal financial detail must not leave
-the tailnet — so this needs a new local-only task (`ollama_heavy → ollama_mid`, no cloud step)
-registered in `ocr-llm`, requested via `HANDOFFS.md`. ~9 s for ~150 words on `ollama_heavy`.
+`ocr-llm` registered **`finance_networth_narration`** (their task 52) on the day it was filed.
+Route `ollama_heavy:qwen3.6:35b-a3b-q4_K_M → ollama_mid:qwen3:32b`, temperature 0.3, `max_tokens`
+768, schema-enforced `{headline, why[{driver,note}], watch_outs[]}`. **Local-only is structural, not
+a policy note** — the chain declares no cloud provider and `routing.prefer` can only promote a step
+a task already declares, so there is no cloud step to reach. The prompt is the owner's balance sheet
+by named account, which is strictly more revealing than the holdings table already fenced for
+`finance_statement_extract`. All five guardrails run **server-side on their side** and are
+deliberately not restated in our prompt: a second copy would drift from theirs the first time
+either side edited one.
 
-Two rules for when it lands, both following from §1: the modal renders the table from the API and the
-narration sits **above** it as prose, never in place of it; and a gateway failure degrades to the
-deterministic summary rather than to an error.
+### How it is wired
+
+`server/src/services/netWorthNarration.js` + `POST /v2/reports/net-worth-bridge/narration`.
+
+- **A separate call**, because the table must not wait. The bridge answers in ~192 ms and the
+  gateway takes ~13 s; folding the narration into `GET /net-worth-bridge` would put an LLM in front
+  of the arithmetic that is the point of this CR. The deterministic `data.summary` ships inside the
+  bridge payload and renders immediately; the prose **replaces** it when it lands.
+- **POST**, because a GET costing 13 s of a shared GPU is one a browser or cache may reissue on its
+  own. Nothing is written.
+- **The window is rebuilt server-side**, not accepted from the caller. The narration's only claim is
+  that every figure in it was computed by this server; narrating a payload handed back would
+  surrender exactly that.
+- **Never a 5xx for a gateway failure.** `{data: null, meta:{available:false, reason}}` for an empty
+  `drivers[]` (measured: the task rejects it as `missing_required_context` — the check is
+  truthiness, not presence), a `tieOk:false` bridge (the page is already warning those figures do
+  not add up; prose explaining them would argue with that warning), an unset client key, a
+  `schema_violation`, an unparseable body, a timeout, or any non-200. A 502 here would page someone
+  about prose.
+- **Nested timeouts, outermost loosest:** gateway `deadline_ms` (requested) < caller abort 120 s <
+  browser 150 s. Getting this backwards is the mistake `ocr-llm` nearly made to us in September — a
+  deadline guessed *below* the chain it bounds silently deletes the fallback step.
+- `periods` and `movers` are **withheld** from the prompt though the task accepts them: they would
+  multiply the token count for a 150-word answer, and the tables beneath already carry that detail.
+  What is narrated is what sits immediately beside it.
+- The gateway's own `disclaimer` is echoed, not reworded — it is registry config on their side, so a
+  copy here would be the version that goes stale.
+
+### Measured, 2026-09-05 — six runs over two windows, through the real caller
+
+Every figure in the prose traced back to the bridge payload (**0 stray**), **0 percentages**, **0**
+invented driver labels, **0** duplicated watch-outs, **0** notes without a figure, and the lead was
+never an offsetting driver. 12.6–14.6 s, `fallback_depth 0`, `CONSTRAINED_DECODE`, no degradations.
+On the 12-month window it leads with the re-valuation; on YTD, with money spent — each the driver
+that moved *with* the change.
+
+### 🔴 Three defects, every one found by RENDERING the page and none by a test
+
+The same lesson §7 already recorded, paid again:
+
+1. **`watch_outs` came back a verbatim copy of the `why` notes** (2/2 on one run, 6/6 on another),
+   so the page printed the same six sentences twice — once as prose, again as a bullet list headed
+   like a caution. De-duplicated in the parser; a watch-out that restates a driver is not a
+   watch-out.
+2. **The fix for the leading-driver order became a worse defect than the one it fixed.** Drivers
+   arrive ordered by ABSOLUTE size, so on a YTD window the prose opened *"Net worth decreased by
+   96,705.06 USD"* and then led with *"Money earned increased net worth by 368,590.90 USD"* — the
+   same mistake `buildSummary` already paid for (§7), arriving on the LLM side of the same surface.
+   Tagging each driver *"(with the change)"* / *"(against the change)"* fixed the order and the
+   model **returned the tags as the notes**: the modal rendered six lines reading *"Money spent —
+   with the change"*, carrying no figure and no information. **Vocabulary handed to a narrator is
+   vocabulary it will narrate.** Direction is now carried by ORDERING alone — with-the-change
+   drivers first, then against, offsetting last — and nothing new is handed over to echo. A second
+   lock drops any note containing no digit.
+3. **Unseparated numbers.** The model echoes the format it is handed, so `96705.06` appeared two
+   inches above the page's own `$96,705` and read as a different, more technical claim about the
+   same figure — the same reason `buildSummary` writes its dates out in words.
+
+Two rules from §1 held throughout: the narration sits **above** the table and never in place of it,
+and a gateway failure degrades to the deterministic summary rather than to an error.
 
 ## 10. Not in scope
 
