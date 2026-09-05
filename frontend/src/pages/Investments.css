@@ -322,6 +322,11 @@
 
 .inv-bar { background: var(--accent-lighter); border-radius: 3px; height: 8px; overflow: hidden; }
 .inv-bar__fill { background: var(--accent); height: 100%; border-radius: 3px; }
+/* A second tone for bands that are NOT a credit grade — FDIC-insured CDs, bond
+   funds, holdings with no statement yet. They belong in the table (the money is
+   real) but not in the credit distribution's own colour, or the eye reads eleven
+   grades where there are seven. */
+.inv-bar__fill--muted { background: var(--muted); }
 
 .inv-uncovered { list-style: none; margin: 0.5rem 0 0; padding: 0; }
 .inv-uncovered li { display: flex; gap: 0.75rem; align-items: baseline; padding: 0.3rem 0; border-top: 1px solid var(--border); }

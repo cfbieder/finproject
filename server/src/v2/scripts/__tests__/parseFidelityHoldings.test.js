@@ -17,6 +17,7 @@ const {
   num,
   parseRows,
   describe: describeRow,
+  bondTerms,
 } = require('../parse-fidelity-holdings');
 
 describe('num — absence is not zero', () => {
@@ -266,5 +267,107 @@ describe('bond descriptions — the column that read "BOND" 40 times', () => {
     const [r] = parseRows(bare, 'Corporate Bonds', 'test', 'combined');
     expect(r.symbol).toBe('302635AE7');
     expect(r.description).toBe('BOND');
+  });
+});
+
+/**
+ * CR093 — the fixed-income X-ray reads rating, coupon and maturity out of text
+ * the parser already had to walk past. Invented issuers and CUSIPs throughout;
+ * the SHAPES are the real ones.
+ */
+describe('the accrued-interest column is decided by the header, not the section', () => {
+  // The real header, abbreviated to what matters. `Other` is not a bond section,
+  // and the CDs printed under it carry the extra column anyway.
+  const header = 'Other Description Beginning Market Value Jun 1, 2026 Quantity Jun 30, 2026'
+    + ' Price Per Unit Jun 30, 2026 Ending Market Value Accrued Interest (AI) Jun 30, 2026'
+    + ' Total Cost Basis Unrealized Gain/Loss Jun 30, 2026 EAI ($) / EY (%) ';
+  const row = 'B EXAMPLE BK NATL ASSN CD 4.00000% 05/15/2029 FIXED COUPON FDIC INSURED MONTHLY'
+    + ' CUSIP: 11111AAA1 $99,301.00 100,000.000 $0.9877 $98,767.00 $175.34 $100,000.00'
+    + ' -$1,233.00 $4,000.04 -';
+
+  test('🔴 accrued interest is not cost basis, and cost basis is not the gain', () => {
+    // Read with the ordinary grammar this stored $175.34 of accrued interest as
+    // the cost basis of a $98,767 CD and the real $100,000 basis as a $100,000
+    // unrealized GAIN. 161 rows across the corpus. Market value sits before the
+    // extra column, so the one figure the gate compared was the one that could
+    // not move.
+    const [r] = parseRows(header + row, 'Other', 'test', 'single');
+    expect(r).toMatchObject({
+      quantity: 100000, price: 0.9877, market_value: 98767,
+      cost_basis: 100000, unrealized: -1233,
+    });
+  });
+
+  test('a table without the column is unaffected', () => {
+    const plain = 'Common Stock Description Beginning Market Value Jun 1, 2026 Quantity'
+      + ' Total Cost Basis Unrealized Gain/Loss Jun 30, 2026 '
+      + 'ACME CORP COM (ACME) $4,900.00 100.000 $50.0000 $5,000.00 $4,000.00 $1,000.00';
+    const [r] = parseRows(plain, 'Common Stock', 'test', 'single');
+    expect(r).toMatchObject({ cost_basis: 4000, unrealized: 1000 });
+  });
+});
+
+describe('bondTerms — what the custodian already prints', () => {
+  test('a corporate bond: coupon and ratings trail the figures, maturity is glued to the name', () => {
+    const desc = 'EXAMPLE CREDIT FUND SER B 12/15/26';
+    const trailer = '$196.87 2.625 % FIXED COUPON MOODYS Baa2 S&P BBB- SEMIANNUALLY'
+      + ' NEXT CALL DATE 11/15/2026 CONT CALL 11/15/2026 MAKE WHOLE CALL';
+    expect(bondTerms(desc, trailer)).toEqual({
+      coupon_rate: 2.625,
+      maturity_date: '2026-12-15',
+      coupon_type: 'fixed',
+      payment_frequency: 'semiannually',
+      moodys_rating: 'Baa2',
+      sp_rating: 'BBB-',
+      next_call_date: '2026-11-15',
+      fdic_insured: false,
+    });
+  });
+
+  test('🔴 a minus notch survives — `BBB-` must not be stored as `BBB`', () => {
+    // A trailing \b cannot exist after `-`, so the engine backtracked and
+    // promoted every minus-notch rating by one grade. A credit chart that rounds
+    // up understates exactly the thing it is drawn to show.
+    expect(bondTerms('X 01/01/30', '1.00 5.000 FIXED COUPON S&P BBB- ANNUALLY').sp_rating).toBe('BBB-');
+    expect(bondTerms('X 01/01/30', '1.00 5.000 FIXED COUPON S&P A+ ANNUALLY').sp_rating).toBe('A+');
+    expect(bondTerms('X 01/01/30', '1.00 5.000 FIXED COUPON S&P AA- ANNUALLY').sp_rating).toBe('AA-');
+  });
+
+  test('a CD carries everything in its own description, and is FDIC-insured rather than rated', () => {
+    const desc = 'EXAMPLE BK NATL ASSN CD 4.15000% 06/12/2028 FIXED COUPON FDIC INSURED MONTHLY';
+    expect(bondTerms(desc, '')).toMatchObject({
+      coupon_rate: 4.15,
+      maturity_date: '2028-06-12',
+      payment_frequency: 'monthly',
+      // ⚠️ NOT "unrated". A CD is FDIC-insured, and lumping $993,085 of them in
+      // with genuinely unrated corporate paper would misdescribe the single
+      // largest fixed-income block in this portfolio.
+      moodys_rating: null,
+      sp_rating: null,
+      fdic_insured: true,
+    });
+  });
+
+  test("a bond rated by only one agency keeps the other NULL", () => {
+    const t = bondTerms('EXAMPLE LENDING SER B 02/11/27', '540.00 4.500 FIXED COUPON MOODYS Baa3 SEMIANNUALLY');
+    expect(t.moodys_rating).toBe('Baa3');
+    expect(t.sp_rating).toBeNull();
+  });
+
+  test('an equity row gets no terms at all', () => {
+    // Returning an all-null object would put every stock into the fixed-income
+    // tables holding nothing.
+    expect(bondTerms('ACME CORP COM USD0.01', '')).toBeNull();
+    // A money-market fund prints a yield, which is not a coupon.
+    expect(bondTerms('EXAMPLE MMKT PREMIUM CLASS -- 7-day yield: 3.47%', '')).toBeNull();
+  });
+
+  test('maturity is read from the END of the description, not from anywhere in it', () => {
+    // `FORMERLY … TO 05/24/01` is part of an issuer name, not a maturity. The
+    // Maturity column prints immediately after the description, so the last date
+    // is the right one.
+    const t = bondTerms('EXAMPLE TR FORMERLY OTHER TR TO 05/24/01 NOTE 09/01/27',
+      '500.00 5.000 FIXED COUPON MOODYS Baa2 SEMIANNUALLY');
+    expect(t.maturity_date).toBe('2027-09-01');
   });
 });

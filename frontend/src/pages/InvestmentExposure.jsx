@@ -18,6 +18,7 @@ import EmptyState from "../components/EmptyState.jsx";
 import LoadingSpinner from "../components/LoadingSpinner.jsx";
 import { money } from "../features/Investments/investmentFormat.js";
 import SectorPicker from "../features/Investments/SectorPicker.jsx";
+import FixedIncomePanels from "../features/Investments/FixedIncomePanels.jsx";
 import "./PageLayout.css";
 import "./Investments.css";
 
@@ -193,6 +194,10 @@ export default function InvestmentExposure() {
           <p className="inv-history__caveat">Every equity holding is sectored.</p>
         )}
       </section>
+
+      {/* The fixed-income slice loads on its own, so a failure there leaves the
+          sector panels above standing. 58% of this portfolio lives in it. */}
+      <FixedIncomePanels />
 
       {editing && (
         <SectorPicker

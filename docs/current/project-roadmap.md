@@ -10,6 +10,26 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.1 Open / In-Progress
 
+<a id="cr093"></a>
+- **CR093 — Portfolio X-ray. ✅ *P1 PARTLY SHIPPED*: exposure + sector look-through v3.55.0 (migration 077), the manual sector picker v3.55.1, the fixed-income X-ray v3.56.0 (migration 078). Open: the security detail chart, P2 risk, P3 income.**
+  Full spec: [cr-093-portfolio-xray.md](../cr/cr-093-portfolio-xray.md). Owner-asked: analysis
+  *"by sector, by rating, by interest rate — a full portfolio x-ray"*, plus a per-security chart.
+  - **Shipped so far:** `/investments/exposure` with `GET /api/v2/investments/exposure`,
+    `GET /api/v2/investments/fixed-income` and `PUT /api/v2/investments/securities/:id/sectors`.
+    Fixed income measured live at **$2,243,163 = 58.0%** of the portfolio, sliced by credit grade,
+    maturity ladder and coupon — every field read from the custodian's own statements, so **no
+    vendor is involved and none can contradict it** (§1 decision 4).
+  - **Still open — the security detail chart (§5).** Period selector, % gain/loss, S&P/Dow overlay
+    rebased to 100, MACD 12/26/9, and the position/instrument/quote details. The Tradier backfill
+    (426,614 closes back to 2014) has already unblocked it; only **46 of 273 securities can be
+    charted at all**, and clicking an unquotable one must say *why* rather than draw an empty axis.
+  - **Still open — P2 (risk) and P3 (income).** ⚠️ P3's `EAI` is a FORWARD ESTIMATE that decays near
+    maturity, not `coupon × face`; they are different columns and only the coupon shipped.
+  - ⚠️ **Two funds still need a hand-classification** the owner alone can give — BDJ and EOS
+    ($40,367): both providers file them under their manager's sector, not their holdings'.
+  - ⚠️ **`FMP_API_KEY` remains UNVERIFIED** (rejected three ways, shaped unlike an FMP key); the
+    fund sector weights in use came from FinImpulse.
+
 <a id="cr092"></a>
 - **CR092 — Why did net worth change? ✅ *P0 SHIPPED v3.53.0 · P2 COMPLETE 2026-09-05*; P1 filed with `ocr-llm`, awaiting them.**
   Full spec: [cr-092-net-worth-bridge.md](../cr/cr-092-net-worth-bridge.md). Owner-asked from the
@@ -853,6 +873,8 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 - **CR015 — [Re-export to PocketSmith](../cr/cr-015-ps-reexport.md)** — *OBSOLETE (PS being removed).*
 
 ### 1.2 Completed (chronological, latest first)
+
+- **v3.56.0** (2026-09-05) — **minor: the fixed-income X-ray — 58% of the portfolio the register could say nothing about.** [CR093](../cr/cr-093-portfolio-xray.md) P1 §3a, migration **078**, one new endpoint (`GET /api/v2/investments/fixed-income`). Rating, coupon, maturity, payment frequency and call date for every bond and CD, **read from the custodian's own statements** — 27 Moody's and 22 S&P ratings on the 2026-06 one, in text `parse-fidelity-holdings.js` already read and discarded. **No vendor is involved, so none can contradict it** (§1 decision 4) and no outage can take it down. Measured live: **$2,243,163 = 58.0%** of the portfolio — **$633,712 rated** (28.3% of the sleeve, **89.7% investment grade**), **$694,010 FDIC-insured CDs**, **$566,878 bond funds**, **$348,563 with no statement yet**; weighted average coupon **4.51%** across the $1,327,722 that carries one; the 1–3y band holds **$799,879 (35.7%)** and only $36,879 matures inside a year. ⚠️ **Four reasons a bond has no rating, and they are four buckets.** A brokered CD is **FDIC-insured**, not unrated — filing $694,010 beside genuinely unrated corporate paper would say this portfolio carries credit risk it does not carry; a bond fund has no single rating by nature; `not_rated` is a real answer; `no_terms` is the only one that should shrink, and it closes itself at the next quarter-end. **A split rating takes the LOWER grade** (the market's convention, and the only safe direction to round), with both agencies kept verbatim on the holding. 🔴 **Three defects found by reading what the parser produced, none of which any check could have caught.** (1) **CDs print under `Other`**, which is not a bond section, so they were read with the ordinary grammar and their **accrued interest was stored as cost basis while the real cost basis became the unrealized gain** — **161 rows**, $9,991,277 of market value carrying **$19,356** of cost. ⚠️ The reconciliation gate compares **market value**, which sits BEFORE the extra column and was right in every row: the same blindness that let 13 securities keep a page banner as their name. The grammar is now chosen by the table's own **column header**, not by the section's name. (2) **The gate now reads the second column too** — 198 cost-basis checks across 51 statements, and it is **not vacuous**: disabling the fix turns 1 failure into **18**. Skipped where the statement cannot support it (a Core Account prints `not applicable` for basis). (3) **Name healing was defeated by its own cache** — `resolveSecurity` returned early on a hit, so `healName` ran at most **once per symbol per run**, on the OLDEST statement, since the corpus is read in date order. The rule says the most recent statement wins; the code made the first one win, which is the exact defect the rule was written to kill. `AGG` kept `Mar 31, 2017 Fixed Income ETPs ISHARES CORE U.S. AGGREGATE BOND ETF` against **61 later sightings** saying `ISHARES CORE US AGGREGATE BOND ETF`, and re-running the ingest could never repair it. With two more header variants taught as furniture, **0 statement-furniture names remain**. ⚠️ **One `no_maturity` bucket would have repeated the defect at the page level** — it merged $566,878 of funds with $348,563 of unstatemented bonds and labelled the whole **40.8%** "funds"; caught by rendering the page and reading it. **The panels fetch separately** from the sector ones, so a failure in one view of the portfolio cannot take down the others. **Server 1311 / 95 suites, frontend 628 / 53 files**, six ratchets at baseline, both themes rendered.
 
 - **v3.55.2** (2026-09-05) — **patch: `base_amount` was taking a NEIGHBOUR's exchange rate ([#24](#3-known-issues)), and three rate lookups had no tie-break ([#25](#3-known-issues)).** Both owner-decided 2026-09-05; no migration, no new endpoint. 🔴 **#24, and the mechanism is worse than the symptom suggested.** `PATCH /transactions/:id` recomputes `base_amount` when the date changes, and it took the rate implied by a **neighbouring transaction** — same currency, within ±3 days, largest amount wins — and **never consulted `exchange_rates`**. It therefore **propagates error**: the neighbour's own rate may be wrong and the copy inherits it. Measured live — EUR at 2026-03-31 returns an implied **1.185494** against a book **1.149795**, **off by 3.10%**, and a stored `CVC Fund VIII` row carries *exactly* 1.185494, so the spread had already been copied once. And it is **not stable over time**: the neighbour set changes as data arrives, so the same edit yields a different rate on a different day. Now uses `fx.rateAsOf` — authoritative, daily, back to 1999, and sitting right there — with the implied rate surviving only as a **fallback** for a date the table cannot serve and `rate_source` naming which applied, because silently swapping between two rate sources is how this stayed invisible. ⚠️ **The first hypothesis was wrong**: "it stamps today's rate" fitted the UB row's 0.266042 and would have led to fixing the reconcile writers, which pass the transaction date correctly. Tracing the stored rate rather than reading the code is what found the real one. ⚠️ **History deliberately NOT repriced** (owner): of the **$87,730** measured, **$85,780 is a single `Unrealized G/L` posting the default Cash Flow view excludes** (−485,451 vs −2,204,664 with it), so only **~$1,950** is visible in the views actually read, and rewriting 271 rows would restate published figures for that. ⚠️ **One row stays unattributed** — the United Beverages write-down (`id 2700819`, written 2026-07-02 for a 2025-12-31 date, implied **0.266042** = the 2026-06-29 book rate); consistent with `findImpliedRate` meeting a differently-populated neighbourhood on the day it ran, but unprovable after the fact and not claimed. ⚠️ **The measurement covered 2025-11 → 2026-09 only**; the same writer has presumably been doing this for years, so the historical total is unknown. **#25** — `forecast/crud.js`, `repositories/budget.js` and `utils/refreshExchangeRates.js` gain `, rate_date ASC`, matching `reports.js`: ties break toward the **earlier** rate, so a past date is never valued with a future one and the same query cannot return either rate on different calls. ⚠️ Deliberately **not** `fx.rateAsOf`'s stricter on-or-before rule (owner) — that moves every weekend and holiday date in the **forecast and budget** and needs its own before/after across all five scenarios, so `reports.js` and `fx.js` still disagree on non-tie gap dates on purpose. **The new test pins the PRECONDITION as well as the fix** — that the neighbour really would hand over the wrong rate — because without it the fixture could be toothless and the assertion would pass for the wrong reason. **Two records shipped with it, no code:** [CR092 §6d](../cr/cr-092-net-worth-bridge.md) says where the v3.55.0 totals work actually lives (inside `e5f5f42e` under a CR093 message — two sessions wrote at once, the other's commit consumed the shared **index** first and this session's bare commit made nothing; pushed, tagged and deployed before it was noticed, so it stands), and **[#26](#3-known-issues)** records `exposure.test.js` as **green in CI and red on real data**. **Server 1278 / 94 suites** (excluding #26's suite), **frontend 628 / 53 files**, gates at baseline.
 
@@ -2181,6 +2203,21 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
     against those, clean up by name. Left to CR093's author rather than fixed from here (owner,
     2026-09-05) — it is their in-flight work, and this session had already collided with that
     session once the same day ([CR092 §6d](../cr/cr-092-net-worth-bridge.md)).
+    🔴 **UPDATE 2026-09-05 (v3.56.0) — the recorded fix above would NOT have worked, and building
+    the same trap again is how that was found.** The failing suite *already* seeds throwaway
+    securities and positions and cleans them up by name; that is not what breaks it.
+    `buildExposure` reads **every account's latest snapshot**, because that is what a portfolio view
+    is — so the fixture is added to production-scale data rather than replacing it, and any
+    assertion about a total is an assertion about the database. v3.56.0's fixed-income work wrote
+    **nine more DB-backed tests in exactly that shape**, watched them pass on a fresh database, and
+    only caught it when a reviewer asked. **8 of 9 failed on dev.**
+    ✅ **The route that does work, now demonstrated:** split the builder into a thin DB fetch and a
+    **pure** `summariseFixedIncome(rows, portfolioTotal)`, and test the pure half with invented rows
+    and no database at all. All **11** fixed-income tests now pass against dev's real data as well as
+    a fresh one, and they pin more than before (the two denominators, an empty sleeve) because they
+    are no longer constrained to what a fixture can express. **`buildExposure`'s 7 are unchanged and
+    this issue stays open for them** — the same split applies, and is now a worked example one file
+    away rather than a suggestion.
 
 ---
 

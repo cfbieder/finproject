@@ -11,7 +11,7 @@
  */
 
 const db = require('../../v2/db');
-const { buildExposure } = require('../exposure');
+const { buildExposure, summariseFixedIncome, gradeOf } = require('../exposure');
 
 const dbDescribe = process.env.SKIP_DB_TESTS ? describe.skip : describe;
 
@@ -204,5 +204,168 @@ dbDescribe('CR093 setSectorWeights (DB)', () => {
     await expect(setSectorWeights(id, [
       { sector: 'energy', weight: 1 }, { sector: 'utilities', weight: 0 },
     ])).rejects.toThrow(/must be >0/);
+  });
+});
+
+describe('CR093 gradeOf — a split rating rounds DOWN', () => {
+  test('one agency alone decides the grade', () => {
+    expect(gradeOf('Aa2', null)).toBe('aa');
+    expect(gradeOf(null, 'BBB-')).toBe('bbb');
+    expect(gradeOf(null, null)).toBeNull();
+  });
+
+  test('🔴 disagreement takes the LOWER grade, never the higher', () => {
+    // Rounding up understates exactly the risk the panel is drawn to show, and
+    // "lower of the two" is the market's own convention for split ratings.
+    expect(gradeOf('Baa2', 'BB+')).toBe('bb');
+    expect(gradeOf('Ba1', 'BBB-')).toBe('bb');
+    expect(gradeOf('A1', 'A-')).toBe('a');     // same letter, different notch
+  });
+
+  test('an unrecognised rating does not silently become a grade', () => {
+    expect(gradeOf('WR', null)).toBeNull();
+    expect(gradeOf('NR', 'NR')).toBeNull();
+  });
+});
+
+/**
+ * ⚠️ NO DATABASE, deliberately.
+ *
+ * `buildFixedIncome` reads EVERY account's latest snapshot — that is what a
+ * portfolio view is — so a DB-backed assertion about its totals is an assertion
+ * about whatever rows the database happens to hold. Written that way first,
+ * eight of these nine were green on CI's empty database and red on dev's real
+ * one: roadmap issue #26, and the exact thing `docs/guides/testing-and-ci.md`
+ * warns against. The decision logic is now a pure function, and these rows are
+ * invented.
+ */
+describe('CR093 summariseFixedIncome — the rules, on invented rows', () => {
+  // The shape `buildFixedIncome`'s query returns, defaulted so each test states
+  // only what it is about.
+  const row = (over = {}) => ({
+    id: over.id ?? 1,
+    ticker: null,
+    name: over.name || 'ZZ TEST',
+    price_basis: over.price_basis || 'per_100_face',
+    quantity_unit: 'face',
+    as_of: over.as_of === undefined ? '2026-06-30' : over.as_of,
+    maturity_date: over.maturity_date ?? null,
+    next_call_date: null,
+    coupon_rate: over.coupon_rate ?? null,
+    coupon_type: null,
+    payment_frequency: null,
+    moodys_rating: over.moodys || null,
+    sp_rating: over.sp || null,
+    fdic_insured: over.fdic || false,
+    mv: over.mv,
+    quantity: 1,
+  });
+  const at = (r, k) => r.find((b) => b.bucket === k);
+  const inYears = (n) => new Date(Date.now() + n * 365.25 * 86400e3).toISOString().slice(0, 10);
+
+  test('a rated bond lands in its letter grade', () => {
+    const r = summariseFixedIncome([row({ mv: 1000, moodys: 'Baa2', sp: 'BBB-', coupon_rate: 5, maturity_date: '2030-01-15' })], 4000);
+    expect(Number(at(r.by_credit, 'bbb').market_value)).toBeCloseTo(1000, 2);
+    expect(r.share_of_portfolio).toBeCloseTo(0.25, 6);
+  });
+
+  test('🔴 a CD is FDIC-INSURED, not "not rated"', () => {
+    // These are the largest single block in this sleeve. Filing them beside
+    // genuinely unrated corporate paper would say this portfolio carries credit
+    // risk it does not carry.
+    const r = summariseFixedIncome([row({ mv: 2000, price_basis: 'per_1_face', fdic: true, coupon_rate: 4, maturity_date: '2029-05-15' })], 2000);
+    expect(Number(at(r.by_credit, 'fdic_insured').market_value)).toBeCloseTo(2000, 2);
+    expect(at(r.by_credit, 'not_rated')).toBeUndefined();
+    expect(r.credit_coverage.fdic_insured).toHaveLength(1);
+  });
+
+  test('🔴 a bond FUND has no single rating, and that is not a gap in our data', () => {
+    const r = summariseFixedIncome([row({ mv: 5000, price_basis: 'per_share', as_of: null })], 5000);
+    expect(Number(at(r.by_credit, 'fund').market_value)).toBeCloseTo(5000, 2);
+    expect(at(r.by_credit, 'no_terms')).toBeUndefined();
+  });
+
+  test('🔴 "no statement covers it yet" is its own bucket, separate from "unrated"', () => {
+    // A bond bought since the last quarter-end. This is the ONLY bucket that
+    // should shrink, and it does so by itself when the next statement lands — so
+    // it must not be mixed with a bond the custodian genuinely rates NR.
+    const r = summariseFixedIncome([
+      row({ id: 1, mv: 300, as_of: null }),
+      row({ id: 2, mv: 700, coupon_rate: 6, maturity_date: '2029-01-01' }),
+    ], 1000);
+    expect(Number(at(r.by_credit, 'no_terms').market_value)).toBeCloseTo(300, 2);
+    expect(Number(at(r.by_credit, 'not_rated').market_value)).toBeCloseTo(700, 2);
+  });
+
+  test('nothing unrated is redistributed across the grades we DO know', () => {
+    const r = summariseFixedIncome([
+      row({ id: 1, mv: 1000, moodys: 'A2', coupon_rate: 4, maturity_date: '2030-01-01' }),
+      row({ id: 2, mv: 9000, as_of: null }),
+    ], 10000);
+    expect(Number(at(r.by_credit, 'a').market_value)).toBeCloseTo(1000, 2);
+    expect(Number(r.credit_coverage.rated_value)).toBeCloseTo(1000, 2);
+    // 10% rated, and the page must be able to say so.
+    expect(r.credit_coverage.share_rated).toBeCloseTo(0.1, 6);
+  });
+
+  test('investment grade is reported against what is RATED, not against the sleeve', () => {
+    // Both denominators, as everywhere else here: 100% of the rated money is
+    // investment grade while only 20% of the sleeve is rated at all, and quoting
+    // the first alone would describe a portfolio that is 80% unexamined.
+    const r = summariseFixedIncome([
+      row({ id: 1, mv: 1000, moodys: 'A2', coupon_rate: 4, maturity_date: '2030-01-01' }),
+      row({ id: 2, mv: 4000, price_basis: 'per_1_face', fdic: true, coupon_rate: 4, maturity_date: '2029-01-01' }),
+    ], 5000);
+    expect(r.credit_coverage.investment_grade_share_of_rated).toBeCloseTo(1, 6);
+    expect(r.credit_coverage.share_rated).toBeCloseTo(0.2, 6);
+  });
+
+  test('the maturity ladder bands by years from today', () => {
+    const r = summariseFixedIncome([
+      row({ id: 1, mv: 100, coupon_rate: 3, maturity_date: inYears(0.3) }),
+      row({ id: 2, mv: 200, coupon_rate: 3, maturity_date: inYears(8) }),
+    ], 300);
+    expect(Number(at(r.by_maturity, 'under_1y').market_value)).toBeCloseTo(100, 2);
+    expect(Number(at(r.by_maturity, '5_10y').market_value)).toBeCloseTo(200, 2);
+  });
+
+  test('🔴 the ladder keeps "a fund has none" apart from "we have no statement yet"', () => {
+    // One `no_maturity` bucket merged $566,878 of bond funds with $348,563 of
+    // bonds bought since the last quarter-end and labelled the whole 40.8% of
+    // the sleeve "funds". The first is permanent, the second closes itself; a
+    // single label describes a third of the band as something it is not.
+    const r = summariseFixedIncome([
+      row({ id: 1, mv: 300, price_basis: 'per_share', as_of: null }),
+      row({ id: 2, mv: 700, as_of: null }),
+    ], 1000);
+    expect(Number(at(r.by_maturity, 'fund').market_value)).toBeCloseTo(300, 2);
+    expect(Number(at(r.by_maturity, 'no_terms').market_value)).toBeCloseTo(700, 2);
+    expect(at(r.by_maturity, 'no_maturity')).toBeUndefined();
+  });
+
+  test('the weighted average coupon weights by value and excludes what has none', () => {
+    const r = summariseFixedIncome([
+      row({ id: 1, mv: 1000, coupon_rate: 4, maturity_date: '2030-01-01' }),
+      row({ id: 2, mv: 3000, coupon_rate: 6, maturity_date: '2030-01-01' }),
+      row({ id: 3, mv: 96000, price_basis: 'per_share', as_of: null }),
+    ], 100000);
+    // (4×1000 + 6×3000) / 4000 = 5.5 — the fund's 96,000 must not drag it to 0.22.
+    expect(r.weighted_average_coupon).toBeCloseTo(5.5, 4);
+    expect(Number(r.weighted_average_coupon_base)).toBeCloseTo(4000, 2);
+  });
+
+  test('terms carry the statement date range they came from', () => {
+    const r = summariseFixedIncome([
+      row({ id: 1, mv: 1000, as_of: '2025-12-31', coupon_rate: 4, maturity_date: '2030-01-01' }),
+      row({ id: 2, mv: 1000, as_of: '2026-06-30', coupon_rate: 4, maturity_date: '2030-01-01' }),
+    ], 2000);
+    expect(r.terms_as_of).toEqual({ earliest: '2025-12-31', latest: '2026-06-30' });
+  });
+
+  test('an empty sleeve does not divide by zero', () => {
+    const r = summariseFixedIncome([], 0);
+    expect(r.by_credit).toEqual([]);
+    expect(r.share_of_portfolio).toBe(0);
+    expect(r.weighted_average_coupon).toBeNull();
   });
 });

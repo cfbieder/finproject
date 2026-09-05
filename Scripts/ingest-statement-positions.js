@@ -122,7 +122,22 @@ async function resolveSecurity(position, cache) {
   const symbol = String(position.symbol || '').trim()
     || String(position.description || '').trim();
   if (!symbol) return null;
-  if (cache.has(symbol)) return cache.get(symbol);
+  // 🔴 THE CACHE MUST NOT SKIP THE HEAL, only the lookup.
+  //
+  // This returned early, so `healName` ran at most ONCE per symbol per run — on
+  // the OLDEST statement, since the corpus is read in date order. The comment
+  // below it claims the most recent statement wins; the code made the first one
+  // win, which is the exact defect that rule was written to kill. AGG kept
+  // `Mar 31, 2017 Fixed Income ETPs ISHARES CORE U.S. AGGREGATE BOND ETF` from
+  // its first sighting while all 61 later sightings said `ISHARES CORE US
+  // AGGREGATE BOND ETF`, and re-running the ingest could never repair it.
+  //
+  // So the cache holds the ROW, not the id, and every sighting still heals.
+  if (cache.has(symbol)) {
+    const hit = cache.get(symbol);
+    await healName(db, hit, symbol, position);
+    return hit.id;
+  }
 
   const existing = await db.query(`
     SELECT s.id, s.name FROM security_source_mappings m
@@ -130,7 +145,7 @@ async function resolveSecurity(position, cache) {
      WHERE m.source = 'fintable' AND m.external_name = $1`, [symbol]);
   if (existing.rows.length) {
     await healName(db, existing.rows[0], symbol, position);
-    cache.set(symbol, existing.rows[0].id); return existing.rows[0].id;
+    cache.set(symbol, existing.rows[0]); return existing.rows[0].id;
   }
 
   const stmt = await db.query(`
@@ -139,7 +154,7 @@ async function resolveSecurity(position, cache) {
      WHERE m.source = $1 AND m.external_name = $2`, [SOURCE, symbol]);
   if (stmt.rows.length) {
     await healName(db, stmt.rows[0], symbol, position);
-    cache.set(symbol, stmt.rows[0].id); return stmt.rows[0].id;
+    cache.set(symbol, stmt.rows[0]); return stmt.rows[0].id;
   }
 
   const c = classify(position);
@@ -153,7 +168,7 @@ async function resolveSecurity(position, cache) {
     INSERT INTO security_source_mappings (security_id, source, external_name)
     VALUES ($1,$2,$3) ON CONFLICT (source, external_name) DO NOTHING`,
   [rows[0].id, SOURCE, symbol]);
-  cache.set(symbol, rows[0].id);
+  cache.set(symbol, { id: rows[0].id, name: position.description || symbol });
   return rows[0].id;
 }
 
@@ -191,7 +206,11 @@ function nameLooksWrong(name, symbol) {
   return !n || n === symbol || FURNITURE_IN_NAME.test(n) || !/^[A-Za-z]/.test(n);
 }
 
-let healed = 0;
+// Counted as DISTINCT securities, not as UPDATEs. Reading in date order, a
+// holding whose description changed over a decade is rewritten at each change
+// point, so counting writes reported 276 for what is 231 securities — a number
+// that reads as churn rather than as repair.
+const healed = new Set();
 async function healName(db, row, symbol, position) {
   // 🔴 A DRY RUN MUST NOT WRITE. This repair sits inside resolveSecurity, which
   // the merge loop calls BEFORE the `!APPLY` early return, so without this guard
@@ -220,7 +239,50 @@ async function healName(db, row, symbol, position) {
    * value of a name is that it is current, not that it was first.
    */
   await db.query('UPDATE securities SET name = $2, updated_at = now() WHERE id = $1', [row.id, better]);
-  healed += 1;
+  // Keep the cached row in step, so a symbol seen fifty times updates only when
+  // the description actually changes rather than once per sighting.
+  row.name = better;
+  healed.add(row.id);
+}
+
+let termsWritten = 0;
+
+/**
+ * The instrument terms a bond or CD prints about itself — rating, coupon,
+ * maturity, payment frequency, call date (migration 078).
+ *
+ * ⚠️ LATEST STATEMENT WINS, and the `WHERE` clause is what enforces it rather
+ * than the read order. Statements ARE read in date order, but `--llm` and a
+ * single-file re-run both bypass that ordering, and a 2016 re-read must not
+ * overwrite a 2026 rating with a decade-old one. The name-healing rule above
+ * learned this the expensive way: first-seen-wins named FLDR after a collateral
+ * line while six later statements had it right.
+ *
+ * `<=` rather than `<` so re-reading the SAME statement still repairs a row a
+ * fixed parser now reads better.
+ */
+async function upsertBondTerms(securityId, asOf, t) {
+  if (!t) return;
+  const { rowCount } = await db.query(`
+    INSERT INTO security_bond_terms
+      (security_id, as_of, maturity_date, next_call_date, coupon_rate,
+       coupon_type, payment_frequency, moodys_rating, sp_rating, fdic_insured, source)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'statement')
+    ON CONFLICT (security_id) DO UPDATE SET
+      as_of = EXCLUDED.as_of,
+      maturity_date = EXCLUDED.maturity_date,
+      next_call_date = EXCLUDED.next_call_date,
+      coupon_rate = EXCLUDED.coupon_rate,
+      coupon_type = EXCLUDED.coupon_type,
+      payment_frequency = EXCLUDED.payment_frequency,
+      moodys_rating = EXCLUDED.moodys_rating,
+      sp_rating = EXCLUDED.sp_rating,
+      fdic_insured = EXCLUDED.fdic_insured,
+      updated_at = now()
+    WHERE security_bond_terms.as_of <= EXCLUDED.as_of`,
+  [securityId, asOf, t.maturity_date, t.next_call_date, t.coupon_rate,
+    t.coupon_type, t.payment_frequency, t.moodys_rating, t.sp_rating, t.fdic_insured]);
+  termsWritten += rowCount;
 }
 
 /**
@@ -405,6 +467,9 @@ async function main() {
         [snapshotId, accountId, securityId, p.quantity, p.price,
           sec[0] ? sec[0].price_basis : null, p.market_value, p.cost_basis,
           JSON.stringify({ symbol: p.symbol, section: p.section, lines: p.lines })]);
+        // Terms belong to the INSTRUMENT, not to this snapshot, so they are
+        // written once per security rather than per position row.
+        await upsertBondTerms(securityId, a.as_of, p.terms);
         stats.positions += 1;
       }
       stats.ingested += 1;
@@ -414,6 +479,10 @@ async function main() {
   console.log(`statements parsed: ${stats.files} · account-statements: ${stats.accounts}`);
   console.log(`${APPLY && !REPORT_ONLY ? 'ingested' : 'would ingest'}: ${stats.ingested}  ·  positions: ${stats.positions}`);
   console.log(`skipped (did not reconcile): ${stats.skipped_unreconciled}`);
+  if (termsWritten) {
+    console.log(`bond terms written/refreshed: ${termsWritten}`
+      + ' — rating, coupon, maturity and payment frequency, read from the statements themselves');
+  }
   if (stats.merged_lines) {
     console.log(`merged ${stats.merged_lines} duplicate lot line(s) into their security`
       + ' — Fidelity prints one line per lot and both belong to the section subtotal');
@@ -424,7 +493,7 @@ async function main() {
   } else if (LLM_FILE) {
     console.log(`⚠️ --llm ${LLM_FILE} matched no account-statement — check the file names in it`);
   }
-  if (healed) console.log(`updated ${healed} security name(s) to what the most recent statement calls them`);
+  if (healed.size) console.log(`updated ${healed.size} security name(s) to what the most recent statement calls them`);
   if (stats.unmapped.size) {
     console.log(`\n⚠️ ${stats.unmapped.size} account number(s) are not in the pinned map and were REFUSED,`);
     console.log('   not guessed — assigning by closest balance would hide the very drift this measures:');

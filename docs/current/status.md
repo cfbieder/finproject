@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-09-05 · **Live version:** **v3.55.2** (see `VERSION` / git tags) — **v3.55.2: `base_amount` was taking a NEIGHBOUR's exchange rate.** Roadmap **#24** and **#25**, both owner-decided. 🔴 `PATCH /transactions/:id` recomputes `base_amount` when the date changes, and it took the rate from `findImpliedRate` — *same currency, within ±3 days, largest amount wins* — **never consulting `exchange_rates` at all**. Two defects in one: it **propagates error** (EUR at 2026-03-31 implies **1.185494** against a book **1.149795**, off **3.10%**, and a stored `CVC Fund VIII` row carries exactly 1.185494, so the spread had already been copied once), and it is **not stable over time** (the neighbour set changes as data arrives, so the same edit yields a different rate on a different day). It now uses `fx.rateAsOf`, keeping the implied rate only as a FALLBACK and naming which was used. ⚠️ **History is deliberately NOT repriced** — of the $87,730 measured, **$85,780 is one `Unrealized G/L` posting the default Cash Flow view excludes**, so only ~$1,950 is visible in the views actually read. **#25** gives the three remaining rate lookups the same tie-break `reports.js` got, so a past date is never valued with a future one. ⚠️ **Found by TRACING the stored rate, not by reading the code** — the first hypothesis ("it uses today's rate") was wrong, and the real mechanism was worse.
+**Last updated:** 2026-09-05 · **Live version:** **v3.56.0** (see `VERSION` / git tags) — **v3.56.0: the fixed-income X-ray.** [CR093](../cr/cr-093-portfolio-xray.md) P1 §3a, migration **078**. 58% of this portfolio is fixed income and the register could say nothing about any of it beyond a market value; rating, coupon and maturity are now read from the **custodian's own statements**, so no vendor is involved and none can contradict it. Measured live: **$2,243,163 = 58.0%** — $633,712 rated (89.7% investment grade), $694,010 FDIC-insured CDs, $566,878 bond funds, $348,563 with no statement yet; weighted average coupon **4.51%**. ⚠️ **Four reasons a bond has no rating, kept as four buckets** — a CD is *insured*, not unrated. 🔴 Building it found **161 CD rows whose accrued interest was stored as cost basis** ($9,991,277 of market value carrying $19,356 of cost) — invisible because the gate compares **market value**, the one column that could not move; the gate now reads the second column, and disabling the fix turns 1 failure into 18. 🔴 And **name healing was defeated by its own cache**: `healName` ran once per symbol per run, on the OLDEST statement, so `AGG` kept a 2017 page header against 61 later sightings. **0 furniture names remain.**
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -148,11 +148,20 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   owner's whole balance sheet by named account, with four guardrails asked for server-side — two of
   them data-specific (an `offsetting` driver moved and cancelled and is neither gain nor loss; no
   percentages, since a contributor can exceed its own driver). No deadline: the deterministic
-  summary is the fallback. ⚠️ **Two items still deliberately open**
-  ([roadmap §3](project-roadmap.md#3-known-issues) **#24/#25**), both with owner decisions taken
-  2026-09-05: **#24** — fix the `base_amount` writer, leave the 271 historical rows (the $85,780 sits
-  in an `Unrealized G/L` posting the default Cash Flow view excludes, so only ~$1,950 is visible);
-  **#25** — apply the same tie-break to the three remaining rate lookups, no convention change.
+  summary is the fallback. ⚠️ **#24 and #25 both SHIPPED in v3.55.2**
+  ([roadmap §3](project-roadmap.md#3-known-issues)), on owner decisions taken 2026-09-05: **#24** fixed
+  the `base_amount` writer and **deliberately left the 271 historical rows** unrepriced (the $85,780
+  sits in an `Unrealized G/L` posting the default Cash Flow view excludes, so only ~$1,950 is visible
+  in the views actually read); **#25** gave the three remaining rate lookups the same tie-break, with
+  no convention change.
+- 🔄 **[CR093](../cr/cr-093-portfolio-xray.md) P1 is PARTLY SHIPPED — exposure v3.55.0, the sector
+  picker v3.55.1, the fixed-income X-ray v3.56.0.** `/investments/exposure` now answers *what am I
+  exposed to* by asset class, by sector with funds seen through, and by credit / maturity / coupon
+  across the **58%** of the portfolio that is fixed income. **Open:** the security detail chart (§5 —
+  period selector, index overlay rebased to 100, MACD 12/26/9; the Tradier backfill already
+  unblocked it, and only **46 of 273** securities can be charted at all), P2 risk, P3 income.
+  ⚠️ **BDJ and EOS ($40,367) still need a hand-classification** no provider can give, and
+  **`FMP_API_KEY` remains unverified**.
 - 🔄 **[CR091](../cr/cr-091-reconnect-that-works.md) — the reconnect button failed on its first live
   use (2026-09-04); P1 + U1b SHIPPED v3.53.1 (2026-09-05), P4 still owed by bank-feed.** Three Wise consents expired, which is the event [CR060](../cr/cr-060-feed-connection-health.md)
   built **Re-authorise** for; all three were reconnected **by hand against bank-feed's API**. The error
@@ -178,7 +187,8 @@ scenarios are REGENERATED**. It changes far less often than this file does.
 - ✅ **[CR061](../cr/cr-061-holdings-and-prices.md) P2 is COMPLETE (2026-09-05) — 117 of 117 account-statements
   reconcile, back to 2016-03-31.** 113 by the deterministic parser, **4 through the ocr-llm
   `finance_statement_extract` task**, both answering the same gate and provenance stored per snapshot. Dev holds
-  **422 snapshots / 8,458 positions**; **prod has none of it yet.** The month-boundary question is answered and the
+  **422 snapshots / 8,458 positions**; **prod holds all 117 statement snapshots** (437 total with the
+  feed's 320, 8,742 positions), loaded across the v3.51.0–v3.55.0 deploys. The month-boundary question is answered and the
   answer is that there is no material drift: **IRA 42/42 and Cash Mgt 24/24 tie**, Stocks 4 dates at 0.00–0.05%,
   Bond 2 at +35.05 — the feared *"+14,163 on Fidelity Bond"* was the parser, not the ledger.
 - ✅ **[CR090](../cr/cr-090-investments-section.md) P3 SHIPPED v3.52.0 — the decade is on the page.**

@@ -1,6 +1,11 @@
 # CR-093 — Portfolio X-ray: look-through, sector, credit and the security detail chart
 
-**Status:** DRAFT (2026-09-05) · **Track:** v3 · **Owner-requested**
+**Status:** IN-PROGRESS — P1 PARTLY SHIPPED v3.56.0 (2026-09-05) · **Track:** v3 · **Owner-requested**
+
+Shipped: the Exposure page and sector look-through (v3.55.0, migration 077), the manual
+sector picker (v3.55.1), and **the fixed-income X-ray** (v3.56.0, migration 078) — §3's
+credit, maturity and coupon slices. Still open: the security detail chart (§5) and
+P2/P3 (§4).
 
 ## Why
 
@@ -166,6 +171,59 @@ would invent exposure. Same rule as the residual row: the gap is shown, not abso
 
 ⚠️ **A sector weight is as of a date.** Print it. Bond ratings likewise carry the statement date they
 came from, which can be up to a quarter old.
+
+## 3a. Shipped — the fixed-income X-ray (v3.56.0, migration 078)
+
+Measured on the live snapshot, 2026-09-05. **$2,243,163 — 58.0% of the portfolio**, which is the
+number §0 predicted once the four bond funds moved out of `equity`.
+
+| slice | measured |
+|---|---|
+| rated by an agency | **$633,712** — 28.3% of the sleeve, **89.7% of it investment grade** |
+| FDIC-insured CDs | **$694,010** — 30.9%, the largest single block |
+| bond funds | **$566,878** — 25.3%, no single rating/coupon/maturity by nature |
+| no statement yet | **$348,563** — 15.5%, bought since 2026-06-30; closes itself |
+| weighted average coupon | **4.51%** across the $1,327,722 that carries one |
+| maturity | 1–3y **$799,879** (35.7%) is the bulge; only $36,879 inside a year |
+
+### 🔴 The parser was throwing away more than the terms, and the gate could not see it
+
+Three defects were found by reading what the parser produced, not by any failing check:
+
+1. **CDs print under `Other`, which is not a bond section**, so they were read with the ordinary
+   grammar and their **accrued interest was stored as cost basis while the real cost basis became
+   the unrealized gain** — **161 rows** across the corpus, $9,991,277 of market value carrying
+   $19,356 of cost. ⚠️ **The reconciliation gate compares MARKET VALUE, which sits BEFORE the extra
+   column and was correct in every row.** Same shape as the name defect: the check that existed read
+   the column that was right. The grammar is now chosen by the table's own **column header**
+   (`… Accrued Int. (AI) <date> Total Cost Basis …`), not by the section's name.
+2. **The gate now reads the SECOND column too.** 198 cost-basis checks across 51 statements, and it
+   is not vacuous: disabling the fix above turns 1 failure into **18**. Skipped rather than failed
+   where the statement cannot support it — a Core Account prints `not applicable` for basis and
+   omits the figure from its own subtotal.
+3. **Name healing was defeated by its own cache.** `resolveSecurity` returned early on a cache hit,
+   so `healName` ran at most **once per symbol per run** — on the OLDEST statement, since the corpus
+   is read in date order. The rule says the most recent statement wins; the code made the first one
+   win, which is the exact defect the rule was written to kill. `AGG` kept
+   `Mar 31, 2017 Fixed Income ETPs ISHARES CORE U.S. AGGREGATE BOND ETF` from its first sighting
+   while **61 later sightings** said `ISHARES CORE US AGGREGATE BOND ETF`, and re-running the ingest
+   could never repair it. Two further header variants (bond tables end in `Coupon Rate`; the 2016
+   layout ends in a bare date) are now furniture. **0 statement-furniture names remain.**
+
+### Decisions taken here, and why
+
+- **A split rating takes the LOWER grade** — the market's own convention, and the only safe
+  direction to round. Rounding up would understate exactly the risk the panel exists to show.
+- **Letter grades, not notches.** `Baa3` and `BBB-` are kept verbatim on the holding; the BUCKET is
+  the letter. A distribution across twenty notches is a list, not a picture.
+- **⚠️ Four reasons a bond has no rating, and they are four buckets.** A CD is **FDIC-insured**, not
+  unrated — filing $694,010 beside genuinely unrated corporate paper would say this portfolio
+  carries credit risk it does not carry. A bond fund has no single rating. `not_rated` is a real
+  answer. `no_terms` is the only one that should shrink, and it does so unaided.
+- **The same split applies to the maturity ladder and the coupon table.** One `no_maturity` bucket
+  merged $566,878 of funds with $348,563 of unstatemented bonds and labelled the whole **40.8%**
+  "funds". Caught by reading the rendered output.
+- **Coupon is the structural field; EAI is not shipped.** §4 records why they are different columns.
 
 ## 4. P2 — Risk · P3 — Income
 

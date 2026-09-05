@@ -188,6 +188,122 @@ const BOND_SECTIONS = new Set([
 ]);
 
 /**
+ * ⚠️ The column header, not the section name, says whether a table carries an
+ * ACCRUED INTEREST column.
+ *
+ * 🔴 Six CDs print under `Other`, which is not a bond section, so they were read
+ * with the ordinary grammar — and their accrued interest was booked as COST
+ * BASIS while the real cost basis became the unrealized gain. Across the corpus
+ * that is 108 rows holding $9,991,277 of market value against $19,356 of stored
+ * cost. It survived because the reconciliation gate compares MARKET VALUE, which
+ * sits BEFORE the extra column and was right in every row — the same blindness
+ * that let 13 securities keep a page banner as their name.
+ *
+ * The signature is the header's own ordering (`… Accrued Int. (AI) <date> Total
+ * Cost Basis …`) rather than the bare phrase, so prose about accrued interest in
+ * a section's footnotes cannot switch the grammar.
+ */
+function hasAccruedColumn(rawBody) {
+  return /Accrued\s+Int(?:erest|\.)\s*\(AI\)[\s\S]{0,40}?Total\s+Cost\s+Basis/.test(rawBody);
+}
+
+// Moody's and S&P print their own scales, and each is matched longest-first —
+// `A1` must not win against `Aa1`, nor `A` against `AAA`.
+// ⚠️ The trailing guard is a lookahead, NOT `\b`. A word boundary after `BBB-`
+// does not exist — `-` and the following space are both non-word — so the
+// engine backtracked and stored `BBB`, quietly promoting every minus-notch
+// rating by one grade. Matched longest-first, too: `A1` must not win against
+// `Aa1`, nor `A` against `AAA`.
+const RATED = String.raw`(?=\s|$)`;
+const MOODYS_RE = new RegExp(String.raw`\bMOODYS\s+(Aaa|Aa[123]|A[123]|Baa[123]|Ba[123]|B[123]|Caa[123]|Ca|C|WR|NR)` + RATED);
+const SP_RE = new RegExp(String.raw`\bS&P\s+(AAA|AA[+-]?|A[+-]?|BBB[+-]?|BB[+-]?|B[+-]?|CCC[+-]?|CC|C|D|NR)` + RATED);
+
+/**
+ * The terms a bond or CD prints about ITSELF — rating, coupon, maturity, payment
+ * frequency, call date.
+ *
+ * WHY THIS IS FREE: the custodian already states all of it, on every statement,
+ * in text this parser reads and used to discard. CR093 §1 decision 4 makes it
+ * the authority: a vendor's coupon disagreeing with the custodian's would be a
+ * second wrong number beside the right one.
+ *
+ * ⚠️ TWO PRINT FORMS, and they put the same facts in different places:
+ *
+ *   corporate bond   BLACKSTONE PRIVATE CREDIT FUND SER B `12/15/26`
+ *                    <figures> $196.87 `2.625 %` FIXED COUPON MOODYS Baa2
+ *                    S&P BBB- SEMIANNUALLY … CUSIP: 09261HAD9
+ *                    → maturity is glued to the description (it is the Maturity
+ *                      column); coupon and ratings trail the figures.
+ *
+ *   CD               CITIBANK N A CD `4.00000%` `05/15/2029` FIXED COUPON
+ *                    FDIC INSURED MONTHLY … CUSIP: 17290GHT7 <figures>
+ *                    → everything is in the description, and the CUSIP comes
+ *                      BEFORE the figures rather than after.
+ *
+ * So the CD form is tried first and anchors coupon and maturity TOGETHER — a
+ * bare four-digit date would otherwise pick up `NEXT CALL DATE`, and a bare
+ * percentage would pick up a money-market fund's 7-day yield.
+ *
+ * Returns null unless a coupon or a rating was actually found, so an equity row
+ * can never acquire empty bond terms.
+ */
+/**
+ * A bond or CD's description is its issuer, and — for a CD — its coupon and
+ * maturity, which is how CDs are conventionally named. What follows that is
+ * TERMS, and now that the terms are parsed into their own columns they no longer
+ * belong in the name: `UBS BK USA NATL ASSN CD 3.80000% 11/27/2028` rather than
+ * `… FIXED COUPON FDIC INSURED MONTHLY NEXT CALL DATE 11/20/2026 CUSIP:`, which
+ * is what the 120-character cut used to leave behind (and cut mid-word).
+ */
+function trimTermsTrailer(desc) {
+  return desc
+    .replace(/\s+(?:FIXED|STEP|VARIABLE|ZERO|FLOATING)\s+COUPON\b[\s\S]*$/, '')
+    .replace(/\s*CUSIP:[\s\S]*$/, '')
+    .trim();
+}
+
+function bondTerms(description, trailer) {
+  const desc = description || '';
+  const tail = trailer || '';
+  const both = `${desc} ${tail}`;
+  const t = {
+    coupon_rate: null, maturity_date: null, coupon_type: null,
+    payment_frequency: null, moodys_rating: null, sp_rating: null,
+    next_call_date: null, fdic_insured: /FDIC\s+INSURED/.test(both),
+  };
+
+  const cd = desc.match(/\b(\d{1,2}\.\d{1,5})\s*%\s+(\d{2})\/(\d{2})\/(\d{4})\b/);
+  if (cd) {
+    t.coupon_rate = Number(cd[1]);
+    t.maturity_date = `${cd[4]}-${cd[2]}-${cd[3]}`;
+  } else {
+    const c = tail.match(/(\d{1,2}\.\d{1,5})\s*%?\s+(?:FIXED|STEP|VARIABLE|ZERO|FLOATING)\b/);
+    if (c) t.coupon_rate = Number(c[1]);
+    // ⚠️ Anchored at the END of the description because that is where the
+    // Maturity COLUMN lands. An unanchored two-digit date would match a
+    // "FORMERLY … TO 05/24/01" clause in an issuer name.
+    const mat = desc.match(/(\d{2})\/(\d{2})\/(\d{2})\s*$/);
+    // A two-digit year, resolved as 2000s: a bond maturing in the 1900s cannot
+    // appear in a holdings table printed from 2016 onward.
+    if (mat) t.maturity_date = `20${mat[3]}-${mat[1]}-${mat[2]}`;
+  }
+
+  const ct = both.match(/\b(FIXED|STEP|VARIABLE|ZERO|FLOATING)\s+COUPON\b/);
+  if (ct) t.coupon_type = ct[1].toLowerCase();
+  const pf = both.match(/\b(SEMIANNUALLY|ANNUALLY|QUARTERLY|MONTHLY|AT MATURITY)\b/);
+  if (pf) t.payment_frequency = pf[1].toLowerCase().replace(' ', '_');
+  const md = both.match(MOODYS_RE);
+  if (md) t.moodys_rating = md[1];
+  const sp = both.match(SP_RE);
+  if (sp) t.sp_rating = sp[1];
+  const nc = both.match(/NEXT CALL DATE\s+(\d{2})\/(\d{2})\/(\d{4})/);
+  if (nc) t.next_call_date = `${nc[3]}-${nc[1]}-${nc[2]}`;
+
+  if (t.coupon_rate === null && !t.moodys_rating && !t.sp_rating) return null;
+  return t;
+}
+
+/**
  * Bond rows, which differ from every other section in two ways at once:
  *
  *  1. An extra ACCRUED INTEREST column sits between ending market value and
@@ -231,7 +347,7 @@ function parseBondRows(rawBody, sectionName, label, numTok) {
     lastEnd = runRe.lastIndex + cusip.index + cusip[0].length;
     rows.push({
       section: sectionName,
-      description: desc.slice(0, 120) || 'BOND',
+      description: trimTermsTrailer(desc).slice(0, 120) || 'BOND',
       symbol: cusip[1],
       quantity: num(m[2], `${label}/${sectionName}/qty`),
       price: num(m[3], `${label}/${sectionName}/price`),
@@ -241,6 +357,9 @@ function parseBondRows(rawBody, sectionName, label, numTok) {
       // the section subtotal excludes it.
       cost_basis: num(m[6], `${label}/${sectionName}/cost`),
       unrealized: num(m[7], `${label}/${sectionName}/ugl`),
+      // Rating, coupon, maturity — the custodian's own record of an instrument
+      // we hold, read out of the trailer this scan already had to walk past.
+      terms: bondTerms(desc, rawBody.slice(runRe.lastIndex, lastEnd)),
     });
   }
   return rows;
@@ -280,9 +399,24 @@ const FURNITURE = new RegExp([
   // The last has NO cost or unrealized column at all — a money-market sweep has
   // no basis — so anchoring on `Unrealized Gain/Loss` alone left every FDIC
   // deposit row named after its own header.
+  // ⚠️ LONGEST FIRST. Alternation is ordered and matched at the earliest
+  // position, so listing the bare phrase first meant it always won and the
+  // trailing date was never consumed — `last match wins` decides between
+  // matches at DIFFERENT positions, not between alternatives at the same one.
+  // The 2016 layout ends its header `Unrealized Gain/Loss Dec 31, 2016` with no
+  // income column at all, and one ETF was stored as `Dec 31, 2016 Equity ETPs M
+  // ETFIS SER TR I BIOSHS BIOTE` because of it. Modern headers continue into an
+  // EAI label, which is a LATER match and still wins.
+  String.raw`Unrealized Gain\/Loss\s+[A-Z][a-z]{2}\s+\d{1,2},\s*\d{4}`,
   String.raw`Unrealized Gain\/Loss`,
   String.raw`EAI \(\$\) \/ EY \(%\)`,
   String.raw`Est\. Annual Income \(EAI\)\s*Est\.\s?Yield \(EY\)`,
+  // A FIFTH header variant, on bond tables only: they end in `Coupon Rate`
+  // rather than a yield label. Without it the first bond of every section kept
+  // the header as its name — `Jun 30, 2026 Est. Annual Income (EAI) Coupon Rate
+  // Corporate Bonds B BLACKSTONE …`. Same column, same blindness: the
+  // reconciliation gate never reads a name.
+  String.raw`Est\. Annual Income \(EAI\)\s*Coupon Rate`,
   String.raw`Income Earned`,
   // 🔴 A run of figures ends the row BEFORE this one — whether or not that row
   // was matched. A holding with no ticker matches no row at all, so its whole
@@ -353,6 +487,12 @@ function parseRows(rawBody, sectionName, label, layout) {
   const numTok = String.raw`(?:-?\$?[\d,]+\.\d{1,4}|-|not applicable|unavailable|unknown)`;
   if (BOND_SECTIONS.has(sectionName)) return parseBondRows(rawBody, sectionName, label, numTok);
 
+  // The extra ACCRUED INTEREST column is decided by the table's own header, not
+  // by the section name — see hasAccruedColumn. It sits BETWEEN ending market
+  // value and cost basis, so it shifts only the last two figures.
+  const ai = hasAccruedColumn(rawBody) ? 1 : 0;
+  const nNum = (layout === 'single' ? 6 : 5) + ai;
+
   const rowRe = new RegExp(
     // The `E` flag marks an exchange-traded product; a core-account money-market
     // fund prints `-- 7-day yield: 0.06%` between its ticker and its numbers.
@@ -367,9 +507,7 @@ function parseRows(rawBody, sectionName, label, layout) {
     // here would let the scan run past a row with no figures and pick up the
     // NEXT row's numbers, which reads as a real position at the wrong price.
     + String.raw`(?:\s*--\s*[A-Za-z0-9 -]{3,24}:\s*[\d.]+\s*%)?\s*(?:[A-Za-z]\s+)?`
-    + (layout === 'single'
-      ? String.raw`(${numTok})\s+(${numTok})\s+(${numTok})\s+(${numTok})\s+(${numTok})\s+(${numTok})`
-      : String.raw`(${numTok})\s+(${numTok})\s+(${numTok})\s+(${numTok})\s+(${numTok})`),
+    + Array.from({ length: nNum }, () => `(${numTok})`).join(String.raw`\s+`),
     'g',
   );
   // Where the five figures we keep sit, per layout. The single layout's extra
@@ -377,8 +515,8 @@ function parseRows(rawBody, sectionName, label, layout) {
   // at the period end, and carrying a second month's value in the same row is
   // how two dates end up in one figure.
   const COL = layout === 'single'
-    ? { qty: 4, price: 5, mv: 6, cost: 7, ugl: 8 }
-    : { qty: 3, price: 4, mv: 5, cost: 6, ugl: 7 };
+    ? { qty: 4, price: 5, mv: 6, cost: 7 + ai, ugl: 8 + ai }
+    : { qty: 3, price: 4, mv: 5, cost: 6 + ai, ugl: 7 + ai };
 
   let m;
   let lastEnd = 0;
@@ -395,8 +533,12 @@ function parseRows(rawBody, sectionName, label, layout) {
       // slicing truncates the NAME instead, which is how two CDs ended up stored
       // starting mid-token on a leading space.
       // Flags stack (`M B FS KKR CAP CORP NOTE`), so strip all of them, not one.
-      description: desc.replace(/^(?:[A-Z] )+/, '').slice(0, 120),
+      description: trimTermsTrailer(desc.replace(/^(?:[A-Z] )+/, '')).slice(0, 120),
       symbol,
+      // A CD carries its coupon, maturity and FDIC status inside its own
+      // description, so the terms are read from the FULL window — before the
+      // 120-char cut that the stored name takes.
+      terms: bondTerms(desc, ''),
       quantity: num(m[COL.qty], `${label}/${sectionName}/qty`),
       price: num(m[COL.price], `${label}/${sectionName}/price`),
       market_value: num(m[COL.mv], `${label}/${sectionName}/mv`),
@@ -482,7 +624,30 @@ function parseAccountHoldings(block, label, layout) {
 
     const sumMv = rows.reduce((s2, r) => s2 + (r.market_value || 0), 0);
     pendingLeaves.push(sumMv);
-    sections.push({ name, rows, printed_total: printedMv, sum: sumMv });
+
+    // ⚠️ THE SECOND COLUMN OF THE SUBTOTAL, checked because the first one was
+    // right while the row beneath it was wrong.
+    //
+    // 🔴 CDs print under `Other` with an extra ACCRUED INTEREST column, so their
+    // accrued interest was stored as cost basis and their cost basis as the
+    // unrealized gain — 161 rows across the corpus. Market value sits BEFORE the
+    // extra column, so the only figure the gate compared was the only figure
+    // that could not move. A gate that reads one column can only find defects in
+    // that column; this one now reads the next.
+    //
+    // Skipped, not failed, where the statement does not support it: a Core
+    // Account prints `not applicable` for basis and omits the figure from its
+    // own subtotal, and an aggregate section has no rows of its own.
+    const costable = rows.length > 0
+      && /Total Cost Basis/.test(body)
+      && rows.every((r) => r.cost_basis !== null && r.cost_basis !== undefined);
+    const printedCost = costable && printed.length > 1 ? num(printed[1], `${label}/${name}/total-cost`) : null;
+    const sumCost = costable ? rows.reduce((s2, r) => s2 + r.cost_basis, 0) : null;
+
+    sections.push({
+      name, rows, printed_total: printedMv, sum: sumMv,
+      printed_cost: printedCost, sum_cost: sumCost,
+    });
   }
   return sections;
 }
@@ -530,13 +695,25 @@ function parseFile(pdfPath) {
 
   const accounts = [...byAccount.entries()].map(([acct, sections]) => {
     const rows = sections.flatMap((s) => s.rows);
-    const checks = sections.map((s) => ({
-      section: s.name,
-      printed: s.printed_total,
-      parsed: Number(s.sum.toFixed(2)),
-      delta: Number((s.sum - s.printed_total).toFixed(2)),
-      ok: Math.abs(s.sum - s.printed_total) < 0.02,
-    }));
+    const checks = sections.flatMap((s) => {
+      const out = [{
+        section: s.name,
+        printed: s.printed_total,
+        parsed: Number(s.sum.toFixed(2)),
+        delta: Number((s.sum - s.printed_total).toFixed(2)),
+        ok: Math.abs(s.sum - s.printed_total) < 0.02,
+      }];
+      if (s.printed_cost !== null && s.sum_cost !== null) {
+        out.push({
+          section: `${s.name} (cost basis)`,
+          printed: s.printed_cost,
+          parsed: Number(s.sum_cost.toFixed(2)),
+          delta: Number((s.sum_cost - s.printed_cost).toFixed(2)),
+          ok: Math.abs(s.sum_cost - s.printed_cost) < 0.02,
+        });
+      }
+      return out;
+    });
     return {
       account_number: acct,
       as_of: asOf,
@@ -604,4 +781,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { parseFile, extractText, parseRows, num, describe };
+module.exports = { parseFile, extractText, parseRows, num, describe, bondTerms };

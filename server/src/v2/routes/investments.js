@@ -46,6 +46,22 @@ router.get('/exposure', async (req, res, next) => {
 });
 
 /**
+ * GET /api/v2/investments/fixed-income
+ *
+ * CR093 P1 — the fixed-income X-ray: by credit rating, by maturity, by coupon.
+ * 58% of this portfolio, and every field comes from the custodian's own
+ * statements (migration 078) — no vendor is involved, so no vendor outage can
+ * take it down or contradict it.
+ */
+router.get('/fixed-income', async (req, res, next) => {
+  try {
+    res.json({ data: await exposure.buildFixedIncome() });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
  * PUT /api/v2/investments/securities/:id/sectors
  *
  * CR093 P1 — hand-classify a holding no data provider can. The FIRST write in
