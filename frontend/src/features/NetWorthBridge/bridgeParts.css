@@ -72,23 +72,81 @@
   white-space: nowrap;
 }
 
+/* Label and figure shrink to their own content so the MIDDLE column owns every
+   pixel between them — which is what the leader below fills.
+ *
+ * `width: 1%` + `white-space: nowrap` is the usual shrink-to-content idiom for
+ * an auto-layout table. Without it the label column stretched to absorb the
+ * slack, so the leader began ~400px right of the text it was meant to start
+ * from and the gap it was added to close simply moved.
+ *
+ * ⚠️ The contributor label is deliberately NOT in this rule. It shares column 1
+ * with the driver label, so the column is already pinned by the driver's own
+ * nowrap and adding nowrap here buys nothing — but it costs: `Financial Income
+ * - UB Dividend` cannot then wrap, and on a 390px phone the modal's table went
+ * from 292px to 538px inside a 292px host, i.e. a page that scrolls sideways.
+ * Measured against the pre-change baseline rather than assumed. */
+.nwb__row > th,
+.nwb__amount {
+  width: 1%;
+  white-space: nowrap;
+}
+
 .nwb__row--anchor > th,
 .nwb__row--anchor .nwb__amount {
   font-weight: 700;
   color: var(--ink);
 }
 
-.nwb__row--anchor > th {
+/* The opening/closing rule spans the WHOLE row, not just the label.
+   It sat on `> th` alone, so on the wide report page it stopped a third of the
+   way across and read as a stray underline beneath the last driver rather than
+   as the line closing the table. */
+.nwb__row--anchor > th,
+.nwb__row--anchor > td {
   border-top: 1px solid var(--border);
 }
 
 .nwb__bar-cell {
-  width: 55%;
+  /* Claims all the slack the label and amount columns no longer take. */
+  width: 98%;
   padding: var(--space-2) var(--space-3);
+  position: relative;
+}
+
+/* ── The leader ──────────────────────────────────────────────────────────
+ *
+ * A dotted rule running the full width of the bar column, from the label to
+ * the amount, on EVERY row.
+ *
+ * Owner-reported, and worst exactly where there is no bar to follow: a
+ * contributor row puts "Financial Income - UB Dividend" at the far left and
+ * "+$186,089" at the far right with ~1,500px of nothing between them on the
+ * report page, and the eye loses the line. The bar column is 55% of the table,
+ * so even a full-width bar leaves a gap before the figure.
+ *
+ * Dotted rather than solid on purpose: this table already draws bars, and a
+ * solid hairline at the bar's own centre line reads as a chart axis — an
+ * element that means something — instead of as a connector that means nothing.
+ * It is deliberately drawn UNDER the bar (z-order by source order) so a bar
+ * never looks like it is sitting on a rail it should be measured against.
+ *
+ * The negative insets pull it through the cell padding on both sides so it
+ * actually touches the label and the figure; stopping at the content box left
+ * two visible gaps and defeated the point. */
+.nwb__bar-cell::before {
+  content: "";
+  position: absolute;
+  left: calc(-1 * var(--space-3));
+  right: calc(-1 * var(--space-3));
+  top: 50%;
+  border-top: 1px dotted var(--ink-tertiary);
+  opacity: 0.4;
 }
 
 .nwb__bar {
   display: block;
+  position: relative;
   height: 12px;
   min-width: 2px;
   border-radius: var(--radius-sm);
@@ -112,6 +170,13 @@
 
 .nwb__contrib-label {
   padding-left: var(--space-4);
+  /* Matches the driver label's own right padding, so the leader starts clear of
+     the text on BOTH row kinds. Without it the dots butted straight against
+     "Financial Income - Dividend" on a phone while standing off every driver
+     label above it. Deliberately SMALLER than the driver's `--space-3`: at
+     `--space-3` the same phone wrapped that label onto two lines, which is a
+     worse outcome than dots that touch. */
+  padding-right: var(--space-2);
   color: var(--ink-tertiary);
   font-size: var(--text-xs);
   line-height: var(--leading-snug);
