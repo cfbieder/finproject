@@ -1,5 +1,5 @@
-**Status:** ✅ **P0 COMPLETE** — 2026-09-05. **Track: v3.** No migration. **P1 (the LLM narration)
-is open** and blocked on a task registration in `ocr-llm`.
+**Status:** ✅ **P0 COMPLETE — shipped v3.53.0 (2026-09-05).** **Track: v3.** No migration.
+**P1 (the LLM narration) is open** and blocked on a local-only task registration in `ocr-llm`.
 
 # CR092 — Why did net worth change?
 

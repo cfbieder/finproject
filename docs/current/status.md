@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-09-05 · **Live version:** **v3.52.0** (see `VERSION` / git tags) — **v3.51.0: the portfolio gets a ten-year memory, and holdings get their names back.** [CR061](../cr/cr-061-holdings-and-prices.md) **P2 is complete: 117 of 117 Fidelity account-statements reconcile back to 2016-03-31** against their own printed section subtotals — **113 by the deterministic parser, 4 through the ocr-llm `finance_statement_extract` task**, provenance stored per snapshot. No new migration. The [Investments](../cr/cr-090-investments-section.md) **Name column**, removed in P1 because the feed sets `name == symbol` for everything and it rendered as dashes, is **back for 88 of 94 live positions (94%)** — the statement backfill supplies the names. 🔴 **Five silent defects shipped in this release's fixes, and every one hid the same way: the check that existed read the column that was right.** The gate compares SUMS and never reads a **name**, so 13 securities sat stored named after their own page header (Iron Mountain as `st (AI) Sep 30, 2020 Total Cost Basis Un…`) with every figure correct; and `sum_market_value` is the statement's own printed total, so the header stayed right while the rows beneath it lost money — two **lots** of one security overwrote each other, an unticketed `EURO (EUR)` balance was dropped (**$8,934.59**), and provenance vanished on re-ingest. The ingest now asserts rows match `positions_count` **and** sum to `sum_market_value`; **it failed on its first run.** ⚠️ **The month-boundary worry is answered and the answer is no**: IRA **42/42** and Cash Mgt **24/24** tie to fin's ledger, Stocks 4 dates at 0.00–0.05%, Bond 2 at +35.05 — the feared *+14,163 on Fidelity Bond* was the parser, not the ledger
+**Last updated:** 2026-09-05 · **Live version:** **v3.53.0** (see `VERSION` / git tags) — **v3.53.0: the hero's delta explains itself, and the answer was ONE posting.** [CR092](../cr/cr-092-net-worth-bridge.md) P0 — a **"What changed?"** button beside the Home hero opens a **net-worth bridge**: the change split into *re-valued · earned · spent · currency · transfers*, each driver **naming its item**. It is **exact, not estimated** — net worth is `opening_balance + SUM(tx)` at the as-of rate and CR024's feed override has **zero rows on prod**, so every dollar is a transaction or a rate move; the live 12-month window ties to **1.2e-10**, as do all eleven month-steps, and the server ships `tieOk` rather than the page assuming it. 🔴 **The owner's −$1,900,488 is ONE posting** — `United Beverages`, `2025-12-31`, **−6,956,000 PLN**, 98% of the year, the other ten months summing to **+94,242**; a decline that reads as a slow bleed is a single manual mark. 🔴 **Net worth was NON-DETERMINISTIC and had to be fixed first**: the rate lookup had **no tie-break**, and `2026-06-30` sits equidistant between two rates — **the same date returned 14,398,878 then 14,373,541 in one session on unchanged data** ($25,337), which a residual driver absorbs silently. Owner took the **tie-break alone** (11 of 12 boundaries byte-identical). **Four FX conventions were built and measured; all four tie** — the chosen one fixes the translation rate at `toDate` for every sub-period, which is what makes the months sum to the year exactly. ⚠️ **FIVE defects were found by RENDERING the page and none by a test**, including a hero series that **ended on a future date** and a driver breakdown whose weights were judged against the NET, printing four ±$500K legs under a −$23,621 line. The modal test asserts **every driver and contributor reaches the DOM** — the display gate [CR085](../cr/cr-085-forecast-sensitivity.md) says does not exist — and was **falsified before being trusted**
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -129,23 +129,18 @@ the dev-first migration rule, and the fact that **an engine change moves nothing
 scenarios are REGENERATED**. It changes far less often than this file does.
 
 ## Next
-- 🔴 **[CR092](../cr/cr-092-net-worth-bridge.md) P0 is BUILT (2026-09-05, not yet released).** The
-  Home hero's delta now has a **"What changed?"** button: a net-worth bridge splitting the change
-  into *re-valued · earned · spent · currency · transfers*. It can be **exact** — net worth is
-  `opening_balance + SUM(tx)` and CR024's feed override has **zero rows on prod**, so every dollar
-  is a transaction or a rate move; the live 12-month window ties to **1.2e-10**, as do all eleven
-  month-steps. 🔴 **The answer to the owner's −$1,900,488 is ONE posting** — `United Beverages`,
-  `2025-12-31`, **−6,956,000 PLN**, 98% of the year, the other ten months summing to **+94,242**.
-  🔴 **Net worth was NON-DETERMINISTIC and had to be fixed first:** the rate lookup had **no
-  tie-break**, and `2026-06-30` sits equidistant between two rates — **the same date returned
-  14,398,878 then 14,373,541 in one session on unchanged data** ($25,337), which a residual driver
-  absorbs silently. Owner took the **tie-break alone** (11 of 12 boundaries byte-identical) over
-  matching `fx.rateAsOf`. Each driver **names its item** — the re-valuation line reads **United Beverages −$1,873,619** beneath it — by account for balance drivers and by **category** for spending, because the top spending *account* is only whichever card paid. 🔴 **That judged weight against the NET at first and had to be corrected**: transfers (−23,621 net on ~1.75M gross) printed four ±$500K items, true individually and a lie about the line. ⚠️ **Five defects in total were found by RENDERING the page and none by a test** —
-  including a hero series that **ended on a future date**. The modal test asserts **every driver
-  reaches the DOM** (CR085's missing display gate) and was **falsified before being trusted**. Two
-  items deliberately left open ([roadmap §3](project-roadmap.md#3-known-issues) **#24/#25**): a
-  **$87,730** `base_amount` rate drift across 271 rows, and three rate lookups still untie-broken.
-  **P1** — an LLM narration over this payload — is blocked on a local-only task in `ocr-llm`.
+- 🔴 **[CR092](../cr/cr-092-net-worth-bridge.md) P1 — the LLM narration — is BLOCKED on `ocr-llm`.**
+  P0 shipped in v3.53.0 (headline above). P1 would put a written narration over exactly that
+  payload, following the gateway's existing **narration-only** pattern (`recovery_narration`,
+  `market_regime_narration`): the caller computes every figure and inlines them as GIVEN, the model
+  never calculates. ⚠️ Fin's tasks are **local-only** — personal financial detail must not leave the
+  tailnet — so it needs a new local-only task registered in `ocr-llm` via `HANDOFFS.md`, **not yet
+  filed**. Two rules for when it lands: the modal renders the table from the API with the narration
+  **above** it, never instead of it; and a gateway failure degrades to the deterministic summary,
+  never to an error. ⚠️ **Two items were deliberately left open** ([roadmap §3](project-roadmap.md#3-known-issues)
+  **#24/#25**): an **$87,730** `base_amount` rate drift across **271 rows** (its fix restates Cash
+  Flow history, so it is an owner call), and three rate lookups in forecast/budget code still
+  without a tie-break.
 - 🔴 **[CR091](../cr/cr-091-reconnect-that-works.md) — the reconnect button failed on its first live
   use (2026-09-04).** Three Wise consents expired, which is the event [CR060](../cr/cr-060-feed-connection-health.md)
   built **Re-authorise** for; all three were reconnected **by hand against bank-feed's API**. The error
