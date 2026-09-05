@@ -2261,6 +2261,36 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
     for **any** task — `finance_statement_extract`, known to carry 420 000, shows none either — so
     the assurance is a sentence in `HANDOFFS.md`. Not urgent, nothing broken.
 
+
+28. **AI Review's abort sits BELOW ocr-llm's deadline — every abandoned review holds their GPU tier
+    for ~5 extra minutes** *(found 2026-09-05, minutes after ocr-llm exposed `deadline_ms`).*
+    The same inversion [#27](#3-known-issues) fixed for the narration, on our **oldest** gateway task
+    and the one with the largest `max_tokens`:
+
+    | task | their `deadline_ms` | source | our abort | |
+    |---|---|---|---|---|
+    | `finance_networth_narration` | 90 000 | `task` | 120 000 | ✅ theirs fires first |
+    | `finance_statement_extract` | 420 000 | `task` | 480 000 | ✅ theirs fires first |
+    | **`finance_plan_review`** | **600 000** | **`global_default`** | **300 000** | 🔴 **inverted** |
+
+    `aiReview.js` aborts at `AbortSignal.timeout(300_000)` and its stale-review sweep is built around
+    that 5-minute assumption. Per ocr-llm's 2026-09-04 measurement **our abort never reaches the
+    GPU**, so an abandoned review keeps `ollama_heavy` busy until *their* 600 s default. AI Review is
+    the one Fin surface where a person watches a spinner and can navigate away, so abandonment is the
+    expected case, not the edge one.
+    🔴 **Nothing in Fin is broken and no user sees it — it is waste, borne by a shared resource in
+    another repo**, and it has been true for months. It became *visible* only because ocr-llm shipped
+    `deadline_source` on `GET /task/routes` on 2026-09-05: `600 000` alone could not be told apart
+    from a deliberate choice, and it took one command to check all three callers once it could.
+    ⚠️ **Deliberately NOT fixed by guessing a number.** We have no measurement for this task, and a
+    deadline set below its own chain silently deletes the fallback step — the standing lesson from
+    `finance_statement_extract`. A plan review is a far longer prompt than a narration, so the
+    narration's figures do not transfer. Filed with them 2026-09-05
+    (`finance-plan-review-deadline-inversion`) offering to **measure** several real reviews and send
+    an observed worst case, and asking whether the call volume justifies the GPU time — they can see
+    per-client volume on that task and we cannot. Merely raising our abort above 600 000 would fix
+    the *ordering* and none of the waste, since the tier is bounded by their deadline, not our socket.
+
 ---
 
 ## 4. Frontend Improvement Themes (ongoing)

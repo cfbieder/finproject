@@ -98,15 +98,25 @@ bulk run only.
 ⚠️ **The gateway takes no per-request schema.** Schemas are declared per task in its catalog, so a
 new response shape needs a handoff, not a call we can make ourselves.
 
-⚠️ **You cannot read back a task's `deadline_ms`.** Neither `GET /task/routes` nor `TASK_CATALOG.md`
-exposes one for **any** task — checked against `finance_statement_extract`, known to carry 420 000,
-which shows none either — so absence there is evidence of nothing. This matters because the deadline
-is the term a caller's own abort must be reasoned against, and **the ordering is load-bearing**: each
-bound must be looser than the one it wraps (chain < their `deadline_ms` < our abort < the browser).
-A deadline *below* its own chain silently deletes the fallback step; one *above* the caller's abort
-leaves an abandoned request pinning a serialised tier, because our abort never reaches their GPU.
-`finance_networth_narration` is at **90 000** on their word, filed with them as
-`finance-deadline-not-introspectable`.
+✅ **Check your abort against the task's `deadline_ms` — `GET /task/routes` reports it, since
+2026-09-05.** Every task carries `deadline_ms` (the **effective** value, never null) and
+`deadline_source` (`task` or `global_default`) — the second field is the one that matters, because
+`600000` from a deliberate choice and `600000` inherited from the global default are different facts.
+Ours today:
+
+| task | `deadline_ms` | source | our abort |
+|---|---|---|---|
+| `finance_networth_narration` | 90 000 | `task` | 120 000 ✅ |
+| `finance_statement_extract` | 420 000 | `task` | 480 000 ✅ |
+| `finance_plan_review` | 600 000 | `global_default` | 300 000 🔴 **inverted** — [Known Issue #28](../current/project-roadmap.md#3-known-issues) |
+
+⚠️ **The ordering is load-bearing in BOTH directions, and both failures are silent.** Each bound must
+be looser than the one it wraps: `chain < their deadline_ms < our abort < the browser`. A deadline
+*below* its own chain silently deletes the fallback step. One *above* our abort leaves an abandoned
+request pinning a serialised tier, because **our abort never reaches their GPU** (uvicorn does not
+cancel a handler on client disconnect — their measurement, 2026-09-04). **Run this check whenever you
+add a caller or change a timeout**; it took one command to find the AI Review inversion that had been
+live for months.
 
 ### Three things measured while adopting `finance_networth_narration` (2026-09-05)
 
