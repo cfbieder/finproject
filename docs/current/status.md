@@ -80,7 +80,7 @@ warning sentence, or any figure that asserts what the engine does. The one that 
 tenth (§22.9) is the first where the restatement is of a **measurement**, not the engine.
 
 ## Known issues
-[roadmap §3](project-roadmap.md#3-known-issues) is canonical. 🔴 **A feed duplicate REACHED PROD
+[roadmap §3](project-roadmap.md#3-known-issues) is canonical. 🟡 **2026-09-06 — the ocr-llm `LLM_PROTOCOLS.md` ack is filed and closed.** The checklist held on six of seven items across all three gateway callers; the seventh did not, and the sting is that [our own guide](../guides/ocr-llm-integration.md) had carried the rule since 2026-09-05 — `Scripts/extract-statements-llm.js` sent a `routing` preference and never read `routing.preference.applied` back. **An ack is evidence a document was read, not that it was applied.** One item filed back to them and open: their protocols doc has **no client-abort rule**, the invariant that cost us three statements two days ago. 🔴 **A feed duplicate REACHED PROD
 2026-08-11** ([CR059 §22](../cr/cr-059-fintable-api-ingestion.md)) — 28 rows, **+2,888.80 phantom
 income**, net-of-transfers invisible to a balance check. Fixed at source and cleaned up; a forced
 sweep reclaimed all 108 exposed rows, 0 inserted. **The class is closed too, v3.28.1**

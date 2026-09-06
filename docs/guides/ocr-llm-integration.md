@@ -4,9 +4,12 @@
 > repo/system — never modify it while working in Fin, except appending handoff entries as
 > described below.
 >
-> **Protocols last reviewed 2026-09-04** against `Documentation/Guides/LLM_PROTOCOLS.md` in
+> **Protocols last reviewed 2026-09-06** against `Documentation/Guides/LLM_PROTOCOLS.md` in
 > the ocr-llm repo (the rules-of-engagement doc, added there 2026-09-04). This page records
 > only what binds **Fin**; it links onward rather than restating a doc that moves.
+> **2026-09-06:** their broadcast ack is filed and closed (`llm-protocols-broadcast-finance`);
+> the full migration checklist was run against all three callers — six of seven items held,
+> the seventh is [rule 4](#the-rules-that-bind-fin) and it did not (see the box under it).
 
 ## Pointers (canonical, in `~/Programs/fin/ocr-llm/`)
 
@@ -63,7 +66,16 @@ A schema does not prevent **truncation** — repeated `schema_violation` on one 
 **4. `routing` reorders; it cannot add.** You may promote a step the task already declares.
 An unsatisfiable preference is **not** an error by default — you get the normal chain plus
 `routing.preference.applied: false`, so **check that field** rather than assuming you got what
-you asked for (send `"on_unsatisfiable": "error"` for a `409`). Frontier models (`deepseek`,
+you asked for (send `"on_unsatisfiable": "error"` for a `409`).
+
+> 🔴 **This page carried that rule for a day while the only caller that sends a preference ignored
+> it** (fixed 2026-09-06). `Scripts/extract-statements-llm.js` sent `routing` under `--pin-mid` and
+> read nothing back; it now warns, naming `preference.reason`. **A doc you have acked is not a doc
+> you have applied** — when a rule here says *check field X*, grep for X before believing it holds.
+> The guard cannot fire today (`ollama_mid` is a declared step, so `applied` is always `true`); it is
+> there for a route change we do not control. Shape verified live instead — `quick_narration` steered
+> to `ollama_heavy`, which it does not declare, returns `200` on the default chain with
+> `{"applied": false, "reason": "not_in_route"}`. Frontier models (`deepseek`,
 `openai`, `kimi`) need four keys plus a per-client grant, **and zero grants are issued** —
 irrelevant to Fin, because neither Fin task declares a frontier step at all.
 
@@ -155,6 +167,22 @@ cost us a measurement (we believed we had timed the fallback step and had timed 
 twice). ✅ **Now a `422 extra_forbidden` naming the bad key**, shipped 2026-09-05 in v1 on the
 grounds that no correct caller changes behaviour. A routing preference you did not verify is still a
 routing preference you do not have.
+
+⚠️ **Verify our identity with `GET /clients`, never `GET /health`.** `/health` and `/task/routes`
+return `200` **unauthenticated** (measured 2026-09-06), so the two-minute check in their §1 returns
+the same answer for an identified and an unidentified client — options caught this and we
+corroborated it from a third IP. `/clients` `401`s without the header pair and its body doubles as
+the answer: our row carries `key_configured`, `calls`/`served`/`rejected` and `auth_mode`.
+
+⚠️ **Do not build anything on `/clients` `source_ips`.** It is the **observed peer** address, not the
+calling machine: anything arriving through Docker's published port records as the bridge
+`172.18.0.1`, so distinct hosts collapse into one entry and a specific box may never appear — the
+list is also capped at the 4 most frequent. **An absent address is not evidence that a host is not
+calling.** We measured this the hard way on 2026-09-06 — a call from `100.94.46.62` moved `calls`
+and `last_seen` in the same payload that left `source_ips` unchanged, and we inferred a stale field
+before ocr-llm's answer landed; the bridge address was already in the list we had printed. The
+caveat is now in the pinned spec (`CLIENTS_200`), not in the payload, so it is in
+`contracts/v1/openapi-gateway.yaml` rather than anywhere a reader of `/clients` will see it.
 
 ## Before non-trivial gateway API work
 

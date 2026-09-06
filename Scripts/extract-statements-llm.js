@@ -159,6 +159,17 @@ async function extractOne(text, checks, timeoutMs = 720000) {
   if (!res.ok) throw new Error(`gateway ${res.status}: ${(await res.text()).slice(0, 160)}`);
 
   const { response, routing } = await res.json();
+  // LLM_PROTOCOLS §5: an unsatisfiable `routing` preference is NOT an error by
+  // default — the normal chain serves it and `preference.applied` is false, so a
+  // caller that assumes it got the tier it named is the one failure the gateway
+  // cannot catch for us. Only --pin-mid sends a preference, and it exists to keep
+  // a bulk run off the tier a live extraction wants; being served by ollama_heavy
+  // instead is slower, not wrong (both tie 3/3 — see the header), so this warns
+  // rather than throws. The emitted record's `extractor.provider` is read from the
+  // attempt either way, so stored provenance is truthful regardless.
+  if (routing?.preference && routing.preference.applied === false) {
+    console.log(`      ⚠️  routing pin NOT applied (${routing.preference.reason || 'no reason given'}) — served by the task's default chain`);
+  }
   // ocr-llm: a violation still returns 200 with the best-effort body, flagged.
   // Treating it as a refusal is the whole reason this is safe to run at all.
   const violated = (routing?.degradations || []).some((d) => String(d).startsWith('schema_violation'));

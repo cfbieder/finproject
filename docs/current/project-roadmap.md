@@ -1709,6 +1709,28 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
 
 ## 3. Known Issues
 
+- [x] **FIXED 2026-09-06. 🟡 The only caller that sends a `routing` preference never checked
+  whether it was applied — and we had already written the rule down**
+  *(found 2026-09-06, acking ocr-llm's `LLM_PROTOCOLS.md` broadcast)*. `Scripts/extract-statements-llm.js`
+  sends `routing: {provider: 'ollama_mid'}` under `--pin-mid` and read nothing back. Per §5 of their
+  protocols doc an unsatisfiable preference is **not an error by default**: you get the normal chain
+  plus `routing.preference.applied: false`, so a caller that assumes it got the tier it named is the
+  one failure the gateway cannot catch for it. Now warns, naming `preference.reason`. ⚠️ **The guard
+  cannot fire today and that is deliberate** — `--pin-mid` names a step
+  `finance_statement_extract` declares, so `applied` is always `true` and no test we can write from
+  here produces `false` through the script's own CLI; it exists for a route change we do not control
+  (the routing table is theirs and has changed several times). The field's shape was verified against
+  a real response instead — `quick_narration` steered to `ollama_heavy`, which it does not declare,
+  returned `200` served by `ollama_fast` with `{"applied": false, "reason": "not_in_route"}`.
+  🔴 **The reportable part is not the gap.** [The integration guide](../guides/ocr-llm-integration.md)
+  has carried this rule since 2026-09-05, in the words *"a routing preference you did not verify is
+  still a routing preference you do not have"* — written after a mistyped `routing.prefer` key cost us
+  a measurement we believed we had — and the one caller that sends a preference still did not verify
+  it. **An ack is evidence a document was read, not evidence it was applied**, which is the answer we
+  gave ocr-llm on their document-receipt question: any receipt keyed on comprehension would have shown
+  Fin green. The other two callers send no preference, so §5 does not apply to them; the remaining six
+  checklist items already held on all three.
+
 - [x] **FIXED 2026-09-04. 🔴 The v4 stack could not reach the LLM gateway, and `aiReview.js` failed
   soft into a 401** *(found 2026-09-04, reviewing ocr-llm's `LLM_PROTOCOLS.md`)*. The gateway has run
   `CLIENT_AUTH_MODE=enforce` since **2026-08-31** — re-measured from this repo 2026-09-04,
