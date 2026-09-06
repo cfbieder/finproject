@@ -107,8 +107,10 @@ Ours today:
 | task | `deadline_ms` | source | our abort |
 |---|---|---|---|
 | `finance_networth_narration` | 90 000 | `task` | 120 000 ✅ |
-| `finance_statement_extract` | 600 000 (requested; was 420 000) | `task` | 720 000 ✅ |
+| `finance_statement_extract` | 600 000 | `task` | 720 000 ✅ |
 | `finance_plan_review` | 600 000 | `global_default` | 660 000 ✅ |
+
+**All three verified correctly ordered 2026-09-06** — ocr-llm's deadline fires first in every case. ⚠️ `finance_statement_extract`'s 600 000 is a **deliberate non-measurement**: *"no tighter than the default until someone has an uncensored measurement."* Fin owes them the real distribution after the next quarterly filing; do not cite 600 000 as an estimate of that task's tail.
 
 ⚠️ **The ordering is load-bearing in BOTH directions, and both failures are silent.** Each bound must
 be looser than the one it wraps: `chain < their deadline_ms < our abort < the browser`. A deadline

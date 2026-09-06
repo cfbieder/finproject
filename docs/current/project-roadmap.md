@@ -2313,8 +2313,19 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
     **720 000**. ⚠️ **599.3 s is a CENSORED maximum** — 99.9% of the 600 s global default that was the
     only ceiling when those calls ran — so we asked them to set `600000` explicitly as `source: task`
     (*"no tighter than the default until someone has an uncensored measurement"*) rather than invent a
-    larger figure from the same truncated sample. **Owed: the real distribution after the next
-    quarterly filing**, which is the uncensored sample neither side has.
+    larger figure from the same truncated sample. ✅ **They shipped it 2026-09-06 and accepted both
+    corrections**, generalising the second further than we had: every latency they quote from
+    `api_log` is now treated as suspect whenever a task's ceiling sits close to its observed max —
+    ours only landed because 599.3 against 600 is a conspicuous ratio, and the same censoring is far
+    harder to see at 380 against 600. **All three callers verified correctly ordered 2026-09-06**
+    (`90 000 < 120 000` · `600 000 < 720 000` · `600 000 < 660 000`), theirs firing first in every
+    case — two days earlier none of it was visible from a client and two of the three were inverted.
+    ⚠️ **Owed: the real distribution after the next quarterly filing**, the first sample taken with a
+    ceiling that is not truncating it; until then `600000` is provisional and must not be cited as an
+    estimate of that task's tail. **The durable joint lesson:** their log holds latencies we cannot
+    see and our client holds the abort that decides whether a `200` was ever *delivered*, so **a `200`
+    in their log and a received answer are different events** — neither side should reason about the
+    other's numbers in isolation.
 
 ---
 
