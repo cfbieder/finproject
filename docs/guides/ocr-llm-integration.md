@@ -134,7 +134,11 @@ add a caller or change a timeout** — one command found two inversions that had
 already cost us three silently-unextracted statements.
 
 ⚠️ **A gateway `200` does not mean the client received it.** Their abort does not propagate on client
-disconnect, so a call we walk away from still runs to completion and is logged as a success. Their
+disconnect, so a call we walk away from still runs to completion and is logged as a success.
+**Reproduced accidentally 2026-09-06**: a smoke test of `extract-statements-llm.js` started a real
+run, the client was killed at ~11:41Z, and their `/clients` counters recorded the call as **served
+at 11:43:14Z** — two minutes after there was anyone to receive it, holding an `ollama_heavy` slot
+throughout. Our side had no trace at all (no `--emit`); theirs had a success. Their
 `api_log` held four `finance_statement_extract` successes above 420 s; **three were above our own
 abort**, i.e. answers delivered to a closed socket. When reading their logs against ours, compare
 every latency to *our* abort before concluding a call succeeded for us.
