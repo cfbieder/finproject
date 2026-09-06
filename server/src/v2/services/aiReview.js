@@ -460,7 +460,25 @@ async function callGateway({ systemPrompt, messages, forecastContext }) {
       system: systemPrompt,
       max_tokens: 4096,
     }),
-    signal: AbortSignal.timeout(300_000),
+    // 660s, and the ORDERING is the point rather than the number: this must be
+    // LOOSER than the gateway's deadline for this task, or their typed 504 never
+    // reaches us and a slow review surfaces as a bare transport error.
+    //
+    //     heavy max observed 147.9s  <  their deadline 600000 (global_default)  <  this 660000
+    //
+    // 🔴 It was 300_000, which was INVERTED — below their 600s default — so every
+    // abandoned review left `ollama_heavy` running for up to five more minutes
+    // (their abort does not propagate on client disconnect; measured 2026-09-04).
+    // Found 2026-09-05 by checking all three of our callers against `deadline_ms`
+    // the day ocr-llm exposed it. In four months of production nothing has ever
+    // exceeded 300s — 14 calls, max 147.9s, from their `api_log` — so it never
+    // fired; it was latent, not active.
+    // ⚠️ The second reason to raise it is worth more than the first: with heavy
+    // alone at 147.9s worst, a heavy→mid chain plausibly runs past 300s, so the
+    // `ollama_mid` fallback this task declares was close to unreachable — we
+    // would have stopped listening before the second step could finish. A
+    // fallback step you cannot wait for is not a fallback.
+    signal: AbortSignal.timeout(660_000),
   });
 
   if (!response.ok) {
@@ -506,9 +524,13 @@ async function callGateway({ systemPrompt, messages, forecastContext }) {
 /**
  * Creates a new AI review session for a scenario
  */
-// Treat a review as stuck if it's been pending longer than this (matches the
-// gateway-call AbortSignal of 5min, plus a small buffer).
-const STALE_PENDING_MS = 6 * 60 * 1000;
+// Treat a review as stuck if it's been pending longer than this. It MUST stay
+// above the gateway-call AbortSignal above (660s) plus a buffer — the two move
+// together, and this constant is why: at 6 minutes against a 660s abort, the
+// sweep would mark a review `failed` while its own request was still in flight,
+// then the request would return and write a result over a row already reported
+// as failed.
+const STALE_PENDING_MS = 12 * 60 * 1000;
 
 /**
  * Background worker — runs the gateway call and writes results to the DB.

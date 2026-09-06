@@ -107,16 +107,27 @@ Ours today:
 | task | `deadline_ms` | source | our abort |
 |---|---|---|---|
 | `finance_networth_narration` | 90 000 | `task` | 120 000 ✅ |
-| `finance_statement_extract` | 420 000 | `task` | 480 000 ✅ |
-| `finance_plan_review` | 600 000 | `global_default` | 300 000 🔴 **inverted** — [Known Issue #28](../current/project-roadmap.md#3-known-issues) |
+| `finance_statement_extract` | 600 000 (requested; was 420 000) | `task` | 720 000 ✅ |
+| `finance_plan_review` | 600 000 | `global_default` | 660 000 ✅ |
 
 ⚠️ **The ordering is load-bearing in BOTH directions, and both failures are silent.** Each bound must
 be looser than the one it wraps: `chain < their deadline_ms < our abort < the browser`. A deadline
 *below* its own chain silently deletes the fallback step. One *above* our abort leaves an abandoned
 request pinning a serialised tier, because **our abort never reaches their GPU** (uvicorn does not
 cancel a handler on client disconnect — their measurement, 2026-09-04). **Run this check whenever you
-add a caller or change a timeout**; it took one command to find the AI Review inversion that had been
-live for months.
+add a caller or change a timeout** — one command found two inversions that had been live for months
+([Known Issue #28](../current/project-roadmap.md#3-known-issues)), one of them latent and one that had
+already cost us three silently-unextracted statements.
+
+⚠️ **A gateway `200` does not mean the client received it.** Their abort does not propagate on client
+disconnect, so a call we walk away from still runs to completion and is logged as a success. Their
+`api_log` held four `finance_statement_extract` successes above 420 s; **three were above our own
+abort**, i.e. answers delivered to a closed socket. When reading their logs against ours, compare
+every latency to *our* abort before concluding a call succeeded for us.
+
+⚠️ **Beware a maximum that sits just under the cap that bounded it.** The 599.3 s worst case above is
+99.9% of the 600 s global default in force at the time — a ceiling artefact, not the tail. Do not set
+a deadline from a censored sample; say so and go get an uncensored one.
 
 ### Three things measured while adopting `finance_networth_narration` (2026-09-05)
 

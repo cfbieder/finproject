@@ -2262,8 +2262,9 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
     the assurance is a sentence in `HANDOFFS.md`. Not urgent, nothing broken.
 
 
-28. **AI Review's abort sits BELOW ocr-llm's deadline — every abandoned review holds their GPU tier
-    for ~5 extra minutes** *(found 2026-09-05, minutes after ocr-llm exposed `deadline_ms`).*
+28. **[x] FIXED 2026-09-06 — both gateway callers' aborts were below ocr-llm's deadline; raised, and
+    a second one was found in the same pass.** *(Opened 2026-09-05, minutes after ocr-llm exposed
+    `deadline_ms`.)*
     The same inversion [#27](#3-known-issues) fixed for the narration, on our **oldest** gateway task
     and the one with the largest `max_tokens`:
 
@@ -2290,6 +2291,29 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
     an observed worst case, and asking whether the call volume justifies the GPU time — they can see
     per-client volume on that task and we cannot. Merely raising our abort above 600 000 would fix
     the *ordering* and none of the waste, since the tier is bounded by their deadline, not our socket.
+
+    ✅ **Resolved 2026-09-06, and ocr-llm's answer was better than either option offered.** From their
+    `api_log`: `finance_plan_review` has run **14 times in four months, max 147.9 s** — so the
+    inversion was **latent, never fired**, and no measurement campaign is warranted at ~3.5 calls a
+    month. Their fleet audit found the real exposure is **four tasks, and this is not one of them**
+    (49 of 52 sit on the global default). 🔴 **The stronger reason to raise the abort was one we would
+    not have reached:** with heavy alone at 147.9 s worst, a heavy→mid chain plausibly exceeds a 300 s
+    abort, so `finance_plan_review`'s `ollama_mid` step has been **close to unreachable for us** —
+    *a fallback you stop listening for is not a fallback.* Raised `aiReview.js` **300 000 → 660 000**,
+    above their 600 000 default so their typed 504 arrives before our socket cut, with
+    `STALE_PENDING_MS` **6 → 12 min** in lockstep (at 6 minutes it would mark a review `failed` while
+    its own request was still in flight, and the result would land on a row already reported failed).
+    🔴 **The same pass found a SECOND inversion in `Scripts/extract-statements-llm.js`, and this one
+    HAD fired.** Its abort was 480 000; ocr-llm's log holds four successful `finance_statement_extract`
+    calls above their 420 000 cap — 478.0 / 541.1 / 584.2 / **599.3 s** — and **three of those are
+    above 480 000 too**. There is no retry in that script (a timeout is counted `refused` and
+    skipped), so those three answers were computed and delivered to a **closed socket**: statements
+    that silently did not extract, with the only evidence in a log in the other repo. Raised to
+    **720 000**. ⚠️ **599.3 s is a CENSORED maximum** — 99.9% of the 600 s global default that was the
+    only ceiling when those calls ran — so we asked them to set `600000` explicitly as `source: task`
+    (*"no tighter than the default until someone has an uncensored measurement"*) rather than invent a
+    larger figure from the same truncated sample. **Owed: the real distribution after the next
+    quarterly filing**, which is the uncensored sample neither side has.
 
 ---
 

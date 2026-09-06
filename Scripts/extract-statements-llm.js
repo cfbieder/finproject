@@ -102,8 +102,30 @@ function instructionFor(checks) {
 // twice over: it is beneath the worst-case heavy→mid chain on the largest block
 // in the corpus (17,622 chars ⇒ heavy ~100s + mid ~170s), so it would abort a
 // slow-but-working statement, and it would pre-empt the 420s deadline offered to
-// ocr-llm on 2026-09-04. 480s clears both and stays under their 600s default.
-async function extractOne(text, checks, timeoutMs = 480000) {
+// ocr-llm on 2026-09-04.
+//
+// 🔴 480s was ALSO too low, and we could not see it from here. ocr-llm's own
+// `api_log` for this task (sent 2026-09-06) holds four successful calls above
+// 420s — 478.0 / 541.1 / 584.2 / 599.3s — and **three of those four are above
+// 480s too**, so this script abandoned them while the gateway ran them to
+// completion and logged a 200 nobody received. There is no retry here: a
+// timeout is counted as `refused` and the loop moves on. So the symptom was a
+// statement that silently did not extract, and the evidence lived only in a log
+// in the other repo.
+//
+// 720s now, and the ordering is what matters rather than the number:
+//
+//     observed max 599.3s  <  their deadline_ms 600000  <  this abort 720000
+//
+// Ours must be the LOOSEST so their typed 504 arrives before our socket cut —
+// an abort below their deadline is how a slow statement becomes a bare
+// `fetch failed` instead of `deadline_exceeded`. ⚠️ 599.3s is a CENSORED
+// maximum: it is 99.9% of the 600s global default that was the only ceiling
+// when those calls ran, so the true tail is unknown and this margin is not
+// evidence of headroom. Latency is irrelevant here — this is a hand-run
+// quarterly batch of ~4 statements with nobody watching — so waiting is nearly
+// free and a false timeout costs a manual re-run of a tax filing.
+async function extractOne(text, checks, timeoutMs = 720000) {
   const body = {
     task: 'finance_statement_extract',
     prompt: `${instructionFor(checks)}\n\n${text}`,
