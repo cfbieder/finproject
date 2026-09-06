@@ -172,11 +172,27 @@ twice). ✅ **Now a `422 extra_forbidden` naming the bad key**, shipped 2026-09-
 grounds that no correct caller changes behaviour. A routing preference you did not verify is still a
 routing preference you do not have.
 
-⚠️ **Verify our identity with `GET /clients`, never `GET /health`.** `/health` and `/task/routes`
-return `200` **unauthenticated** (measured 2026-09-06), so the two-minute check in their §1 returns
-the same answer for an identified and an unidentified client — options caught this and we
-corroborated it from a third IP. `/clients` `401`s without the header pair and its body doubles as
-the answer: our row carries `key_configured`, `calls`/`served`/`rejected` and `auth_mode`.
+⚠️ **Verify identity from INSIDE each deployment, against a gated route — not from a shell, and not
+via `/clients`.** Two false passes in one day, both retracted the same day:
+`GET /health` and `GET /task/routes` return `200` **unauthenticated** (measured 2026-09-06), so
+their original §1 recipe answered the same for an identified and an unidentified caller; and
+`GET /clients` — which *is* gated, and which this guide recommended for a few hours — answers
+*"is this **client** identified"*, **not** *"is this **deployment** identified"*. An unidentified
+call is logged under `_unidentified` and can never reach our own `rejected` counter, so our row
+reads clean while a container 401s. 🔴 **That is not hypothetical for Fin: it is exactly what the v4
+stack did for days** (fixed 2026-09-04) — one deployment unkeyed, the client row green throughout.
+Their §1 and the migration checklist now carry the per-deployment form. Ours:
+
+```bash
+docker exec <container> sh -lc 'wget -qO-   --header="X-Client-Id: finance" --header="X-Client-Key: $OCR_LLM_CLIENT_KEY"   "$LLM_GATEWAY_URL/providers" >/dev/null && echo OK || echo FAIL'
+```
+
+**Run it three ways, not one** — with the headers, without them, and with a wrong key. A probe that
+cannot fail has not run: if the no-header call also returns `OK`, you are testing an ungated route
+and learning nothing. Measured 2026-09-06 on `fin-server` and `fin-server-dev`: `OK` / `FAIL` /
+`FAIL` on both. The v4 stack was down; its compose maps the key non-empty
+(`docker compose -f docker-compose.v4.yml config`), which is a static check, not a probe — **re-run
+the real one whenever :3205 is next up.**
 
 ⚠️ **Do not build anything on `/clients` `source_ips`.** It is the **observed peer** address, not the
 calling machine: anything arriving through Docker's published port records as the bridge
