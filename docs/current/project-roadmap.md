@@ -2360,6 +2360,37 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
     in their log and a received answer are different events** — neither side should reason about the
     other's numbers in isolation.
 
+29. **🔴 The feed RENAMES an FDIC sweep and forks the security — twice, silently** *(found
+    2026-09-08 while loading CR093's cash rates on prod).* The bank-feed switched two deposit
+    sweeps from their ticker to a numeric `FDIC910xx` identifier, on consecutive days, and
+    `resolveSecurity` keys on `external_name` — so each switch created a **NEW security** with no
+    history, no name and no statement behind it:
+
+    | retired | last feed day | replaced by | first feed day | value |
+    |---|---|---|---|---|
+    | `QIBZQ` | 2026-08-08 | `FDIC91125` | **2026-08-09** | $76,574 |
+    | `QHYEQ` | 2026-09-03 | `FDIC91075` | **2026-09-04** | $6,696 |
+
+    ⚠️ **Nothing is lost and nothing reconciles wrong** — each snapshot still ties to its custodian
+    balance, which is exactly why this went unnoticed. The damage is to CONTINUITY:
+    - **The rate is stranded on the retired row.** `QIBZQ` and `QHYEQ` both carry a statement-derived
+      interest rate (1.82%, migration 080); the positions now sit on the ticker-less twins, which
+      carry none. **$83,270 states no income where it should state ~$1,515/yr** — the income page
+      files it under *"Cash with no rate on any statement"*, which is true of the new row and
+      misleading about the money.
+    - **A holding appears to vanish.** Any per-security series breaks at the handover: one line ends
+      2026-09-03 and an unnamed one begins 2026-09-04, with no money moving.
+    - The same underlying deposit now has two `securities` rows, so a historical register shows both.
+
+    ⚠️ **This is the security-level form of the class already recorded for transactions** — see
+    `feed ledger dedupe gap`: an id-FORMAT change re-books everything, because identity is the
+    upstream string. It has now bitten at two different grains.
+
+    **NOT fixed from here, deliberately.** Merging two `securities` rows is an identity judgement
+    (are these the same deposit, or did the bank actually change?), it rewrites history rather than
+    adding to it, and the durable fix belongs at the boundary — either bank-feed keeps a stable id,
+    or fin learns an alias table. Owner decision; the measurement above is what it needs.
+
 ---
 
 ## 4. Frontend Improvement Themes (ongoing)
