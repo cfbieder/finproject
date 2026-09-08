@@ -229,7 +229,7 @@ the pair as configuration.** The CLI reads the **repo-root `.env` only** — a p
 
 | It says | It means |
 |---|---|
-| *(nothing)* | The inbox was empty **and** their checkout was current. That combination only. |
+| *(nothing)* | The inbox was empty **and** their checkout was current. That combination only — **measured 2026-09-08**: with `count: 0` / `threads: []` and a fresh, unblocked sync, the hook printed nothing at exit `0`. |
 | `YOU OWE THE NEXT MOVE` | `git pull --ff-only` the clone and read the thread at the `HANDOFFS.md:` anchor shown. |
 | `waiting on ocr-llm` | We have replied; they owe the next move. Listed, not actionable. |
 | `COULD NOT CHECK` (exit 2) | **Unknown, not clear.** Never read it as nothing outstanding. |
