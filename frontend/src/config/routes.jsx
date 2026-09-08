@@ -57,6 +57,7 @@ const Investments = lazy(() => import("../pages/Investments"));
 const InvestmentAccount = lazy(() => import("../pages/InvestmentAccount"));
 const InvestmentExposure = lazy(() => import("../pages/InvestmentExposure"));
 const InvestmentIncome = lazy(() => import("../pages/InvestmentIncome"));
+const InvestmentRisk = lazy(() => import("../pages/InvestmentRisk"));
 const FCEquity = lazy(() => import("../pages/FCEquity"));
 const FCLineMapping = lazy(() => import("../pages/FCLineMapping"));
 const FCModuleManage = lazy(() => import("../pages/FCModuleManage"));
@@ -579,6 +580,17 @@ export const routes = [
     category: "Investments",
     description:
       "What the portfolio pays over the next twelve months — coupons scheduled, distributions estimated",
+    icon: PieChart,
+  },
+  {
+    // CR093 P2 — how much rests on ONE thing, as opposed to how it is
+    // distributed. Sits after Income because it reads the same terms.
+    path: "/investments/risk",
+    component: InvestmentRisk,
+    label: "Investment Risk",
+    category: "Investments",
+    description:
+      "Concentration by holding and issuer, and FDIC insurance headroom per bank",
     icon: PieChart,
   },
   {

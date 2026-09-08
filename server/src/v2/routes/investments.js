@@ -13,6 +13,7 @@ const investments = require('../../services/investments');
 const exposure = require('../../services/exposure');
 const securityChart = require('../../services/securityChart');
 const income = require('../../services/income');
+const risk = require('../../services/risk');
 
 /**
  * GET /api/v2/investments/portfolio?asOf=YYYY-MM-DD
@@ -58,6 +59,24 @@ router.get('/exposure', async (req, res, next) => {
 router.get('/fixed-income', async (req, res, next) => {
   try {
     res.json({ data: await exposure.buildFixedIncome() });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/v2/investments/risk
+ *
+ * CR093 P2 — what the portfolio is CONCENTRATED in: largest holdings, exposure
+ * aggregated by issuer, and FDIC insurance headroom per bank.
+ *
+ * ⚠️ Concentration by HOLDING and by ISSUER, never by underlying company — fund
+ * look-through stops at sector weights (§1 decision 2), so cross-fund overlap
+ * cannot be computed and the page says so rather than implying otherwise.
+ */
+router.get('/risk', async (req, res, next) => {
+  try {
+    res.json({ data: await risk.buildRisk() });
   } catch (err) {
     next(err);
   }

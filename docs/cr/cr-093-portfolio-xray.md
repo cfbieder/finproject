@@ -1,6 +1,6 @@
 # CR-093 — Portfolio X-ray: look-through, sector, credit and the security detail chart
 
-**Status:** IN-PROGRESS — P1 + P3 SHIPPED (P3 completed by the cash rate, v3.60.0, migration 080, 2026-09-08); P2 open · **Track:** v3 · **Owner-requested**
+**Status:** ✅ COMPLETE — P1, P2 and P3 all shipped (P2 v3.61.0, 2026-09-08) · **Track:** v3 · **Owner-requested**
 
 Shipped: the Exposure page and sector look-through (v3.55.0, migration 077), the manual
 sector picker (v3.55.1), the **fixed-income X-ray** (v3.56.0, migration 078) — §3's credit,
@@ -242,6 +242,69 @@ $393.75** — exactly half, because only **one coupon remains inside the next tw
 **coupon is the structural field, EAI is an estimate, and they are different columns.** Dividing EAI
 by market value gives a forward yield that legitimately falls as a bond runs off; labelling that
 "yield" without saying which is how a maturing bond looks like a yield cut.
+
+## 4b. Shipped — P2, risk (v3.61.0)
+
+`/investments/risk` and `GET /api/v2/investments/risk`. **No migration** — it reads the positions,
+the bond terms (078) and the sector weights (077) already stored. **CR093 is now complete.**
+
+### 🔴 The finding the page leads with
+
+**FDIC insurance is the one place in this whole CR where a real LIMIT exists to measure against**,
+rather than a distribution to describe. Measured 2026-09-08:
+
+| bank | deposits | insured | uninsured |
+|---|---|---|---|
+| **WELLS FARGO BANK NATL ASSN** | **$298,380** | $250,000 | 🔴 **$48,380** |
+| UBS BK USA NATL ASSN | $197,920 | $197,920 | — |
+| others (4) | all under | | — |
+
+⚠️ **Three CDs of ~$99,500 each are individually under the limit and together over it.** The limit is
+per depositor per bank, so checking them one at a time is how a portfolio passes a test it should
+fail — and all three sit in one account, so no ownership-category split rescues it.
+
+⚠️ **$106,829 of money-market funds is NOT FDIC-insured at all** (SPAXX, FDRXX, FZDXX). They sit
+beside the deposits in a core account and both get called "cash"; one is a security and one is a
+deposit. Omitting them silently would let the reader take the omission for reassurance.
+
+⚠️ **$76,574 cannot be checked** — held at par under a name identifying no bank. That is
+[#29](../current/project-roadmap.md#3-known-issues), the feed-rename defect, showing a second cost
+nobody had measured: it does not merely strand a rate, it puts a hole in the insurance answer.
+
+⚠️ **The figure is a FLOOR, not a ceiling.** The limit is also per ownership category, and fin cannot
+see accounts held at these banks directly.
+
+### Concentration, and the limit that makes it honest
+
+Top holding **13.8%** (FLDR), top five **32.0%**, top ten **47.4%**.
+
+⚠️ **This ranks HOLDINGS, not companies.** §1 decision 2 bought look-through at sector weights, not
+constituents, so a company inside four funds is counted in each and never added up. The page says so
+in the panel rather than in a footnote — a "largest positions" list that quietly omitted the Apple
+inside SPY, QQQ, DIA and FBCG would answer a different question from the one it appears to answer.
+
+### By issuer — derived, and therefore shown
+
+What one borrower owes across every instrument of theirs held: **Wells Fargo $298,380 across 3**,
+**FS KKR $49,942 across 2**, **Deutsche Bank $42,840 across 2**. Every row lists what was grouped,
+because the issuer is a string heuristic over custodian names and a grouping nobody can check is a
+concentration figure nobody can trust.
+
+- ⚠️ **Corporate families are NOT merged.** `UBS BK USA NATL ASSN` and `UBS AG` stay apart: different
+  legal entities, only the first FDIC-insured. Splitting understates rather than invents.
+- ⚠️ **Funds are excluded** ($1,938,404) — the issuer of an index fund is its sponsor, but its risk
+  is its constituents.
+- 🔴 **An UNCLASSIFIED fund has nothing marking it as one**, so it appears as though it were a
+  company — the two closed-end funds still awaiting a hand-classification do exactly that today. The
+  page names this rather than guessing at fund-ness from the name.
+
+### 🔴 Two defects found by running it
+
+1. **A single token containing a digit is an identifier, not an issuer.** The first guard matched
+   only digit-leading CUSIPs, so the feed id `FDIC91125` came back as an issuer — and through
+   `bankOf` as a **BANK**, hiding $76,574 of possible insured deposit behind a name that identifies
+   nothing. The test is structural now: every real issuer name here carries a space.
+2. **Money-market funds were dropped silently** rather than named as uninsured, which reads as "fine".
 
 ## 5. The security detail chart (owner-requested)
 
