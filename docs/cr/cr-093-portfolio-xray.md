@@ -1,6 +1,6 @@
 # CR-093 — Portfolio X-ray: look-through, sector, credit and the security detail chart
 
-**Status:** IN-PROGRESS — P1 + P3 SHIPPED v3.58.0 (2026-09-05); P2 open · **Track:** v3 · **Owner-requested**
+**Status:** IN-PROGRESS — P1 + P3 SHIPPED (P3 completed by the cash rate, v3.60.0, migration 080, 2026-09-08); P2 open · **Track:** v3 · **Owner-requested**
 
 Shipped: the Exposure page and sector look-through (v3.55.0, migration 077), the manual
 sector picker (v3.55.1), the **fixed-income X-ray** (v3.56.0, migration 078) — §3's credit,
