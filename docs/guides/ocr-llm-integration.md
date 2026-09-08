@@ -217,7 +217,14 @@ channel as `/task` — **no new credential**. Their kit is installed here:
 | The CLI itself | `~/Programs/fin/ocr-llm/tools/client-kit/handoff` — **not copied**, so their `git pull` updates it |
 | Config | `OCR_LLM_CLIENT_ID=finance` + `OCR_LLM_CLIENT_KEY` in **`.env` at the repo root**, that file only |
 
-Check any time: `~/Programs/fin/ocr-llm/tools/client-kit/handoff inbox`.
+Check any time: `~/Programs/fin/ocr-llm/tools/client-kit/handoff inbox` — ⚠️ **run it from the
+Fin repo root, not from inside the clone.** The clone is a gitignored directory *inside* psproject
+(`~/Programs/fin/ocr-llm` is a symlink to `psproject/ocr-llm`), and the CLI resolves its repo root by
+walking up to the first `.git`, so from inside the clone it lands in **ocr-llm's** repo and exits `3`
+(measured 2026-09-08: `0` from `psproject`, `server/`, `frontend/src`; `3` from `ocr-llm/` and below).
+Step 1 of the checklist below is `cd <clone> && git pull`, which puts you in the one directory where
+it cannot work. The hook is unaffected — it runs at the project root. Reported to ocr-llm as
+`handoff-cli-nested-clone-root`; it fails loud, so it is an inconvenience, never a false "clear".
 
 ⚠️ **`OCR_LLM_CLIENT_ID` exists for the CLI and nothing else.** All three Fin callers hardcode
 `X-Client-Id: 'finance'` as a source literal, so until 2026-09-08 the id had never been in `.env`
