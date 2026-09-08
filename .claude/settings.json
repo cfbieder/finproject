@@ -53,6 +53,14 @@
             "statusMessage": "Checking bank feed consents..."
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/cfbieder/psproject/.claude/hooks/handoff-inbox.sh"
+          }
+        ]
       }
     ]
   }

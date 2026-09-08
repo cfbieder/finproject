@@ -204,10 +204,55 @@ before ocr-llm's answer landed; the bridge address was already in the list we ha
 caveat is now in the pinned spec (`CLIENTS_200`), not in the payload, so it is in
 `contracts/v1/openapi-gateway.yaml` rather than anywhere a reader of `/clients` will see it.
 
+## The handoff inbox — the server tells us what we owe (installed 2026-09-08)
+
+A `git push` proves someone **sent**; nothing in git proves anyone **received**. `GET
+/handoffs/inbox` (ocr-llm CR-024) answers *"what does Fin owe?"* over the same authenticated
+channel as `/task` — **no new credential**. Their kit is installed here:
+
+| Piece | Where |
+|---|---|
+| SessionStart hook (a 2-line shim) | `.claude/hooks/handoff-inbox.sh` → execs the kit inside the ocr-llm clone |
+| Registration | third `SessionStart` entry in `.claude/settings.json` |
+| The CLI itself | `~/Programs/fin/ocr-llm/tools/client-kit/handoff` — **not copied**, so their `git pull` updates it |
+| Config | `OCR_LLM_CLIENT_ID=finance` + `OCR_LLM_CLIENT_KEY` in **`.env` at the repo root**, that file only |
+
+Check any time: `~/Programs/fin/ocr-llm/tools/client-kit/handoff inbox`.
+
+⚠️ **`OCR_LLM_CLIENT_ID` exists for the CLI and nothing else.** All three Fin callers hardcode
+`X-Client-Id: 'finance'` as a source literal, so until 2026-09-08 the id had never been in `.env`
+at all and the CLI exited 3. **A repo can send the pair to `/task` every day and still not hold
+the pair as configuration.** The CLI reads the **repo-root `.env` only** — a pair in
+`server/.env` is deliberately not searched.
+
+**Reading what the hook printed:**
+
+| It says | It means |
+|---|---|
+| *(nothing)* | The inbox was empty **and** their checkout was current. That combination only. |
+| `YOU OWE THE NEXT MOVE` | `git pull --ff-only` the clone and read the thread at the `HANDOFFS.md:` anchor shown. |
+| `waiting on ocr-llm` | We have replied; they owe the next move. Listed, not actionable. |
+| `COULD NOT CHECK` (exit 2) | **Unknown, not clear.** Never read it as nothing outstanding. |
+| `not configured` (exit 3) | The pair is missing from the environment and the root `.env`. |
+| `STOP AND WAIT` | They hold unpushed commits — a thread we are asked to close may be unclosable until they push. |
+
+The exit contract was **exercised, not assumed** (2026-09-08): normal `0`; no `.env` `3`; wrong key
+`2`; wrong id `2`; unreachable gateway `2`; and the hook itself exits `0` under every one of those,
+so it can never block a session. Nothing rendered as "clear" that was not.
+
+**Closing a thread: `closed` means RESOLVED, not SENT.** Appending a reply leaves it `open` with
+`waiting_on` pointing at whoever owes the next move. And if a closing entry hands back new work,
+**that work gets its own thread** — a board reading `we owe 0` because the obligation was buried in
+a closing note is worse than no board. The inbox is **read-only**; filing, replying and closing are
+all still git (`HANDOFFS.md` + `handoffs/handoffs.json` in the **same commit** — a pre-commit hook
+and CI both enforce the pair).
+
 ## Before non-trivial gateway API work
 
 1. `(cd ~/Programs/fin/ocr-llm && git pull --ff-only)`
-2. Read the tail of `HANDOFFS.md` for `[ocr-llm → Finance]` or `[ocr-llm → all]` entries.
+2. **Read what the SessionStart hook printed** (above) — it replaces the old "read the tail of
+   `HANDOFFS.md` by hand" step rather than sitting beside it, so the manual habit cannot quietly
+   stay the real one. Re-run the CLI if the session is long.
 3. Fetch the live spec: `curl -s http://100.66.213.40:8080/contracts/v1/gateway`
    — ⚠️ `/contracts` is **no longer exempt from auth** (2026-08-29): send both headers.
    `GET /task/routes` is still public and reports each task's `route[]`, `context_types` and

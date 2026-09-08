@@ -240,4 +240,11 @@ scenarios are REGENERATED**. It changes far less often than this file does.
 [dev-workflow](../guides/dev-workflow.md) · [permissions](../guides/claude-code-permissions.md).
 Last restore drill **2026-07-13 — PASSED** ([runbook](../guides/restore.md)): a real prod dump
 restored in 3 s / 0 errors, balance sheet **and** regenerated forecast byte-identical to prod.
-Secrets: [secrets-inventory.md](secrets-inventory.md).
+Secrets: [secrets-inventory.md](secrets-inventory.md) — ⚠️ **two values exposed 2026-09-08**
+(`POSTGRES_PASSWORD`, `TRADIER_ACCESS_TOKEN`; owner declined rotation, logged there). It is the
+**second redaction failure in three days**, and the first one's own rule would have stopped it:
+there is no safe redaction of a multi-secret file — verify an `.env` edit with `grep -c` /
+`cut -d= -f1` / `git diff --stat`, never by printing the region you changed.
+**ocr-llm handoffs now PULL rather than needing to be remembered** — a `SessionStart` hook asks
+their server what Fin owes ([guide](../guides/ocr-llm-integration.md)); silence means the inbox was
+empty *and* their checkout was current, and nothing else prints nothing.
