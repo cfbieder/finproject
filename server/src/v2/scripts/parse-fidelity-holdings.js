@@ -248,6 +248,38 @@ const SP_RE = new RegExp(String.raw`\bS&P\s+(AAA|AA[+-]?|A[+-]?|BBB[+-]?|BB[+-]?
  * can never acquire empty bond terms.
  */
 /**
+ * The rate a cash-like holding prints about ITSELF, between its ticker and its
+ * figures: `(SPAXX) -- 7-day yield: 3.29%`, `(QIMHQ) -- Interest rate: 1.82%`.
+ *
+ * The row scanner already had to step over this clause to reach the numbers; it
+ * was skipped and thrown away, and with it the only record of what $201,597 of
+ * cash and money-market actually pays. CR093 P3's income total said so on the
+ * page and understated by it.
+ *
+ * ⚠️ TWO KINDS, and they are not interchangeable. A money-market fund's **7-day
+ * yield** is an annualised figure derived from the last week's income; an FDIC
+ * sweep's **interest rate** is the rate the bank is paying. Both float, neither
+ * is contractual, and storing which one it is decides how the income page is
+ * allowed to describe the number.
+ *
+ * ⚠️ Read from the MATCHED ROW, not from a scan of the page. A free-floating
+ * search for `-- …: n%` would attach whichever clause happened to be nearest,
+ * and these rows sit next to each other in the Core Account block.
+ */
+const RATE_CLAUSE = /--\s*(7-day yield|Interest rate)\s*:\s*([\d.]+)\s*%/i;
+
+function cashRate(rowText) {
+  const m = String(rowText || '').match(RATE_CLAUSE);
+  if (!m) return null;
+  const rate = Number(m[2]);
+  if (!Number.isFinite(rate)) return null;
+  return {
+    rate,
+    rate_kind: /7-day/i.test(m[1]) ? 'seven_day_yield' : 'interest_rate',
+  };
+}
+
+/**
  * A bond or CD's description is its issuer, and — for a CD — its coupon and
  * maturity, which is how CDs are conventionally named. What follows that is
  * TERMS, and now that the terms are parsed into their own columns they no longer
@@ -539,6 +571,10 @@ function parseRows(rawBody, sectionName, label, layout) {
       // description, so the terms are read from the FULL window — before the
       // 120-char cut that the stored name takes.
       terms: bondTerms(desc, ''),
+      // ⚠️ Read out of the MATCHED TEXT rather than by adding a capture group:
+      // every numeric column here is addressed by a fixed group index (see COL),
+      // so a new group would silently shift quantity, price and market value.
+      cash_rate: cashRate(m[0]),
       quantity: num(m[COL.qty], `${label}/${sectionName}/qty`),
       price: num(m[COL.price], `${label}/${sectionName}/price`),
       market_value: num(m[COL.mv], `${label}/${sectionName}/mv`),
@@ -781,4 +817,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { parseFile, extractText, parseRows, num, describe, bondTerms };
+module.exports = { parseFile, extractText, parseRows, num, describe, bondTerms, cashRate };

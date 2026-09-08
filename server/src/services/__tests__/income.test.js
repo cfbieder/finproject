@@ -180,6 +180,36 @@ describe('summariseIncome — scheduled and estimated never become one number', 
     expect(sum('total')).toBe(r.total);
   });
 
+  test('🔴 cash is ESTIMATED, never scheduled — the rate floats', () => {
+    // A money-market yield and an FDIC sweep rate are not owed on a date and can
+    // move the week after the statement that printed them. Filing them as
+    // scheduled would put them beside contractual coupons.
+    const cash = {
+      id: 3, ticker: 'ZZC', name: 'ZZ MMKT', price_basis: 'par', quantity: 1000,
+      price: 1, market_value: 100000, cash_rate: 3.29, rate_kind: 'seven_day_yield',
+      cash_rate_as_of: '2026-06-30',
+    };
+    const r = summariseIncome([cash], '2026-09-05', '2027-09-05', 100000);
+    expect(r.scheduled.total).toBe(0);
+    expect(r.estimated.total).toBeCloseTo(3290, 2);
+    const row = r.estimated.holdings[0];
+    expect(row.basis).toBe('cash_rate');
+    // The rate's own date travels with it: this corpus runs 0.06% to 5.30%, so a
+    // stale rate is not a rounding error.
+    expect(row.rate_as_of).toBe('2026-06-30');
+    expect(row.rate_kind).toBe('seven_day_yield');
+  });
+
+  test('cash with no rate is not counted, and lands in its own absence group', () => {
+    const cash = {
+      id: 3, ticker: 'ZZC', name: 'ZZ SWEEP', price_basis: 'par', quantity: 1000,
+      price: 1, market_value: 76574,
+    };
+    const r = summariseIncome([cash], '2026-09-05', '2027-09-05', 76574);
+    expect(r.total).toBe(0);
+    expect(r.no_answer.find((g) => g.key === 'rate_unknown').value).toBe('76574.00');
+  });
+
   test('a bond callable inside the window is counted AND flagged', () => {
     const r = summariseIncome([{ ...bond, next_call_date: '2027-01-15' }], '2026-09-05', '2027-09-05', 10000);
     expect(r.scheduled.total).toBeCloseTo(500, 2);

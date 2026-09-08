@@ -174,6 +174,29 @@ function summariseIncome(positions, from, to, portfolioValue) {
       continue;
     }
 
+    // ⚠️ CASH IS ESTIMATED, NOT SCHEDULED. A money-market 7-day yield and an FDIC
+    // sweep rate both FLOAT — neither is owed on a date, and both can move the
+    // week after the statement that printed them. This corpus runs 0.06% (2016)
+    // to 5.30% (2023), so the rate's own date is carried with it.
+    if (p.cash_rate !== null && p.cash_rate !== undefined && Number(p.cash_rate) > 0
+        && Number(p.market_value) > 0) {
+      const total = (Number(p.market_value) * Number(p.cash_rate)) / 100;
+      estimated.push({
+        security_id: p.id,
+        ticker: p.ticker,
+        name: p.name,
+        basis: 'cash_rate',
+        rate: Number(p.cash_rate),
+        rate_kind: p.rate_kind,
+        rate_as_of: p.cash_rate_as_of,
+        market_value: Number(p.market_value).toFixed(2),
+        total: Number(total.toFixed(2)),
+      });
+      const months = monthsBetween(from, to);
+      for (const m of months) bump(m, 'estimated', total / months.length);
+      continue;
+    }
+
     // Not a bond: a dividend projection, if we have a run rate.
     if (p.ttm_income !== null && p.ttm_income !== undefined && Number(p.ttm_income) > 0) {
       const total = Number(p.ttm_income) * Number(p.quantity);
@@ -181,6 +204,7 @@ function summariseIncome(positions, from, to, portfolioValue) {
         security_id: p.id,
         ticker: p.ticker,
         name: p.name,
+        basis: 'distribution',
         quantity: Number(p.quantity),
         ttm_per_share: Number(p.ttm_income),
         total: Number(total.toFixed(2)),
@@ -262,7 +286,7 @@ function summariseIncome(positions, from, to, portfolioValue) {
  */
 const ABSENCE_GROUPS = [
   { key: 'awaiting_terms', label: 'Bonds with no statement yet', note: 'They pay a coupon; the next quarterly statement supplies it.' },
-  { key: 'rate_unknown', label: 'Cash, money-market and deposits', note: 'These do pay interest — the rate is printed on the statements and not yet parsed, so the total below UNDERSTATES by this much.' },
+  { key: 'rate_unknown', label: 'Cash with no rate on any statement', note: 'It pays interest we cannot state — this holding appears in the feed but on no statement, so the total understates by whatever it earns.' },
   { key: 'no_coverage', label: 'No distribution history available', note: 'An open-end fund the price provider does not cover.' },
   { key: 'pays_nothing', label: 'Pays no distribution', note: 'Measured, not missing.' },
 ];
@@ -337,14 +361,17 @@ async function buildIncome({ asOf } = {}) {
            MAX(p.price)::float AS price,
            t.coupon_rate::float AS coupon_rate, t.payment_frequency,
            t.maturity_date::text AS maturity_date, t.next_call_date::text AS next_call_date,
-           d.income AS ttm_income
+           d.income AS ttm_income,
+           c.rate::float AS cash_rate, c.rate_kind, c.as_of::text AS cash_rate_as_of
       FROM security_positions p
       JOIN securities s ON s.id = p.security_id
       LEFT JOIN security_bond_terms t ON t.security_id = s.id
       LEFT JOIN ttm d ON d.security_id = s.id
+      LEFT JOIN security_cash_rates c ON c.security_id = s.id
      WHERE p.snapshot_id IN (SELECT id FROM latest)
      GROUP BY s.id, s.ticker, s.name, s.price_basis, s.dividends_as_of,
-              t.coupon_rate, t.payment_frequency, t.maturity_date, t.next_call_date, d.income`,
+              t.coupon_rate, t.payment_frequency, t.maturity_date, t.next_call_date, d.income,
+              c.rate, c.rate_kind, c.as_of`,
   [from]);
 
   const portfolio = positions.reduce((a, p) => a + (p.market_value || 0), 0);

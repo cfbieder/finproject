@@ -18,6 +18,7 @@ const {
   parseRows,
   describe: describeRow,
   bondTerms,
+  cashRate,
 } = require('../parse-fidelity-holdings');
 
 describe('num — absence is not zero', () => {
@@ -369,5 +370,29 @@ describe('bondTerms — what the custodian already prints', () => {
     const t = bondTerms('EXAMPLE TR FORMERLY OTHER TR TO 05/24/01 NOTE 09/01/27',
       '500.00 5.000 FIXED COUPON MOODYS Baa2 SEMIANNUALLY');
     expect(t.maturity_date).toBe('2027-09-01');
+  });
+});
+
+describe('cashRate — the clause the scanner used to step over', () => {
+  test("a money-market fund's 7-day yield", () => {
+    expect(cashRate('FIDELITY GOVERNMENT MONEY MARKET (SPAXX) -- 7-day yield: 3.29% 1.000'))
+      .toEqual({ rate: 3.29, rate_kind: 'seven_day_yield' });
+  });
+
+  test("🔴 an FDIC sweep's interest rate is a DIFFERENT kind, not the same field", () => {
+    // A 7-day yield is annualised from the last week's income; an interest rate
+    // is what the bank is paying. Collapsing them would let the income page
+    // describe the two in the same words.
+    expect(cashRate('FDIC INSURED DEPOSIT AT JP MORGAN BK q (QIMHQ) -- Interest rate: 1.82% h 1.0000'))
+      .toEqual({ rate: 1.82, rate_kind: 'interest_rate' });
+  });
+
+  test('0% is a real answer — the sweeps printed 0.01% for years', () => {
+    expect(cashRate('X (QBNYQ) -- Interest rate: 0.01%')).toEqual({ rate: 0.01, rate_kind: 'interest_rate' });
+  });
+
+  test('an ordinary holding has no rate clause and gets none', () => {
+    expect(cashRate('ACME CORP COM (ACME) 100.000 $50.0000 $5,000.00')).toBeNull();
+    expect(cashRate('')).toBeNull();
   });
 });

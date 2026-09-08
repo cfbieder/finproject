@@ -461,8 +461,31 @@ source, with no assumption about which wrote it.
 | $147,988 | FCNTX | an open-end fund the price provider does not cover |
 | $40,916 | BRK/B, KD, SPCX | measured — they pay nothing |
 
-**Open, and named rather than hidden:** parsing the money-market and deposit rates is the one
-remaining piece that would make the total complete.
+### ✅ Closed 2026-09-08 (v3.60.0, migration 080) — the cash rate
+
+The piece named above. The rate was never a vendor question: the custodian prints it between the
+ticker and the figures on every statement, and the row scanner **had to step over that clause to
+reach the numbers** and threw it away on the way past.
+
+⚠️ **Two kinds, kept apart.** A money-market **7-day yield** is annualised from the last week's
+income; an FDIC sweep's **interest rate** is what the bank is paying. ⚠️ **Neither is contractual**,
+so this lands in ESTIMATED, never scheduled. ⚠️ **And it is as of a statement** — 7-day yields in
+this corpus run **0.06% (2016) to 5.30% (2023)**, so every row shows its own date; `QHYEQ` currently
+carries a 2026-03-31 rate against the others' 2026-06-30.
+
+⚠️ Read from the **matched row**, not by adding a capture group — every numeric column in that
+regex is addressed by a fixed index, and a new group would have silently shifted quantity, price and
+market value.
+
+| | before | after |
+|---|---|---|
+| twelve-month income | $112,297 | **$116,037** |
+| yield on the portfolio | 2.90% | **3.00%** |
+| cash stating no income | $193,138 | **$76,573** (one feed-only sweep, on no statement) |
+
+⚠️ **The estimate was wrong before it was measured.** §4a guessed "~$7,000/year at roughly 3.5%".
+The real figure is **$3,710**: $76,573 of it turns out to have no rate on any statement, and the
+FDIC sweeps pay **1.82%**, not 3.5%.
 
 ### Measured 2026-09-05
 

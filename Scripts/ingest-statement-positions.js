@@ -245,6 +245,32 @@ async function healName(db, row, symbol, position) {
   healed.add(row.id);
 }
 
+let ratesWritten = 0;
+
+/**
+ * The rate a cash-like holding prints about itself (migration 080).
+ *
+ * ⚠️ Latest statement wins, enforced by the WHERE rather than by read order —
+ * the same rule and the same reason as `upsertBondTerms` above. A money-market
+ * yield is not a stable fact: this corpus runs 0.06% (2016) to 5.30% (2023), so
+ * a 2016 re-read overwriting a 2026 rate would be a decade-old number sitting
+ * under a current income figure.
+ */
+async function upsertCashRate(securityId, asOf, r) {
+  if (!r) return;
+  const { rowCount } = await db.query(`
+    INSERT INTO security_cash_rates (security_id, as_of, rate, rate_kind, source)
+    VALUES ($1,$2,$3,$4,'statement')
+    ON CONFLICT (security_id) DO UPDATE SET
+      as_of = EXCLUDED.as_of,
+      rate = EXCLUDED.rate,
+      rate_kind = EXCLUDED.rate_kind,
+      updated_at = now()
+    WHERE security_cash_rates.as_of <= EXCLUDED.as_of`,
+  [securityId, asOf, r.rate, r.rate_kind]);
+  ratesWritten += rowCount;
+}
+
 let termsWritten = 0;
 
 /**
@@ -470,6 +496,7 @@ async function main() {
         // Terms belong to the INSTRUMENT, not to this snapshot, so they are
         // written once per security rather than per position row.
         await upsertBondTerms(securityId, a.as_of, p.terms);
+        await upsertCashRate(securityId, a.as_of, p.cash_rate);
         stats.positions += 1;
       }
       stats.ingested += 1;
@@ -479,6 +506,10 @@ async function main() {
   console.log(`statements parsed: ${stats.files} · account-statements: ${stats.accounts}`);
   console.log(`${APPLY && !REPORT_ONLY ? 'ingested' : 'would ingest'}: ${stats.ingested}  ·  positions: ${stats.positions}`);
   console.log(`skipped (did not reconcile): ${stats.skipped_unreconciled}`);
+  if (ratesWritten) {
+    console.log(`cash rates written/refreshed: ${ratesWritten}`
+      + ' — money-market 7-day yields and FDIC sweep interest rates, off the statements');
+  }
   if (termsWritten) {
     console.log(`bond terms written/refreshed: ${termsWritten}`
       + ' — rating, coupon, maturity and payment frequency, read from the statements themselves');

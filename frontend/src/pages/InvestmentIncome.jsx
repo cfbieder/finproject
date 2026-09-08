@@ -8,8 +8,9 @@
  *              we know the day. Derived from the custodian's own terms, and
  *              validated against Fidelity's printed Estimated Annual Income on
  *              all 27 bonds of the 2026-06 statement.
- *   estimated  a distribution. A PROJECTION from the last twelve months that
- *              nobody owes and that can be cut.
+ *   estimated  a distribution, or the rate cash is currently at. A PROJECTION —
+ *              from the last twelve months' payments, or from a floating rate —
+ *              that nobody owes and that can change next week.
  *
  * A single "income" figure would tell the owner a fund's distribution is as
  * reliable as a Treasury coupon.
@@ -81,11 +82,16 @@ export default function InvestmentIncome() {
             </span>
           </div>
           <div>
-            <span className="inv-income__label">Estimated — distributions</span>
+            <span className="inv-income__label">Estimated — distributions &amp; cash</span>
             <span className="inv-income__figure">{money(e.total, "USD")}</span>
             <span className="inv-income__note">
-              A projection from what {e.holdings.length} holdings actually paid over the last
-              twelve months. Nobody owes it, and a distribution can be cut.
+              {/* ⚠️ TWO kinds of estimate now, and the caption has to cover both:
+                  what a holding PAID over the last year, and the rate cash is AT.
+                  Neither is owed; both can change next week. */}
+              A projection — from what {e.holdings.filter((h) => h.basis !== "cash_rate").length}{" "}
+              holdings paid over the last twelve months, and from the current rate on{" "}
+              {e.holdings.filter((h) => h.basis === "cash_rate").length} cash and money-market
+              holdings. Nobody owes either, and both can change.
             </span>
           </div>
           <div>
@@ -119,10 +125,10 @@ export default function InvestmentIncome() {
       <section className="panel inv-account">
         <h2>Month by month</h2>
         <p className="inv-history__caveat">
-          Coupons sit on the months they are actually due. Distributions are spread evenly,
-          because we know what was <em>paid</em> over the last year, not when the next ones land —
-          projecting last year's dates forward would assert a calendar nobody published.
-          The first and last months are partial.
+          Coupons sit on the months they are actually due. Distributions and cash interest are
+          spread evenly — we know what was <em>paid</em> over the last year and what rate cash is
+          at, not when the next payments land, and projecting last year's dates forward would
+          assert a calendar nobody published. The first and last months are partial.
         </p>
         <div className="inv-chart">
           <ResponsiveContainer width="100%" height={260}>
@@ -135,7 +141,7 @@ export default function InvestmentIncome() {
               <Legend wrapperStyle={{ fontSize: "0.78rem" }} />
               {/* Stacked, but never merged into one bar: the split is the point. */}
               <Bar dataKey="scheduled" name="Scheduled (coupons)" stackId="i" fill={colors[0]} isAnimationActive={false} />
-              <Bar dataKey="estimated" name="Estimated (distributions)" stackId="i" fill={colors[3]} isAnimationActive={false} />
+              <Bar dataKey="estimated" name="Estimated (distributions + cash)" stackId="i" fill={colors[3]} isAnimationActive={false} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -172,6 +178,49 @@ export default function InvestmentIncome() {
           </tbody>
         </table>
       </section>
+
+      {e.holdings.some((h) => h.basis === "cash_rate") && (
+        <section className="panel inv-account">
+          <h2>What cash is earning</h2>
+          <p className="inv-history__caveat">
+            {/* ⚠️ The rate's own date matters here more than anywhere else on the
+                page: money-market yields track policy, and this corpus runs from
+                0.06% in 2016 to 5.30% in 2023. A stale one is not a rounding
+                error, so every row carries when it was printed. */}
+            A money-market <strong>7-day yield</strong> is annualised from the last week's income;
+            an FDIC sweep's <strong>interest rate</strong> is what the bank is paying. Both float,
+            so these are estimates — and each is as of the statement that printed it, which can be
+            a quarter old or more.
+          </p>
+          <table className="inv-exposure">
+            <thead>
+              <tr>
+                <th scope="col">Holding</th>
+                <th scope="col" className="inv-num">Balance</th>
+                <th scope="col" className="inv-num">Rate</th>
+                <th scope="col" className="inv-num">As of</th>
+                <th scope="col" className="inv-num">12-month income</th>
+              </tr>
+            </thead>
+            <tbody>
+              {e.holdings.filter((h) => h.basis === "cash_rate").map((h) => (
+                <tr key={h.security_id}>
+                  <th scope="row">
+                    <span className="inv-name" title={h.name}>{h.ticker || h.name}</span>
+                    <span className="inv-detail__note">
+                      {h.rate_kind === "seven_day_yield" ? "7-day yield" : "interest rate"}
+                    </span>
+                  </th>
+                  <td className="inv-num">{money(h.market_value, "USD")}</td>
+                  <td className="inv-num">{h.rate}%</td>
+                  <td className="inv-num">{h.rate_as_of}</td>
+                  <td className="inv-num">{money(h.total, "USD")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
 
       <section className="panel inv-account">
         <h2>What this cannot say</h2>
