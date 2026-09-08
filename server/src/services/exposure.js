@@ -35,6 +35,24 @@ const LATEST = `
    WHERE source = 'bank-feed' AND status = 'fetched'
    ORDER BY account_id, polled_on DESC`;
 
+/**
+ * The DB half: fetch every account's latest positions and the sector weights,
+ * then hand both to the pure function below.
+ *
+ * 🔴 THE SPLIT IS WHAT CLOSES ROADMAP ISSUE #26. This query reads EVERY account's
+ * latest snapshot — that is what a portfolio view IS — so any test of its output
+ * is a test of whatever rows the database happens to hold. Seven tests written
+ * against it were green on CI's empty database and red on dev's real one, and
+ * every gate built to catch a red suite reported green precisely BECAUSE
+ * `ci-seed.sql` has no positions: the assertions never met data.
+ *
+ * ⚠️ Seeding a fixture does not fix it, which is what the issue's own suggested
+ * remedy proposed. The failing tests already seeded throwaway securities and
+ * positions; the fixture is ADDED to production-scale data rather than replacing
+ * it. The decision logic — how a fund is spread by weight, which of the two
+ * absences a holding falls into, that nothing uncovered is redistributed — is
+ * all in `summariseExposure`, which takes rows and returns an answer.
+ */
 async function buildExposure() {
   const { rows: pos } = await db.query(`
     WITH latest AS (${LATEST})
@@ -49,6 +67,14 @@ async function buildExposure() {
 
   const { rows: weights } = await db.query(`
     SELECT security_id, sector, weight::float AS weight FROM security_sector_weights`);
+  return summariseExposure(pos, weights);
+}
+
+/**
+ * Pure. Positions and weights in, slices out — no database, so every rule below
+ * is pinned by a test that other people's data cannot move.
+ */
+function summariseExposure(pos, weights) {
   const bySec = new Map();
   for (const w of weights) {
     if (!bySec.has(w.security_id)) bySec.set(w.security_id, []);
@@ -459,5 +485,6 @@ async function setSectorWeights(securityId, weights) {
 }
 
 module.exports = {
-  buildExposure, buildFixedIncome, summariseFixedIncome, setSectorWeights, SECTORS, gradeOf,
+  buildExposure, summariseExposure, buildFixedIncome, summariseFixedIncome,
+  setSectorWeights, SECTORS, gradeOf,
 };
