@@ -58,6 +58,42 @@ const HEALTH_LABEL = {
   stale: "feed silent",
 };
 
+// What each state means and what to do about it, for the header's attention
+// panel. The pill used to say "N feeds need attention" and nothing else — no
+// names, no reason, no route to the fix — so the reader had to find the rows
+// among 27 and then guess. Wording follows bank-feed's classifier
+// (upstreamHealth.js): `stale` is a connection whose consent is still valid but
+// which fintable has not synced from the bank for > 48h; fin cannot force that
+// sync, which is why every remedy points at Bank Feed Setup or the statement
+// upload rather than at Refresh Feeds.
+function attentionAdvice(health) {
+  const days = health.days_since_upstream_sync;
+  const since = days != null ? `${days} day${days === 1 ? "" : "s"}` : "an unknown time";
+  switch (health.state) {
+    case "needs_reconnect":
+      return {
+        what: "The bank consent has expired, so this feed has stopped.",
+        todo: "Re-authorise it under Settings → Bank Feed Setup, then check that page's account mapping — a reconnect can re-key accounts.",
+      };
+    case "unhealthy":
+      return {
+        what: `Fintable reports this connection unhealthy${health.status_text ? ` (${health.status_text})` : ""}.`,
+        todo: "Open Settings → Bank Feed Setup. If it offers Re-authorise, do that; otherwise Fintable retries on its own — check again tomorrow.",
+      };
+    case "never_synced":
+      return {
+        what: "Fintable has not completed a first sync for this connection.",
+        todo: "Give it a day. If it is still empty, re-authorise it under Settings → Bank Feed Setup.",
+      };
+    case "stale":
+    default:
+      return {
+        what: `The consent is still valid${health.status_text ? ` (${health.status_text})` : ""}, but Fintable has not pulled from the bank for ${since} — a normal gap is under 2 days. Refresh Feeds cannot fix this; it only reads what Fintable already has.`,
+        todo: "If it stays silent, re-authorise it under Settings → Bank Feed Setup. Until it syncs, the bank figure on these rows is out of date: do not Reconcile them — use Upload on the row to import a statement instead.",
+      };
+  }
+}
+
 function ConnectionHealth({ health }) {
   if (!health || !health.attention) return null;
   const label = HEALTH_LABEL[health.state] || health.state;
@@ -106,6 +142,7 @@ export default function BalanceReconciliation() {
   const [markBalanceDate, setMarkBalanceDate] = useState("");
   const [uploadAccount, setUploadAccount] = useState(null); // CR036: manual statement upload target
   const [showHelp, setShowHelp] = useState(false); // sign-convention explainer, collapsed by default
+  const [showAttention, setShowAttention] = useState(false); // "N feeds need attention" → what to do
   const [plCategories, setPlCategories] = useState([]); // CR080: accrual category options
 
   // Set how an account reconciles: 'calibrate' (bank/cash → DRIFT), 'mtm'
@@ -337,12 +374,19 @@ export default function BalanceReconciliation() {
   // Counted over ALL accounts rather than the filtered view: a feed the current
   // filter hides is still broken, and a count that changes when you filter is a
   // count nobody can trust.
+  //
+  // Each entry carries the fin accounts behind it, so the attention panel can
+  // name what the broken connection is costing rather than only the bank.
   const feedsNeedingAttention = [
-    ...new Map(
-      (balRecon.accounts || [])
-        .filter((a) => a.feed_health && a.feed_health.attention)
-        .map((a) => [a.feed_health.connection_id || a.feed_health.institution_name, a.feed_health]),
-    ).values(),
+    ...(balRecon.accounts || [])
+      .filter((a) => a.feed_health && a.feed_health.attention)
+      .reduce((m, a) => {
+        const key = a.feed_health.connection_id || a.feed_health.institution_name;
+        if (!m.has(key)) m.set(key, { health: a.feed_health, institution: a.institution, accounts: [] });
+        m.get(key).accounts.push(a.name);
+        return m;
+      }, new Map())
+      .values(),
   ];
 
   // CR060 — mappings pointing at a feed account the feed no longer carries.
@@ -435,10 +479,19 @@ export default function BalanceReconciliation() {
         {balRecon.upstream_ok === false ? (
           <StatusPill label="feed health unavailable" kind="warn" />
         ) : feedsNeedingAttention.length > 0 ? (
-          <StatusPill
-            label={`${feedsNeedingAttention.length} feed${feedsNeedingAttention.length === 1 ? "" : "s"} need attention`}
-            kind="danger"
-          />
+          <button
+            type="button"
+            className="recon-attention-toggle"
+            aria-expanded={showAttention}
+            aria-controls="recon-attention"
+            onClick={() => setShowAttention((v) => !v)}
+            title="Which feeds, why, and what to do"
+          >
+            <StatusPill
+              label={`${feedsNeedingAttention.length} feed${feedsNeedingAttention.length === 1 ? " needs" : "s need"} attention — ${showAttention ? "hide" : "what to do"} ${showAttention ? "▴" : "▾"}`}
+              kind="danger"
+            />
+          </button>
         ) : balRecon.upstream_ok ? (
           <StatusPill label="all feeds healthy" kind="ok" />
         ) : null}
@@ -479,6 +532,43 @@ export default function BalanceReconciliation() {
         </label>
         <span className="bfd-muted">as of {balRecon.asOf}</span>
       </div>
+      {showAttention && feedsNeedingAttention.length > 0 && (
+        <div id="recon-attention" className="recon-attention">
+          <ul>
+            {feedsNeedingAttention.map(({ health, institution, accounts }) => {
+              const advice = attentionAdvice(health);
+              return (
+                <li key={health.connection_id || health.institution_name}>
+                  <div className="recon-attention__head">
+                    <strong>{health.institution_name || institution || "Unknown feed"}</strong>
+                    <StatusPill
+                      label={HEALTH_LABEL[health.state] || health.state}
+                      kind={health.state === "needs_reconnect" ? "danger" : "warn"}
+                    />
+                    <span className="recon-attention__accounts">
+                      {accounts.join(", ")}
+                    </span>
+                    {institution && institutionFilter !== institution && (
+                      <button
+                        type="button"
+                        className="recon-link-btn"
+                        onClick={() => { setInstitutionFilter(institution); setStatusFilter("all"); }}
+                      >
+                        show {accounts.length === 1 ? "row" : "rows"}
+                      </button>
+                    )}
+                  </div>
+                  <p>{advice.what}</p>
+                  <p><strong>What to do:</strong> {advice.todo}</p>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="recon-attention__foot">
+            <Link to="/bank-feed-diagnostic">Open Settings → Bank Feed Setup →</Link>
+          </div>
+        </div>
+      )}
       {reconcileMsg && (
         <div className="recon-status" role="status">
           <span>{reconcileMsg}</span>
@@ -511,7 +601,7 @@ export default function BalanceReconciliation() {
             <th>Feed date</th>
             <th>Last calibrated</th>
             <th>Status</th>
-            <th></th>
+            <th className="recon-actions-h">Actions</th>
           </tr>
         </thead>
         <tbody>

@@ -2393,6 +2393,24 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
     adding to it, and the durable fix belongs at the boundary — either bank-feed keeps a stable id,
     or fin learns an alias table. Owner decision; the measurement above is what it needs.
 
+30. **🟡 Two feed connections are silent while their consent reports `READY` — Erste Bank Polska for
+    64 days** *(found 2026-09-13 from the Balance Calibration page)*. Live on prod and dev:
+    `Erste Bank Polska` (fin account `Santandar`) — `state: stale`, **64 days** since Fintable last
+    synced from the bank; `Revolut` (`Revolut-EUR`, `Revolut-PLN`) — **5 days**. Both carry
+    `status_text: READY`, so this is not an expired consent, and nothing fin or bank-feed calls can
+    force the bank sync (bank-feed's only POST to Fintable mints a connection link). Remedy is the
+    owner's: re-authorise under Settings → Bank Feed Setup, or import a statement via the row's
+    Upload. ⚠️ Until then the bank figure on those rows is frozen, so a `reconciled` status there is
+    measured against an old number.
+
+    **The page could not say any of this until 2026-09-13.** The header read `2 FEEDS NEED
+    ATTENTION` with no names, reason or link, and the row badges (`⚠ feed silent · 64d`) sat among
+    27 rows. The pill is now a toggle opening a per-connection panel (state, affected accounts,
+    what to do, `show rows` filter, link to Bank Feed Setup). Same change: the Reconcile / Upload
+    column was the 9th column of a table ~240px wider than its scroll wrapper, so the buttons were
+    off-screen until you scrolled a 27-row table sideways — it now has an `Actions` header and is
+    pinned to the right edge (`position: sticky`). Rendered both themes at 1700px.
+
 ---
 
 ## 4. Frontend Improvement Themes (ongoing)
