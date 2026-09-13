@@ -162,7 +162,7 @@ trailing-slash redirect (the reason the AI Review block is shaped that way too).
 - U2: rank connection-level truth above job-derived text; a connection with `needs_reconnect: false`
   and a fresh `last_successful_update` is not `unhealthy` because yesterday's job failed.
 
-- **U4 — the page contradicted the one that links to it.** ✅ **BUILT 2026-09-13 (unreleased).**
+- **U4 — the page contradicted the one that links to it.** ✅ **SHIPPED v3.61.2 (2026-09-13).**
   Balance Calibration's *feeds need attention* panel links here, and this page showed nothing wrong:
   the connections table painted its pill from `healthy`, which is **true** for a consent that is
   valid but has not synced from the bank in weeks, so it read **HEALTHY** beside Erste Bank Polska at
