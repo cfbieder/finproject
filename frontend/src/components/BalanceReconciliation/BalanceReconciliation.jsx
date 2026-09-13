@@ -551,7 +551,7 @@ export default function BalanceReconciliation() {
                     {institution && institutionFilter !== institution && (
                       <button
                         type="button"
-                        className="recon-link-btn"
+                        className="btn btn--ghost btn--xs"
                         onClick={() => { setInstitutionFilter(institution); setStatusFilter("all"); }}
                       >
                         show {accounts.length === 1 ? "row" : "rows"}

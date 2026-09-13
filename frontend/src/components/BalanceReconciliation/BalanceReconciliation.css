@@ -270,18 +270,9 @@
 .recon-panel .recon-attention__foot {
   margin-top: 12px;
 }
-.recon-panel .recon-attention a,
-.recon-panel .recon-attention .recon-link-btn {
+.recon-panel .recon-attention a {
   color: var(--primary);
   font-weight: var(--font-weight-medium);
-}
-.recon-panel .recon-link-btn {
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
-  font-size: inherit;
-  text-decoration: underline;
 }
 
 /* CR060 — the orphan pill is a LINK to the page that fixes it. It must still
