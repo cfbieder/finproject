@@ -15,6 +15,7 @@ import {
   AccountPicker,
   buildHierarchyOptions,
 } from "../components/AccountPicker/AccountPicker.jsx";
+import { HEALTH_LABEL, healthPillKind, attentionAdvice } from "../utils/feedHealth.js";
 import "./BankFeedDiagnostic.css";
 
 function fmtNum(n, decimals = 2) {
@@ -38,6 +39,14 @@ function fmtDateTime(iso) {
 
 function StatusPill({ label, kind }) {
   return <span className={`bfd-pill bfd-pill-${kind}`}>{label}</span>;
+}
+
+// A connection's pill text: "silent 64d" says more than "feed silent" here,
+// where the day count has no other column to live in.
+function connLabel(c) {
+  if (!c.attention) return "healthy";
+  if (c.state === "stale") return `silent ${c.days_since_upstream_sync ?? "?"}d`;
+  return HEALTH_LABEL[c.state] || c.state;
 }
 
 export default function BankFeedDiagnostic() {
@@ -78,6 +87,8 @@ export default function BankFeedDiagnostic() {
   const [minting, setMinting] = useState(null);
   const [link, setLink] = useState(null);
   const [linkError, setLinkError] = useState(null);
+  // Which section minted the link — its status renders there, beside the button pressed.
+  const [mintFrom, setMintFrom] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -146,8 +157,9 @@ export default function BankFeedDiagnostic() {
   // CR060 — mint a single-use browser URL and show it. Deliberately NOT
   // window.open: this page is routinely viewed from another device over
   // Tailscale, and a popup that a blocker eats looks exactly like a failure.
-  const mintLink = async (connectionId, label) => {
+  const mintLink = async (connectionId, label, from = "connections") => {
     setMinting(connectionId || "new");
+    setMintFrom(from);
     setLink(null);
     setLinkError(null);
     try {
@@ -207,57 +219,53 @@ export default function BankFeedDiagnostic() {
   const lastSyncKind =
     hoursSince == null ? "warn" : hoursSince <= 24 ? "ok" : hoursSince <= 72 ? "warn" : "danger";
 
-  return (
-    <div className="bfd-page">
-      <header className="bfd-header">
-        <h1>Bank Feed Setup</h1>
-        <div className="bfd-actions">
-          <button onClick={runImport} disabled={importing} className="generate-report-button">
-            {importing ? "Importing…" : "Import now"}
-          </button>
-          <button onClick={load} disabled={loading} className="generate-report-button">
-            {loading ? "Refreshing…" : "Refresh view"}
-          </button>
-        </div>
-      </header>
+  // Which connections fin actually depends on: those carrying at least one
+  // mapped, non-ignored account. accounts_health is keyed by the same feed
+  // account id the mappings use, so this is an exact join — institution names
+  // are not (three separate Wise connections share one). Same scope as Balance
+  // Calibration's count, or OCME's ignored bank would sit here forever.
+  const upstream = data?.feeds_health?.upstream;
+  const upstreamOk = !!upstream?.ok;
+  const finNamesByConnection = new Map();
+  for (const m of mappings || []) {
+    if (!m.mapped_account_id || m.ignored) continue;
+    const cid = upstream?.accounts_health?.[m.external_id]?.connection_id;
+    if (!cid) continue;
+    if (!finNamesByConnection.has(cid)) finNamesByConnection.set(cid, []);
+    finNamesByConnection.get(cid).push(m.mapped_account_name || m.name);
+  }
+  const attentionConns = upstreamOk ? (upstream.connections || []).filter((c) => c.attention) : [];
+  const attentionUsed = attentionConns.filter((c) => finNamesByConnection.has(c.connection_id));
+  const attentionUnused = attentionConns.filter((c) => !finNamesByConnection.has(c.connection_id));
+  const attentionCount = attentionUsed.length + (orphans?.length || 0);
 
-      <p className="bfd-subtitle">
-        Map <code>bank-feed</code> accounts and monitor sync health &amp; PS
-        reconciliation (CR022). Map accounts below; day-to-day refresh + review
-        lives on the <strong>Refresh Feeds</strong> page. <strong>Import now</strong>{" "}
-        here pulls the latest and promotes mapped accounts into the ledger.
-      </p>
+  const linkStatus = (
+    <>
+              {link && (
+                <div className="bfd-ok-box" role="status">
+                  <strong>Link ready{link.label ? ` for ${link.label}` : ""}.</strong>{" "}
+                  <a href={link.url} target="_blank" rel="noopener noreferrer">
+                    Open it to sign in at your bank →
+                  </a>
+                  <div className="bfd-muted">
+                    Single use, expires {fmtDateTime(link.expires_at)}. If it lapses, mint
+                    another.
+                  </div>
+                </div>
+              )}
+              {minting && (
+                <div className="bfd-subtitle" role="status">
+                  Asking fintable for a single-use link… If it is rate-limiting
+                  link creation this waits for its retry window, which has taken
+                  up to a minute. It is not stuck.
+                </div>
+              )}
+              {linkError && <div className="bfd-error" role="alert">{linkError}</div>}
+    </>
+  );
 
-      <div className="bfd-feed-card-header">
-        <StatusPill
-          label={
-            lastSyncAt
-              ? `last import: ${fmtDateTime(lastSyncAt)}` + (lastSync.last_sync_status === "error" ? " (errored)" : "")
-              : "never imported (fin side)"
-          }
-          kind={lastSync?.last_sync_status === "error" ? "danger" : lastSyncKind}
-        />
-        {hoursSince != null && (
-          <span className="bfd-muted">{Math.round(hoursSince)}h ago · {lastSync.last_sync_count ?? 0} rows</span>
-        )}
-      </div>
-
-      {importMsg && (
-        <div className={importMsg.startsWith("Import failed") ? "bfd-error" : "bfd-subtitle"}>
-          {importMsg}
-        </div>
-      )}
-
-      {mapError && (
-        <div className="bfd-error">
-          <strong>Mapping error:</strong> {mapError}
-        </div>
-      )}
-
-      {mappings && (
-        <section className="bfd-section">
-          <h2>Account mapping (CR022 R1)</h2>
-
+  const orphanBlock = (
+    <>
           {/* CR060 — the table below is built by walking the FEED, so a mapping
               whose feed account has vanished does not appear in it at all. It
               has to be stated separately or it is stated nowhere. */}
@@ -290,6 +298,126 @@ export default function BankFeedDiagnostic() {
               not the same as “none”.
             </p>
           )}
+    </>
+  );
+
+  return (
+    <div className="bfd-page">
+      <header className="bfd-header">
+        <h1>Bank Feed Setup</h1>
+        <div className="bfd-actions">
+          <button onClick={runImport} disabled={importing} className="generate-report-button">
+            {importing ? "Importing…" : "Import now"}
+          </button>
+          <button onClick={load} disabled={loading} className="generate-report-button">
+            {loading ? "Refreshing…" : "Refresh view"}
+          </button>
+        </div>
+      </header>
+
+      <p className="bfd-subtitle">
+        Connect banks, map their accounts to fin, and fix a feed that stops — anything
+        needing action is listed first. Day-to-day import and review live on{" "}
+        <strong>Refresh Feeds</strong>; <strong>Import now</strong> here pulls the latest
+        and promotes mapped accounts into the ledger.
+      </p>
+
+      <div className="bfd-feed-card-header">
+        <StatusPill
+          label={
+            lastSyncAt
+              ? `last import: ${fmtDateTime(lastSyncAt)}` + (lastSync.last_sync_status === "error" ? " (errored)" : "")
+              : "never imported (fin side)"
+          }
+          kind={lastSync?.last_sync_status === "error" ? "danger" : lastSyncKind}
+        />
+        {hoursSince != null && (
+          <span className="bfd-muted">{Math.round(hoursSince)}h ago · {lastSync.last_sync_count ?? 0} rows</span>
+        )}
+      </div>
+
+      {importMsg && (
+        <div className={importMsg.startsWith("Import failed") ? "bfd-error" : "bfd-subtitle"}>
+          {importMsg}
+        </div>
+      )}
+
+      {mapError && (
+        <div className="bfd-error">
+          <strong>Mapping error:</strong> {mapError}
+        </div>
+      )}
+
+      {/* What needs doing, FIRST. The page used to open on a 30-row mapping
+          table and put connection state six sections down, labelled HEALTHY for
+          a bank 64 days silent — so Balance Calibration's "feeds need attention"
+          link landed on a page that showed nothing wrong. */}
+      {data && mappings && (
+        <section className="bfd-section bfd-attention">
+          <h2>
+            Needs attention{" "}
+            {upstreamOk && (
+              <StatusPill
+                label={attentionCount === 0 ? "nothing to do" : String(attentionCount)}
+                kind={attentionCount === 0 ? "ok" : "danger"}
+              />
+            )}
+          </h2>
+          {!upstreamOk && (
+            <div className="bfd-error">
+              Connection health could not be read from bank-feed
+              {upstream?.reason ? ` (${upstream.reason})` : ""} — that is not the same as
+              everything being fine.
+            </div>
+          )}
+          {orphanBlock}
+          {mintFrom === "attention" && linkStatus}
+          {attentionUsed.map((c) => {
+            const advice = attentionAdvice(c, { onSetupPage: true });
+            return (
+              <div key={c.connection_id} className="bfd-attention-item">
+                <div className="bfd-attention-head">
+                  <strong>{c.institution_name}</strong>
+                  <StatusPill label={connLabel(c)} kind={healthPillKind(c)} />
+                  <span className="bfd-muted">
+                    fin: {finNamesByConnection.get(c.connection_id).join(", ")}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn--primary btn--sm"
+                    onClick={() => mintLink(c.connection_id, c.institution_name, "attention")}
+                    disabled={minting !== null}
+                  >
+                    {minting === c.connection_id ? "Minting…" : "Re-authorise"}
+                  </button>
+                </div>
+                <p>{advice.what}</p>
+                <p>
+                  <strong>What to do:</strong> {advice.todo}
+                </p>
+              </div>
+            );
+          })}
+          {upstreamOk && attentionCount === 0 && orphans !== null && (
+            <p className="bfd-subtitle">
+              Every connection fin uses has synced from its bank within 48h, and every
+              mapping points at a live feed account.
+            </p>
+          )}
+          {attentionUnused.length > 0 && (
+            <p className="bfd-muted bfd-attention-foot">
+              Also flagged, but fin uses none of their accounts (unmapped or ignored), so
+              nothing in fin depends on them:{" "}
+              {attentionUnused.map((c) => `${c.institution_name} (${connLabel(c)})`).join(", ")}.
+            </p>
+          )}
+        </section>
+      )}
+
+      {mappings && (
+        <section className="bfd-section">
+          <h2>Account mapping</h2>
+
           <p className="bfd-subtitle">
             Map each bank-feed account to a fin account to import its
             transactions. An unmapped account stays <strong>pending</strong> and
@@ -365,9 +493,120 @@ export default function BankFeedDiagnostic() {
         </section>
       )}
 
+      {error && (
+        <div className="bfd-error">
+          <strong>Could not reach bank-feed:</strong> {error}
+          <div className="bfd-error-hint">
+            Check that <code>BANK_FEED_URL</code> and{" "}
+            <code>BANK_FEED_API_KEY</code> are set on the fin-server process,
+            and that bank-feed is running on the configured URL.
+          </div>
+        </div>
+      )}
+
+      {data && (
+        <>
+          {/* CR060 — bank connections, and the reconnect that is this page's whole
+              point. `upstream` is bank-feed's passthrough of fintable's own
+              connection list; when it could not be read we say so rather than
+              rendering an empty, reassuring section. */}
+          {data.feeds_health?.upstream?.connections?.length > 0 && (
+            <section className="bfd-section">
+              <h2>Bank connections</h2>
+              <p className="bfd-subtitle">
+                A bank consent expires periodically — roughly every 90 days on the
+                GoCardless connections — and re-authorising means logging into the bank,
+                which needs a real browser. These buttons mint a{" "}
+                <strong>single-use link, valid 30 minutes</strong>; nothing is changed
+                until you open it and sign in.{" "}
+                <strong>
+                  After re-authorising, reload this page and check the account mapping
+                  section above
+                </strong>{" "}
+                — a reconnect can re-key accounts, which leaves the fin mapping pointing
+                at nothing.
+              </p>
+
+              {mintFrom !== "attention" && linkStatus}
+
+              <table className="bfd-accounts">
+                <thead>
+                  <tr>
+                    <th>Institution</th>
+                    <th>Provider</th>
+                    <th className="num">Accounts</th>
+                    <th>State</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* The pill reads bank-feed's classified `state`, the same field
+                      Balance Calibration counts. It used to read `healthy` alone,
+                      which is TRUE for a consent that is valid but has not synced
+                      from the bank in weeks — so this table said HEALTHY beside
+                      Erste Bank Polska at 64 days silent, while the page linking
+                      here said it needed attention. Needing attention sorts first. */}
+                  {[...data.feeds_health.upstream.connections]
+                    .sort((a, b) => (b.attention === true) - (a.attention === true))
+                    .map((c) => (
+                    <tr key={c.connection_id}>
+                      <td>{c.institution_name}</td>
+                      <td className="bfd-muted">{c.provider}</td>
+                      <td className="num">{c.accounts_count}</td>
+                      <td>
+                        <StatusPill label={connLabel(c)} kind={healthPillKind(c)} />
+                        {/* Fintable's own status text while the connection is still
+                            syncing inside the window — bank-feed reports it as a
+                            notice, not a problem (CR060), and so does this row. */}
+                        {c.notice && (
+                          <div
+                            className="bfd-notice"
+                            title="Fintable's status text. This connection is still syncing from the bank inside the 48h window, so it is not flagged."
+                          >
+                            Fintable says “{c.notice}” — but it synced from the bank
+                            within 48h, so it is not flagged
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          onClick={() => mintLink(c.connection_id, c.institution_name)}
+                          disabled={minting !== null}
+                        >
+                          {minting === c.connection_id ? "Minting…" : "Re-authorise"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <p>
+                <button
+                  type="button"
+                  onClick={() => mintLink(null, "a new bank")}
+                  disabled={minting !== null}
+                >
+                  {minting === "new" ? "Minting…" : "Connect a new bank…"}
+                </button>
+              </p>
+            </section>
+          )}
+
+          {/* Everything below is for debugging a feed, not routine work, and it
+              was 5,000px of the page — collapsed so the actionable part fits. */}
+          <details className="bfd-diagnostics">
+            <summary>
+              Diagnostics{" "}
+              <span className="bfd-muted">
+                — bank-feed service, per-feed account detail, recent transactions. For
+                debugging a feed; nothing here needs routine action.
+              </span>
+            </summary>
       {recon && recon.accounts.some((a) => a.matched + a.ps_only > 0) && (
         <section className="bfd-section">
-          <h2>PS ↔ bank-feed reconciliation (CR022 §G)</h2>
+          <h2>PS ↔ bank-feed reconciliation</h2>
           <p className="bfd-subtitle">
             Accounts <strong>not yet cut over</strong> — still in PS↔bank-feed
             parallel run (no cutoff set), over the last {recon.sinceDays} days.
@@ -411,19 +650,6 @@ export default function BankFeedDiagnostic() {
         </section>
       )}
 
-      {error && (
-        <div className="bfd-error">
-          <strong>Could not reach bank-feed:</strong> {error}
-          <div className="bfd-error-hint">
-            Check that <code>BANK_FEED_URL</code> and{" "}
-            <code>BANK_FEED_API_KEY</code> are set on the fin-server process,
-            and that bank-feed is running on the configured URL.
-          </div>
-        </div>
-      )}
-
-      {data && (
-        <>
           <section className="bfd-section">
             <h2>Service</h2>
             <table className="bfd-kv">
@@ -460,117 +686,30 @@ export default function BankFeedDiagnostic() {
             </table>
           </section>
 
-          {/* CR060 — bank connections, and the reconnect that is this page's whole
-              point. `upstream` is bank-feed's passthrough of fintable's own
-              connection list; when it could not be read we say so rather than
-              rendering an empty, reassuring section. */}
-          {data.feeds_health?.upstream?.connections?.length > 0 && (
-            <section className="bfd-section">
-              <h2>Bank connections (CR060)</h2>
-              <p className="bfd-subtitle">
-                A bank consent expires periodically — roughly every 90 days on the
-                GoCardless connections — and re-authorising means logging into the bank,
-                which needs a real browser. These buttons mint a{" "}
-                <strong>single-use link, valid 30 minutes</strong>; nothing is changed
-                until you open it and sign in.{" "}
-                <strong>
-                  After re-authorising, reload this page and check the account mapping
-                  section above
-                </strong>{" "}
-                — a reconnect can re-key accounts, which leaves the fin mapping pointing
-                at nothing.
-              </p>
-
-              {link && (
-                <div className="bfd-ok-box" role="status">
-                  <strong>Link ready{link.label ? ` for ${link.label}` : ""}.</strong>{" "}
-                  <a href={link.url} target="_blank" rel="noopener noreferrer">
-                    Open it to sign in at your bank →
-                  </a>
-                  <div className="bfd-muted">
-                    Single use, expires {fmtDateTime(link.expires_at)}. If it lapses, mint
-                    another.
-                  </div>
-                </div>
-              )}
-              {minting && (
-                <div className="bfd-subtitle" role="status">
-                  Asking fintable for a single-use link… If it is rate-limiting
-                  link creation this waits for its retry window, which has taken
-                  up to a minute. It is not stuck.
-                </div>
-              )}
-              {linkError && <div className="bfd-error" role="alert">{linkError}</div>}
-
-              <table className="bfd-accounts">
-                <thead>
-                  <tr>
-                    <th>Institution</th>
-                    <th>Provider</th>
-                    <th className="num">Accounts</th>
-                    <th>State</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.feeds_health.upstream.connections.map((c) => (
-                    <tr key={c.connection_id}>
-                      <td>{c.institution_name}</td>
-                      <td className="bfd-muted">{c.provider}</td>
-                      <td className="num">{c.accounts_count}</td>
-                      <td>
-                        <StatusPill
-                          label={
-                            c.needs_reconnect
-                              ? "NEEDS RECONNECT"
-                              : c.healthy
-                                ? "healthy"
-                                : "unhealthy"
-                          }
-                          kind={c.needs_reconnect || !c.healthy ? "danger" : "ok"}
-                        />
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          onClick={() => mintLink(c.connection_id, c.institution_name)}
-                          disabled={minting !== null}
-                        >
-                          {minting === c.connection_id ? "Minting…" : "Re-authorise"}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              <p>
-                <button
-                  type="button"
-                  onClick={() => mintLink(null, "a new bank")}
-                  disabled={minting !== null}
-                >
-                  {minting === "new" ? "Minting…" : "Connect a new bank…"}
-                </button>
-              </p>
-            </section>
-          )}
-
           {data.feeds_health?.error ? (
             <section className="bfd-section">
-              <h2>Feed health</h2>
+              <h2>Per-feed detail</h2>
               <div className="bfd-error">
                 Failed to load feed health: {data.feeds_health.error}
               </div>
             </section>
           ) : (
             <section className="bfd-section">
-              <h2>Feed health</h2>
+              <h2>Per-feed detail</h2>
               {/* Service-wide, and said once. These numbers were printed on EVERY
                   card as though each belonged to that institution: `sync_jobs`
                   carries no connection_id, so one error — same message, same
                   timestamp — was attributed to all thirteen. A card could read
                   "165 syncs ok" directly above "last sync 893h ago". */}
+              {/* This card's pill used to read FRESH beside a bank 64 days silent:
+                  it measures bank-feed's poll of Fintable, which runs every few
+                  minutes whatever the bank is doing. Said here so it is not read
+                  as the connection's health again. */}
+              <p className="bfd-subtitle">
+                <strong>“polled”</strong> is when bank-feed last read Fintable — not when
+                Fintable last reached the bank. That is the <strong>Bank connections</strong>{" "}
+                state above.
+              </p>
               {data.feeds_health?.service && (
                 <p className="bfd-subtitle">
                   <strong>Service (all feeds):</strong>{" "}
@@ -613,11 +752,11 @@ export default function BankFeedDiagnostic() {
                     </h3>
                     <div className="bfd-feed-pills">
                       <StatusPill
-                        label={f.is_stale ? "STALE" : "fresh"}
+                        label={f.is_stale ? "poll stale" : "polled"}
                         kind={f.is_stale ? "danger" : "ok"}
                       />
                       <span className="bfd-muted">
-                        last sync {fmtDateTime(f.last_synced_at)} ·{" "}
+                        bank-feed read Fintable {fmtDateTime(f.last_synced_at)} ·{" "}
                         {f.hours_since_last_sync}h ago
                       </span>
                     </div>
@@ -734,6 +873,7 @@ export default function BankFeedDiagnostic() {
               </table>
             )}
           </section>
+          </details>
         </>
       )}
     </div>

@@ -265,3 +265,57 @@
   white-space: nowrap;
 }
 .bfd-negate-toggle input { cursor: pointer; }
+
+/* Bank Feed Setup — "Needs attention", the first section: each connection fin
+   depends on that has stopped, what it means, and its Re-authorise button. */
+.bfd-attention h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bfd-attention-item {
+  padding: 12px 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.bfd-attention-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+}
+.bfd-attention-head .btn {
+  margin-left: auto;
+}
+.bfd-attention-item p {
+  margin: 6px 0 0;
+  font-size: 0.9rem;
+}
+.bfd-attention-foot {
+  margin: 12px 0 0;
+  font-size: 0.85rem;
+}
+
+/* Fintable's own status text on a connection that is still syncing. */
+.bfd-notice {
+  margin-top: 4px;
+  max-width: 28rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* Diagnostics — collapsed by default; debugging data, not routine work. */
+.bfd-diagnostics {
+  margin-bottom: 32px;
+}
+.bfd-diagnostics > summary {
+  cursor: pointer;
+  margin-bottom: 16px;
+  padding: 12px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-weight: 600;
+}
+.bfd-diagnostics:not([open]) > summary {
+  margin-bottom: 0;
+}

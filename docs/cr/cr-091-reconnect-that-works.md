@@ -162,6 +162,26 @@ trailing-slash redirect (the reason the AI Review block is shaped that way too).
 - U2: rank connection-level truth above job-derived text; a connection with `needs_reconnect: false`
   and a fresh `last_successful_update` is not `unhealthy` because yesterday's job failed.
 
+- **U4 — the page contradicted the one that links to it.** ✅ **BUILT 2026-09-13 (unreleased).**
+  Balance Calibration's *feeds need attention* panel links here, and this page showed nothing wrong:
+  the connections table painted its pill from `healthy`, which is **true** for a consent that is
+  valid but has not synced from the bank in weeks, so it read **HEALTHY** beside Erste Bank Polska at
+  **64 days silent**; and the per-feed cards said **FRESH**, which measures bank-feed's poll of
+  Fintable (minutes ago) rather than the bank. Three measures on two pages, one of them right. Now:
+  both pages read bank-feed's classified `state` through one module (`frontend/src/utils/feedHealth.js`
+  — labels, pill kind, per-state remedy); the page opens on a **Needs attention** section (each
+  connection fin depends on, its fin accounts, what the state means, and **Re-authorise** beside it;
+  the orphaned-mapping alert moved in here too); then Account mapping; then Bank connections sorted
+  attention-first; Service, per-feed detail and recent transactions collapse into one
+  **Diagnostics** disclosure (6,887px → 3,073px). Scoped like Balance Calibration's count — a
+  connection is listed only if one of its accounts is mapped and not ignored, joined on the feed
+  account id (institution names are ambiguous: three Wise connections) — so OCME's ignored Bank Pekao
+  (8d silent) is named in a footnote, not counted. ⚠️ **Not fixed, only made legible:** Wise and PKO
+  Bank Polski carry Fintable status text *"Bank access has expired. Please reconnect this bank."*
+  while syncing from the bank inside 48h; bank-feed reports that as a notice (CR060), and the row now
+  says so rather than showing the text under a bare HEALTHY. Whether that text predicts an imminent
+  expiry is unmeasured.
+
 **P3 — close U3 with the diff CR060 promised.** *(fin)*
 - Snapshot each connection's account ids when a link is minted; on the next load, diff and show
   what changed — **appeared / disappeared / re-keyed** — against the mappings.

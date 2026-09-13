@@ -4,6 +4,7 @@ import Rest from "../../js/rest.js";
 import ReconcilePreviewModal from "./ReconcilePreviewModal.jsx";
 import ManualStatementUpload from "../ManualStatementUpload/ManualStatementUpload.jsx";
 import MtmDateControl, { lastMonthEndISO } from "../MtmDateControl.jsx";
+import { HEALTH_LABEL, attentionAdvice } from "../../utils/feedHealth.js";
 // Reuse the bank-feed diagnostic styles (bfd-* / num / generate-report-button)…
 import "../../pages/BankFeedDiagnostic.css";
 // …then layer this panel's own spacing/hierarchy polish on top (scoped .recon-panel).
@@ -51,48 +52,6 @@ function StatusPill({ label, kind }) {
 // counterpart, or the health service could not be reached — the banner above
 // covers the second case, since a per-row "unknown" on every row would be noise
 // of exactly the kind this CR just spent a threshold fix removing.
-const HEALTH_LABEL = {
-  needs_reconnect: "reconnect needed",
-  unhealthy: "upstream error",
-  never_synced: "never synced",
-  stale: "feed silent",
-};
-
-// What each state means and what to do about it, for the header's attention
-// panel. The pill used to say "N feeds need attention" and nothing else — no
-// names, no reason, no route to the fix — so the reader had to find the rows
-// among 27 and then guess. Wording follows bank-feed's classifier
-// (upstreamHealth.js): `stale` is a connection whose consent is still valid but
-// which fintable has not synced from the bank for > 48h; fin cannot force that
-// sync, which is why every remedy points at Bank Feed Setup or the statement
-// upload rather than at Refresh Feeds.
-function attentionAdvice(health) {
-  const days = health.days_since_upstream_sync;
-  const since = days != null ? `${days} day${days === 1 ? "" : "s"}` : "an unknown time";
-  switch (health.state) {
-    case "needs_reconnect":
-      return {
-        what: "The bank consent has expired, so this feed has stopped.",
-        todo: "Re-authorise it under Settings → Bank Feed Setup, then check that page's account mapping — a reconnect can re-key accounts.",
-      };
-    case "unhealthy":
-      return {
-        what: `Fintable reports this connection unhealthy${health.status_text ? ` (${health.status_text})` : ""}.`,
-        todo: "Open Settings → Bank Feed Setup. If it offers Re-authorise, do that; otherwise Fintable retries on its own — check again tomorrow.",
-      };
-    case "never_synced":
-      return {
-        what: "Fintable has not completed a first sync for this connection.",
-        todo: "Give it a day. If it is still empty, re-authorise it under Settings → Bank Feed Setup.",
-      };
-    case "stale":
-    default:
-      return {
-        what: `The consent is still valid${health.status_text ? ` (${health.status_text})` : ""}, but Fintable has not pulled from the bank for ${since} — a normal gap is under 2 days. Refresh Feeds cannot fix this; it only reads what Fintable already has.`,
-        todo: "If it stays silent, re-authorise it under Settings → Bank Feed Setup. Until it syncs, the bank figure on these rows is out of date: do not Reconcile them — use Upload on the row to import a statement instead.",
-      };
-  }
-}
 
 function ConnectionHealth({ health }) {
   if (!health || !health.attention) return null;

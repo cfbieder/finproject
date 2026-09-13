@@ -1,7 +1,9 @@
 /* ── Balance Calibration Page ─────────────────────────────────────── */
 
+/* 1320, not 1200: the reconciliation table needs ~1140px of content width, and at
+   1200 it overflowed so the pinned Actions column covered Last calibrated. */
 .balance-calibration-container {
-  max-width: 1200px;
+  max-width: 1320px;
   margin: 0 auto;
   padding: 0 2rem 2rem;
 }

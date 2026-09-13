@@ -2413,6 +2413,17 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
     off-screen until you scrolled a 27-row table sideways — it now has an `Actions` header and is
     pinned to the right edge (`position: sticky`). Rendered both themes at 1700px.
 
+    **Follow-up, same day (unreleased): the link from that panel landed on a page that showed nothing
+    wrong.** Bank Feed Setup read `healthy` (TRUE for a valid-but-silent consent → **HEALTHY** beside
+    Erste at 64d) and its per-feed cards said **FRESH** (bank-feed's poll of Fintable, not the bank).
+    Fixed as [CR091](../cr/cr-091-reconnect-that-works.md) **U4**: one shared state vocabulary
+    (`utils/feedHealth.js`), a **Needs attention** section first with Re-authorise beside each item,
+    connections sorted attention-first, and the debugging sections collapsed into **Diagnostics**.
+    Also: the pinned Actions column covered *Last calibrated* because the table was still ~240px wider
+    than its box — the Type column is narrowed (flip-tx under the select, selects capped at 11rem,
+    tighter padding) and the page cap raised 1200 → 1320px, so at desktop widths the table fits with
+    no horizontal scroll (1,136px content in a 1,136px box, measured).
+
 ---
 
 ## 4. Frontend Improvement Themes (ongoing)
