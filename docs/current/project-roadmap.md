@@ -347,7 +347,7 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
   All resolved and recorded in [CR085 §14](../cr/cr-085-forecast-sensitivity.md).
 
 <a id="cr083"></a>
-- **CR083 — Budget: the Latest Estimate (LE). 🔨 IN-PROGRESS — P0a + P0b LIVE (v3.31.0), migration 072. Finalise, recut, drift L2, L1, L6 and the FX-recalculate refusal SHIPPED v3.62.0 (2026-09-14, migration 082 — see [CR083 §17.4](../cr/cr-083-budget-latest-estimate.md)); L4 and L10 open.** ⚠️ Prod's two draft 2026 LEs make FX recalculate for 2026 answer 409 until they are finalised or deleted.
+- **CR083 — Budget: the Latest Estimate (LE). 🔨 IN-PROGRESS — P0a + P0b LIVE (v3.31.0), migration 072. Finalise, recut, drift L2, L1, L6 and the FX-recalculate refusal SHIPPED v3.62.0 (2026-09-14, migration 082 — see [CR083 §17.4](../cr/cr-083-budget-latest-estimate.md)); L4 built and L10 asserted as a test in v3.62.1; L6 removed (a budget is P&L only).** ⚠️ Prod's two draft 2026 LEs make FX recalculate for 2026 answer 409 until they are finalised or deleted.
   `/budget-le` — create an LE, read it in **Chart-of-Accounts order** with the categories rolled up
   (117 rows), open any category's **month-by-month worksheet** and type the estimate months. Plus the
   **FY-landing strip** on `/budget-vs-actual` and a **deterministic deviations section**. Nine
@@ -883,6 +883,12 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.2 Completed (chronological, latest first)
 
+- **v3.62.1** (2026-09-14) — **patch: a budget is P&L only — [CR083](../cr/cr-083-budget-latest-estimate.md) follow-up.** No migration.
+  - **Owner decision:** the account on a budget line is where the money is expected to land, not a budget dimension. So the 72 budget rows with no category (−86,788.71 for 2026) are not budget, and the LE's unallocated-allowance memo line and **L6** are removed.
+  - **L4 built:** it warns when a category's budget for the estimate months is ≥$1,000 but the estimate there is zero with no note.
+  - **L10** is asserted in the lifecycle suite: grid NET equals the sum of lines, and frozen actuals equal the ledger at the freeze.
+  - **Deviations on a final LE** now name a re-cut as the remedy.
+  - ⚠️ **Found, not fixed:** the Budget Worksheet's `/budget/summary` still totals every budget row — **−224,315.52** for 2026 against the P&L-only **−137,526.81** — as does `/entries/summary/by-month`, which has no frontend caller.
 - **v3.62.0** (2026-09-14) — **minor: the Latest Estimate becomes a frozen artefact — [CR083](../cr/cr-083-budget-latest-estimate.md) finalise, recut and drift.** **Migration 082** (`budget_le_budget_fy` + `budget_le.finalized_at`).
   - **Finalise** re-reads the actual months and freezes them with the full-year budget. A final LE reads those figures on the grid AND in its worksheet, so an in-year budget edit no longer restates its variance.
   - **Recut** supersedes the old LE and inserts a new one in one transaction, seeding from the LE it supersedes. Deleting a recut's draft restores the final LE it replaced; a superseded LE cannot be deleted.
