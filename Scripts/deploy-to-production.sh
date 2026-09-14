@@ -29,6 +29,24 @@ BACKUP_DIR="$PROJECT_DIR/Backups"
 mkdir -p "$BACKUP_DIR"
 BACKUP_FILE="$BACKUP_DIR/fin_backup_$(date +%Y%m%d_%H%M%S).dump"
 
+# Plaintext pre-deploy dump policy (owner decision 2026-09-14; homelab check-plaintext-dumps,
+# CR-038). The dump is a plaintext copy of production financial data, so it lives only as long
+# as it is the rollback point: it is shredded once Step 4 proves the deploy healthy, and KEPT
+# (path printed) on every other exit — explicit `exit 1`, a `set -e` failure, or Ctrl-C.
+# Rollback beyond that comes from the encrypted, restore-tested PBS leg `fin-pg` (pbs0 ns/fin, every 6 h).
+DEPLOY_OK=false
+secure_delete() {
+    if command -v shred >/dev/null 2>&1; then shred -u -- "$@"; else rm -f -- "$@"; fi
+}
+keep_dump_on_failure() {
+    if [ "$DEPLOY_OK" != true ] && [ -f "$BACKUP_FILE" ]; then
+        echo ""
+        echo "⚠ Deploy did not complete healthy — pre-deploy dump KEPT (plaintext): $BACKUP_FILE"
+        echo "  The next healthy deploy shreds it; shred it by hand once no longer needed."
+    fi
+}
+trap keep_dump_on_failure EXIT
+
 # Parse arguments
 for arg in "$@"; do
     case $arg in
@@ -185,9 +203,8 @@ if [ "$NO_BACKUP" = false ]; then
     # Found by the homelab's `check-plaintext-dumps` sweep. A pre-deploy snapshot's value EXPIRES at
     # the next successful deploy, so 422 of those could never serve the rollback they exist for --
     # they were simply old plaintext copies of production financial data.
-    # Keep current + one back (the rollback path below references $BACKUP_FILE, the newest); anything
-    # older restores from the encrypted, restore-tested PBS leg `fin-pg` (pbs1 ns/fin).
-    ls -t "$BACKUP_DIR"/fin_backup_*.dump 2>/dev/null | tail -n +3 | xargs -r rm
+    # 2026-09-14: "keep the two newest" replaced — a healthy deploy now shreds ALL fin_backup_*.dump
+    # (this run's and any a failed run left) in the success branch of Step 4; nothing is pruned here.
     echo ""
 else
     echo "Step 1: SKIPPED - Database backup disabled"
@@ -461,11 +478,20 @@ if [ "$ALL_HEALTHY" = true ]; then
     echo "  Tailscale: https://fin.tail413695.ts.net"
     echo "  Local:     https://192.168.1.82:5175"
     echo ""
-    if [ "$NO_BACKUP" = false ]; then
-        echo "Backup saved at: $BACKUP_FILE"
-        echo "Keep this backup until you've verified everything works."
-    fi
     echo "=========================================="
+
+    # Deploy proven healthy: the plaintext pre-deploy dump(s) have done their job (policy above).
+    DEPLOY_OK=true
+    shopt -s nullglob
+    OLD_DUMPS=("$BACKUP_DIR"/fin_backup_*.dump)
+    shopt -u nullglob
+    if [ "${#OLD_DUMPS[@]}" -gt 0 ]; then
+        if secure_delete "${OLD_DUMPS[@]}"; then
+            echo "✓ Shredded ${#OLD_DUMPS[@]} plaintext pre-deploy dump(s); rollback now = PBS fin-pg (pbs0 ns/fin)"
+        else
+            echo "⚠ Could not delete pre-deploy dump(s) — remove by hand: ${OLD_DUMPS[*]}"
+        fi
+    fi
 
     # Mirror version across all version files
     echo ""
