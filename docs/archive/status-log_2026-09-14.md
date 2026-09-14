@@ -1,0 +1,127 @@
+# Status log — archived 2026-09-14
+
+> Lifted **verbatim** from [status.md](../current/status.md) on 2026-09-14, when the file stood at 250 lines
+> against a ~60-line budget. Nothing here was deleted as untrue; it moved because it is finished work or
+> a record, and the canonical homes are the [CR index](../cr/README.md) and the
+> [roadmap](../current/project-roadmap.md). Previous log: [2026-09-05](status-log_2026-09-05.md).
+
+## Headline (v3.61.0 → v3.61.6)
+
+**Last updated:** 2026-09-14 · **Live version:** **v3.61.6** (see `VERSION` / git tags) — **v3.61.6 (patch): four wrong-number fixes** ([roadmap §2](project-roadmap.md#2-open-backlog-non-cr-items)): the module editor dropped a disposal's selling cost on load, so any save wrote NULL (how `2026 Base` lost 2% on two businesses); Review's *Add cash transfer* deleted a module's whole Invest/Dispose schedule; the balance report valued an unconvertible currency at 1:1 (now throws); a budget copy into an occupied year doubled every budget figure (now 409). ⚠️ **Prod still needs the 2% on three `Business` disposals + a regenerate — the 2062 net-asset figures below move then and must be re-read from Compare.** **v3.61.5 (patch):** Bank Feed Setup names the accounts behind each connection and flags what a reconnect may have done — unmapped feed accounts and same-name duplicates, with one-click Ignore ([CR091](../cr/cr-091-reconnect-that-works.md) U1 + P3; only U2 left open). **v3.61.4 (patch): fixed at the source.** bank-feed `04815bd` (deployed) now judges staleness by bank contact and stops retrying a rate-limited Re-authorise ([CR091](../cr/cr-091-reconnect-that-works.md) handoff); fin drops its v3.61.3 re-read and keeps only the stored-sync-time correction. **v3.61.3 (patch): a quiet account is not a silent feed** ([CR091](../cr/cr-091-reconnect-that-works.md) U5). ⚠️ **Corrects v3.61.1/v3.61.2 below:** Erste, Revolut and Pekao were never silent — on GoCardless, Fintable's `last_successful_update` is the newest transaction's date, and all three synced with the bank that day. fin now judges staleness by the last finished bank sync (`feedSyncHealth.js`); the bank-feed fix and P4 are handed off in CR091. **v3.61.2 (patch):** Bank Feed Setup opens on **Needs attention** with Re-authorise beside each item and no longer says HEALTHY for a silent bank ([CR091](../cr/cr-091-reconnect-that-works.md) U4); Balance Calibration's table fits without covering columns. **v3.61.1 (patch):** Balance Calibration's `N feeds need attention` pill now opens a panel naming each connection and what to do, and the Actions column is pinned — it had been off-screen. 🟡 It surfaced **Erste Bank Polska silent 64 days** with consent `READY` ([roadmap #30](project-roadmap.md#3-known-issues)). **v3.61.0: what the portfolio is CONCENTRATED in.** [CR093](../cr/cr-093-portfolio-xray.md) **P2**, new page `/investments/risk`, no migration — **and the CR is COMPLETE**. 🔴 **The page leads with FDIC insurance, the one real LIMIT in the whole CR: WELLS FARGO $298,380 against $250,000 — $48,380 UNINSURED.** ⚠️ Three CDs of ~$99,500 are each under the limit and together over it, all in one account. ⚠️ **$106,829 of money-market funds is not FDIC-insured at all** — beside the deposits, both called "cash", only one insured. ⚠️ **$76,574 cannot be checked**, which is [#29](project-roadmap.md#3-known-issues) showing a second cost: the feed rename puts a hole in the insurance answer, not just a stranded rate. Concentration: top holding 13.8%, top ten 47.4% — ⚠️ **by holding, not by company**, since funds are not seen through to constituents.
+
+## Known issues narrative
+
+[roadmap §3](project-roadmap.md#3-known-issues) is canonical. 🟡 **2026-09-06 — the ocr-llm `LLM_PROTOCOLS.md` ack is filed and closed.** The checklist held on six of seven items across all three gateway callers; the seventh did not, and the sting is that [our own guide](../guides/ocr-llm-integration.md) had carried the rule since 2026-09-05 — `Scripts/extract-statements-llm.js` sent a `routing` preference and never read `routing.preference.applied` back. **An ack is evidence a document was read, not that it was applied.** One item filed back to them and open: their protocols doc has **no client-abort rule**, the invariant that cost us three statements two days ago. 🔴 **A feed duplicate REACHED PROD
+2026-08-11** ([CR059 §22](../cr/cr-059-fintable-api-ingestion.md)) — 28 rows, **+2,888.80 phantom
+income**, net-of-transfers invisible to a balance check. Fixed at source and cleaned up; a forced
+sweep reclaimed all 108 exposed rows, 0 inserted. **The class is closed too, v3.28.1**
+([§22.7](../cr/cr-059-fintable-api-ingestion.md)): `promote()` now dedups on **content**, since no
+id-keyed guard can recognise a row whose id it has never seen — it *claims* candidates so 2 held + 3
+incoming still inserts the third, and matches on exact date because a false match drops real money
+silently. **The floor is fixed too (§22.9–22.10, 2026-08-12)** — NOT by raising it: the "1–2 day"
+arrival lag it rested on is really **p99 17 / max 53**, so a fixed floor was silently dropping late
+arrivals. It now **rolls** at 30d from **one** function feeding both the fetch and the carry-over, and
+there turned out to be a **third** floor — fin's own cron asked for 14 days. **§22 is now fully closed** — items 4–5 shipped too
+([§22.11](../cr/cr-059-fintable-api-ingestion.md)): the insert ceiling scales with the batch (a flat 300
+could never fire on a 40-row tick), and a **generation detector** catches one transaction held under two
+id schemes — the one shape the carry-over reports as `already_known` and can never see. It found 2 groups
+on run one (§18+§22 compounding; **fin correct throughout**) and carries a reasoned exception list whose
+stale check caught its own author within a run. **All owner checks are COMPLETE (2026-08-12): all 42 duplicate
+candidates are GENUINE** — 16,058 gross, **zero fin defects, zero wrong money** ([§22.8](../cr/cr-059-fintable-api-ingestion.md)),
+and the best evidence yet for the content guard's exact-date/claiming bias, since a looser guard would have eaten them. **#19 and #20 CLOSED 2026-08-11
+(v3.27.0):** the module-currency defect closed at its source — migration **064** relabels the eight
+rollup accounts whose children are unanimously non-USD (`Tax Liabilities` left alone, genuinely
+mixed), the engine now **throws** on a currency it cannot convert (falsified: a £10,000 module was
+posting **$10,000**), and `fcWarnings` **R11** reports a module whose currency disagrees with its
+account — the one shape no engine guard can see, because the values agree and are simply wrong.
+**#20 was a red `main` nothing announced:** `crud.openingBankCash.test.js` threw on a `Bank Accounts`
+root that `ci-seed.sql` never creates, so **five consecutive CI runs failed** while every local run
+passed; the suite now seeds and cleans up its own root. **#18 (open):** a fresh DB enforces
+`fc_lines.line_type`'s CHECK while dev and prod do not (007 auto-baselined) — a test can pass on
+dev and fail only in CI; 0 violating rows, so a forward migration closes it cheaply. **#21 FIXED
+2026-08-11:** CR080's new `reconcileAccrue` suite hardcoded `INTEREST_INCOME = 74` — the id on
+**dev only** (a CI-built DB gives it **11**) — so all 12 of its tests failed on the FK the day they
+shipped; the id is now resolved by name. Fifth instance of #12, and the first where the seed
+already carried the row: the **id**, not the row, was the borrowed fact. Worth knowing
+at session start: the timezone rule (#3), the red `main` nobody announced (#12 — **mostly closed
+2026-08-12**: a SessionStart hook now puts `main`'s verdict in front of every session, deploy
+**Step 0b** refuses a red/unfinished/unverified gate, `./Scripts/check-ci.sh` asks on demand, and
+`./Scripts/test-fresh-db.sh` catches the ambient-data class before the push. **Last piece CLOSED
+2026-09-04** — the *Actions → failed workflows* email is on **and proven by making one fire** on a
+throwaway PR, never touching `main`; the toggle was not the whole cause, the repo had **zero
+watchers**, and GitHub needs *watching* **and** *runs you triggered*), **#23 RESOLVED 2026-09-04:** agent threads on one
+shared tree commit over each other — a **third** incident took SOURCE, not prose, so the "cosmetic"
+premise is dead; owner chose the **worktree** (rule §0). The deciding argument: on one tree there is
+**no safe commit primitive** — pathspec takes the shared worktree, `git add` takes the shared index —
+so every victim had followed the rule correctly), the ESLint JSX blind
+spot (#10), dirty-tree deploys (#17). #2 and #15 are CLOSED.
+
+## Next — shipped bullets (CR091 P1, CR086/CR087 P0–P1, CR083 P0)
+
+- 🔄 **[CR091](../cr/cr-091-reconnect-that-works.md) — the reconnect button failed on its first live
+  use (2026-09-04); P1 + U1b SHIPPED v3.53.1 (2026-09-05), P4 still owed by bank-feed.** Three Wise consents expired, which is the event [CR060](../cr/cr-060-feed-connection-health.md)
+  built **Re-authorise** for; all three were reconnected **by hand against bank-feed's API**. The error
+  text blames a timeout and is misleading — nothing hung (mint returns **201 in 54 ms**). Fintable
+  **429'd** and asked for **58 s**; fin's `mintConnectionLink` is the only upstream call passing no
+  `timeoutMs`, so it aborted at the inherited **8000 ms**. bank-feed then honored `Retry-After: 0`
+  literally and burned its retries **26 ms apart**. 🔴 A reconnect also **re-pointed a connection at a
+  different account** — the Wise consent is a single-select of balances — leaving the same real account
+  twice upstream under two ids with identical names; fenced by hand as `account_source_mappings`
+  **id 708**, `ignored`. All three feeds are live again (**0 orphaned of 31 mappings**,
+  `attention-summary` 3 → **0**), and **Fintable had not re-fetched Wise as of 07:12Z 2026-09-05**, so
+  the 09-03 → now gap fills on its next daily cycle before fin's import is worth running.
+  ✅ **The fix found THREE ceilings under that 58 s budget, not one:** fin's 8000 ms fired first, but
+  the browser helper defaults to **30 s** and the `/api/v2/` nginx block sets **no**
+  `proxy_read_timeout`, so nginx's **60 s** default sat *two seconds* above the observed chain —
+  raising only the server would have moved the cut to the browser and changed nothing visible. All
+  three move together; a 429 now says *"try again in about 58s"* instead of *"bank-feed request timed
+  out"*. ⚠️ **Four of its five tests were worth little** — they assert the exported constant, so
+  deleting `timeoutMs` from the call left it correct-and-unused and all four still passed; only the
+  fake-timer wiring test fails against the unfixed code. 🔴 **The button still cannot SUCCEED during a
+  rate limit** — bank-feed still honors `Retry-After: 0` literally — so P1 buys a true error, not a
+  working button, until P4 lands in that repo.
+- 🔄 **[CR086](../cr/cr-086-ui-visual-system.md) §3 + [CR087](../cr/cr-087-money-legibility.md) P0a SHIPPED
+  v3.38.0.** From a whole-app UI review whose **live render pass falsified its own instrument** (the rig
+  sampled 25 rows/route while reporting true totals) and then had **22 more claims falsified by two review
+  passes** — all recorded in [CR086 §12](../cr/cr-086-ui-visual-system.md) / [CR087 §9](../cr/cr-087-money-legibility.md).
+  **Six tokens are 92% of every contrast failure and 44.7% of those are the two MONEY colours**, so the
+  contrast problem *is* a money-legibility problem: light failures **2,364 → 1,227 (−48%)**, dark
+  byte-identical, delta ties to prediction within one element. **P0a** gives `opening_balance` an audit
+  trail — it is re-anchored on **20 accounts monthly** and left no record, which is how
+  [CR080](../cr/cr-080-feed-accrual-reconcile-mode.md)'s fabricated −32.56 loss cost three migrations to
+  undo. ⚠️ **A trigger, reversing 072's convention** (owner). **P0b (v3.38.1)** closed two ways a variance
+  could be **wrong**: a failed actuals fetch rendered a page of **100%-favourable** variances with no error
+  (`—` now, never `$0.00` — ⚠️ the fix could not be a null check, since `null` was also the *loading*
+  state), and the sign was chosen by **substring-matching an owner-editable account name** in two files —
+  verified on prod before deleting, since expenses are stored **negative on both sides** and the other
+  branch was never correct for anything. ⚠️ Its source guard was **falsified before being trusted**.
+  **P0c (v3.39.0) completes the P0**: Reconcile previews first — `old → new` with the delta **stated** —
+  on the Radix `<Modal>`, and the apply carries the approved figures so the server returns **409** and
+  writes nothing if they moved. ⚠️ **The preview was not read-only** until now (the route synced and
+  upserted before `dryRun` was consulted), and the 409 exposed an **infinite loop** caught on dev: the
+  preview does not sync, the apply does, so *"Preview again"* would have re-staled forever — it now shows
+  the server's fresh figures instead. ⚠️ **Its refusal gate was DEAD until 2026-09-01**
+  ([CR080 B3.1](../cr/cr-080-feed-accrual-reconcile-mode.md)): the dialog read a `refused` flag
+  `reconcileToFeed` never set, so a **routinely** refused accrue (both Wise accounts refuse between
+  month-ends, by design) rendered as a proposal with a live **Apply** that wrote nothing — an ACTION
+  offered that can have no effect, CR085's defect class one step over, and **owner-found on the page
+  again**. The engine now states it; the dialog drops the Apply. **P1's reconcile half (v3.40.0)** labelled the currency on every row
+  and fixed a sort that was **wrong on half the queue** — it ranked raw `|drift|` across currencies, so
+  **2,394 PLN ($650) outranked $848.77**, and 10 of the 20 live calibrate accounts are non-USD. It converts
+  through the shared `fx.rateAsOf`, which returns **null rather than 1:1** on an unconvertible currency.
+  **Next: `<Money>`** (fenced — CR087's own two surfaces; the 22-call-site sweep stays in CR086),
+  `resetOpeningBalance` under the P0c preview, and §2's deferred `BalanceReport` `Local` column.
+- 🟢 **[CR083](../cr/cr-083-budget-latest-estimate.md) — the budget Latest Estimate. P0a + P0b LIVE
+  (v3.31.0, migration 072).** `/budget-le`: create an LE, read it in **COA order** with parents
+  rolled up (117 rows), open a category's **month-by-month worksheet** and type the estimate months;
+  a new LE **carries the prior one forward**. Plus the FY-landing strip on `/budget-vs-actual` —
+  landing **−102,998.92** vs a budget of **−137,554.99**, variance **+34,556.07**.
+  **Its own tables, because eleven functions plus a view read `budget_entries` ignoring
+  `version_id`** (incl. the CR075 base year) and `versions/:id/copy` takes the same year unguarded.
+  **Scope decides the answer:** `Unrealized G/L` is +213,595 YTD with no budget line, so leaving
+  valuation and transfers in lands 2026 at **+44,259** instead. **The deviations section was asked
+  for as an LLM feature and ships as arithmetic** (CR081: 0/15 twice; CR077: over the rules, never
+  instead) — its trigger is not "actual differs from budget" but a deviation implying the
+  **remaining** months are wrong. ⚠️ **Finalise/recut NOT built, and `BUDGET FY` is read live** —
+  right for a draft, wrong for a frozen artefact; snapshotting it needs a migration **before**
+  finalise. **Two review rounds falsified seven of the CR's own figures**, all recorded in its §16.

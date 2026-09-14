@@ -1,6 +1,6 @@
-**Status:** ✅ **P1 COMPLETE** — shipped v3.50.0 (2026-09-03). **Track: v3.** Depends on
-[CR061](cr-061-holdings-and-prices.md) P1 (shipped in the same release). **P2 (the live-quote
-overlay) and P3 are open.**
+**Status:** ✅ **P1 COMPLETE** (v3.50.0, 2026-09-03) · ✅ **P3 COMPLETE** (v3.52.0, 2026-09-05).
+**Track: v3.** Depends on [CR061](cr-061-holdings-and-prices.md) P1 (shipped in the same release).
+**P2 (the live-quote overlay) is open.**
 
 # CR090 — The Investments section
 

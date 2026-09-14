@@ -129,7 +129,7 @@ could see** — the same failure with a different number in it. All three are ra
 the nginx block is a dedicated regex location so a POST is not turned into a GET by a
 trailing-slash redirect (the reason the AI Review block is shaped that way too).
 
-**P1 — make the button work.** *(fin)* ✅ **BUILT 2026-09-05, not yet deployed.**
+**P1 — make the button work.** *(fin)* ✅ **SHIPPED v3.53.1 (2026-09-05).**
 - Give `mintConnectionLink` an explicit timeout **above bank-feed's worst-case retry chain**, not a
   round number that feels generous. Derive it: `maxAttempts × max(Retry-After)` + margin.
   **The gate is a stated relationship, not a value** — a test asserting fin's mint timeout exceeds
@@ -268,7 +268,7 @@ ceiling, and a short one would recreate the CR091 timeout the moment bank-feed w
   not its name. Tests falsified by dropping currency from the match and by counting ignored rows as
   mapped.
 
-**P4 — hand D3 to bank-feed.** *(cross-repo — write it into `HANDOFFS.md`, do not patch from here.)*
+**P4 — hand D3 to bank-feed.** *(cross-repo — write it into `HANDOFFS.md`, do not patch from here.)* ✅ **SHIPPED in bank-feed `04815bd`, deployed 2026-09-14.**
 Treat `Retry-After: 0` as the documented fallback rather than as an instruction to retry instantly,
 **and do not retry the mint at all**: a human is standing at a button, so the interactive call
 should return fintable's 429 and its `Retry-After` immediately and let fin say *"try again in 58s"*.

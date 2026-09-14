@@ -1,10 +1,10 @@
-# CR061 — Investment holdings ingest and market prices — ✅ **P0 + P1 COMPLETE** (v3.50.0, 2026-09-03) · P2 open
+# CR061 — Investment holdings ingest and market prices — ✅ **COMPLETE** (P0 + P1 v3.50.0 · P2 v3.51.0)
 
 **✅ P0 + P1 SHIPPED v3.50.0 (2026-09-03).** bank-feed serves `GET /v1/holdings` (its migration 008);
 fin has migrations **075** + **076**, the securities master, the classifier, the ingest on the nightly
 refresh, and both backfills. Measured after the backfills: **305 snapshots over 61 days
 (2026-07-04..09-02), 5,628 positions, 93 securities, 1,978 daily closes** — in tables that had held
-nothing since May 2026. **P2 (the statement-derived backfill to 2016) remains open.**
+nothing since May 2026. **P2 (the statement-derived backfill to 2016) shipped v3.51.0 — 117/117, on prod.**
 
 **rev 3 (2026-09-02)** — split, after a two-pass review returned `revise` / `revise-with-a-GO-on-the-
 carved-increment`. rev 2 had grown into three CRs, and the one piece with a clock on it was scheduled
@@ -812,7 +812,7 @@ It keeps `account_id = NULL, ignored = TRUE`. Three consequences:
 
 ### 10.2 ✅ DECIDED — the statement backfill is claimed here (§8 P2)
 
-### 10.3 Open — does `cost_basis` arrive for the CUSIP bonds and for SPAXX?
+### 10.3 Handed to CR090 — does `cost_basis` arrive for the CUSIP bonds and for SPAXX?
 
 Unmeasurable until something is ingested; the dry run (§8.2) answers it. It decides whether CR090's
 Fixed Income unrealized column is populated or abstains. Does **not** gate the start.

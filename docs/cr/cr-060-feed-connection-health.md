@@ -1,4 +1,4 @@
-# CR060 — Feed connection health, and the reconnect it exists to trigger — IN-PROGRESS (bank-feed health side **built AND deployed**; fin recon page + link minting to do)
+# CR060 — Feed connection health, and the reconnect it exists to trigger — IN-PROGRESS (health side deployed; reconnect built v3.48.0 and made to work by [CR091](cr-091-reconnect-that-works.md); remaining: per-feed health on the reconcile page, optional `GET /institutions`)
 
 Surface what fintable already tells us about the *health* of each bank connection, so a dead feed is
 visible the day it dies instead of the week someone notices the numbers stopped moving.
