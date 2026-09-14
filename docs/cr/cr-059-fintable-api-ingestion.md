@@ -1645,6 +1645,40 @@ only a `yes` makes it a CR (three columns on `feed_accounts`, a `/v1/*` contract
 decision about where a due date would actually appear in fin). Recorded so nobody re-derives
 *"Fintable cannot do this"* in a year — same reason as §24.
 
+## 26. Retiring the Sheet path — the rollback AND the watchdog (owner decision 2026-09-14; handed to bank-feed)
+
+**Measured 2026-09-14, before deciding.** The P4 tail in §8 was dated ~2026-08-24 and never ran.
+- **The rollback cannot be used anyway.** Fintable re-keyed every GoCardless `ext_id` on 2026-08-20 (§22.12), and that value is the Sheet's transaction id. Flipping back would re-import every GoCardless row under a new id, and one live id (110 chars) overflows fin's `VARCHAR(100)`.
+- **The watchdog found nothing real for six weeks, and nobody was reading it.**
+  - `bank-feed tmp/p2-shadow.log`: the last genuine finding was §18's Revolut double-serving (40 runs, 2026-07-31 → 08-01), and the last PASS was 2026-08-31 23:17.
+  - It then failed **every hour since 2026-09-01** (327 runs), each time on `5 expired` exceptions with **0 unaccounted transactions and 0 unaccounted accounts**.
+  - Its shadow sync has also errored since 2026-09-03 07:17: `relation "feed_holding_snapshots" does not exist`. The throwaway shadow DB never received bank-feed migration 008.
+  - Latest report: Sheet 3,732 transactions, API 3,755 — the API contains the Sheet.
+
+**Decision (owner): retire both.** The watchdog was meant to outlive the rollback as proof that the API drops nothing. Six weeks without a real gap earned that proof, and a gate that stayed red for two weeks unread protected nothing. **fin changes nothing:** ingest has been API-only since 2026-08-10, and fin references no Sheet setting (checked: `googleapis`, `FINTABLE_SHEETS_ID` and `FINTABLE_SOURCE` appear nowhere in `server/`, `frontend/`, `Scripts/` or fin's compose files).
+
+**Checklist for a bank-feed session.** File:line references are as of bank-feed `e6cb50e`; write the entry into bank-feed's `HANDOFFS.md` from that session.
+1. **Stop the watchdog first:**
+   - remove the host crontab line `17 * * * * …/scripts/p2-shadow-run.sh`;
+   - `docker rm -f bankfeed-shadow` and remove its **anonymous** volume (it is a plain `docker run` on :55432 with no compose project and no pinned volume).
+2. **Flip the defaults before deleting anything.** `src/config.js:35` and `docker-compose.yml:41` default `FINTABLE_SOURCE` to `'sheets'`. Left as-is, an unset environment variable silently reverts ingest to a path that no longer exists. Default it to `api`, or remove the switch.
+3. **Remove the Sheet branch:**
+   - `src/services/fintableSync.js:15-16` (imports) and `:426` (`summary.source = 'sheets'`);
+   - `src/routes/sync.js:5` (the Sheets probe);
+   - `src/services/scheduler.js:31-32` (the `FINTABLE_SHEETS_ID` gate);
+   - `src/adapters/googleSheets.js`;
+   - `tests/googleSheets.test.js`.
+4. ⚠️ **`src/converters/fintableToCanonical.js` cannot simply be deleted.** `src/converters/fintableApiToCanonical.js:36` imports its `inferType`. Move `inferType` first, then retire the rest of the converter and `tests/fintableToCanonical.test.js`.
+5. **Scripts:** remove `scripts/compare-sources.js`, `scripts/crosswalk-plan.js`, `scripts/p2-shadow-run.sh` and `scripts/compare-exceptions.json`. The five expired Revolut entries retire with the gate; they are not re-earned.
+6. **Dependencies and config:**
+   - `package.json:18` `googleapis`;
+   - `docker-compose.yml:37` `FINTABLE_SHEETS_ID`, `:52` `GOOGLE_APPLICATION_CREDENTIALS`, and `:55` the `./credentials` mount;
+   - delete `credentials/google-service-account.json`.
+7. **Owner, outside both repos:** revoke the Sheet share and delete the service-account key in Google Cloud, then record it in bank-feed's own secret record. fin's [`secrets-inventory.md`](../current/secrets-inventory.md) carries no Google row, so nothing changes here (checked).
+8. **Verify:** bank-feed's tests pass; `/v1/health/feeds` is unchanged; fin's 06:00 `refresh-bank-feed.sh` completes the next morning.
+
+**Kept:** everything API-side, and the P3a crosswalk already applied to both stores.
+
 
 ## Status
 

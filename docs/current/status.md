@@ -86,8 +86,9 @@ tenth (§22.9) is the first where the restatement is of a **measurement**, not t
 [status-log_2026-09-14](../archive/status-log_2026-09-14.md). Worth knowing at session start:
 - **#29 FIXED v3.61.7** — the feed FLIPS two FDIC sweeps between a ticker and a numeric id; migration
   081 merged them. ⚠️ A **third** label for the same deposit would still mint a new twin.
-- ⚠️ **CR059's dated tails are OVERDUE:** the Sheet rollback (target ~2026-08-24) is not retired, and
-  five gate exceptions expired 2026-08-31 unreviewed ([roadmap](project-roadmap.md#cr059-exception-expiry)).
+- 🔄 **CR059's Sheet path — retire the rollback AND the watchdog** (owner, 2026-09-14): handed to
+  bank-feed as a checklist ([CR059 §26](../cr/cr-059-fintable-api-ingestion.md)). Until that session
+  runs, the hourly Sheet-vs-API gate keeps failing on five expired exceptions — expected, not a new fault.
 - **#18** — a fresh DB enforces `fc_lines.line_type`'s CHECK while dev and prod do not, so a test can
   pass on dev and fail only in CI.
 - The timezone rule (#3), the ESLint JSX blind spot (#10), dirty-tree deploys (#17). Filed back to
