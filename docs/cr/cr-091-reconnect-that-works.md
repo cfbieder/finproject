@@ -183,7 +183,7 @@ trailing-slash redirect (the reason the AI Review block is shaped that way too).
   expiry is unmeasured.
 
 - **U5 — a QUIET account was reported as a SILENT feed, and U4 told the owner to re-authorise it.**
-  🔧 **Fixed fin-side 2026-09-13 (unreleased).** The owner opened Fintable after v3.61.2 and it showed
+  ✅ **SHIPPED v3.61.3 (2026-09-14), fin-side.** The owner opened Fintable after v3.61.2 and it showed
   Bank Pekao, Revolut and Erste as fine — and it was right. **Measured on all 13 live connections:**
   bank-feed's `stale` reads Fintable's `last_successful_update` as the last successful bank sync, but on
   GoCardless (NORDIGEN) connections that field is the **newest transaction's date stamped
