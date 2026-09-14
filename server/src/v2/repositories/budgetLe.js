@@ -2,7 +2,8 @@
  * budgetLe repository — CR083 P0b.
  *
  * `budget_le` (one Latest Estimate) and `budget_le_lines` (one row per LE ×
- * category × month × currency). Migration 072.
+ * category × month × currency). Migration 072; `budget_le_budget_fy` and
+ * `finalized_at`, migration 082.
  *
  * ── The three invariants migration 072 CANNOT express, which live here ──
  *
@@ -28,6 +29,7 @@
  */
 
 const db = require('../db');
+const AppError = require('../utils/AppError');
 
 // The LE scope, in one place. §2: profit_loss, excluding the Transfers subtree
 // (accounts.is_transfer is TRUE on exactly its 13 descendants) and Unrealized
@@ -68,6 +70,11 @@ async function findById(id, client = db) {
   return rows[0] || null;
 }
 
+async function lockById(client, id) {
+  const { rows } = await client.query(`SELECT * FROM budget_le WHERE id = $1 FOR UPDATE`, [id]);
+  return rows[0] || null;
+}
+
 /**
  * `name` is LE-MM-YY where MM is the FIRST ESTIMATE month — actual_through + 1
  * day — not the creation month (§6). In the normal case the two coincide, which
@@ -95,6 +102,15 @@ async function findLines(leId, client = db) {
      LEFT JOIN accounts a ON a.id = l.category_id
      WHERE l.le_id = $1
      ORDER BY a.name NULLS LAST, l.period_month, l.currency`,
+    [leId]
+  );
+  return rows;
+}
+
+/** The full-year budget a finalised LE froze (migration 082). Empty for a draft. */
+async function findBudgetFy(leId, client = db) {
+  const { rows } = await client.query(
+    `SELECT category_id, budget_fy FROM budget_le_budget_fy WHERE le_id = $1`,
     [leId]
   );
   return rows;
@@ -171,82 +187,214 @@ async function materialise({ budgetYear, actualThrough }, client = db) {
   return rows;
 }
 
+async function insertLine(client, leId, l) {
+  await client.query(
+    `INSERT INTO budget_le_lines
+       (le_id, category_id, period_month, currency, source, method,
+        amount, base_amount, fx_rate, fx_basis,
+        snapshot_row_count, snapshot_sum)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+    [leId, l.category_id, l.period_month, l.currency, l.source, l.method,
+     l.amount, l.base_amount, l.fx_rate, l.fx_basis,
+     l.snapshot_row_count, l.snapshot_sum]
+  );
+}
+
+/**
+ * Create an LE and materialise it, inside the caller's transaction. `recut`
+ * needs this: its supersede and its insert must commit together (§7.1), so it
+ * cannot open a second transaction of its own.
+ */
+async function createIn(client, { budgetYear, actualThrough, label, note }) {
+  const { rows: excluded } = await client.query(
+    `SELECT ARRAY(
+       SELECT a.id FROM accounts a
+       WHERE a.section = 'profit_loss'
+         AND (a.is_transfer OR a.name = 'Unrealized G/L')
+     ) AS ids`
+  );
+
+  const { rows: header } = await client.query(
+    `INSERT INTO budget_le
+       (budget_year, actual_through, name, label, note, excluded_category_ids)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING *`,
+    [budgetYear, actualThrough, leName(actualThrough), label || null,
+     note || null, excluded[0].ids]
+  );
+  const le = header[0];
+
+  // Seed the estimate half from the most recent PRIOR LE for this year where
+  // it has a figure, falling back to the budget where it does not. Carrying
+  // the budget forward every time would throw away the owner's own latest
+  // thinking the moment a second LE is cut — the whole point of a series is
+  // that LE-09 starts where LE-08 finished. A recut's predecessor is exactly
+  // that prior LE, so a re-cut keeps every month the owner typed.
+  //
+  // The provenance travels WITH the number: a month the owner typed stays
+  // `manual`, a month that was carried from budget stays `budget_carry`. That
+  // is why no new `source` value is needed for "carried from a prior LE" —
+  // what carried forward is the fact, not the act of carrying.
+  const { rows: prior } = await client.query(
+    `SELECT id FROM budget_le
+     WHERE budget_year = $1 AND id <> $2
+     ORDER BY actual_through DESC, created_at DESC
+     LIMIT 1`,
+    [budgetYear, le.id]
+  );
+
+  let priorByCell = new Map();
+  if (prior.length) {
+    const { rows: pl } = await client.query(
+      `SELECT category_id, period_month, currency, amount, base_amount,
+              source, method, fx_rate, fx_basis
+       FROM budget_le_lines
+       WHERE le_id = $1 AND source <> 'actual' AND period_month > $2::date`,
+      [prior[0].id, actualThrough]
+    );
+    priorByCell = new Map(
+      pl.map((r) => [`${r.category_id}|${String(r.period_month).slice(0, 10)}|${r.currency}`, r])
+    );
+  }
+
+  const lines = await materialise({ budgetYear, actualThrough }, client);
+  for (const raw of lines) {
+    // An estimate cell the prior LE already answered wins over the budget.
+    const key = `${raw.category_id}|${String(raw.period_month).slice(0, 10)}|${raw.currency}`;
+    const carried = raw.source !== 'actual' && priorByCell.get(key);
+    const l = carried ? { ...raw, ...carried, snapshot_row_count: null, snapshot_sum: null } : raw;
+    await insertLine(client, le.id, l);
+  }
+
+  return { ...le, line_count: lines.length, seeded_from_le: prior[0]?.id || null };
+}
+
 /**
  * Create an LE and materialise it, in one transaction. §7.1: `POST /le`
  * materialises ~760 rows and a half-written LE is something only L10 would ever
  * notice, so it is all-or-nothing.
  */
-async function create({ budgetYear, actualThrough, label, note }) {
+async function create(args) {
+  return db.transaction((client) => createIn(client, args));
+}
+
+// ---------------------------------------------------------------------------
+// The freeze — CR083 §4.2 / §7.2
+// ---------------------------------------------------------------------------
+
+/**
+ * `draft → final`, in one transaction (§7.2: "finalize writes the snapshot
+ * columns across every actual row").
+ *
+ * The actual half is RE-READ from the ledger here, not kept from creation: a
+ * draft cut on 1 August is still missing the rows that land in the next few days
+ * (83 of July's 85 did), and finalising should freeze the ledger as it stands at
+ * the moment the owner says "this is the estimate". The estimate half — the
+ * owner's own months — is left exactly as it is. The full-year budget is frozen
+ * beside it, so the variance cannot restate itself when the budget is edited.
+ */
+async function finalize(id) {
   return db.transaction(async (client) => {
-    const { rows: excluded } = await client.query(
-      `SELECT ARRAY(
-         SELECT a.id FROM accounts a
-         WHERE a.section = 'profit_loss'
-           AND (a.is_transfer OR a.name = 'Unrealized G/L')
-       ) AS ids`
+    const le = await lockById(client, id);
+    if (!le) return null;
+    if (le.status !== 'draft') {
+      throw AppError.conflict(
+        `${le.name} is ${le.status}; only a draft can be finalised.`, 'LE_NOT_DRAFT'
+      );
+    }
+    const cut = String(le.actual_through).slice(0, 10);
+
+    await client.query(
+      `DELETE FROM budget_le_lines WHERE le_id = $1 AND source = 'actual'`, [id]
+    );
+    const fresh = (await materialise({ budgetYear: le.budget_year, actualThrough: cut }, client))
+      .filter((r) => r.source === 'actual');
+    for (const l of fresh) await insertLine(client, id, l);
+
+    // Same grain and scope as the live `budgetFyByCategory` read, so a draft and
+    // the final LE it becomes show the same BUDGET FY at the moment of the freeze.
+    await client.query(
+      `INSERT INTO budget_le_budget_fy (le_id, category_id, budget_fy)
+       SELECT $1, e.category_id, COALESCE(SUM(e.base_amount), 0)
+       FROM budget_entries e
+       JOIN (${SCOPE_SQL}) s ON s.id = e.category_id
+       WHERE e.budget_year = $2
+       GROUP BY e.category_id`,
+      [id, le.budget_year]
     );
 
-    const { rows: header } = await client.query(
-      `INSERT INTO budget_le
-         (budget_year, actual_through, name, label, note, excluded_category_ids)
-       VALUES ($1, $2, $3, $4, $5, $6)
+    const { rows } = await client.query(
+      `UPDATE budget_le
+       SET status = 'final', finalized_at = NOW(), updated_at = NOW()
+       WHERE id = $1
        RETURNING *`,
-      [budgetYear, actualThrough, leName(actualThrough), label || null,
-       note || null, excluded[0].ids]
+      [id]
     );
-    const le = header[0];
+    return { ...rows[0], actual_rows: fresh.length };
+  });
+}
 
-    // Seed the estimate half from the most recent PRIOR LE for this year where
-    // it has a figure, falling back to the budget where it does not. Carrying
-    // the budget forward every time would throw away the owner's own latest
-    // thinking the moment a second LE is cut — the whole point of a series is
-    // that LE-09 starts where LE-08 finished.
-    //
-    // The provenance travels WITH the number: a month the owner typed stays
-    // `manual`, a month that was carried from budget stays `budget_carry`. That
-    // is why no new `source` value is needed for "carried from a prior LE" —
-    // what carried forward is the fact, not the act of carrying.
-    const { rows: prior } = await client.query(
-      `SELECT id FROM budget_le
-       WHERE budget_year = $1 AND id <> $2
-       ORDER BY actual_through DESC, created_at DESC
-       LIMIT 1`,
-      [budgetYear, le.id]
-    );
-
-    let priorByCell = new Map();
-    if (prior.length) {
-      const { rows: pl } = await client.query(
-        `SELECT category_id, period_month, currency, amount, base_amount,
-                source, method, fx_rate, fx_basis
-         FROM budget_le_lines
-         WHERE le_id = $1 AND source <> 'actual' AND period_month > $2::date`,
-        [prior[0].id, actualThrough]
-      );
-      priorByCell = new Map(
-        pl.map((r) => [`${r.category_id}|${String(r.period_month).slice(0, 10)}|${r.currency}`, r])
+/**
+ * Re-cut a final LE: SUPERSEDE, then INSERT, in one transaction. The order is
+ * forced — `budget_le_year_cut_uniq` refuses a second live LE on the same cut, so
+ * the old one must stop being live before the new one exists (§7.1). The new
+ * draft defaults to the same cut, which is what absorbing drift means; a later
+ * cut can be passed explicitly.
+ */
+async function recut(id, { actualThrough } = {}) {
+  return db.transaction(async (client) => {
+    const le = await lockById(client, id);
+    if (!le) return null;
+    if (le.status !== 'final') {
+      throw AppError.conflict(
+        `Only a final estimate can be re-cut; ${le.name} is ${le.status}.`, 'LE_NOT_FINAL'
       );
     }
+    await client.query(
+      `UPDATE budget_le SET status = 'superseded', updated_at = NOW() WHERE id = $1`, [id]
+    );
+    const created = await createIn(client, {
+      budgetYear: le.budget_year,
+      actualThrough: actualThrough || String(le.actual_through).slice(0, 10),
+      label: le.label,
+      note: le.note,
+    });
+    await client.query(`UPDATE budget_le SET superseded_by = $2 WHERE id = $1`, [id, created.id]);
+    return { ...created, supersedes: id };
+  });
+}
 
-    const lines = await materialise({ budgetYear, actualThrough }, client);
-    for (const raw of lines) {
-      // An estimate cell the prior LE already answered wins over the budget.
-      const key = `${raw.category_id}|${String(raw.period_month).slice(0, 10)}|${raw.currency}`;
-      const carried = raw.source !== 'actual' && priorByCell.get(key);
-      const l = carried ? { ...raw, ...carried, snapshot_row_count: null, snapshot_sum: null } : raw;
-      await client.query(
-        `INSERT INTO budget_le_lines
-           (le_id, category_id, period_month, currency, source, method,
-            amount, base_amount, fx_rate, fx_basis,
-            snapshot_row_count, snapshot_sum)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-        [le.id, l.category_id, l.period_month, l.currency, l.source, l.method,
-         l.amount, l.base_amount, l.fx_rate, l.fx_basis,
-         l.snapshot_row_count, l.snapshot_sum]
+/**
+ * Delete an LE. If it replaced a final LE (a recut), that LE is RESTORED to
+ * `final` in the same transaction — owner decision 2026-09-14. Without it, a
+ * mistaken recut followed by a delete leaves only a superseded artefact and no
+ * live LE for that cut: `ON DELETE SET NULL` clears the pointer but not the
+ * status (§7.1).
+ *
+ * The predecessor is found BEFORE the delete, because the delete itself clears
+ * the only link to it.
+ */
+async function remove(id) {
+  return db.transaction(async (client) => {
+    const le = await lockById(client, id);
+    if (!le) return null;
+    const { rows: pred } = await client.query(
+      `SELECT id FROM budget_le WHERE superseded_by = $1 FOR UPDATE`, [id]
+    );
+    await client.query(`DELETE FROM budget_le WHERE id = $1`, [id]);
+
+    let restored = null;
+    if (pred.length) {
+      const { rows } = await client.query(
+        `UPDATE budget_le
+         SET status = 'final', superseded_by = NULL, updated_at = NOW()
+         WHERE id = $1
+         RETURNING id, name`,
+        [pred[0].id]
       );
+      restored = rows[0];
     }
-
-    return { ...le, line_count: lines.length, seeded_from_le: prior[0]?.id || null };
+    return { deleted: true, restored };
   });
 }
 
@@ -256,6 +404,10 @@ module.exports = {
   findAll,
   findById,
   findLines,
+  findBudgetFy,
   materialise,
   create,
+  finalize,
+  recut,
+  remove,
 };

@@ -103,9 +103,10 @@ async function getGrid(leId) {
   const le = await repo.findById(leId);
   if (!le) return null;
 
-  const [lines, budgetFy, tree, live] = await Promise.all([
+  const [lines, budgetFy, tree, live, unallocated] = await Promise.all([
     repo.findLines(leId),
-    budgetFyByCategory(le.budget_year),
+    // A draft reads the budget LIVE; a final LE reads what it froze (migration 082).
+    budgetFyFor(le),
     accountsRepo.getNestedTree({ section: 'profit_loss' }),
     // Any category with activity ANYWHERE in the year, including AFTER the cut.
     // Without this a category that first spends in an estimate month and has no
@@ -115,6 +116,7 @@ async function getGrid(leId) {
     // looks like, and `Purchases - IT Costs` is the live example: no 2026 budget
     // and, on a database whose sync predates July, activity only from August.
     liveActivityByCategory(le.budget_year, String(le.actual_through).slice(0, 10)),
+    unallocatedAllowance(le),
   ]);
 
   const cut = String(le.actual_through).slice(0, 10);
@@ -236,10 +238,13 @@ async function getGrid(leId) {
       id: le.id, name: le.name, label: le.label, status: le.status,
       budgetYear: le.budget_year, actualThrough: cut,
       actualMonths: cutDate.getUTCMonth() + 1,
+      finalizedAt: le.finalized_at || null,
     },
     estimateMonths,
     rows: rows.filter(Boolean),
     totals,
+    // §2.1's memo line: shown BELOW the total, never inside it.
+    unallocated,
     fxBasis: 'Estimate months carry the rate each budget row was computed at, '
       + 'not the declared budget rate — Sep–Dec PLN spans 3.51–3.74 against a '
       + 'declared 3.5517.',
@@ -726,13 +731,196 @@ function buildLeCashFlowNode(node, leTotals, transfers, transferCategorySet) {
   return { name, total, hasLe, children: childNodes };
 }
 
+// ---------------------------------------------------------------------------
+// Finalise, recut, drift and the advisories — CR083 P0b (§4.2, §7.2, §9)
+// ---------------------------------------------------------------------------
+
+const MONTH_LABELS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
+// §9 L2: the grain is the frozen MONTH, aggregated across categories. Per line or
+// per currency slice it would fire always or never; July's real drift was
+// +663.82 / 85 rows in aggregate and thin on every line.
+const DRIFT_AMOUNT = 250;
+const DRIFT_ROWS = 5;
+
+// L1 (owner decision 2026-09-14): measured on prod since the feed cutover, a
+// month's in-scope rows finish arriving within 3 days of month end — 83 of
+// July's 85 late rows landed Aug 1–3, June 8, August 0. So a month cut or frozen
+// fewer than 4 days after it ended may still be filling in. The CR's
+// trailing-median wording had no number and only three months of feed history.
+const L1_SETTLE_DAYS = 4;
+
+/** The full-year budget an LE reports against: live for a draft, frozen for anything finalised. */
+async function budgetFyFor(le) {
+  if (le.status === 'draft') return budgetFyByCategory(le.budget_year);
+  const rows = await repo.findBudgetFy(le.id);
+  const map = new Map();
+  for (const r of rows) map.set(r.category_id, Number(r.budget_fy) || 0);
+  return map;
+}
+
+/**
+ * §2.1 — budget rows with NO category (the account-level allowance: −86,789 for
+ * 2026 on four bank and card accounts). Excluded from the LE by owner decision
+ * (2026-08-16: a pre-itemisation plug) and shown as a memo line below the total.
+ * L6 fires whenever any of it falls in the estimate months.
+ */
+async function unallocatedAllowance(le) {
+  const cut = String(le.actual_through).slice(0, 10);
+  const { rows } = await db.query(
+    `SELECT COUNT(*)::int AS row_count,
+            (COUNT(*) FILTER (WHERE entry_date > $2::date))::int AS estimate_rows,
+            COALESCE(SUM(base_amount), 0) AS fy,
+            COALESCE(SUM(base_amount) FILTER (WHERE entry_date > $2::date), 0) AS estimate_window
+     FROM budget_entries
+     WHERE budget_year = $1 AND category_id IS NULL`,
+    [le.budget_year, cut]
+  );
+  const r = rows[0];
+  return {
+    rows: r.row_count,
+    estimateRows: r.estimate_rows,
+    fy: Number(r.fy) || 0,
+    estimateWindow: Number(r.estimate_window) || 0,
+  };
+}
+
+/**
+ * L2 — live actual vs what the LE snapshotted, per actual month. Never a silent
+ * recompute (§4.2): the frozen figure stays, and the difference is a stated
+ * number. The sentence follows §4.2's copy spec — the FROZEN figure first, then
+ * what the ledger says now, then the difference.
+ */
+async function getDrift(leId) {
+  const le = await repo.findById(leId);
+  if (!le) return null;
+  const cut = String(le.actual_through).slice(0, 10);
+
+  const [frozen, live] = await Promise.all([
+    db.query(
+      `SELECT to_char(period_month, 'YYYY-MM') AS month,
+              COALESCE(SUM(snapshot_row_count), 0)::int AS row_count,
+              COALESCE(SUM(snapshot_sum), 0) AS total
+       FROM budget_le_lines
+       WHERE le_id = $1 AND source = 'actual'
+       GROUP BY 1`,
+      [leId]
+    ),
+    db.query(
+      `WITH scope AS (${repo.SCOPE_SQL})
+       SELECT to_char(t.transaction_date, 'YYYY-MM') AS month,
+              COUNT(*)::int AS row_count,
+              COALESCE(SUM(t.base_amount), 0) AS total
+       FROM transactions t
+       JOIN scope s ON s.id = t.category_id
+       WHERE t.transaction_date >= make_date($1, 1, 1)
+         AND t.transaction_date <= $2::date
+       GROUP BY 1`,
+      [le.budget_year, cut]
+    ),
+  ]);
+
+  const byMonth = new Map();
+  const at = (month) => {
+    if (!byMonth.has(month)) {
+      byMonth.set(month, { month, frozenRows: 0, frozenSum: 0, liveRows: 0, liveSum: 0 });
+    }
+    return byMonth.get(month);
+  };
+  for (const r of frozen.rows) {
+    const e = at(r.month);
+    e.frozenRows = r.row_count;
+    e.frozenSum = Number(r.total) || 0;
+  }
+  for (const r of live.rows) {
+    const e = at(r.month);
+    e.liveRows = r.row_count;
+    e.liveSum = Number(r.total) || 0;
+  }
+
+  const verb = le.status === 'draft' ? 'captured' : 'froze';
+  const months = [...byMonth.values()]
+    .sort((a, b) => a.month.localeCompare(b.month))
+    .map((m) => {
+      const deltaSum = Math.round((m.liveSum - m.frozenSum) * 100) / 100;
+      const deltaRows = m.liveRows - m.frozenRows;
+      const drifted = Math.abs(deltaSum) > DRIFT_AMOUNT || Math.abs(deltaRows) > DRIFT_ROWS;
+      const label = MONTH_LABELS[Number(m.month.slice(5, 7)) - 1];
+      const signed = `${deltaSum < 0 ? '−' : '+'}${fmt(Math.abs(deltaSum))}`;
+      const moved = deltaRows >= 0 ? 'have landed since' : 'have been removed since';
+      const sentence = `${le.name} ${verb} ${label} at ${fmt(m.frozenSum)} over ${m.frozenRows} rows; `
+        + `the ledger now says ${fmt(m.liveSum)} over ${m.liveRows} — `
+        + `${Math.abs(deltaRows)} rows / ${signed} ${moved}.`;
+      return { ...m, label, deltaSum, deltaRows, drifted, sentence };
+    });
+
+  return {
+    leId: le.id,
+    name: le.name,
+    status: le.status,
+    thresholds: { amount: DRIFT_AMOUNT, rows: DRIFT_ROWS },
+    months,
+    drifted: months.filter((m) => m.drifted),
+  };
+}
+
+/** L1 and L6 — advisories: they state a number and never block anything. */
+async function getAdvisories(leId) {
+  const le = await repo.findById(leId);
+  if (!le) return null;
+  const cut = String(le.actual_through).slice(0, 10);
+  const label = MONTH_LABELS[Number(cut.slice(5, 7)) - 1];
+
+  // L1 — how long after the cut month ended was the LE cut, or frozen?
+  const ref = new Date(le.finalized_at || le.created_at);
+  const cutDay = Date.UTC(Number(cut.slice(0, 4)), Number(cut.slice(5, 7)) - 1, Number(cut.slice(8, 10)));
+  const refDay = Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), ref.getUTCDate());
+  const daysAfter = Math.round((refDay - cutDay) / 86400000);
+  const when = le.finalized_at ? 'finalised' : 'cut';
+  const l1 = {
+    id: 'L1',
+    rule: 'le-month-may-be-incomplete',
+    label: 'month may be incomplete',
+    fires: daysAfter < L1_SETTLE_DAYS,
+    message: `${le.name} was ${when} ${daysAfter <= 0 ? `before ${label} had ended` : `${daysAfter} day${daysAfter === 1 ? '' : 's'} after ${label} ended`}. `
+      + `A month's rows have finished arriving within 3 days of month end since the feed cutover, so ${label} may still be filling in — drift will show what lands.`,
+    operands: { cut, daysAfter, reference: when, settleDays: L1_SETTLE_DAYS },
+  };
+
+  // L6 — the uncategorised allowance, in the estimate months.
+  const u = await unallocatedAllowance(le);
+  const l6 = {
+    id: 'L6',
+    rule: 'le-uncategorised-allowance-double-count',
+    label: 'uncategorised budget',
+    fires: u.estimateRows > 0,
+    // No wrapping parentheses: fmt() already writes a negative as (…), and the
+    // first render showed "(($35,899.54); …)".
+    message: `${u.estimateRows} budget row${u.estimateRows === 1 ? '' : 's'} in the estimate months carry no category — `
+      + `${fmt(u.estimateWindow)} in those months, ${fmt(u.fy)} for the year. They are left out of this estimate as a `
+      + `pre-itemisation plug (owner, 2026-08-16) — if any of it is real spend, the landing is short by up to that amount.`,
+    operands: u,
+  };
+
+  return { leId: le.id, name: le.name, advisories: [l1, l6] };
+}
+
+async function finalize(id) {
+  return repo.finalize(id);
+}
+
+async function recut(id, { actualThrough } = {}) {
+  validate.assertDateString(actualThrough, 'actualThrough', { optional: true });
+  return repo.recut(id, { actualThrough });
+}
+
+/** `{ deleted, restored }` — `restored` is the final LE a deleted recut had replaced. */
 async function remove(id) {
-  const { rowCount } = await db.query(`DELETE FROM budget_le WHERE id = $1`, [id]);
-  return rowCount > 0;
+  return repo.remove(id);
 }
 
 module.exports = {
   defaultCut, getGrid, list, create, remove, budgetFyByCategory,
   getCategoryWorksheet, saveCategoryEstimates, getDeviations,
-  getCashFlow,
+  getCashFlow, finalize, recut, getDrift, getAdvisories,
 };

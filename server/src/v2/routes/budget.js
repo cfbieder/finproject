@@ -151,6 +151,19 @@ router.post('/fx-rates/recalculate', async (req, res, next) => {
       return res.status(400).json({ error: 'currency, year, and month are required' });
     }
 
+    // CR083 §5: a recalculate rewrites `base_amount` on budget_entries, and a DRAFT
+    // LE's estimate months are copies of those figures — so it would silently move
+    // half the estimate window. A final LE is safe (it froze its own figures).
+    const drafts = (await budgetLeRepo.findAll({ budgetYear: Number(year) }))
+      .filter((le) => le.status === 'draft');
+    if (drafts.length) {
+      return res.status(409).json({
+        error: `A draft Latest Estimate exists for ${year} (${drafts.map((d) => d.name).join(', ')}). `
+          + 'Recalculating would silently rewrite the budget figures it carries — finalise or delete it first.',
+        code: 'LE_DRAFT_EXISTS',
+      });
+    }
+
     // Get current rate
     const currentRateResult = await budgetFxRatesRepo.findRate(currency, year, month);
 
@@ -427,6 +440,42 @@ router.get('/le/:id/deviations', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// POST /api/v2/budget/le/:id/finalize — draft → final, one transaction (§7.2)
+router.post('/le/:id/finalize', async (req, res, next) => {
+  try {
+    const le = await budgetLeService.finalize(parseInt(req.params.id, 10));
+    if (!le) return res.status(404).json({ error: 'Latest Estimate not found' });
+    res.json({ data: le });
+  } catch (error) { next(error); }
+});
+
+// POST /api/v2/budget/le/:id/recut  { actualThrough? } — supersede + insert, one transaction
+router.post('/le/:id/recut', async (req, res, next) => {
+  try {
+    const le = await budgetLeService.recut(parseInt(req.params.id, 10), req.body || {});
+    if (!le) return res.status(404).json({ error: 'Latest Estimate not found' });
+    res.status(201).json({ data: le });
+  } catch (error) { next(error); }
+});
+
+// GET /api/v2/budget/le/:id/drift — L2, per frozen month
+router.get('/le/:id/drift', async (req, res, next) => {
+  try {
+    const d = await budgetLeService.getDrift(parseInt(req.params.id, 10));
+    if (!d) return res.status(404).json({ error: 'Latest Estimate not found' });
+    res.json({ data: d });
+  } catch (error) { next(error); }
+});
+
+// GET /api/v2/budget/le/:id/advisories — L1 and L6
+router.get('/le/:id/advisories', async (req, res, next) => {
+  try {
+    const a = await budgetLeService.getAdvisories(parseInt(req.params.id, 10));
+    if (!a) return res.status(404).json({ error: 'Latest Estimate not found' });
+    res.json({ data: a });
+  } catch (error) { next(error); }
+});
+
 // GET /api/v2/budget/le/:id/category/:categoryId — the per-category worksheet
 router.get('/le/:id/category/:categoryId', async (req, res, next) => {
   try {
@@ -463,9 +512,10 @@ router.get('/le/:id', async (req, res, next) => {
 // DELETE /api/v2/budget/le/:id
 router.delete('/le/:id', async (req, res, next) => {
   try {
-    const ok = await budgetLeService.remove(parseInt(req.params.id, 10));
-    if (!ok) return res.status(404).json({ error: 'Latest Estimate not found' });
-    res.json({ data: { deleted: true } });
+    // `{ deleted, restored }`: deleting a recut's draft restores the final LE it replaced.
+    const result = await budgetLeService.remove(parseInt(req.params.id, 10));
+    if (!result) return res.status(404).json({ error: 'Latest Estimate not found' });
+    res.json({ data: result });
   } catch (error) { next(error); }
 });
 

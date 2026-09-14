@@ -1,21 +1,53 @@
 import { useCallback, useEffect, useState } from "react";
 import Rest from "../js/rest.js";
+import Modal from "../components/Modal/Modal.jsx";
 import LEGrid from "../features/BudgetLE/LEGrid.jsx";
 import LECategorySheet from "../features/BudgetLE/LECategorySheet.jsx";
 import LEDeviations from "../features/BudgetLE/LEDeviations.jsx";
+import LEAdvisories from "../features/BudgetLE/LEAdvisories.jsx";
 import "./PageLayout.css";
 
 /**
- * CR083 P0b — the Latest Estimate.
+ * CR083 — the Latest Estimate.
  *
  * Create an LE, read the summary in Chart-of-Accounts order, and edit any
- * category's estimate months in its own worksheet. Finalise, recut and the
- * warnings come next.
+ * category's estimate months in its own worksheet. A draft can be FINALISED:
+ * its actual months are re-read and snapshotted, its full-year budget is frozen
+ * beside them, and it can no longer be edited (§4.2). A final LE can be RE-CUT,
+ * which supersedes it and starts a new draft; deleting that draft restores the
+ * final LE it replaced (owner decision, 2026-09-14).
  *
  * One screen and no tab strip — §11.1 cut the Compare and Versions tabs with the
  * frozen-series reading the owner did not pick. Saved LEs are a picker in the
- * header, which on day one holds exactly one row.
+ * header. The confirm is the Radix `<Modal>`, not `ConfirmModal`, which CR086 §5
+ * measured as having no Esc and no focus trap.
  */
+const CONFIRM = {
+  finalize: {
+    title: "Finalise this estimate?",
+    action: "Finalise",
+    body: (le) =>
+      `Finalising freezes ${le.name}: the actual months are re-read from the ledger and snapshotted, `
+      + "the full-year budget is frozen beside them, and the estimate can no longer be edited. "
+      + "Bookings that land later show up as drift, never as a silent change. To change it afterwards, re-cut it.",
+  },
+  recut: {
+    title: "Re-cut this estimate?",
+    action: "Re-cut",
+    body: (le) =>
+      `Re-cutting supersedes ${le.name} and starts a new draft on the same cut, re-reading the actual months `
+      + "and carrying this estimate's months forward. The final version stays on record; deleting the new draft restores it.",
+  },
+  delete: {
+    title: "Delete this estimate?",
+    action: "Delete",
+    body: (le) =>
+      le.status === "draft"
+        ? `Delete ${le.name}? This cannot be undone. If it was re-cut from a final estimate, that estimate is restored.`
+        : `Delete ${le.name}? A final estimate is the record of what you said; deleting it cannot be undone.`,
+  },
+};
+
 function BudgetLE() {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
@@ -23,10 +55,16 @@ function BudgetLE() {
   const [selectedId, setSelectedId] = useState(null);
   const [grid, setGrid] = useState(null);
   const [deviations, setDeviations] = useState(null);
+  const [advisories, setAdvisories] = useState(null);
+  const [drift, setDrift] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [confirm, setConfirm] = useState(null);
   const [openCategory, setOpenCategory] = useState(null);
+
+  const selected = list.find((l) => l.id === selectedId) || null;
 
   const loadList = useCallback(async (y) => {
     try {
@@ -45,9 +83,14 @@ function BudgetLE() {
   useEffect(() => {
     if (!selectedId) return undefined;
     let active = true;
-    Rest.get(`/budget/le/${selectedId}/deviations`)
-      .then((p) => { if (active) setDeviations(Rest.unwrap(p) || null); })
-      .catch(() => { if (active) setDeviations(null); });   // advisory: never blocks the page
+    // Advisory reads: a failure clears the panel and never blocks the page.
+    const advisory = (path, set) =>
+      Rest.get(path)
+        .then((p) => { if (active) set(Rest.unwrap(p) || null); })
+        .catch(() => { if (active) set(null); });
+    advisory(`/budget/le/${selectedId}/deviations`, setDeviations);
+    advisory(`/budget/le/${selectedId}/advisories`, setAdvisories);
+    advisory(`/budget/le/${selectedId}/drift`, setDrift);
     Rest.get(`/budget/le/${selectedId}/grid`)
       .then((p) => { if (active) { setGrid(Rest.unwrap(p) || null); setError(""); } })
       .catch((e) => {
@@ -61,6 +104,7 @@ function BudgetLE() {
   const handleCreate = async () => {
     setBusy(true);
     setError("");
+    setNotice("");
     try {
       const le = Rest.unwrap(await Rest.post("/budget/le", { budgetYear: year }));
       await loadList(year);
@@ -83,23 +127,46 @@ function BudgetLE() {
     }
   };
 
-  const handleDelete = async () => {
-    if (!selectedId) return;
+  const runConfirmed = async () => {
+    const kind = confirm;
+    if (!kind || !selected) return;
     setBusy(true);
+    setError("");
+    setNotice("");
     try {
-      await Rest.del(`/budget/le/${selectedId}`);
-      setSelectedId(null);
-      setGrid(null);
-      await loadList(year);
+      if (kind === "finalize") {
+        await Rest.post(`/budget/le/${selected.id}/finalize`, {});
+        await loadList(year);
+        setRefreshKey((k) => k + 1);
+        setNotice(`${selected.name} is final.`);
+      } else if (kind === "recut") {
+        const le = Rest.unwrap(await Rest.post(`/budget/le/${selected.id}/recut`, {}));
+        await loadList(year);
+        setSelectedId(le.id);
+        setNotice(`${selected.name} is superseded; ${le.name} is a new draft.`);
+      } else {
+        const payload = await Rest.del(`/budget/le/${selected.id}`);
+        const result = payload ? Rest.unwrap(payload) : null;
+        setSelectedId(null);
+        setGrid(null);
+        await loadList(year);
+        if (result?.restored) {
+          setSelectedId(result.restored.id);
+          setNotice(`Deleted ${selected.name}; ${result.restored.name} is final again.`);
+        }
+      }
     } catch (e) {
-      console.error("[BudgetLE] delete failed:", e);
-      setError("Could not delete that estimate.");
+      console.error(`[BudgetLE] ${kind} failed:`, e);
+      // A 409 carries the server's own sentence (e.g. "only a draft can be finalised").
+      setError(e?.status === 409 && e?.message ? e.message : `Could not ${CONFIRM[kind].action.toLowerCase()} that estimate.`);
     } finally {
+      setConfirm(null);
       setBusy(false);
     }
   };
 
   const years = [currentYear - 1, currentYear, currentYear + 1];
+  const spec = confirm ? CONFIRM[confirm] : null;
 
   return (
     <main className="page-container">
@@ -146,11 +213,21 @@ function BudgetLE() {
           <button type="button" className="btn btn--primary" onClick={handleCreate} disabled={busy}>
             {busy ? "Working…" : "New estimate"}
           </button>
+          {selected?.status === "draft" && (
+            <button type="button" className="btn btn--outline" onClick={() => setConfirm("finalize")} disabled={busy}>
+              Finalise
+            </button>
+          )}
+          {selected?.status === "final" && (
+            <button type="button" className="btn btn--outline" onClick={() => setConfirm("recut")} disabled={busy}>
+              Re-cut
+            </button>
+          )}
           <button
             type="button"
             className="btn btn--outline"
-            onClick={handleDelete}
-            disabled={busy || !selectedId}
+            onClick={() => setConfirm("delete")}
+            disabled={busy || !selected}
           >
             Delete
           </button>
@@ -158,6 +235,7 @@ function BudgetLE() {
       </section>
 
       {error && <p className="le-error" role="alert">{error}</p>}
+      {notice && <p className="le-notice" role="status">{notice}</p>}
 
       {!list.length && !error && (
         <p className="le-empty">
@@ -166,6 +244,8 @@ function BudgetLE() {
           the rest.
         </p>
       )}
+
+      {grid && <LEAdvisories advisories={advisories} drift={drift} />}
 
       {grid && (
         <LEDeviations data={deviations} onOpenCategory={setOpenCategory} />
@@ -183,6 +263,27 @@ function BudgetLE() {
           onSaved={() => setRefreshKey((k) => k + 1)}
         />
       )}
+
+      <Modal
+        open={spec != null}
+        onClose={busy ? undefined : () => setConfirm(null)}
+        dismissable={!busy}
+        title={spec ? spec.title : ""}
+        footer={
+          spec && (
+            <>
+              <button type="button" className="btn btn--outline" onClick={() => setConfirm(null)} disabled={busy}>
+                Cancel
+              </button>
+              <button type="button" className="btn btn--primary" onClick={runConfirmed} disabled={busy}>
+                {busy ? "Working…" : spec.action}
+              </button>
+            </>
+          )
+        }
+      >
+        {spec && selected && <p className="le-confirm">{spec.body(selected)}</p>}
+      </Modal>
     </main>
   );
 }

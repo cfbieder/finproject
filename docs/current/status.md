@@ -119,9 +119,9 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   (v3.38.0–v3.40.0). **Next: `<Money>`** (CR087's own two surfaces; the 22-call-site sweep stays in
   [CR086](../cr/cr-086-ui-visual-system.md)), `resetOpeningBalance` under the P0c preview, and §2's
   deferred `BalanceReport` `Local` column.
-- 🟢 **[CR083](../cr/cr-083-budget-latest-estimate.md)** — P0a + P0b live (v3.31.0). ⚠️ **Finalise/recut
-  NOT built, and `BUDGET FY` is read live** — right for a draft, wrong for a frozen artefact;
-  snapshotting it needs a migration **before** finalise.
+- 🔄 **[CR083](../cr/cr-083-budget-latest-estimate.md)** — finalise, recut, drift L2, L1, L6 and the
+  FX-recalculate refusal **built 2026-09-14** (migration 082, dev only, not yet released); L4/L10 open.
+  ⚠️ Once shipped, prod's two draft 2026 LEs block FX recalculate for 2026 until finalised or deleted.
 - **Re-examine SRQ** — **−476,930**: funds itself 35 of 36 years, dry in the last. Marginal, not
   hopeless. Financing would be the untested lever (all cash, no rent, sells at 7%), and testing it
   is **DECLINED** (owner, 2026-08-23) — so this is a judgement to make, not an experiment to run.

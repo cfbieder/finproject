@@ -347,7 +347,7 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
   All resolved and recorded in [CR085 §14](../cr/cr-085-forecast-sensitivity.md).
 
 <a id="cr083"></a>
-- **CR083 — Budget: the Latest Estimate (LE). 🔨 IN-PROGRESS — P0a + P0b LIVE (v3.31.0), migration 072.**
+- **CR083 — Budget: the Latest Estimate (LE). 🔨 IN-PROGRESS — P0a + P0b LIVE (v3.31.0), migration 072. Finalise, recut, drift L2, L1, L6 and the FX-recalculate refusal BUILT 2026-09-14 (migration 082 — see [CR083 §17.4](../cr/cr-083-budget-latest-estimate.md)); L4 and L10 open.** ⚠️ Prod's two draft 2026 LEs make FX recalculate for 2026 answer 409 until they are finalised or deleted.
   `/budget-le` — create an LE, read it in **Chart-of-Accounts order** with the categories rolled up
   (117 rows), open any category's **month-by-month worksheet** and type the estimate months. Plus the
   **FY-landing strip** on `/budget-vs-actual` and a **deterministic deviations section**. Nine

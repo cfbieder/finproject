@@ -1661,10 +1661,27 @@ cheap test CR081 skipped.
 
 ### 17.4 Still open
 
-- **Finalise, recut, and the remaining warnings (L1/L4/L6)** are NOT built. ⚠️ **Before finalise
-  ships**, the full-year budget per category must be snapshotted onto the LE: `BUDGET FY` and the
-  variance are read **live** from `budget_entries` today, which is correct for a draft and wrong for
-  a frozen artefact — the owner edits the budget in-year (30 rows since April, 22 backdated). That
-  needs a column, and therefore a migration.
+- ✅ **BUILT 2026-09-14 — finalise, recut, drift L2, L1, L6, the memo line and the FX-recalculate
+  refusal (migration 082).** Three owner decisions settled what the CR left open:
+  - **(a) The budget FY is frozen in `budget_le_budget_fy`,** one row per category at the grain of
+    the live read. A draft still reads it live.
+  - **(b) Deleting the draft a recut created restores the final LE it replaced,** in the same
+    transaction.
+  - **(c) L1 uses elapsed days, not a trailing median.** It fires when the LE was cut, or finalised,
+    fewer than 4 days after its cut month ended. This is a measured correction: on prod since the
+    feed cutover, 83 of July's 85 late rows landed Aug 1–3, June had 8 and August 0, and the CR's
+    median wording had no number.
+
+  Finalise **re-reads the actual half** at the moment of the freeze, which is how "finalize writes
+  the snapshot columns across every actual row" (§7.2) was read. `finalized_at` was added because
+  L1 and L2's sentence both need to know when the freeze happened.
+
+  Also recorded:
+  - ⚠️ **Prod holds two draft 2026 LEs,** so FX recalculate for 2026 now answers 409 until they are
+    finalised or deleted. That is §5's intent.
+  - **Rendered in both themes on dev:** the memo line reads as a note below NET, the confirm closes
+    on Esc, and there were no console errors. The first render caught doubled parentheses in L6's
+    sentence.
+  - **Still open:** **L4** and **L10**.
 - **P1** (the advisory's accept path, `TRAIL_3`/`ZERO`, drift **L2**) and **P2** (§11.4's seed-next-
   year, still not specified enough to schedule).

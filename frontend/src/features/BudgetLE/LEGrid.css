@@ -65,6 +65,44 @@
   font-size: 0.9rem;
 }
 
+/* A completed action (finalise / re-cut / a restoring delete). Same frame as
+   .le-error, neutral accent: it reports, it does not warn. */
+.le-notice {
+  padding: 0.6rem 0.9rem;
+  margin: 0 0 1rem;
+  color: var(--ink);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.le-confirm { margin: 0; font-size: 0.9rem; line-height: 1.55; color: var(--ink); }
+
+/* ---- warnings: L2 drift, L1, L6 (CR083 §9) ------------------------------ */
+
+.le-adv {
+  margin-bottom: 1rem;
+  padding: 0.6rem 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--growth-negative);
+  border-radius: 4px;
+}
+.le-adv__list { margin: 0; padding: 0; list-style: none; }
+.le-adv__item { padding: 0.35rem 0; font-size: 0.82rem; line-height: 1.5; color: var(--ink); }
+.le-adv__item + .le-adv__item { border-top: 1px solid var(--border); }
+.le-adv__id {
+  margin-right: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 /* ---- deviations ---------------------------------------------------------- */
 
 .le-dev {
@@ -207,6 +245,21 @@
   border-bottom: none;
   font-weight: 600;
   background: var(--surface-muted);
+}
+
+/* §2.1's memo line: in the footer but visibly NOT part of the total — no heavy
+   rule, no bold, muted text, so it cannot be read as a second NET. */
+.le-grid tfoot .le-grid__memo th,
+.le-grid tfoot .le-grid__memo td {
+  border-top: 1px dashed var(--border);
+  font-weight: 400;
+  color: var(--muted);
+  background: var(--surface);
+}
+.le-grid__memo-note {
+  margin-left: 0.45rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
 }
 
 .le-grid__printhead { display: none; }
