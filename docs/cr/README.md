@@ -13,7 +13,7 @@ Each CR file's first line carries its status and links back to the matching anch
 | Status | Count | CRs |
 |--------|------:|-----|
 | COMPLETED | 67 | CR001–CR013, CR016, CR017, CR018, CR024, CR025, CR026, CR028, CR030, CR031, CR032, CR033, CR034, CR035, CR036, CR037, CR038, CR039, CR040, CR041, CR042, CR043, CR044 *(decision record)*, CR045, CR046, CR047, CR049, CR051, CR053, CR054, CR055, CR056, CR057, CR058, CR062, CR063, CR065, CR067, CR068, CR069, CR070, CR071, CR072, CR073, CR074, CR075, CR078, CR079, CR080, CR082, CR084, CR085, CR088, CR092 , CR093 *(the Portfolio X-ray: exposure, fixed income, the security chart, income and risk)* |
-| IN-PROGRESS | 15 | CR019, CR022, CR023, CR050, CR059, CR060, CR061 *(P0–P2 shipped)*, CR064, CR076, CR077, CR083, CR086, CR087, CR090 *(P1 + P3 shipped, P2 open)*, CR091 *(P1 + U1b + U4 + U5 shipped; P2/P3 open, P4 cross-repo)* |
+| IN-PROGRESS | 15 | CR019, CR022, CR023, CR050, CR059, CR060, CR061 *(P0–P2 shipped)*, CR064, CR076, CR077, CR083, CR086, CR087, CR090 *(P1 + P3 shipped, P2 open)*, CR091 *(P1 + U1 + U1b + P3 + U4 + U5 shipped; U2 open; P4 shipped in bank-feed)* |
 | OPEN | 4 | CR020, CR021, CR048, CR066 |
 | PLANNED | 4 | CR027 *(v4, umbrella)*, CR029, CR052, CR089 |
 | DEFERRED | 1 | CR081 |

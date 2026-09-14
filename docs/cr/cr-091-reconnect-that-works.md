@@ -1,4 +1,4 @@
-# CR091 — The reconnect button, and the three things its first live use found — **P1 BUILT (fin side)** · P2/P3 PROPOSED · P4 handed to bank-feed
+# CR091 — The reconnect button, and the three things its first live use found — **P1 BUILT (fin side)** · P2 U1 + U1b + P3 SHIPPED (U1/P3 v3.61.5) · U2 open · P4 SHIPPED in bank-feed `04815bd`
 
 **Track: v3. No schema change, no migration.**
 
@@ -147,7 +147,12 @@ trailing-slash redirect (the reason the AI Review block is shaped that way too).
 
 **P2 — make the page legible.** *(fin)*
 - U1: a column identifying each connection — mapped fin account and currency, falling back to the
-  fintable account id. Institution name alone is not an identifier.
+  fintable account id. Institution name alone is not an identifier. ✅ **SHIPPED v3.61.5
+  (2026-09-14).** Each Bank connections row lists the accounts it carries under the institution —
+  `WISE - PLN (PLN), unmapped: Christopher Biedermann (USD) (1446) (USD)` / `Wise - USD (USD)` /
+  `WISE - EUR (EUR)` for the three Wise connections on dev — joined on bank-feed's `accounts_health`
+  (feed account id → connection id; all 30 mappings join on dev and prod). Logic in
+  `frontend/src/utils/feedMappings.js`.
 - **U1b — the account-mapping table is not grouped by institution.** ✅ **BUILT 2026-09-05.** It
   rendered in mapping-id order, i.e. the order rows were first created, which scattered one bank's
   accounts down the whole table: the Wise USD account sat **eleven rows above** the other three Wise
@@ -250,6 +255,18 @@ ceiling, and a short one would recreate the CR091 timeout the moment bank-feed w
 - Flag the case row 708 is the specimen of: **a new upstream account whose name matches an already
   mapped account**. Offer *ignore* as the one-click answer, since that is the correct answer and
   the one taken by hand this time.
+
+  ✅ **SHIPPED v3.61.5 (2026-09-14) — STATELESS, by owner decision**, not the snapshot-at-mint above:
+  every case is read off live data on each load, whichever device finished the reconnect, with no
+  table and no migration. In Bank Feed Setup's **Needs attention**: *disappeared* stays the orphaned-
+  mapping alert (CR060); *appeared* lists feed accounts that are neither mapped nor ignored (never
+  imported); *duplicated* flags an unmapped feed account with the **same name and currency as a mapped
+  one** — the row-708 shape — with a one-click **Ignore it**. An **ignored** row is resolved and never
+  flagged, so prod (708 ignored) shows nothing while dev (the same account still unmapped) shows the
+  item — which is how it was verified, without clicking. ⚠️ **Not detectable this way:** pairing an
+  orphaned mapping with the new feed account that replaced it, because fin stores only the old feed id,
+  not its name. Tests falsified by dropping currency from the match and by counting ignored rows as
+  mapped.
 
 **P4 — hand D3 to bank-feed.** *(cross-repo — write it into `HANDOFFS.md`, do not patch from here.)*
 Treat `Retry-After: 0` as the documented fallback rather than as an instruction to retry instantly,

@@ -16,6 +16,12 @@ import {
   buildHierarchyOptions,
 } from "../components/AccountPicker/AccountPicker.jsx";
 import { HEALTH_LABEL, healthPillKind, attentionAdvice } from "../utils/feedHealth.js";
+import {
+  accountLabel,
+  accountsByConnection,
+  findReconnectDuplicates,
+  unmappedAccounts,
+} from "../utils/feedMappings.js";
 import "./BankFeedDiagnostic.css";
 
 function fmtNum(n, decimals = 2) {
@@ -237,7 +243,16 @@ export default function BankFeedDiagnostic() {
   const attentionConns = upstreamOk ? (upstream.connections || []).filter((c) => c.attention) : [];
   const attentionUsed = attentionConns.filter((c) => finNamesByConnection.has(c.connection_id));
   const attentionUnused = attentionConns.filter((c) => !finNamesByConnection.has(c.connection_id));
-  const attentionCount = attentionUsed.length + (orphans?.length || 0);
+  // CR091 U1 — the accounts each connection carries, so three Wise rows stop
+  // being three identical rows. CR091 P3, stateless (owner decision
+  // 2026-09-14): what a reconnect may have done, read off live data on every
+  // load — see utils/feedMappings.js for what can and cannot be seen this way.
+  const connAccounts = accountsByConnection(mappings, upstream?.accounts_health);
+  const duplicates = findReconnectDuplicates(mappings);
+  const duplicateIds = new Set(duplicates.map((d) => d.pending.external_id));
+  const otherUnmapped = unmappedAccounts(mappings).filter((m) => !duplicateIds.has(m.external_id));
+  const attentionCount =
+    attentionUsed.length + (orphans?.length || 0) + duplicates.length + otherUnmapped.length;
 
   const linkStatus = (
     <>
@@ -372,6 +387,55 @@ export default function BankFeedDiagnostic() {
           )}
           {orphanBlock}
           {mintFrom === "attention" && linkStatus}
+          {duplicates.map(({ pending, mapped }) => (
+            <div key={`dup-${pending.external_id}`} className="bfd-attention-item">
+              <div className="bfd-attention-head">
+                <strong>{pending.institution || "Unknown bank"}</strong>
+                <StatusPill label="possible duplicate" kind="warn" />
+                <span className="bfd-muted">
+                  new feed account “{pending.name}” ({pending.currency})
+                </span>
+                <button
+                  type="button"
+                  className="btn btn--primary btn--sm"
+                  disabled={savingId === pending.external_id}
+                  onClick={() => saveMapping(pending.external_id, null, true)}
+                >
+                  {savingId === pending.external_id ? "Saving…" : "Ignore it"}
+                </button>
+              </div>
+              <p>
+                It has the same name and currency as the feed account already mapped to{" "}
+                <strong>{mapped.mapped_account_name}</strong>. A reconnect can attach an account
+                fin already imports under a new id, so the same real account arrives twice — this
+                happened with Wise on 2026-09-04.
+              </p>
+              <p>
+                <strong>What to do:</strong> if it is the same account, press Ignore it — mapping
+                both would import every transaction twice. If it really is a second account, map
+                it in Account mapping below.
+              </p>
+            </div>
+          ))}
+          {otherUnmapped.length > 0 && (
+            <div className="bfd-attention-item">
+              <div className="bfd-attention-head">
+                <strong>Unmapped feed accounts</strong>
+                <StatusPill label={String(otherUnmapped.length)} kind="warn" />
+              </div>
+              <p>
+                {otherUnmapped
+                  .map((m) => `${m.name} (${m.currency}) at ${m.institution || "unknown bank"}`)
+                  .join("; ")}{" "}
+                — nothing from {otherUnmapped.length === 1 ? "it" : "them"} is imported until
+                mapped. A new bank account, or a reconnect, shows up here.
+              </p>
+              <p>
+                <strong>What to do:</strong> map each to its fin account, or tick Ignore, in
+                Account mapping below.
+              </p>
+            </div>
+          )}
           {attentionUsed.map((c) => {
             const advice = attentionAdvice(c, { onSetupPage: true });
             return (
@@ -400,8 +464,8 @@ export default function BankFeedDiagnostic() {
           })}
           {upstreamOk && attentionCount === 0 && orphans !== null && (
             <p className="bfd-subtitle">
-              Every connection fin uses has synced from its bank within 48h, and every
-              mapping points at a live feed account.
+              Every connection fin uses has synced from its bank within 48h, every mapping
+              points at a live feed account, and no feed account is waiting to be mapped.
             </p>
           )}
           {attentionUnused.length > 0 && (
@@ -550,7 +614,15 @@ export default function BankFeedDiagnostic() {
                     .sort((a, b) => (b.attention === true) - (a.attention === true))
                     .map((c) => (
                     <tr key={c.connection_id}>
-                      <td>{c.institution_name}</td>
+                      <td>
+                        {c.institution_name}
+                        {/* CR091 U1 — which accounts this connection carries. */}
+                        {connAccounts.get(c.connection_id)?.length > 0 && (
+                          <div className="bfd-notice">
+                            {connAccounts.get(c.connection_id).map(accountLabel).join(", ")}
+                          </div>
+                        )}
+                      </td>
                       <td className="bfd-muted">{c.provider}</td>
                       <td className="num">{c.accounts_count}</td>
                       <td>
