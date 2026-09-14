@@ -75,8 +75,15 @@ export default function FCCashTransferModal({
         Flag: "OneTime",
       };
 
-      // Get existing transfers for this type
-      const existingTransfers = moduleToUpdate[transferType] || [];
+      // Existing transfers come from the FULL module. The list endpoint `useModules` reads
+      // carries no Invest/Dispose, so appending to it sent a one-row array — and the PUT
+      // REPLACES the schedule, deleting every existing disposal or investment on the module
+      // (the same list-vs-detail defect FCReviewAdjustTransferModal already fixed).
+      const full = await Rest.get(`/forecast/modules/${moduleToUpdate.id}`);
+      const existingTransfers = full?.data?.[transferType];
+      if (!Array.isArray(existingTransfers)) {
+        throw new Error("Could not load the module's existing transfers — nothing was saved");
+      }
 
       // Add new transfer to the array
       const updatedTransfers = [...existingTransfers, transferEntry];

@@ -494,6 +494,24 @@ async function remove(id) {
  */
 async function copyVersion(sourceVersionId, newVersionData) {
   return await db.transaction(async (client) => {
+    // One version per budget year. Every aggregate reader of budget_entries (the CR075
+    // forecast base year, fcLines, reports, services/budget, v_budget_vs_actual) filters on
+    // budget_year and ignores version_id, so a second version in a year doubles every budget
+    // figure in the app — a plausible-looking plan, not a visible error.
+    const existing = await client.query(
+      'SELECT id, version_name FROM budget_versions WHERE budget_year = $1 ORDER BY id LIMIT 1',
+      [newVersionData.budget_year]
+    );
+    if (existing.rows.length > 0) {
+      const { id, version_name } = existing.rows[0];
+      const err = new Error(
+        `Budget year ${newVersionData.budget_year} already has a version ("${version_name}", id ${id}); ` +
+        'a second one would double every budget figure. Use a Latest Estimate for a revision.'
+      );
+      err.status = 409;
+      throw err;
+    }
+
     // Create new version
     const versionResult = await client.query(`
       INSERT INTO budget_versions (budget_year, version_name, description, is_active)

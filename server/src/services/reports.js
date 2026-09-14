@@ -175,13 +175,23 @@ async function fetchAccountBalances(asOfDate) {
       const ratePromises = missing.map(async (currency) => {
         try {
           const rate = await frankfurterExchangeRates.getExchangeRate('USD', currency, asOfDate);
-          return { currency, rate: (typeof rate === 'number' && rate > 0) ? rate : 1 };
+          return { currency, rate: (typeof rate === 'number' && rate > 0) ? rate : null };
         } catch (err) {
           console.warn('[v2/reports/balance] Failed to get rate for', currency, err.message);
-          return { currency, rate: 1 };
+          return { currency, rate: null };
         }
       });
       const rates = await Promise.all(ratePromises);
+      // No rate means no USD value — never 1:1. A silent 1:1 posted 1,650,000 PLN to net
+      // worth as $1,650,000, and it fires exactly when a new currency is added (CR087 §8).
+      // Same rule the forecast engine has followed since migration 064: throw, naming it.
+      const unconvertible = rates.filter((r) => r.rate == null).map((r) => r.currency);
+      if (unconvertible.length > 0) {
+        throw new Error(
+          `No USD exchange rate for ${unconvertible.join(', ')} as of ${asOfDate} ` +
+          '(none in exchange_rates, and the Frankfurter fallback failed) — refusing to value it at 1:1'
+        );
+      }
       for (const { currency, rate } of rates) {
         exchangeRates[currency] = rate;
       }

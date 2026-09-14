@@ -34,6 +34,11 @@ export const formatTransferForm = (transfers) => {
       Value: hasValue ? entry?.Value ?? "" : undefined,
       Flag: entry?.Flag ?? "",
       ...(endYear ? { DateEnd: `${endYear}-07-01` } : {}),
+      // CR078 — the selling cost must survive the LOAD, not just the save. Dropping it here
+      // rendered the field blank and the next save wrote NULL: that is how `2026 Base` lost
+      // the 2% on Barkeria and United Beverages (2026-08-16) while every variant kept it.
+      // A typed 0 is kept; an absent/NULL cost stays absent.
+      ...(entry?.CostPct != null ? { CostPct: entry.CostPct } : {}),
     };
   });
 };
