@@ -17,7 +17,7 @@ const { dataPaths } = require('../../../utils/dataPaths');
 const bankFeedRecon = require('../../repositories/bankFeedReconciliation');
 const manualRecon = require('../../repositories/manualReconciliation');
 const bankFeedClient = require('../../services/bankFeedClient');
-const { reclassifyUpstream, applyBankSyncTimes } = require('../../services/feedSyncHealth');
+const { applyBankSyncTimes } = require('../../services/feedSyncHealth');
 
 const execFileAsync = promisify(execFile);
 
@@ -31,9 +31,10 @@ const execFileAsync = promisify(execFile);
  *    autopilot; USD value needs checking against the statement)
  *  - staleFeeds: fed accounts whose upstream connection last synced ≥3 days
  *    ago (CR035 thresholds: amber 3–6d, red ≥7d; worstDays = the oldest).
- *    "Last synced" is the later of source_synced_at and the connection's last
- *    FINISHED bank sync — on GoCardless the former is a dormant account's last
- *    transaction date, which read as "stale 64d" (feedSyncHealth.js)
+ *    "Last synced" is the later of the stored source_synced_at and bank-feed's
+ *    last_bank_sync_at — rows stored before bank-feed 04815bd can carry a
+ *    dormant account's last transaction date, which read "stale 64d"
+ *    (feedSyncHealth.js)
  *  - drift: fed CALIBRATE-mode / manual accounts whose computed balance ≠
  *    target (excludes manual accounts with no balance entered). MTM-mode fed
  *    accounts are deliberately NOT counted here — market drift re-accumulates
@@ -77,7 +78,7 @@ router.get('/attention-summary', async (req, res, next) => {
     let upstream = null;
     try {
       const health = await bankFeedClient.feedsHealth();
-      upstream = reclassifyUpstream(health && health.upstream);
+      upstream = (health && health.upstream) || null;
       const byAccount = (upstream && upstream.accounts_health) || null;
       if (byAccount) {
         const conns = new Set();

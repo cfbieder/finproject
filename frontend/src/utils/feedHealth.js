@@ -3,13 +3,13 @@
  * Balance Calibration (the attention panel and each row's badge) and Bank Feed
  * Setup (the attention box and the connections table).
  *
- * Both pages read bank-feed's classified `state`, re-read by fin's server
- * (server/src/v2/services/feedSyncHealth.js): `stale` is a connection with no
- * FINISHED sync with the bank inside 48h. A connection whose bank synced but
- * sent no new transactions is `quiet` — attention false, nothing to do.
- * (bank-feed alone called those stale, because Fintable's
- * `last_successful_update` is the newest transaction's date on GoCardless
- * connections — a dormant account read "silent 64 days" while syncing daily.) Before this module the Setup page read the
+ * Both pages read bank-feed's classified `state`. Since bank-feed 04815bd
+ * (2026-09-14) `stale` means no sync with the bank has FINISHED inside 48h,
+ * and `days_since_upstream_sync` counts from that last bank contact; the age
+ * of the newest data is `days_since_new_data`. (Before, bank-feed read
+ * Fintable's `last_successful_update`, which on GoCardless connections is the
+ * newest transaction's date — a dormant account read "silent 64 days" while
+ * syncing daily.) Before this module the Setup page read the
  * raw `healthy` flag instead, which is TRUE for exactly that case — so it said
  * HEALTHY beside a bank 64 days silent while Balance Calibration, one link
  * away, said it needed attention. One module, one vocabulary.
@@ -23,7 +23,6 @@ export const HEALTH_LABEL = {
   unhealthy: "upstream error",
   never_synced: "never synced",
   stale: "feed silent",
-  quiet: "quiet",
 };
 
 // needs_reconnect / unhealthy are "do this now"; the rest are "look at this".
@@ -44,9 +43,9 @@ export function attentionAdvice(health, { onSetupPage = false } = {}) {
   const reauth = onSetupPage ? "press Re-authorise" : "re-authorise it under Settings → Bank Feed Setup";
   const Reauth = reauth[0].toUpperCase() + reauth.slice(1);
   const onRecon = onSetupPage ? " on Balance Calibration" : "";
-  // Days since the last FINISHED sync with the bank; data age only if unknown.
-  const bankDays = health.days_since_bank_sync;
-  const dataDays = health.days_since_upstream_sync;
+  // Days since the last FINISHED sync with the bank, and since new data arrived.
+  const bankDays = health.days_since_upstream_sync;
+  const dataDays = health.days_since_new_data;
   const plural = (n) => `${n} day${n === 1 ? "" : "s"}`;
   switch (health.state) {
     case "needs_reconnect":

@@ -45,7 +45,7 @@ function StatusPill({ label, kind }) {
 // where the day count has no other column to live in.
 function connLabel(c) {
   if (!c.attention) return "healthy";
-  if (c.state === "stale") return `silent ${c.days_since_bank_sync ?? c.days_since_upstream_sync ?? "?"}d`;
+  if (c.state === "stale") return `silent ${c.days_since_upstream_sync ?? "?"}d`;
   return HEALTH_LABEL[c.state] || c.state;
 }
 
@@ -557,19 +557,14 @@ export default function BankFeedDiagnostic() {
                         <StatusPill label={connLabel(c)} kind={healthPillKind(c)} />
                         {/* A quiet connection synced with the bank but got nothing
                             new — said, so a dormant account's old last-transaction
-                            date is not read as a dead feed (feedSyncHealth.js). */}
-                        {c.state === "quiet" && (
+                            date is not read as a dead feed (bank-feed 04815bd).
+                            Fintable's status text is deliberately NOT shown here: on
+                            2026-09-13 it read "Bank access has expired" on PKO while
+                            PKO synced that day (CR091 U2). It stays in Diagnostics. */}
+                        {!c.attention && c.days_since_new_data >= 2 && (
                           <div className="bfd-notice">
-                            no new transactions for {c.days_since_upstream_sync}d · synced
-                            with the bank {fmtDateTime(c.bank_synced_at)}
-                          </div>
-                        )}
-                        {/* Fintable's status text. fin's server drops it once the bank
-                            has synced inside the window — it has proved stale (CR091
-                            U2) — so what reaches this row is unconfirmed either way. */}
-                        {c.notice && (
-                          <div className="bfd-notice" title="Fintable's own status text for this connection.">
-                            Fintable says “{c.notice}”
+                            no new transactions for {c.days_since_new_data}d · synced
+                            with the bank {fmtDateTime(c.last_bank_sync_at)}
                           </div>
                         )}
                       </td>

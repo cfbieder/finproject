@@ -209,7 +209,30 @@ trailing-slash redirect (the reason the AI Review block is shaped that way too).
   timestamps, so nothing is mis-dated now — but a GoCardless account switched to `accrue` would date
   from its last transaction.
 
-### Handoff to bank-feed (for a bank-feed session — not written into that repo from here)
+### Handoff to bank-feed — ✅ both SHIPPED in bank-feed `04815bd`, deployed 2026-09-14
+
+**Owner decision 2026-09-14:** fix both from this session inside bank-feed's own repo (its own commit,
+tests and contract), pausing before the rebuild of the shared `bank-feed-app` for a go — rather than
+waiting for a bank-feed session. Shipped as bank-feed **`04815bd`**: `connectionSyncTime.lastReachedAt`
+(the later of `last_successful_update` and a `finished` `sync_status`) now drives the classifier,
+`source_synced_at` and the holdings snapshot; `upstream` gains `last_bank_sync_at` and
+`days_since_new_data`, and `days_since_upstream_sync` counts from bank contact. The mint makes **one**
+attempt and returns `retry_after_seconds`; `Retry-After: 0` waits the 5s fallback. Suite 269 (264
+pass, 5 skipped, 0 fail), 13 new tests, each fix falsified. Rebuilt `app` only (db untouched) at
+06:56 UTC; verified live: all 13 connections `ok`, Pekao / Revolut / Erste `days_since_new_data`
+9 / 6 / 65, `needs_attention` empty.
+**fin v3.61.4 follows:** the v3.61.3 re-read (`reclassifyUpstream`) is removed as dead code;
+`feedSyncHealth.js` keeps only the `feed_synced_at` correction, now reading bank-feed's
+`last_bank_sync_at`, because rows stored before the rebuild still carry the old value (measured:
+Santandar's latest stored `source_synced_at` was `2026-07-10 23:59:59` at 06:39). Bank Feed Setup's
+*no new transactions for Nd* line reads `days_since_new_data`, and Fintable's notice text is no longer
+shown on the connections table (PKO's stale *"Bank access has expired"*; still in Diagnostics).
+⚠️ **fin deliberately keeps `MINT_TIMEOUT_MS` at the old retry-derived ceiling** although bank-feed's
+handoff suggested following it down: a call that returns in milliseconds loses nothing to a long
+ceiling, and a short one would recreate the CR091 timeout the moment bank-feed were rolled back.
+
+*Original handoff text, kept as written:*
+
 1. **The classifier conflates "no new data" with "no bank sync".** `classifyUpstreamConnection`
    (`src/services/upstreamHealth.js`) should classify staleness on `sync_status.finished_at` (state
    `finished`), not `last_successful_update`, and could expose the latter as data age. The evidence is

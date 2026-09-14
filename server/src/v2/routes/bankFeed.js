@@ -16,7 +16,7 @@ const client = require('../services/bankFeedClient');
 const accountSourceMappings = require('../repositories/accountSourceMappings');
 const bankFeedReconciliation = require('../repositories/bankFeedReconciliation');
 const { reconcileToFeed } = require('../services/reconcileToFeed');
-const { reclassifyUpstream, applyBankSyncTimes } = require('../services/feedSyncHealth');
+const { applyBankSyncTimes } = require('../services/feedSyncHealth');
 const refreshBankFeed = require('../services/refreshBankFeedV2');
 const manualStatementImport = require('../services/manualStatementImport');
 const db = require('../db');
@@ -139,13 +139,7 @@ router.get('/diagnostic', async (req, res) => {
   };
   await Promise.all([
     safe('health',           () => client.health()),
-    safe('feeds_health', async () => {
-      const f = await client.feedsHealth();
-      // Same re-read as /balance-recon, so Bank Feed Setup and Balance
-      // Calibration cannot disagree about a quiet account (feedSyncHealth.js).
-      if (f && f.upstream) f.upstream = reclassifyUpstream(f.upstream);
-      return f;
-    }),
+    safe('feeds_health',     () => client.feedsHealth()),
     safe('accounts',         () => client.accounts()),
     safe('balances',         () => client.balances()),
     safe('recent_transactions',
@@ -353,11 +347,10 @@ router.get('/balance-recon', async (req, res, next) => {
     // the health service is down has made an outage worse rather than visible.
     try {
       const feeds = await client.feedsHealth();
-      // feedSyncHealth — a quiet account (the bank synced, nothing new arrived)
-      // is not a silent feed. Re-read bank-feed's verdict before anything shows
-      // it, and move feed_synced_at forward to the last finished bank sync.
-      const upstream = reclassifyUpstream(feeds && feeds.upstream);
+      const upstream = feeds && feeds.upstream;
       attachFeedHealth(result, upstream);
+      // Stored feed_synced_at predating bank-feed 04815bd can be a quiet
+      // account's last-transaction date; move it forward (feedSyncHealth.js).
       applyBankSyncTimes(result.accounts, upstream);
     } catch (e) {
       console.warn('[v2/bank-feed] upstream health enrich failed (non-fatal):', e.message);
