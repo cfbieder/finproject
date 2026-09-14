@@ -2380,7 +2380,10 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
     in their log and a received answer are different events** — neither side should reason about the
     other's numbers in isolation.
 
-29. 🔄 **FIX BUILT 2026-09-14 — migration 081 + a join fix; dev applied, prod pending the release.**
+29. ✅ **FIXED — v3.61.7, prod 2026-09-14 14:34 UTC (migration 081 + a join fix).** Verified on prod after the
+    deploy: both labels map to securities 21 / 87 and the twins are gone; Fidelity Cash Mgt lists each
+    sweep **once** (shares sum to 100%); income now states the 1.82% rate on both — **$1,393.64 + $106.33
+    = $1,499.97/yr**; the FDIC view's unattributed cash fell **$76,574 → $0.00**.
     Re-measured before fixing: the feed does not rename once, it **FLIPS** — Santander's sweep reads
     `QHYEQ` to 09-03, `FDIC91075` 09-04→09-08, `QHYEQ` 09-09→09-10, `FDIC91075` from 09-12, balance
     continuous. That settles the identity question below (one deposit, two labels) and rules out a

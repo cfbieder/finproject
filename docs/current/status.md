@@ -84,8 +84,8 @@ tenth (§22.9) is the first where the restatement is of a **measurement**, not t
 [roadmap §3](project-roadmap.md#3-known-issues) is canonical; the closed narrative that sat here
 (CR059 §22, #19–#21, #12, #23, the ocr-llm ack) moved to
 [status-log_2026-09-14](../archive/status-log_2026-09-14.md). Worth knowing at session start:
-- **#29 — the feed FLIPS two FDIC sweeps between a ticker and a numeric id**, forking one deposit
-  into two securities (stranded rate, unchecked insurance); owner chose an alias merge 2026-09-14.
+- **#29 FIXED v3.61.7** — the feed FLIPS two FDIC sweeps between a ticker and a numeric id; migration
+  081 merged them. ⚠️ A **third** label for the same deposit would still mint a new twin.
 - ⚠️ **CR059's dated tails are OVERDUE:** the Sheet rollback (target ~2026-08-24) is not retired, and
   five gate exceptions expired 2026-08-31 unreviewed ([roadmap](project-roadmap.md#cr059-exception-expiry)).
 - **#18** — a fresh DB enforces `fc_lines.line_type`'s CHECK while dev and prod do not, so a test can
