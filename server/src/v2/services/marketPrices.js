@@ -118,8 +118,14 @@ async function probeableSecurities() {
   const { rows } = await db.query(`
     SELECT s.id, s.ticker, s.quote_symbol, s.asset_class, m.external_name AS feed_symbol
       FROM securities s
-      LEFT JOIN security_source_mappings m
-        ON m.security_id = s.id AND m.source = 'fintable'
+      -- One row per security even when it carries several fintable names
+      -- (migration 081): a plain join would probe, and write closes for, it twice.
+      LEFT JOIN LATERAL (
+        SELECT external_name FROM security_source_mappings
+         WHERE security_id = s.id AND source = 'fintable'
+         ORDER BY id
+         LIMIT 1
+      ) m ON TRUE
      WHERE s.price_basis = 'per_share'
      ORDER BY s.id`);
   return rows;

@@ -83,8 +83,16 @@ async function positionsFor(snapshotIds) {
            p.currency
       FROM security_positions p
       JOIN securities sec ON sec.id = p.security_id
-      LEFT JOIN security_source_mappings m
-        ON m.security_id = sec.id AND m.source = 'fintable'
+      -- ONE name per position. A security can carry several fintable names since
+      -- migration 081 (an FDIC sweep the feed reports under a ticker and a numeric
+      -- id); a plain join returned one row per name and listed the sweep twice.
+      -- The position's own symbol wins, so the page shows what the feed said.
+      LEFT JOIN LATERAL (
+        SELECT external_name FROM security_source_mappings
+         WHERE security_id = sec.id AND source = 'fintable'
+         ORDER BY (external_name = p.raw->>'symbol') DESC, id
+         LIMIT 1
+      ) m ON TRUE
      WHERE p.snapshot_id = ANY($1::int[])
      ORDER BY p.snapshot_id, p.market_value DESC NULLS LAST
   `, [snapshotIds]);
@@ -321,5 +329,6 @@ module.exports = {
   summariseUnrealized,
   summariseFreshness,
   accountSnapshots,
+  positionsFor,
   RESIDUAL_NOISE_FLOOR,
 };

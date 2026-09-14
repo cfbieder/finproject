@@ -2379,7 +2379,18 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
     in their log and a received answer are different events** — neither side should reason about the
     other's numbers in isolation.
 
-29. **🔴 The feed RENAMES an FDIC sweep and forks the security — twice, silently** *(found
+29. 🔄 **FIX BUILT 2026-09-14 — migration 081 + a join fix; dev applied, prod pending the release.**
+    Re-measured before fixing: the feed does not rename once, it **FLIPS** — Santander's sweep reads
+    `QHYEQ` to 09-03, `FDIC91075` 09-04→09-08, `QHYEQ` 09-09→09-10, `FDIC91075` from 09-12, balance
+    continuous. That settles the identity question below (one deposit, two labels) and rules out a
+    stable id from bank-feed (the upstream itself alternates). **Owner chose the merge via the alias
+    table that already exists** — `security_source_mappings` allows several names per security — so 081
+    points the numeric label at the ticker row and moves the twin's positions. ⚠️ **The merge exposed a
+    reader that assumed one name per security:** `investments.positionsFor` returned one row per NAME,
+    listing each merged sweep twice (found by migration review on dev; fixed with
+    `marketPrices.probeableSecurities`, same join). ⚠️ **Still open:** a THIRD label for the same
+    deposit would mint a new twin again — this stops the known pairs, not the class.
+    **🔴 The feed RENAMES an FDIC sweep and forks the security — twice, silently** *(found
     2026-09-08 while loading CR093's cash rates on prod).* The bank-feed switched two deposit
     sweeps from their ticker to a numeric `FDIC910xx` identifier, on consecutive days, and
     `resolveSecurity` keys on `external_name` — so each switch created a **NEW security** with no
