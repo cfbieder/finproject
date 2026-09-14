@@ -56,7 +56,9 @@ function StatusPill({ label, kind }) {
 function ConnectionHealth({ health }) {
   if (!health || !health.attention) return null;
   const label = HEALTH_LABEL[health.state] || health.state;
-  const days = health.days_since_upstream_sync;
+  // Days since the last finished sync with the bank (fin's server re-read,
+  // feedSyncHealth.js); the data age only when that is unknown.
+  const days = health.days_since_bank_sync ?? health.days_since_upstream_sync;
   // needs_reconnect is the only state with an action attached, so it is the only
   // one painted as danger; the rest are "look at this", not "do this now".
   const kind = health.state === "needs_reconnect" ? "danger" : "warn";
@@ -66,7 +68,7 @@ function ConnectionHealth({ health }) {
       style={{ fontSize: "0.7rem", fontWeight: 600 }}
       title={
         `${health.institution_name || "This feed"} — ${health.status_text || label}` +
-        (days != null ? ` · last upstream sync ${days}d ago` : "")
+        (days != null ? ` · last bank sync ${days}d ago` : "")
       }
     >
       ⚠ {label}

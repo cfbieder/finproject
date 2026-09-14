@@ -17,6 +17,7 @@ const { dataPaths } = require('../../../utils/dataPaths');
 const bankFeedRecon = require('../../repositories/bankFeedReconciliation');
 const manualRecon = require('../../repositories/manualReconciliation');
 const bankFeedClient = require('../../services/bankFeedClient');
+const { reclassifyUpstream, applyBankSyncTimes } = require('../../services/feedSyncHealth');
 
 const execFileAsync = promisify(execFile);
 
@@ -29,7 +30,10 @@ const execFileAsync = promisify(execFile);
  *    (mislabeled foreign-dividend conversions that must not be accepted on
  *    autopilot; USD value needs checking against the statement)
  *  - staleFeeds: fed accounts whose upstream connection last synced ≥3 days
- *    ago (CR035 thresholds: amber 3–6d, red ≥7d; worstDays = the oldest)
+ *    ago (CR035 thresholds: amber 3–6d, red ≥7d; worstDays = the oldest).
+ *    "Last synced" is the later of source_synced_at and the connection's last
+ *    FINISHED bank sync — on GoCardless the former is a dormant account's last
+ *    transaction date, which read as "stale 64d" (feedSyncHealth.js)
  *  - drift: fed CALIBRATE-mode / manual accounts whose computed balance ≠
  *    target (excludes manual accounts with no balance entered). MTM-mode fed
  *    accounts are deliberately NOT counted here — market drift re-accumulates
@@ -70,9 +74,11 @@ router.get('/attention-summary', async (req, res, next) => {
     // every upstream connection would report OCME's bank here forever, for a
     // feed switched off on purpose.
     let needsReconnect = 0;
+    let upstream = null;
     try {
       const health = await bankFeedClient.feedsHealth();
-      const byAccount = (health && health.upstream && health.upstream.accounts_health) || null;
+      upstream = reclassifyUpstream(health && health.upstream);
+      const byAccount = (upstream && upstream.accounts_health) || null;
       if (byAccount) {
         const conns = new Set();
         for (const a of fedRecon.accounts || []) {
@@ -87,6 +93,8 @@ router.get('/attention-summary', async (req, res, next) => {
       console.warn('[v2/util] needs-reconnect check unavailable (non-fatal):', e.message);
     }
 
+    // No-op when health could not be read — the stored time then stands.
+    applyBankSyncTimes(fedRecon.accounts || [], upstream);
     const now = Date.now();
     const staleDaysOf = (a) => {
       if (!a.feed_synced_at) return null;

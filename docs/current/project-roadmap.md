@@ -2398,7 +2398,7 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
     or fin learns an alias table. Owner decision; the measurement above is what it needs.
 
 30. **🟡 Two feed connections are silent while their consent reports `READY` — Erste Bank Polska for
-    64 days** *(found 2026-09-13 from the Balance Calibration page)*. Live on prod and dev:
+    64 days** — ⚠️ **CORRECTED 2026-09-13: they were QUIET, not silent.** Both synced with the bank that day; on GoCardless connections `last_successful_update` is the newest transaction's date, not the sync time. See [CR091 U5](../cr/cr-091-reconnect-that-works.md) for the measurement, the fin-side re-read (`feedSyncHealth.js`) and the bank-feed handoff. The text below is kept as found. *(found 2026-09-13 from the Balance Calibration page)*. Live on prod and dev:
     `Erste Bank Polska` (fin account `Santandar`) — `state: stale`, **64 days** since Fintable last
     synced from the bank; `Revolut` (`Revolut-EUR`, `Revolut-PLN`) — **5 days**. Both carry
     `status_text: READY`, so this is not an expired consent, and nothing fin or bank-feed calls can

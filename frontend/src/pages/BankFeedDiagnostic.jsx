@@ -45,7 +45,7 @@ function StatusPill({ label, kind }) {
 // where the day count has no other column to live in.
 function connLabel(c) {
   if (!c.attention) return "healthy";
-  if (c.state === "stale") return `silent ${c.days_since_upstream_sync ?? "?"}d`;
+  if (c.state === "stale") return `silent ${c.days_since_bank_sync ?? c.days_since_upstream_sync ?? "?"}d`;
   return HEALTH_LABEL[c.state] || c.state;
 }
 
@@ -555,16 +555,21 @@ export default function BankFeedDiagnostic() {
                       <td className="num">{c.accounts_count}</td>
                       <td>
                         <StatusPill label={connLabel(c)} kind={healthPillKind(c)} />
-                        {/* Fintable's own status text while the connection is still
-                            syncing inside the window — bank-feed reports it as a
-                            notice, not a problem (CR060), and so does this row. */}
+                        {/* A quiet connection synced with the bank but got nothing
+                            new — said, so a dormant account's old last-transaction
+                            date is not read as a dead feed (feedSyncHealth.js). */}
+                        {c.state === "quiet" && (
+                          <div className="bfd-notice">
+                            no new transactions for {c.days_since_upstream_sync}d · synced
+                            with the bank {fmtDateTime(c.bank_synced_at)}
+                          </div>
+                        )}
+                        {/* Fintable's status text. fin's server drops it once the bank
+                            has synced inside the window — it has proved stale (CR091
+                            U2) — so what reaches this row is unconfirmed either way. */}
                         {c.notice && (
-                          <div
-                            className="bfd-notice"
-                            title="Fintable's status text. This connection is still syncing from the bank inside the 48h window, so it is not flagged."
-                          >
-                            Fintable says “{c.notice}” — but it synced from the bank
-                            within 48h, so it is not flagged
+                          <div className="bfd-notice" title="Fintable's own status text for this connection.">
+                            Fintable says “{c.notice}”
                           </div>
                         )}
                       </td>

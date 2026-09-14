@@ -182,6 +182,45 @@ trailing-slash redirect (the reason the AI Review block is shaped that way too).
   says so rather than showing the text under a bare HEALTHY. Whether that text predicts an imminent
   expiry is unmeasured.
 
+- **U5 — a QUIET account was reported as a SILENT feed, and U4 told the owner to re-authorise it.**
+  🔧 **Fixed fin-side 2026-09-13 (unreleased).** The owner opened Fintable after v3.61.2 and it showed
+  Bank Pekao, Revolut and Erste as fine — and it was right. **Measured on all 13 live connections:**
+  bank-feed's `stale` reads Fintable's `last_successful_update` as the last successful bank sync, but on
+  GoCardless (NORDIGEN) connections that field is the **newest transaction's date stamped
+  `T23:59:59Z`** whenever a sync brings nothing new — Erste `2026-07-10T23:59:59Z` vs last transaction
+  2026-07-10, Revolut 09-07/09-07, Pekao 09-04/09-04 — while each connection's `sync_status` showed a
+  sync with the bank **finished that afternoon** (Erste's own log: *"Retrieved 1 transactions … Date
+  range 2026-06-01 to 2026-09-13"*). The other ten connections carry a real timestamp there. So
+  *"Fintable has not pulled from the bank for 64 days"* — U4's panel text — was **false**, and its
+  advice to press Re-authorise risked exactly the re-key U3 records. The same field reached four more
+  surfaces: Balance Calibration's red *"synced N days ago"*, the Home strip's *"feed data stale on 3
+  accounts (oldest 64d)"*, mobile Reconcile, and Bank Feed Setup.
+  **Fix (fin, one place):** `server/src/v2/services/feedSyncHealth.js` re-reads the verdict for
+  `/balance-recon`, `/diagnostic` and `/util/attention-summary`: `stale` + a `sync_status` of
+  `finished` inside bank-feed's own `stale_threshold_hours` → **`quiet`** (attention false, shown as
+  *"no new transactions for Nd"*); `feed_synced_at` moves forward to that sync, never backwards;
+  Fintable's notice text is dropped once the bank answered inside the window (PKO's *"Bank access has
+  expired"* was stale text). `needs_reconnect` / `unhealthy` / `never_synced` are never touched, an
+  unknown `sync_status` changes nothing, and a connection with **no** finished sync inside the window
+  stays `stale` — the alarm for the seven-week Revolut gap still fires. 12 unit tests, **falsified**
+  by disabling the reclassification (they fail) before being kept.
+  ⚠️ **Also found, not fixed:** `reconcileToFeed` dates MTM/accrue observations from the stored
+  `source_synced_at`. Today only Fidelity (SNAPTRADE) and Wise use those modes, and both carry real
+  timestamps, so nothing is mis-dated now — but a GoCardless account switched to `accrue` would date
+  from its last transaction.
+
+### Handoff to bank-feed (for a bank-feed session — not written into that repo from here)
+1. **The classifier conflates "no new data" with "no bank sync".** `classifyUpstreamConnection`
+   (`src/services/upstreamHealth.js`) should classify staleness on `sync_status.finished_at` (state
+   `finished`), not `last_successful_update`, and could expose the latter as data age. The evidence is
+   U5 above. ⚠️ **CR060's 48h threshold was measured on 1,457 `last_successful_update` gaps** — on the
+   six NORDIGEN connections those are transaction gaps, not sync gaps, so the measurement is worth
+   re-running on sync times. Fin's `feedSyncHealth.js` can be deleted once this ships.
+2. **P4, reproduced 2026-09-13.** A Re-authorise on `conn_nordigen_4985054057502688250` (Bank Pekao):
+   one mint returned 201, then fintable 429'd and bank-feed waited 40s, 26s, then **0s, 0s** — the
+   `Retry-After: 0` retries D3 describes — and fin showed *"Fintable is rate-limiting link creation"*.
+   Unchanged from P4 above: do not retry an interactive mint; return the 429 and its wait.
+
 **P3 — close U3 with the diff CR060 promised.** *(fin)*
 - Snapshot each connection's account ids when a link is minted; on the next load, diff and show
   what changed — **appeared / disappeared / re-keyed** — against the mappings.

@@ -3,9 +3,13 @@
  * Balance Calibration (the attention panel and each row's badge) and Bank Feed
  * Setup (the attention box and the connections table).
  *
- * Both pages read bank-feed's classified `state` (upstreamHealth.js): `stale`
- * is a connection whose consent is still valid but which Fintable has not
- * synced from the bank for > 48h. Before this module the Setup page read the
+ * Both pages read bank-feed's classified `state`, re-read by fin's server
+ * (server/src/v2/services/feedSyncHealth.js): `stale` is a connection with no
+ * FINISHED sync with the bank inside 48h. A connection whose bank synced but
+ * sent no new transactions is `quiet` — attention false, nothing to do.
+ * (bank-feed alone called those stale, because Fintable's
+ * `last_successful_update` is the newest transaction's date on GoCardless
+ * connections — a dormant account read "silent 64 days" while syncing daily.) Before this module the Setup page read the
  * raw `healthy` flag instead, which is TRUE for exactly that case — so it said
  * HEALTHY beside a bank 64 days silent while Balance Calibration, one link
  * away, said it needed attention. One module, one vocabulary.
@@ -19,6 +23,7 @@ export const HEALTH_LABEL = {
   unhealthy: "upstream error",
   never_synced: "never synced",
   stale: "feed silent",
+  quiet: "quiet",
 };
 
 // needs_reconnect / unhealthy are "do this now"; the rest are "look at this".
@@ -39,8 +44,10 @@ export function attentionAdvice(health, { onSetupPage = false } = {}) {
   const reauth = onSetupPage ? "press Re-authorise" : "re-authorise it under Settings → Bank Feed Setup";
   const Reauth = reauth[0].toUpperCase() + reauth.slice(1);
   const onRecon = onSetupPage ? " on Balance Calibration" : "";
-  const days = health.days_since_upstream_sync;
-  const since = days != null ? `${days} day${days === 1 ? "" : "s"}` : "an unknown time";
+  // Days since the last FINISHED sync with the bank; data age only if unknown.
+  const bankDays = health.days_since_bank_sync;
+  const dataDays = health.days_since_upstream_sync;
+  const plural = (n) => `${n} day${n === 1 ? "" : "s"}`;
   switch (health.state) {
     case "needs_reconnect":
       return {
@@ -60,7 +67,11 @@ export function attentionAdvice(health, { onSetupPage = false } = {}) {
     case "stale":
     default:
       return {
-        what: `The consent is still valid${health.status_text ? ` (${health.status_text})` : ""}, but Fintable has not pulled from the bank for ${since} — a normal gap is under 2 days. Refresh Feeds cannot fix this; it only reads what Fintable already has.`,
+        what:
+          (bankDays != null
+            ? `Fintable's last completed sync with the bank was ${plural(bankDays)} ago`
+            : `Fintable reports no completed sync with the bank in the last 2 days${dataDays != null ? ` and no new data for ${plural(dataDays)}` : ""}`) +
+          `, though the consent is still valid${health.status_text ? ` (${health.status_text})` : ""}. A normal gap is under 2 days. Refresh Feeds cannot fix this; it only reads what Fintable already has.`,
         todo: `If it stays silent, ${reauth}. Until it syncs, the bank figure on its accounts is out of date: do not Reconcile them${onRecon} — use Upload on the row to import a statement instead.`,
       };
   }
