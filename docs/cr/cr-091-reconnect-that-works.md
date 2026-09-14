@@ -166,6 +166,17 @@ trailing-slash redirect (the reason the AI Review block is shaped that way too).
   consumes the endpoint's order.
 - U2: rank connection-level truth above job-derived text; a connection with `needs_reconnect: false`
   and a fresh `last_successful_update` is not `unhealthy` because yesterday's job failed.
+  🔄 **HANDED TO BANK-FEED (owner, 2026-09-14) — fin changes nothing.** v3.61.4 set the rule that
+  health is classified once, at source, so fin does not reinterpret it. Not reproducible today: all 13
+  prod connections read `ok`. **The rule for `classifyUpstreamConnection`
+  (`src/services/upstreamHealth.js`):** `healthy === false` yields `unhealthy` **only if the bank was
+  NOT reached inside `staleHours`** (`last_bank_sync_at`, from `connectionSyncTime.js`); otherwise the
+  state is `ok` and Fintable's text travels as `notice`. `needs_reconnect === true` still outranks
+  everything. **Cases:** (1) `healthy:false`, `needs_reconnect:false`, reached 10 min ago → `ok` with
+  notice; (2) same, reached 60 h ago → `unhealthy`; (3) `healthy:false`, never reached → `unhealthy`;
+  (4) `needs_reconnect:true` with a fresh reach → `needs_reconnect`; (5) `healthy:true`, reached 60 h
+  ago → `stale` (unchanged). ⚠️ This file is fin's copy of the spec; the entry belongs in bank-feed's
+  `HANDOFFS.md`, written from a bank-feed session.
 
 - **U4 — the page contradicted the one that links to it.** ✅ **SHIPPED v3.61.2 (2026-09-13).**
   Balance Calibration's *feeds need attention* panel links here, and this page showed nothing wrong:
