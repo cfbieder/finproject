@@ -101,7 +101,7 @@ async function getGrid(leId) {
   const le = await repo.findById(leId);
   if (!le) return null;
 
-  const [lines, budgetFy, tree, live, unallocated] = await Promise.all([
+  const [lines, budgetFy, tree, live] = await Promise.all([
     repo.findLines(leId),
     // A draft reads the budget LIVE; a final LE reads what it froze (migration 082).
     budgetFyFor(le),
@@ -114,7 +114,6 @@ async function getGrid(leId) {
     // looks like, and `Purchases - IT Costs` is the live example: no 2026 budget
     // and, on a database whose sync predates July, activity only from August.
     liveActivityByCategory(le.budget_year, String(le.actual_through).slice(0, 10)),
-    unallocatedAllowance(le),
   ]);
 
   const cut = String(le.actual_through).slice(0, 10);
@@ -241,8 +240,6 @@ async function getGrid(leId) {
     estimateMonths,
     rows: rows.filter(Boolean),
     totals,
-    // §2.1's memo line: shown BELOW the total, never inside it.
-    unallocated,
     fxBasis: 'Estimate months carry the rate each budget row was computed at, '
       + 'not the declared budget rate — Sep–Dec PLN spans 3.51–3.74 against a '
       + 'declared 3.5517.',
@@ -610,7 +607,9 @@ async function getDeviations(leId) {
         // A figure the owner typed is a decision, not an oversight. Saying so is
         // the difference between a flag and a nag -- and an advisory that nags
         // about settled decisions is one the owner stops reading.
-        + (estimateIsTyped ? `, which you typed.` : `.`),
+        + (estimateIsTyped ? `, which you typed.` : `.`)
+        // A final LE cannot take the change: name the remedy instead of implying an edit.
+        + (le.status === 'draft' ? '' : ` ${le.name} is ${le.status} — re-cut it to apply this.`),
     });
   }
 
@@ -619,7 +618,7 @@ async function getDeviations(leId) {
 
   const actionable = flags.filter((f) => f.kind === 'relevel');
   return {
-    leId, actualThrough: cut, actualMonths: K,
+    leId, leStatus: le.status, actualThrough: cut, actualMonths: K,
     flags,
     totalEffect: actionable.reduce((s, f) => s + f.effect, 0),
     thresholds: {
@@ -793,29 +792,46 @@ async function budgetFyFor(le) {
 }
 
 /**
- * §2.1 — budget rows with NO category (the account-level allowance: −86,789 for
- * 2026 on four bank and card accounts). Excluded from the LE by owner decision
- * (2026-08-16: a pre-itemisation plug) and shown as a memo line below the total.
- * L6 fires whenever any of it falls in the estimate months.
+ * L4 — a budgeted cost the estimate has dropped (§9): the category's budget for the
+ * estimate months is non-zero, its estimate there is ZERO, and no line carries a note
+ * saying why. A freshly cut LE carries the budget, so this fires only on months the
+ * owner zeroed — the −66,381 of `Taxes US` / `Property Tax - US` the CR measured is
+ * exactly that shape. Same materiality floor as the deviations (MATERIAL_EFFECT), so
+ * a stray cent does not become a warning.
+ *
+ * (Budget rows with no category are not budget at all — owner, 2026-09-14: a budget
+ * is P&L only, and the account on a line is just where the money is expected to
+ * land — so they are outside the scope join here, as everywhere else in the LE.)
  */
-async function unallocatedAllowance(le) {
+async function droppedCommittedCosts(le) {
   const cut = String(le.actual_through).slice(0, 10);
   const { rows } = await db.query(
-    `SELECT COUNT(*)::int AS row_count,
-            (COUNT(*) FILTER (WHERE entry_date > $2::date))::int AS estimate_rows,
-            COALESCE(SUM(base_amount), 0) AS fy,
-            COALESCE(SUM(base_amount) FILTER (WHERE entry_date > $2::date), 0) AS estimate_window
-     FROM budget_entries
-     WHERE budget_year = $1 AND category_id IS NULL`,
-    [le.budget_year, cut]
+    `WITH scope AS (${repo.SCOPE_SQL}),
+     b AS (
+       SELECT category_id,
+              COALESCE(SUM(base_amount) FILTER (WHERE entry_date > $2::date), 0) AS budget_rest
+       FROM budget_entries WHERE budget_year = $1 GROUP BY 1
+     ),
+     l AS (
+       SELECT category_id,
+              COALESCE(SUM(base_amount), 0) AS estimate_rest,
+              BOOL_OR(note IS NOT NULL AND note <> '') AS has_note
+       FROM budget_le_lines WHERE le_id = $3 AND source <> 'actual' GROUP BY 1
+     )
+     SELECT s.id, acc.name, COALESCE(b.budget_rest, 0) AS budget_rest
+     FROM scope s
+     JOIN accounts acc ON acc.id = s.id
+     LEFT JOIN b ON b.category_id = s.id
+     LEFT JOIN l ON l.category_id = s.id
+     WHERE COALESCE(b.budget_rest, 0) <> 0
+       AND COALESCE(l.estimate_rest, 0) = 0
+       AND NOT COALESCE(l.has_note, false)`,
+    [le.budget_year, cut, le.id]
   );
-  const r = rows[0];
-  return {
-    rows: r.row_count,
-    estimateRows: r.estimate_rows,
-    fy: Number(r.fy) || 0,
-    estimateWindow: Number(r.estimate_window) || 0,
-  };
+  return rows
+    .map((r) => ({ categoryId: r.id, name: r.name, budgetRest: Number(r.budget_rest) || 0 }))
+    .filter((c) => Math.abs(c.budgetRest) >= MATERIAL_EFFECT)
+    .sort((a, b) => Math.abs(b.budgetRest) - Math.abs(a.budgetRest));
 }
 
 /**
@@ -906,7 +922,7 @@ async function getDrift(leId) {
   };
 }
 
-/** L1 and L6 — advisories: they state a number and never block anything. */
+/** L1 and L4 — advisories: they state a number and never block anything. */
 async function getAdvisories(leId) {
   const le = await repo.findById(leId);
   if (!le) return null;
@@ -931,22 +947,24 @@ async function getAdvisories(leId) {
     operands: { cut, daysAfter, reference: when, settleDays: L1_SETTLE_DAYS, dayBasis: 'UTC' },
   };
 
-  // L6 — the uncategorised allowance, in the estimate months.
-  const u = await unallocatedAllowance(le);
-  const l6 = {
-    id: 'L6',
-    rule: 'le-uncategorised-allowance-double-count',
-    label: 'uncategorised budget',
-    fires: u.estimateRows > 0,
-    // No wrapping parentheses: fmt() already writes a negative as (…), and the
-    // first render showed "(($35,899.54); …)".
-    message: `${u.estimateRows} budget row${u.estimateRows === 1 ? '' : 's'} in the estimate months carry no category — `
-      + `${fmt(u.estimateWindow)} in those months, ${fmt(u.fy)} for the year. They are left out of this estimate as a `
-      + `pre-itemisation plug (owner, 2026-08-16) — if any of it is real spend, the landing is short by up to that amount.`,
-    operands: u,
+  // L4 — a budgeted cost estimated at zero. (L6 was removed 2026-09-14: budget rows
+  // with no category are not budget, so there is nothing to double-count.)
+  const dropped = await droppedCommittedCosts(le);
+  const total = dropped.reduce((s, c) => s + c.budgetRest, 0);
+  const named = dropped.slice(0, 3).map((c) => `${c.name} ${fmt(c.budgetRest)}`).join(', ');
+  const l4 = {
+    id: 'L4',
+    rule: 'le-dropped-committed-cost',
+    label: 'budgeted, estimated at zero',
+    fires: dropped.length > 0,
+    message: dropped.length === 0 ? '' :
+      `${dropped.length} categor${dropped.length === 1 ? 'y has' : 'ies have'} ${fmt(total)} budgeted for the estimate months `
+      + `but nothing estimated: ${named}${dropped.length > 3 ? `, and ${dropped.length - 3} more` : ''}. `
+      + `If the cost is still coming, put it back in the worksheet; if it is not, the zero stands.`,
+    operands: { categories: dropped, total, materiality: MATERIAL_EFFECT },
   };
 
-  return { leId: le.id, name: le.name, advisories: [l1, l6] };
+  return { leId: le.id, name: le.name, advisories: [l1, l4] };
 }
 
 async function finalize(id) {

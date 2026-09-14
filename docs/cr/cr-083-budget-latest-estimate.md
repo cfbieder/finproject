@@ -1682,7 +1682,7 @@ cheap test CR081 skipped.
   - **Rendered in both themes on dev:** the memo line reads as a note below NET, the confirm closes
     on Esc, and there were no console errors. The first render caught doubled parentheses in L6's
     sentence.
-  - **Still open:** **L4** and **L10**.
+  - **L4 and L10:** built as a follow-up — see the owner decision below.
 
   **Code review, same day, before release — corrected:**
   - 🔴 **The worksheet restated what the grid froze.** A final LE's category worksheet still read BUDGET FY
@@ -1708,7 +1708,18 @@ cheap test CR081 skipped.
   **Deliberately not changed:**
   - `POST/PATCH/DELETE /entries` moves a draft's live BUDGET FY the same way a recalculate does, and is not
     refused, because the owner edits the budget in-year.
-  - Deviations on a final LE still propose re-levels an immutable LE cannot take. They are worded for a
-    draft; re-cutting is the remedy.
+
+  **Owner decision and follow-up, 2026-09-14 (after v3.62.0):**
+  - **A budget is P&L only.** The account on a budget line records where the owner expects the cost or
+    income to land; it is not a budget dimension. The 72 rows with no category (−86,788.71 for 2026, on
+    PKO and three cards) are therefore **not budget at all**. The unallocated-allowance memo line and
+    **L6 are removed**, superseding §2.1's 2026-08-16 memo treatment. The LE already excluded the rows.
+  - **L4 built** (`le-dropped-committed-cost`). It fires when a category's budget for the estimate months
+    is non-zero and its estimate there is zero with no line note, at the deviations floor (≥$1,000). A
+    freshly cut LE carries the budget, so it fires only on months the owner zeroed. Line notes cannot be
+    written from the UI yet, so "no note" is always true today.
+  - **L10 as a test, not a warning.** The lifecycle suite asserts an LE's grid NET equals the sum of its
+    lines, and its frozen actuals equal the ledger at the freeze.
+  - **Deviations on a final LE** now name the remedy: a re-cut.
 - **P1** (the advisory's accept path, `TRAIL_3`/`ZERO`, drift **L2**) and **P2** (§11.4's seed-next-
   year, still not specified enough to schedule).

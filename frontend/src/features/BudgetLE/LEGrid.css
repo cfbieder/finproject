@@ -248,21 +248,6 @@
   background: var(--surface-muted);
 }
 
-/* §2.1's memo line: in the footer but visibly NOT part of the total — no heavy
-   rule, no bold, muted text, so it cannot be read as a second NET. */
-.le-grid tfoot .le-grid__memo th,
-.le-grid tfoot .le-grid__memo td {
-  border-top: 1px dashed var(--border);
-  font-weight: 400;
-  color: var(--muted);
-  background: var(--surface);
-}
-.le-grid__memo-note {
-  margin-left: 0.45rem;
-  font-size: 0.7rem;
-  letter-spacing: 0.02em;
-}
-
 .le-grid__printhead { display: none; }
 
 .le-grid__basisnote {

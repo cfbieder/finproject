@@ -23,6 +23,7 @@ function LEDeviations({ data, onOpenCategory }) {
   const actionable = flags.filter((f) => f.kind === "relevel");
   const refused = flags.filter((f) => f.kind === "refused").length;
   const noBudget = flags.filter((f) => f.kind === "no_budget").length;
+  const isFinal = Boolean(data.leStatus) && data.leStatus !== "draft";
 
   return (
     <section className="le-dev" aria-label="Year-to-date deviations">
@@ -39,7 +40,9 @@ function LEDeviations({ data, onOpenCategory }) {
         <span className="le-dev__sub">
           {actionable.length > 0 && (
             <>
-              re-levelling {actionable.length} would move the rest of the year by{" "}
+              {/* A final LE cannot be edited, so the remedy is a re-cut — say that. */}
+              {isFinal ? "re-cutting to re-level " : "re-levelling "}
+              {actionable.length} would move the rest of the year by{" "}
               <strong className={totalEffect >= 0 ? "le-grid__money--fav" : "le-grid__money--adv"}>
                 {totalEffect >= 0 ? "+" : "−"}{formatCurrencyValue(Math.abs(totalEffect))}
               </strong>
@@ -88,8 +91,10 @@ function LEDeviations({ data, onOpenCategory }) {
           </ul>
 
           <p className="le-dev__note">
-            {data.thresholds.note} Nothing here changes the estimate — open a
-            category to decide.
+            {data.thresholds.note}{" "}
+            {isFinal
+              ? "This estimate is final and cannot be edited — re-cut it to act on any of these."
+              : "Nothing here changes the estimate — open a category to decide."}
           </p>
         </div>
       )}

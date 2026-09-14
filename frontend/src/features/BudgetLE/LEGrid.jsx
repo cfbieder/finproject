@@ -135,27 +135,6 @@ function LEGrid({ grid, onOpenCategory }) {
             <td className="le-grid__num"><Variance value={totals.variance} /></td>
             <td className="le-grid__basis" />
           </tr>
-          {/* §2.1 — the uncategorised budget allowance, BELOW the total and never
-              inside it (owner decision 2026-08-16). Its estimate-window figure sits
-              under ESTIMATE and its full-year figure under BUDGET FY; L6 fires when
-              the first is non-empty. */}
-          {grid.unallocated && grid.unallocated.rows > 0 && (
-            <tr className="le-grid__memo">
-              <th scope="row" className="le-grid__cat">
-                Unallocated budget allowance{" "}
-                <span className="le-grid__memo-note">
-                  {/* Read live even on a final LE: 082 froze categorised budget only. */}
-                  memo — {grid.le.status !== "draft" ? "live, " : ""}not in NET
-                </span>
-              </th>
-              <td className="le-grid__num" />
-              <td className="le-grid__num le-grid__seam"><Money value={grid.unallocated.estimateWindow} /></td>
-              <td className="le-grid__num" />
-              <td className="le-grid__num"><Money value={grid.unallocated.fy} /></td>
-              <td className="le-grid__num" />
-              <td className="le-grid__basis" />
-            </tr>
-          )}
         </tfoot>
       </table>
 

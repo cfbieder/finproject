@@ -47,7 +47,7 @@ dbDescribe('CR083 LE lifecycle routes (DB)', () => {
 
     const adv = await req('GET', `/le/${le.id}/advisories`);
     expect(adv.status).toBe(200);
-    expect(adv.body.data.advisories.map((a) => a.id)).toEqual(['L1', 'L6']);
+    expect(adv.body.data.advisories.map((a) => a.id)).toEqual(['L1', 'L4']);
 
     const drift = await req('GET', `/le/${le.id}/drift`);
     expect(drift.status).toBe(200);

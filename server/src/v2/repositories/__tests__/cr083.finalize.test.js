@@ -78,6 +78,23 @@ dbDescribe('CR083 finalise, recut, drift and advisories (DB)', () => {
     expect(Number(fy.find((r) => r.category_id === ids.a).budget_fy)).toBeCloseTo(-300, 2);
   });
 
+  test('L10: an LE ties — its grid NET is the sum of its lines, and its frozen actuals equal the ledger at the freeze', async () => {
+    const lines = await repo.findLines(ids.first);
+    const grid = await svc.getGrid(ids.first);
+    expect(grid.totals.fyTotal).toBeCloseTo(lines.reduce((s, l) => s + Number(l.base_amount), 0), 2);
+
+    const frozen = lines.filter((l) => l.source === 'actual')
+      .reduce((s, l) => s + Number(l.snapshot_sum), 0);
+    const { rows } = await db.query(
+      `WITH scope AS (${repo.SCOPE_SQL})
+       SELECT COALESCE(SUM(t.base_amount), 0) AS live
+       FROM transactions t JOIN scope s ON s.id = t.category_id
+       WHERE t.transaction_date BETWEEN make_date($1, 1, 1) AND make_date($1, 7, 31)`,
+      [YEAR]
+    );
+    expect(frozen).toBeCloseTo(Number(rows[0].live), 2);
+  });
+
   test('🔴 a final LE keeps its frozen figures when the ledger and budget move — on the grid AND in its worksheet', async () => {
     await budget(10, -1000, ids.a);
     await txn(4, -70); // an actual month the freeze did not see
@@ -206,21 +223,35 @@ dbDescribe('CR083 finalise, recut, drift and advisories (DB)', () => {
     expect(l1.fires).toBe(false);
   });
 
-  test('L6 fires on uncategorised budget rows in the estimate months, and the grid carries the memo line', async () => {
-    let l6 = (await svc.getAdvisories(ids.first)).advisories.find((a) => a.id === 'L6');
-    expect(l6.fires).toBe(false);
-
-    await budget(2, -40, null);  // an actual month: counts for the year, not the estimate window
+  test('L4 fires only when a budgeted cost is estimated at zero; L6 is gone', async () => {
+    const { rows } = await db.query(
+      `INSERT INTO accounts (name, account_type, section, is_transfer, currency, is_active)
+       VALUES ($1, 'expense', 'profit_loss', FALSE, 'USD', TRUE) RETURNING id`,
+      [`${TAG} Beta`]
+    );
+    const beta = rows[0].id;
+    await budget(11, -5000, beta);
+    // Budget rows with no category are not budget (owner, 2026-09-14): nothing may fire on them.
     await budget(11, -500, null);
-    l6 = (await svc.getAdvisories(ids.first)).advisories.find((a) => a.id === 'L6');
-    expect(l6.fires).toBe(true);
-    expect(l6.operands.estimateWindow).toBeCloseTo(-500, 2);
-    expect(l6.operands.fy).toBeCloseTo(-540, 2);
 
-    const grid = await svc.getGrid(ids.first);
-    expect(grid.unallocated).toMatchObject({ rows: 2, estimateRows: 1 });
-    // Memo, never inside the total.
-    expect(grid.totals.budgetFy).toBeCloseTo(-300, 2);
+    const x = await repo.create({ budgetYear: YEAR, actualThrough: `${YEAR}-06-30` });
+    let adv = await svc.getAdvisories(x.id);
+    expect(adv.advisories.map((a) => a.id)).toEqual(['L1', 'L4']);
+    expect(adv.advisories.find((a) => a.id === 'L4').fires).toBe(false); // carried, not dropped
+
+    await svc.saveCategoryEstimates(x.id, beta, { [`${YEAR}-11`]: 0 });
+    const l4 = (await svc.getAdvisories(x.id)).advisories.find((a) => a.id === 'L4');
+    expect(l4.fires).toBe(true);
+    expect(l4.operands.categories).toEqual([
+      expect.objectContaining({ categoryId: beta, budgetRest: -5000 }),
+    ]);
+
+    await svc.saveCategoryEstimates(x.id, beta, { [`${YEAR}-11`]: -5000 });
+    adv = await svc.getAdvisories(x.id);
+    expect(adv.advisories.find((a) => a.id === 'L4').fires).toBe(false);
+
+    expect('unallocated' in (await svc.getGrid(x.id))).toBe(false);
+    await repo.remove(x.id);
   });
 
   test('deleting a FINAL LE restores nothing — the restore is for a recut\'s draft only', async () => {
