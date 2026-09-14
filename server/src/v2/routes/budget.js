@@ -151,15 +151,18 @@ router.post('/fx-rates/recalculate', async (req, res, next) => {
       return res.status(400).json({ error: 'currency, year, and month are required' });
     }
 
-    // CR083 §5: a recalculate rewrites `base_amount` on budget_entries, and a DRAFT
-    // LE's estimate months are copies of those figures — so it would silently move
-    // half the estimate window. A final LE is safe (it froze its own figures).
+    // CR083 §5: a recalculate rewrites `base_amount` on budget_entries. A DRAFT LE
+    // reads its BUDGET FY and variance live from those rows, and the FY it freezes at
+    // finalise would then be at the new rate while its carried estimate months stay
+    // at the old one. A final LE froze its own figures and is unaffected.
+    // ⚠️ Editing entries directly (POST/PATCH/DELETE /entries) moves the same live
+    // figures and is deliberately NOT refused — the owner edits the budget in-year.
     const drafts = (await budgetLeRepo.findAll({ budgetYear: Number(year) }))
       .filter((le) => le.status === 'draft');
     if (drafts.length) {
       return res.status(409).json({
         error: `A draft Latest Estimate exists for ${year} (${drafts.map((d) => d.name).join(', ')}). `
-          + 'Recalculating would silently rewrite the budget figures it carries — finalise or delete it first.',
+          + 'Recalculating would move the live budget figures it reports against — finalise or delete it first.',
         code: 'LE_DRAFT_EXISTS',
       });
     }

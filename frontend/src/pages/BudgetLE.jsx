@@ -168,6 +168,13 @@ function BudgetLE() {
   const years = [currentYear - 1, currentYear, currentYear + 1];
   const spec = confirm ? CONFIRM[confirm] : null;
 
+  // Every panel renders only data for the SELECTED estimate. After a switch or a
+  // recut the previous LE's figures would otherwise sit above the next one's until
+  // its fetches land. Gated here rather than cleared in an effect, which the
+  // set-state-in-effect lint rule (and the lint-debt ratchet) forbid.
+  const forSelected = (d) => (d && (d.leId ?? d.le?.id) === selectedId ? d : null);
+  const shownGrid = forSelected(grid);
+
   return (
     <main className="page-container">
       <div className="report-toolbar-header">
@@ -186,7 +193,7 @@ function BudgetLE() {
           <select
             className="le-toolbar__select"
             value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
+            onChange={(e) => { setNotice(""); setYear(Number(e.target.value)); }}
           >
             {years.map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
@@ -197,7 +204,7 @@ function BudgetLE() {
           <select
             className="le-toolbar__select"
             value={selectedId ?? ""}
-            onChange={(e) => setSelectedId(Number(e.target.value))}
+            onChange={(e) => { setNotice(""); setSelectedId(Number(e.target.value)); }}
             disabled={!list.length}
           >
             {!list.length && <option value="">none yet</option>}
@@ -245,13 +252,13 @@ function BudgetLE() {
         </p>
       )}
 
-      {grid && <LEAdvisories advisories={advisories} drift={drift} />}
+      {shownGrid && <LEAdvisories advisories={forSelected(advisories)} drift={forSelected(drift)} />}
 
-      {grid && (
-        <LEDeviations data={deviations} onOpenCategory={setOpenCategory} />
+      {shownGrid && (
+        <LEDeviations data={forSelected(deviations)} onOpenCategory={setOpenCategory} />
       )}
 
-      {grid && <LEGrid grid={grid} onOpenCategory={setOpenCategory} />}
+      {shownGrid && <LEGrid grid={shownGrid} onOpenCategory={setOpenCategory} />}
 
       {openCategory != null && selectedId && (
         <LECategorySheet

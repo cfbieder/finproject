@@ -105,7 +105,11 @@ function LECategorySheet({ leId, categoryId, onClose, onSaved }) {
       title={sheet ? sheet.category.name : "Category"}
       description={
         sheet
-          ? `${sheet.le.name} · actual to ${sheet.le.actualThrough} · estimate months are editable`
+          ? `${sheet.le.name} · actual to ${sheet.le.actualThrough} · ${
+            editable
+              ? "estimate months are editable"
+              : `${sheet.le.status} — frozen: actual months and the full-year budget are as finalised; re-cut to change it`
+          }`
           : ""
       }
       footer={
@@ -141,7 +145,9 @@ function LECategorySheet({ leId, categoryId, onClose, onSaved }) {
               <tr>
                 <th className="le-sheet__month">MONTH</th>
                 <th className="le-sheet__num">ACTUAL</th>
-                <th className="le-sheet__num">BUDGET</th>
+                {/* On a final LE only the FULL-YEAR budget is frozen (migration 082);
+                    the monthly figures are today's budget, and the header says so. */}
+                <th className="le-sheet__num">{sheet.monthlyBudgetIsLive ? "BUDGET (LIVE)" : "BUDGET"}</th>
                 <th className="le-sheet__num">ESTIMATE</th>
               </tr>
             </thead>

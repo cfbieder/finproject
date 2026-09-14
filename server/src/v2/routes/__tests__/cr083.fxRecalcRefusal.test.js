@@ -35,15 +35,20 @@ dbDescribe('FX recalculate vs a draft Latest Estimate (DB)', () => {
 
   test('409 LE_DRAFT_EXISTS while a draft exists, before any rate is read or written', async () => {
     await leRepo.create({ budgetYear: YEAR, actualThrough: `${YEAR}-03-31` });
+    const count = async () => (await db.query('SELECT COUNT(*)::int AS n FROM budget_fx_rates')).rows[0].n;
+    const before = await count();
     const r = await req('POST', '/fx-rates/recalculate', { currency: 'EUR', year: YEAR, month: 3 });
     expect(r.status).toBe(409);
     expect(r.body.code).toBe('LE_DRAFT_EXISTS');
     expect(r.body.error).toMatch(/LE-04-77/);
+    expect(await count()).toBe(before);
   });
 
-  test('with no draft the refusal does not apply', async () => {
+  test('with no draft the refusal does not apply — the route reaches its own no-data answer', async () => {
     await cleanup();
     const r = await req('POST', '/fx-rates/recalculate', { currency: 'EUR', year: YEAR, month: 3 });
-    expect(r.status).not.toBe(409);
+    // Not merely "not 409": a crash in the guard would also be not-409.
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/No actual exchange rate data/);
   });
 });

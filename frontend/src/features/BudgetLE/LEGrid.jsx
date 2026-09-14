@@ -142,7 +142,11 @@ function LEGrid({ grid, onOpenCategory }) {
           {grid.unallocated && grid.unallocated.rows > 0 && (
             <tr className="le-grid__memo">
               <th scope="row" className="le-grid__cat">
-                Unallocated budget allowance <span className="le-grid__memo-note">memo — not in NET</span>
+                Unallocated budget allowance{" "}
+                <span className="le-grid__memo-note">
+                  {/* Read live even on a final LE: 082 froze categorised budget only. */}
+                  memo — {grid.le.status !== "draft" ? "live, " : ""}not in NET
+                </span>
               </th>
               <td className="le-grid__num" />
               <td className="le-grid__num le-grid__seam"><Money value={grid.unallocated.estimateWindow} /></td>

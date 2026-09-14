@@ -87,7 +87,8 @@
   padding: 0.6rem 0.9rem;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-left: 3px solid var(--growth-negative);
+  /* An advisory frame, not a loss: the warning family, never the money colour. */
+  border-left: 3px solid var(--warning);
   border-radius: 4px;
 }
 .le-adv__list { margin: 0; padding: 0; list-style: none; }

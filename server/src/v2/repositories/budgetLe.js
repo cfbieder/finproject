@@ -205,7 +205,7 @@ async function insertLine(client, leId, l) {
  * needs this: its supersede and its insert must commit together (§7.1), so it
  * cannot open a second transaction of its own.
  */
-async function createIn(client, { budgetYear, actualThrough, label, note }) {
+async function createIn(client, { budgetYear, actualThrough, label, note, seedFromId }) {
   const { rows: excluded } = await client.query(
     `SELECT ARRAY(
        SELECT a.id FROM accounts a
@@ -228,20 +228,25 @@ async function createIn(client, { budgetYear, actualThrough, label, note }) {
   // it has a figure, falling back to the budget where it does not. Carrying
   // the budget forward every time would throw away the owner's own latest
   // thinking the moment a second LE is cut — the whole point of a series is
-  // that LE-09 starts where LE-08 finished. A recut's predecessor is exactly
-  // that prior LE, so a re-cut keeps every month the owner typed.
+  // that LE-09 starts where LE-08 finished.
+  //
+  // A RECUT passes `seedFromId` — the LE it supersedes. "Most recent" is not that
+  // LE whenever a later-cut LE exists, and seeding from the later one silently
+  // drops the months the owner typed into the one being re-cut (review 2026-09-14).
   //
   // The provenance travels WITH the number: a month the owner typed stays
   // `manual`, a month that was carried from budget stays `budget_carry`. That
   // is why no new `source` value is needed for "carried from a prior LE" —
   // what carried forward is the fact, not the act of carrying.
-  const { rows: prior } = await client.query(
-    `SELECT id FROM budget_le
-     WHERE budget_year = $1 AND id <> $2
-     ORDER BY actual_through DESC, created_at DESC
-     LIMIT 1`,
-    [budgetYear, le.id]
-  );
+  const { rows: prior } = seedFromId
+    ? { rows: [{ id: seedFromId }] }
+    : await client.query(
+      `SELECT id FROM budget_le
+       WHERE budget_year = $1 AND id <> $2
+       ORDER BY actual_through DESC, created_at DESC
+       LIMIT 1`,
+      [budgetYear, le.id]
+    );
 
   let priorByCell = new Map();
   if (prior.length) {
@@ -323,9 +328,16 @@ async function finalize(id) {
       [id, le.budget_year]
     );
 
+    // The excluded scope is re-recorded with the actuals it describes: the header
+    // must describe the frozen rows, and drift filters on it.
     const { rows } = await client.query(
       `UPDATE budget_le
-       SET status = 'final', finalized_at = NOW(), updated_at = NOW()
+       SET status = 'final', finalized_at = NOW(), updated_at = NOW(),
+           excluded_category_ids = ARRAY(
+             SELECT a.id FROM accounts a
+             WHERE a.section = 'profit_loss'
+               AND (a.is_transfer OR a.name = 'Unrealized G/L')
+           )
        WHERE id = $1
        RETURNING *`,
       [id]
@@ -358,6 +370,7 @@ async function recut(id, { actualThrough } = {}) {
       actualThrough: actualThrough || String(le.actual_through).slice(0, 10),
       label: le.label,
       note: le.note,
+      seedFromId: id,
     });
     await client.query(`UPDATE budget_le SET superseded_by = $2 WHERE id = $1`, [id, created.id]);
     return { ...created, supersedes: id };
@@ -365,22 +378,49 @@ async function recut(id, { actualThrough } = {}) {
 }
 
 /**
- * Delete an LE. If it replaced a final LE (a recut), that LE is RESTORED to
- * `final` in the same transaction — owner decision 2026-09-14. Without it, a
- * mistaken recut followed by a delete leaves only a superseded artefact and no
- * live LE for that cut: `ON DELETE SET NULL` clears the pointer but not the
- * status (§7.1).
- *
- * The predecessor is found BEFORE the delete, because the delete itself clears
- * the only link to it.
+ * Delete an LE (owner decision 2026-09-14, tightened by review the same day):
+ *   - a SUPERSEDED LE is the record of what that estimate said: refused (409);
+ *   - deleting a DRAFT that a recut created RESTORES the final LE it replaced, in
+ *     the same transaction — unless another live LE now holds that cut, which is
+ *     refused (409) BEFORE anything is deleted rather than left to the unique index;
+ *   - deleting a FINAL LE restores nothing.
+ * Without the restore, a mistaken recut followed by a delete leaves only a
+ * superseded artefact and no live LE for that cut: `ON DELETE SET NULL` clears the
+ * pointer but not the status (§7.1). The predecessor is found BEFORE the delete,
+ * because the delete itself clears the only link to it.
  */
 async function remove(id) {
   return db.transaction(async (client) => {
     const le = await lockById(client, id);
     if (!le) return null;
-    const { rows: pred } = await client.query(
-      `SELECT id FROM budget_le WHERE superseded_by = $1 FOR UPDATE`, [id]
-    );
+    if (le.status === 'superseded') {
+      throw AppError.conflict(
+        `${le.name} is superseded — it is the record of what that estimate said, and cannot be deleted.`,
+        'LE_SUPERSEDED'
+      );
+    }
+    const { rows: pred } = le.status === 'draft'
+      ? await client.query(
+        `SELECT id, name, budget_year, actual_through FROM budget_le
+         WHERE superseded_by = $1 FOR UPDATE`,
+        [id]
+      )
+      : { rows: [] };
+    if (pred.length) {
+      const { rows: holder } = await client.query(
+        `SELECT name FROM budget_le
+         WHERE budget_year = $1 AND actual_through = $2
+           AND status <> 'superseded' AND id <> $3`,
+        [pred[0].budget_year, pred[0].actual_through, id]
+      );
+      if (holder.length) {
+        throw AppError.conflict(
+          `Deleting ${le.name} would restore ${pred[0].name}, but ${holder[0].name} now holds that cut. `
+            + `Delete ${holder[0].name} first.`,
+          'LE_RESTORE_BLOCKED'
+        );
+      }
+    }
     await client.query(`DELETE FROM budget_le WHERE id = $1`, [id]);
 
     let restored = null;

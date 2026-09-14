@@ -1683,5 +1683,32 @@ cheap test CR081 skipped.
     on Esc, and there were no console errors. The first render caught doubled parentheses in L6's
     sentence.
   - **Still open:** **L4** and **L10**.
+
+  **Code review, same day, before release — corrected:**
+  - 🔴 **The worksheet restated what the grid froze.** A final LE's category worksheet still read BUDGET FY
+    and YTD actual live, so it disagreed with the grid row it opened from — the tile-vs-table class. It now
+    shows the snapshot for actual months and the frozen full-year budget, and keeps the ledger visible per
+    month as `liveActual`. Its per-month budget column is still live (082 froze only the full-year figure)
+    and is labelled so.
+  - **Delete, tightened:**
+    - a **superseded** LE is refused (409), because it is the record;
+    - the restore applies only when the deleted LE is a **draft**, which is decision (b) as recorded;
+    - a restore whose cut another live LE now holds is refused before anything is deleted, instead of
+      surfacing the unique index as a 500.
+  - **A recut seeds from the LE it supersedes, not from "the most recent LE".** A later-cut LE would
+    otherwise have dropped the months the owner typed.
+  - **Save, finalise and drift:**
+    - estimate saves re-check draft status under the row lock;
+    - finalise re-records `excluded_category_ids`;
+    - drift filters on that recorded list;
+    - an amounts-only change reads as such, not as "0 rows have landed".
+  - **Recut cuts:** an explicit cut the schema would refuse answers 400, and a taken cut answers 409.
+  - **L1 counts days in UTC,** the basis its arrival measurement used, pinned by a 01:00Z test.
+
+  **Deliberately not changed:**
+  - `POST/PATCH/DELETE /entries` moves a draft's live BUDGET FY the same way a recalculate does, and is not
+    refused, because the owner edits the budget in-year.
+  - Deviations on a final LE still propose re-levels an immutable LE cannot take. They are worded for a
+    draft; re-cutting is the remedy.
 - **P1** (the advisory's accept path, `TRAIL_3`/`ZERO`, drift **L2**) and **P2** (§11.4's seed-next-
   year, still not specified enough to schedule).
