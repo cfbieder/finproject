@@ -33,4 +33,23 @@ Full reasoning: `docs/guides/data-ingestion-baseline.md`. External data imports 
   whose lifecycle spans two imports.
 - **Assert a reconciliation invariant** on every import that reconstructs quantitative
   state (balances, P&L): reconstructed totals tie out to the source within a known
-  residual; **fail the import** otherwise and surface the tie-out in the UI/audit.
+  residual; **fail the import** otherwise and surface the tie-out in the UI/audit —
+  **always beside its unresolved-record count**, never alone. A reconstruction can balance
+  *while* records sit unattributed (`needs_review`, orphan legs), and "✓ balances" on its
+  own reads as "the import was clean", which is the stronger claim.
+- **Import time is not the data's date.** Parse the vintage out of the source (statement
+  date, "as of" header, max row date) into a field **separate** from the ingest timestamp;
+  where the format carries none, name it `imported_at` and have the UI say "imported", not
+  "as of" — otherwise every staleness check measures when someone clicked upload.
+- **The wrong file is ordinary input.** A bad upload is a **4xx naming what was expected**,
+  never a 500 — guard the decode (a PDF or a cp1252 export must not throw). `accept=".csv"`
+  filters the picker only; drag-and-drop and the API bypass it. Where two formats are
+  importable, sniff and route **server-side, once**, and reject per-file, not per-batch.
+- **An upstream id is a promise, not a key.** `ON CONFLICT (bank_feed_external_id)` on the
+  full string is the only ledger guard, so an upstream id-format change re-books the range
+  silently. Before a promote after any upstream change, check duplicates by **value**
+  `(account_id, transaction_date, amount, description)` — a suffix match found 0 of 28 real
+  duplicates (CR059 §22). Fin's feed-id columns are `VARCHAR(100)` against bank-feed's
+  `VARCHAR(200)`: when an upstream announces an id change, measure `max(length(...))` first.
+  A guard window must cover the whole fetch window — never verify one on the day the two
+  happen to coincide.

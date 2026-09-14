@@ -38,6 +38,14 @@ the change is explicitly v4/CR027 work.
   an **explicit** `:root[data-theme="dark"]` override, *not* `prefers-color-scheme` — so
   anything that bypasses the token layer (naked hex, `rgba()` gradients, inline styles) freezes
   the light palette and breaks in dark. Every change must be checked in **both** themes.
+- **Rendered, in both themes — or say it was not.** Fin's most-recurring UI defect class is
+  state that exists, renders, and has **no visible effect**, so it reads as absent: a control too
+  subtle to find, a picker that cannot say what is selected, a marker painted the colour of its
+  own fill, a chart handed six series that draws two, a header naming a different comparison
+  from its figures (CR088 §11). Eleven instances — **ten found by the owner opening the page, one
+  by a gate** (`status.md` → *Current phase*). Cascade/specificity losses are the same class and
+  are settled by a DOM probe (computed style, element count), never by reading the CSS (CR054,
+  CR088 P3). An unrendered change is an **open verification** in your output, not a pass.
 - **The four blocking CI guards** — a change must not trip them:
   `check-dead-tokens.sh` (zero baseline, no exceptions) · `check-inline-hex.sh`,
   `check-button-css.sh`, `check-modal-adoption.sh` (ratchets — the baseline may only shrink;
@@ -47,6 +55,16 @@ the change is explicitly v4/CR027 work.
 - **States.** Loading, empty, and error are designed, not blank — `LoadingSpinner`/skeletons,
   `EmptyState`, and an error path that doesn't render a half-populated table of zeros. Heavy
   routes code-split; images `loading="lazy"`.
+- **Never native `confirm()` / `alert()` / `prompt()`** — unstyleable, main-thread-blocking, and
+  suppressed in some installed-PWA contexts, where a suppressed `confirm()` returns `false` and
+  the guarded action silently does nothing (Fin ships a PWA, CR007). Use
+  `components/ConfirmModal` / `components/Modal`. **Two remain** (`pages/TaxFbar.jsx`, measured
+  2026-09-14): flag any new one as Blocking — the count may shrink, never grow.
+- **Uploads & async results.** Statement / Quicken / CSV uploads: `accept=` is a convenience, not
+  a guard (drag-and-drop bypasses it), so the server rejects and the UI renders that rejection
+  naming what was expected. Batch operations report **per item** with a retry for the failed
+  item alone; results that land asynchronously (AI Review, statement extraction) are announced,
+  not just painted.
 - **Data layer.** Reads go through `Rest.unwrap()` + TanStack Query, not ad-hoc fetch +
   bespoke envelope handling. Flag components that re-derive server-computed money client-side.
 - **Nav has one source.** `frontend/src/config/routes.jsx` is it — `FCStepNav` derives from it

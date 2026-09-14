@@ -6,6 +6,10 @@
 > step points back at the playbook that owns it. Rollback mechanics live in the deploy
 > runbooks; this doc owns the *triage order* and the *rollback-vs-investigate decision*.
 >
+> **Operational distillation:** the `incident` skill (`/incident`) carries this triage order
+> and the rollback decision in condensed form; this doc keeps the failure-class table and the
+> pointers to the catalog that owns each one.
+>
 > **Last reviewed:** 2026-07-16.
 
 ## The two standing rules

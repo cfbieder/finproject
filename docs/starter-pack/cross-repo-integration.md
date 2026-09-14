@@ -3,7 +3,11 @@
 > **Pack role:** how two independently-developed repos (an app and a sibling service it
 > consumes) stay coordinated **without** a shared tracker, shared CI, or synchronous
 > meetings — an append-only handoff ledger + a pinned contract version + a fetch-the-live-
-> spec habit. Proven on the Fin ↔ ocr-llm (LLM gateway) and Fin ↔ bank-feed integrations.
+> spec habit. Proven on the Fin ↔ ocr-llm (LLM gateway) and Fin ↔ bank-feed integrations,
+> and independently on Noted ↔ ocr-llm — a second consumer of the same gateway, running the
+> full protocol (ledger + contract pinned at v1 + live-spec preflight) in production. That
+> second instance is the useful evidence: the provider gained a consumer without gaining a
+> coordination channel, and the `[provider → *]` broadcast form is what made it cheap.
 > Complements the repository-boundaries rule in
 > [`documentation-standard.md`](documentation-standard.md) (never modify a sibling repo
 > from this one).

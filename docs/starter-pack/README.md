@@ -1,6 +1,6 @@
 # Project Starter Pack
 
-> **Pack version:** 1.6.4 · **Last reviewed:** 2026-08-02 · see [`CHANGELOG.md`](CHANGELOG.md)
+> **Pack version:** 1.8.2 · **Last reviewed:** 2026-09-14 · see [`CHANGELOG.md`](CHANGELOG.md)
 
 A consolidated set of standards, playbooks, rules, and script sources to drop into any new
 project (especially Claude Code projects). Each file is self-contained enough to copy on its
@@ -38,16 +38,23 @@ starter-pack/
   dual-track-development.md     # ship-current + build-vNext on one trunk (flags, isolated stack)
   cross-repo-integration.md     # sibling-repo coordination: HANDOFFS.md ledger + pinned contract
   claude-code-permissions.md    # permission-prompt diagnosis + safe near-zero-prompt config
+  open-source-release.md        # publishing the SOURCE: history scan, genericize, LICENSE/README/CONTRIBUTING/SECURITY
   deploy-to-public.md           # two-branch public-deploy master playbook
   deploy-to-shared-edge.md      # "one more app on a shared edge" runbook
   incident-runbook.md           # the 2 a.m. path — triage order + rollback-vs-investigate
   guides/fileshare-access.md    # homelab Samba runbook (live, environment-specific)
   templates/CLAUDE.md           # starter project CLAUDE.md (facts + pointers only)
-  templates/.gitignore          # seed gitignore (env family, Backups/, version copies)
+  templates/.gitignore          # seed gitignore (env family, Backups/, agent-local files)
+  templates/project-readme.md   # the project's own README.md (quickstart from a fresh clone)
   templates/project-brief.md    # the brief skeleton — the WHAT/WHY companion to this pack
   templates/docs/               # docs/ seed set: status, description, roadmap,
                                 #   secrets-inventory, CR index, CR template
+  templates/scripts/ci-guards.sh        # runnable copy of testing-and-ci's convention guards
+  templates/.github/workflows/ci.yml    # runnable copy of the CI skeleton
+  templates/oss/                # publication-time only: LICENSE/CONTRIBUTING/SECURITY
   .claude/                      # Claude Code native layer — copy into the project root
+    settings.json               #   permission baseline: allow bare tools, ask on rm, hook wired
+    hooks/rm-guard.sh           #   PreToolUse guard — catches `rm` anywhere in a command line
     rules/                      #   always-on + path-scoped rules (auto-loaded)
       collaboration.md          #     the collaboration rules, operational copy (unscoped)
       migrations.md             #     append-only / exec-inside-container (scoped)
@@ -62,7 +69,10 @@ starter-pack/
       deploy-to-public/         #     private → public (both branches, condensed)
       deploy-shared-edge/       #     co-host on an existing edge
       db-ops/                   #     migrations, backup/restore, prod→dev sync + PII scrub
+      incident/                 #     /incident — prod is down: triage order + rollback call
+      release-oss/              #     /release-oss — publish the source (history scan first)
       question/                 #     /question — resolve open decisions one at a time
+      brief/                    #     /brief — operator brief: live status page, every number re-derived
       close/                    #     /close — doc-sync → commit → push → (gated) deploy
       kickoff/                  #     /kickoff — brief → seeded repo → decisions → CR-001
     agents/                     #   on-demand reviewers — invoke to review work
@@ -79,8 +89,12 @@ starter-pack/
 ```
 
 Skills are both auto-triggered by intent and directly invocable as slash commands
-(`/deploy-to-public`, `/db-ops`, `/question`, `/close`). `/question` and `/close` are
-*workflow* skills — they orchestrate the pack's protocols rather than a single procedure.
+(`/deploy-to-public`, `/db-ops`, `/incident`, `/question`, `/close`, `/brief`). `/question` and
+`/close` are *workflow* skills — they orchestrate the pack's protocols rather than a single
+procedure. ⚠️ **`/brief` builds the OPERATOR brief** — a live status page, rebuilt from its
+sources every time. It is not [`templates/project-brief.md`](templates/project-brief.md), which
+is the *founding* brief: written once, frozen, and fed to `/kickoff`. One is an input to
+building; the other is a view of it.
 **Agents** ([`.claude/agents/`](.claude/agents/)) are on-demand, read-only **reviewers** that
 apply the pack's standards to a diff, a CR, or the docs — invoke one when you want a review
 pass; see its [README](.claude/agents/README.md).
@@ -98,6 +112,9 @@ change the doc first, then sync the rule/skill/agent.
 | File | Use it when… |
 |---|---|
 | [`templates/CLAUDE.md`](templates/CLAUDE.md) + [`.claude/`](.claude/) | Seeding **any** new Claude Code project — copy both in, fill the placeholders (or just run `/kickoff`). |
+| [`templates/project-readme.md`](templates/project-readme.md) | The project's own `README.md` — seeded at kickoff; re-checked at publication (`open-source-release.md` Phase 2). |
+| [`templates/scripts/ci-guards.sh`](templates/scripts/ci-guards.sh) + [`templates/.github/workflows/ci.yml`](templates/.github/workflows/ci.yml) | Wiring CI — runnable copies of the sources in [`testing-and-ci.md`](testing-and-ci.md), which stays canonical for the *reasoning*. |
+| [`templates/oss/`](templates/oss/) | Publishing the source — LICENSE/CONTRIBUTING/SECURITY skeletons, seeded by `release-oss`, not at kickoff. |
 | [`templates/project-brief.md`](templates/project-brief.md) | Starting to think about a new project — the brief is the *what/why* input `/kickoff` consumes. |
 | [`templates/docs/`](templates/docs/) | The `docs/` seed set — `/kickoff` copies these; also usable standalone. |
 | [`claude-collaboration.md`](claude-collaboration.md) | Understanding/adjusting the collaboration rules (the operational copy is `.claude/rules/collaboration.md`). |
@@ -115,6 +132,7 @@ change the doc first, then sync the rule/skill/agent.
 | [`dual-track-development.md`](dual-track-development.md) | Building a **large vNext in parallel** with a shipping current version — flags on one trunk, isolated stack, no merge tax. |
 | [`cross-repo-integration.md`](cross-repo-integration.md) | The app consumes (or provides) a **sibling repo's API** — handoff ledger, pinned contract, live-spec preflight. |
 | [`claude-code-permissions.md`](claude-code-permissions.md) | Agent sessions **prompt for permission constantly** — diagnosis checks + the near-zero-prompt baseline config. |
+| [`open-source-release.md`](open-source-release.md) | Publishing a project's **source** — the irreversible git-history scan, genericizing hosts/IPs out of the tree, untracking personal agent config, and the four files a public repo owes its readers. Independent of whether the app itself is public. |
 | [`deploy-to-public.md`](deploy-to-public.md) | Taking a Tailscale-private app **public** — closed (Access) or open (self-service). |
 | [`deploy-to-shared-edge.md`](deploy-to-shared-edge.md) | Adding one more app to a box that already runs a shared `/opt/edge`. |
 | [`incident-runbook.md`](incident-runbook.md) | **Prod is down or wrong right now** — the triage order, the rollback-vs-investigate decision, and the close-the-loop steps. |
@@ -129,9 +147,12 @@ CR-001 + the first real `status.md`, stopping for confirmation before building.
 
 Manual steps (what /kickoff automates):
 
-1. **Copy in:** `.claude/` and `templates/CLAUDE.md` (→ project root as `CLAUDE.md`), plus
-   whichever root docs the project needs into `docs/guides/` (at minimum: none — the skills
-   carry condensed procedures; copy the full playbooks when you want the reasoning on hand).
+1. **Copy in:** `.claude/` (with `settings.json` + `hooks/rm-guard.sh`, executable bit
+   intact), `templates/CLAUDE.md` (→ project root as `CLAUDE.md`), `templates/.gitignore`
+   (→ `.gitignore`, **before the first commit**) and `templates/project-readme.md`
+   (→ `README.md`), plus whichever root docs the project needs into `docs/guides/` (at
+   minimum: none — the skills carry condensed procedures; copy the full playbooks when you
+   want the reasoning on hand). Pipe-test the hook once; a broken hook fails invisibly.
 2. **Scaffold docs:** follow [`documentation-standard.md`](documentation-standard.md) —
    create `docs/current/status.md`, `docs/current/project-description.md`,
    `docs/current/project-roadmap.md`, `docs/cr/README.md`.
@@ -154,7 +175,9 @@ the placeholder values before substituting.
 
 - **`<<DOUBLE_ANGLE>>`** — *seed-time* substitution: replaced once, project-wide, when the
   pack is copied in (`<<APP>>`, `<<HOST>>`, `<<TS_IP>>`, `<<PROD_URL>>`, `<<DB>>`,
-  `<<BROKER>>`, `<<WEB>>`).
+  `<<BROKER>>`, `<<WEB>>`, `<<BACKEND>>`, `<<FRONTEND>>`). `<<PACK_VERSION>>` is the one
+  filled from this README's header rather than from the user — it stamps which pack version
+  seeded the project, so a copy can later be compared against upstream.
 - **`<single-angle>`** — *runtime / per-operation* fill-ins inside commands and dashboards
   (`<team>`, `<your-domain>`, `<vm-public-ip>`, `<prev-tag>`): you supply these when
   executing the step, not when seeding.
@@ -181,6 +204,7 @@ the placeholder values before substituting.
 
 ```
 .claude/rules/ + templates/CLAUDE.md    always-on layer (tiny, loads every session)
+.claude/settings.json + hooks/          permission baseline (claude-code-permissions.md)
 .claude/agents/                         reviewers (invoke on demand)
 .claude/skills/                         procedures (load on trigger) ──┐
                                                                        │ distilled from
@@ -198,9 +222,10 @@ cross-repo-integration.md │                                            │
 claude-code-permissions.md┘                                            │
 infra-bootstrap.md ──── architecture + reasoning  ◀────────────────────┘
    └─ script-library.md  concrete sources
+open-source-release.md ─ private repo → public source (history scan first)
 deploy-to-public.md ─── private → public
    └─ deploy-to-shared-edge.md  the shared-edge special case
-incident-runbook.md ─── when prod breaks: triage + the rollback decision
+incident-runbook.md ─── when prod breaks: triage + the rollback decision  (skill: /incident)
 guides/fileshare-access.md   standalone ops runbook
 archive/                     superseded originals
 ```

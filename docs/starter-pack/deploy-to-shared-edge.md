@@ -15,7 +15,7 @@ Deploy `<<APP>>` onto a box that **already** runs one `cloudflared` + one Caddy
 [deploy-to-public.md](deploy-to-public.md). `<<APP>>` adds only
 its **app stack** (db + api + web); the box's existing tunnel + Caddy become its
 ingress. Target box is a Tailscale host that already hosts other public-facing apps
-(substitute its Tailscale IP for `<<HOST_IP>>`).
+(substitute its Tailscale IP for `<<TS_IP>>`).
 
 Why this shape: no new VM to provision or pay for, and no second tunnel/Caddy —
 the *next* app is "add a Caddy site block + a tunnel hostname," nothing more.

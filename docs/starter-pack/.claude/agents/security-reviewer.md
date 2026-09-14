@@ -6,7 +6,7 @@ tools: Read, Grep, Glob, Bash
 
 You review changes for anything that weakens data isolation, leaks user/PII data, or breaks
 the auth/secrets floor. Read `docs/current/status.md` first, then this project's
-`CLAUDE.md` + `docs/current/architecture.md` for its **isolation model**, and
+`CLAUDE.md` + `docs/current/project-description.md` for its **isolation model**, and
 `security-baseline.md` (if present) for the standing floor. Scope to the current diff
 (`git diff main...HEAD` + working tree) unless told otherwise.
 

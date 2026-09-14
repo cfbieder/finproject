@@ -19,15 +19,29 @@ placeholders substituted, decisions resolved and recorded, and CR-001 ready to b
    success criterion has no definition of done.
 2. **Confirm the placeholder values** in one compact exchange: `<<APP>>` (slug),
    `<<HOST>>`/`<<TS_IP>>`, `<<PROD_URL>>` (or "TBD"), stack tokens (`<<BACKEND>>`,
-   `<<FRONTEND>>`, `<<DB>>`, `<<WEB>>`) from the brief's §8 where answered.
+   `<<FRONTEND>>`, `<<DB>>`, `<<WEB>>`, `<<BROKER>>` if an async tier) from the brief's §8
+   where answered. `<<PACK_VERSION>>` you fill from the pack's README header, not the user.
+
+3. **Check the host toolchain** (infra-bootstrap §0) in one command — it is cheap here and
+   expensive at the first deploy:
+   `for t in git docker gh jq tailscale; do command -v $t >/dev/null || echo "MISSING: $t"; done; gh auth status`
+   Report anything missing and offer the install lines from §0. An unauthenticated `gh`
+   silently skips deploy gate #2; a missing `jq` breaks the `rm` guard hook invisibly.
 
 ## Phase 1 — seed the structure
 
-1. Copy in (if not already present): `.claude/` and `CLAUDE.md` from `templates/CLAUDE.md`.
+1. Copy in (if not already present): `.claude/` (including `settings.json` and
+   `hooks/rm-guard.sh` — keep the executable bit), `CLAUDE.md` from `templates/CLAUDE.md`,
+   `.gitignore` from `templates/.gitignore`, and `README.md` from
+   `templates/project-readme.md`. **The `.gitignore` must land before step 4's first
+   commit** — that commit is exactly what it exists to protect. Then pipe-test the hook
+   (`echo '{"tool_name":"Bash","tool_input":{"command":"cd /tmp && rm -rf x"}}' |
+   .claude/hooks/rm-guard.sh` → `ask`); a hook that errors fails invisibly on every call.
+   `templates/oss/` is **not** seeded now — the `release-oss` skill copies it at publication.
 2. Scaffold `docs/` from `templates/docs/`: `current/status.md`,
    `current/project-description.md`, `current/project-roadmap.md`,
    `current/secrets-inventory.md`, `cr/README.md`, `cr/cr-000-template.md`, plus empty
-   `guides/` and `archive/`. Copy the pack docs the project will need into `docs/guides/`
+   `guides/`, `reviews/` and `archive/`. Copy the pack docs the project will need into `docs/guides/`
    (at minimum `documentation-standard.md` and `security-baseline.md` — the seeded
    `secrets-inventory.md` links to `security-baseline.md`, so it dangles if uncopied;
    further playbooks as relevant per the brief's §8.3).

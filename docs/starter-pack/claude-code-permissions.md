@@ -22,6 +22,15 @@ Reading `settings.json` isn't enough. Three checks find the real causes:
    `.claude/settings.local.json`, `/etc/claude-code/managed-settings.json` (managed) —
    to rule out a hidden `ask`/`deny` rule overriding the project allows.
 
+## The shipped baseline
+
+The pack ships this configuration as files, not only as prose:
+[`.claude/settings.json`](.claude/settings.json) (allowlist + the narrow `ask` net + the hook
+wiring) and [`.claude/hooks/rm-guard.sh`](.claude/hooks/rm-guard.sh) (the whole-command-line
+`rm` guard, with its three pipe-tests in the header). `/kickoff` copies both and pipe-tests
+the hook. `additionalDirectories` stays a **user**-settings concern — it is per-machine, so
+it is deliberately not in the seeded project file.
+
 ## The baseline configuration pattern
 
 - **Project allowlist (`.claude/settings.json`): bare tool names** — `Bash`, `Write`,

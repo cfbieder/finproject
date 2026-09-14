@@ -146,7 +146,7 @@ scenarios are REGENERATED**. It changes far less often than this file does.
 
 ## Conventions & drills
 [Documentation standard](../documentation-standard.md) · rules auto-load from `.claude/rules/` ·
-`/close`, `/question` · [month-end reconcile](../guides/month-end-reconcile.md) ·
+`/close`, `/question`, `/brief` · Operator brief: https://claude.ai/code/artifact/a058677e-3138-43e7-a076-a5f67d6d02ef · [month-end reconcile](../guides/month-end-reconcile.md) ·
 [dev-workflow](../guides/dev-workflow.md) · [permissions](../guides/claude-code-permissions.md).
 Last restore drill **2026-07-13 — PASSED** ([runbook](../guides/restore.md)): a real prod dump
 restored in 3 s / 0 errors, balance sheet **and** regenerated forecast byte-identical to prod.

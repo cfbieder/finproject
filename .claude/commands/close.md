@@ -24,10 +24,10 @@ Finalize this release end-to-end for **psproject** (Fin). Follow the project con
    - `./Scripts/bump-version.sh patch` (or `minor` / `major` / explicit `X.Y.Z`).
    This updates `VERSION` and `frontend/.env`. Confirm the new version with `cat VERSION`.
 
-3. **Commit, tag, push** — Stage the release files with explicit pathspecs (never `git add -A` / `git add .` — see `.claude/rules/git-concurrency.md`), commit with `release: vX.Y.Z (summary)`, tag `vX.Y.Z`, push commits and tags to origin:
+3. **Commit, tag, push** — Stage the release files with explicit **file** pathspecs (never `git add -A` / `git add .`, and never a directory such as `docs/` — it stages every other session's uncommitted doc edits too; see `.claude/rules/git-concurrency.md`). `frontend/.env` is gitignored and is not committed. Commit with `release: vX.Y.Z (summary)`, tag `vX.Y.Z`, push commits and tags to origin:
    ```
-   git add VERSION frontend/.env docs/ <other files you changed>
-   git commit -m "release: vX.Y.Z (summary)" -- VERSION frontend/.env docs/ <other files>
+   git add VERSION <each doc file you edited> <other files you changed>
+   git commit -m "release: vX.Y.Z (summary)" -- VERSION <the same files>
    git tag vX.Y.Z
    git push origin HEAD
    git push origin vX.Y.Z
@@ -37,6 +37,8 @@ Finalize this release end-to-end for **psproject** (Fin). Follow the project con
 4. **Deploy to prod** — Run `./Scripts/deploy-to-production.sh` from the repo root. This backs up the prod DB, rebuilds + restarts production containers, and verifies health. Watch the output and report success/failure.
    - **Step 0b consults CI** (Known Issue #12). Because you have just pushed, CI is normally still running — the script **waits** for it (up to 10 min), so expect a pause with `· CI still running, waiting…` lines. That is the gate working, not a hang.
    - If it reports **CI is RED**, the deploy stops. **Do not reach for `--allow-red-ci`** — report the failing job and stop; shipping over a red gate is the thing this exists to prevent, and it has happened before. Overriding is an owner decision, not a step in this workflow.
+
+5. **Refresh the operator brief** — only if one exists (its URL is recorded in `docs/current/status.md` → *Conventions & drills*). Run `/brief` against that URL after the deploy settles. ⚠️ **Re-derive every figure; do not hand-patch the ones this release moved** — otherwise `/close` becomes the mechanism that copies numbers forward. Skip silently if there is no brief; never create one as a side effect of closing.
 
 ## Guardrails
 - Stop and ask before any destructive or irreversible step: force-push, deploying a **major** version bump, tagging over an existing tag, or anything `deploy-to-production.sh` warns about.

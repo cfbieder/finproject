@@ -1,12 +1,12 @@
 # Documentation Standards
 
 > A portable convention + memo for project documentation: structure, naming, AI-agent integration, and memory.
-> This copy tracks the **starter pack**, whose upstream source now lives in this repo at
-> [`docs/starter-pack/`](starter-pack/README.md) (v1.5.0; distribution zip alongside it,
-> v1.4.0 zip in `archive/`). Correct the pack first, then sync this copy. Project-specific
-> adaptations here: the repo-boundaries bullet and this header.
+> This copy tracks the **starter pack**, whose upstream source lives in this repo at
+> [`docs/starter-pack/`](starter-pack/README.md) (v1.8.2; distribution zip alongside it). Correct
+> the pack first, then sync this copy. Project-specific adaptations here: the repo-boundaries
+> bullet, the CR roll-up note, relative links into the pack, and this header.
 >
-> **Last reviewed:** 2026-07-06 (upstream) · adopted in Fin 2026-07-11.
+> **Last reviewed:** 2026-09-14 (upstream v1.8.2) · adopted in Fin 2026-07-11, re-synced 2026-09-14.
 
 ## Why
 
@@ -34,12 +34,14 @@ docs/
     cr-001-<topic>-<subdoc>.md # sub-docs share the parent number
   guides/                     # operational runbooks + stable how-tos
     <topic>.md
+  reviews/                    # OPTIONAL — dated review output, still active input
+    <topic>_YYYY-MM-DD.md     #   (security / UX / CR / structural reviews; agent output)
   archive/                    # superseded / historical / completed threads
     <topic>_YYYY-MM-DD.md
   rag/                        # OPTIONAL project-specific extension dir
 ```
 
-Root is `docs/` (lowercase, the near-universal convention). Add project-specific top-level dirs under `docs/` sparingly (e.g. `rag/`); the four core dirs above should exist in every project.
+Root is `docs/` (lowercase, the near-universal convention). Add project-specific top-level dirs under `docs/` sparingly (e.g. `reviews/`, `rag/`); the four core dirs above should exist in every project.
 
 **What goes where:**
 
@@ -48,9 +50,10 @@ Root is `docs/` (lowercase, the near-universal convention). Add project-specific
 | "What is true / built right now" | `current/` |
 | A design for a non-trivial feature/change | `cr/cr-NNN-topic.md` + a row in `cr/README.md` |
 | A repeatable operational procedure (deploy, setup, recovery) | `guides/` |
-| Something superseded, finished, or point-in-time (dated reviews, old correspondence) | `archive/` |
+| A dated review of the *current* code/docs (security, UX, CR, structural — incl. review-agent output) | `reviews/` |
+| Something superseded, finished, or point-in-time (old correspondence, closed threads) | `archive/` |
 
-There is **no `other/` / `misc/` directory.** If you can't classify it, it's almost always a guide (repeatable) or archive (point-in-time).
+There is **no `other/` / `misc/` directory.** If you can't classify it, it's almost always a guide (repeatable), a review (dated, point-in-time but active), or archive (superseded). A `reviews/` doc graduates to `archive/` once it's fully actioned and no longer a live reference.
 
 ## File & directory naming
 
@@ -63,23 +66,38 @@ There is **no `other/` / `misc/` directory.** If you can't classify it, it's alm
 
 ## Links
 
-Use **workspace-root-relative** paths in links: `[CR-016](docs/cr/cr-016-frontend-test-framework.md)`. They render in editors/GitHub and survive moving the *referring* file. Never link with absolute filesystem paths. Never restate a fact you could link to.
+Use **workspace-root-relative** paths in links: `[CR-016](docs/cr/cr-016-admin-observability.md)`. They render in editors/GitHub and survive moving the *referring* file. Never link with absolute filesystem paths. Never restate a fact you could link to.
 
 ## Repository boundaries — nested & sibling repos
 
-**Never modify a nested or sibling repository while working in this one.** (For how sibling repos *coordinate* — handoff ledger + pinned contract — see [cross-repo-integration](starter-pack/cross-repo-integration.md).) Only edit a repo when you are actually operating *inside* that system. A directory with its own `.git`, its own `CLAUDE.md`/docs, or its own deploy lifecycle is a separate project: renames, link rewrites, and reorg passes (like migrating to this standard) must skip it entirely. Cross-repo *references* — links that point into the other repo's paths — stay spelled the way that repo names them; do **not** "fix" them to match this standard.
-
+**Never modify a nested or sibling repository while working in this one.** (For how two
+sibling repos *coordinate* — the handoff ledger + pinned contract — see
+[`cross-repo-integration.md`](starter-pack/cross-repo-integration.md).) Only edit a repo when you are actually operating *inside* that system. A directory with its own `.git`, its own `CLAUDE.md`/docs, or its own deploy lifecycle is a separate project: renames, link rewrites, and reorg passes (like migrating to this standard) must skip it entirely. Cross-repo *references* — links that point into the other repo's paths — stay spelled the way that repo names them; do **not** "fix" them to match this standard.
 - **In this repo:** `bank-feed/` (feed microservice) and `ocr-llm/` (LLM gateway) are separate repos with their own git histories and docs. Do **not** touch anything under them unless the task is explicitly inside that system (exception: appending handoff entries to `ocr-llm/HANDOFFS.md` per [ocr-llm-integration](guides/ocr-llm-integration.md)); links into `ocr-llm/Documentation/...` keep that repo's naming and must be left alone.
 
 ## The `current/` tier
 
 - **`status.md`** — the only doc loaded every session. ≤ ~60 lines: current phase, live infrastructure, recently-shipped headlines (linked, not restated), what's next, and a pointer to conventions. It links onward; it does not duplicate.
+  **Holding the budget:** an overrun is restatement the index and roadmap already own, and it is
+  exactly where stale facts collect. Cut by **moving** what changes on a different clock — a
+  finished headline to `archive/status-log_<date>.md`, a table or infrastructure block to its
+  own `current/` or `guides/` file — never by deleting what is true, and re-point the relative
+  links inside whatever you moved. *One project's snapshot reached 405 lines against its
+  60-line budget within a month; every recovery came from moving, none from deleting.*
+- **`failure-patterns.md`** *(optional living catalog — start it the first time a shape
+  recurs)* — not a bug list: the **shapes** bugs take in this project, admitted only when found
+  more than once *and* having passed the gate meant to catch it. Per entry: the shape, a table
+  of instances (claimed vs what was true, linked to the CR), why it survives review, and the
+  counter-practice. `status.md` links to it; this file grows, status does not. Read it before
+  writing a rule, a warning sentence, or any figure that asserts what the code does.
 - **`project-description.md`** — the full "what's built" record. Read on demand. Keep prose scannable: bullet-per-fact, date as a leading tag, link to CR docs for detail.
 - **`project-roadmap.md`** — planned/in-progress work. Read when planning.
 
 ## The `cr/` tier (design records)
 
 Every non-trivial feature gets a numbered design doc and a row in `cr/README.md`. The index table (`CR | Title | Date | Status`) is the **single source of truth for what shipped when** — `status.md` and `project-description.md` link to it. Shipped CRs stay in `cr/` as historical records (not moved to archive); the README marks them ✓. Large projects may add a summary-by-status roll-up and (dual-track repos) a Track column — this repo's [cr/README.md](cr/README.md) uses both.
+
+**The one allowed exception to "status lives only in the index":** a CR body may carry its own `**Status:**` line. A CR is routinely opened on its own — from a link, a grep, a git blame — and a design doc that doesn't say whether it shipped is a genuine trap. What the body must **not** carry is the *ship date and version*: those stay in the index alone, because they are what actually goes stale and get restated across three docs. Keeping two statuses in sync costs one line at close time; keeping two dates in sync is the drift this rule exists to prevent. State the exception explicitly in the project's `CLAUDE.md` close checklist ("flip Status in the CR *and* the index row"), or a compliant project reads as a violating one.
 
 ## Working with an AI coding agent (Claude Code)
 

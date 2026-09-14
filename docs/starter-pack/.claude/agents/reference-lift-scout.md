@@ -6,7 +6,7 @@ tools: Read, Grep, Glob, Bash
 
 You find proven logic in a **read-only reference/parts-bin repo** worth lifting, so the
 project re-homes solved problems instead of re-solving them. First confirm such a repo exists:
-check `CLAUDE.md`, `docs/current/architecture.md`, and `.claude/settings.json`
+check `CLAUDE.md`, `docs/current/project-description.md`, and `.claude/settings.json`
 `additionalDirectories` for a declared reference/legacy/parts-bin repo. **If none is declared,
 say so and stop** — this agent does nothing without one. Read `docs/current/status.md` and the
 relevant architecture section on the project's relationship to that repo first.

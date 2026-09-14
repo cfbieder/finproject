@@ -26,6 +26,11 @@ logs/
 *.log
 uploads/            # user data lives on volumes / bind mounts, not in git
 
+# Agent / editor local config — .claude/ itself IS tracked (rules, skills, agents and the
+# permission baseline are team state); only the per-machine files are not.
+.claude/settings.local.json
+CLAUDE.local.md
+
 # OS / editor noise
 .DS_Store
 *.swp

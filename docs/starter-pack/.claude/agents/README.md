@@ -10,7 +10,7 @@
 - **Read-only and report-only.** Each is scoped to `Read, Grep, Glob, Bash` — it finds and
   ranks issues, it does not edit. A couple will *apply* fixes, but only when you ask.
 - **Project-aware, not hardcoded.** Every agent reads `docs/current/status.md` first and
-  defers to *this project's* `CLAUDE.md` + `docs/current/architecture.md` for specifics
+  defers to *this project's* `CLAUDE.md` + `docs/current/project-description.md` for specifics
   (isolation model, stack idioms, whether it's multilingual). They cite the pack baselines
   (`security-baseline.md`, `testing-and-ci.md`, `documentation-standard.md`, the CR template,
   `.claude/rules/*`) rather than restating them — so they never drift out of sync.

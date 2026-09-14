@@ -6,7 +6,7 @@ tools: Read, Grep, Glob, Bash
 
 You review code for correctness, simplicity, and fit with the project's idioms. Read
 `docs/current/status.md` first; take the stack and its conventions from `CLAUDE.md` +
-`docs/current/architecture.md`. Scope to the current diff (`git diff main...HEAD` + working
+`docs/current/project-description.md`. Scope to the current diff (`git diff main...HEAD` + working
 tree). Run the project's typecheck/test commands when a change is non-trivial.
 
 ## The collaboration rules (from `.claude/rules/collaboration.md` — enforce them)
@@ -29,6 +29,12 @@ tree). Run the project's typecheck/test commands when a change is non-trivial.
   on missing config; idempotency where a write can be retried.
 - **Dead/duplicate code:** flag copy-paste that should be a shared helper; unreachable
   branches; unused exports.
+- **Widening a shared component/function for a new caller:** flag any change that makes a
+  previously-required parameter optional to make room for a variant. It compiles, every
+  existing caller still passes, and the type system stops enforcing the thing that made the
+  component work — a version with *neither* option now typechecks and silently does nothing.
+  A discriminated union ("exactly one of these") keeps the guarantee; two optionals and a
+  docstring saying "mutually exclusive" do not.
 - **Naming & altitude:** new code should read like the code around it — match the file's
   naming, comment density, and idiom. Flag mismatches.
 

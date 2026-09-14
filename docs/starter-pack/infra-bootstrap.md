@@ -15,7 +15,7 @@
 ## Contents
 
 - **⚠️ Top traps** — the five silent prod-killers (index)
-- **§0** Context to fill in first (placeholders + the future-split design decision)
+- **§0** Context to fill in first (placeholders + **host toolchain** + the future-split design decision)
 - **§0.5** Pick your topology (async tier? Tailscale-only?)
 - **§1** Two Docker Compose stacks (+ stack registry, staging tier) · **§1.5** Dormant feature-flag track
 - **§2** `deploy-to-production.sh` · **§2.5** Remote pull-based deploy after the host split
@@ -76,6 +76,36 @@ sections; this is an index, not a substitute.
 | `<<HOST>>` | the single host that runs both stacks | hostname / Tailscale name |
 | `<<PROD_URL>>` | public HTTPS URL of prod | `https://app.example.ts.net` |
 | `<<TS_IP>>` | host LAN/Tailscale IP for plain-HTTP dev access | `100.x.y.z` |
+
+### Host toolchain — install once per machine, before anything else
+
+The pack assumes these exist. Each one is load-bearing somewhere, and the failure mode when
+it is missing is always the same: a gate or a guard silently does nothing.
+
+| Tool | Why the pack needs it | Missing ⇒ |
+|---|---|---|
+| **`git`** | everything | — |
+| **`docker` + the compose plugin** | both stacks (§1) | nothing runs |
+| **`gh`** (GitHub CLI, authenticated) | deploy gate #2 checks CI status with `gh run list --commit $(git rev-parse HEAD)` ([`testing-and-ci.md`](testing-and-ci.md)); PRs, releases, and the private security advisories `SECURITY.md` points at ([`open-source-release.md`](open-source-release.md)) | **the deploy gate degrades to "tests ran on my machine"** — the check is skipped, not failed, which is the dangerous direction |
+| **`jq`** | the `rm` guard hook parses its stdin with it ([`.claude/hooks/rm-guard.sh`](.claude/hooks/rm-guard.sh)); ops scripts read JSON | the hook errors on **every** Bash call — invisibly, allowing nothing and blocking nothing ([`claude-code-permissions.md`](claude-code-permissions.md)) |
+| **`tailscale`** | the private plane: dev access by `<<TS_IP>>`, the out-of-band admin path that must not depend on the public gate | no safe path in when the edge breaks |
+
+```bash
+# Debian/Ubuntu. gh is not in the default archives — use the official repo, not a snap.
+sudo mkdir -p -m 755 /etc/apt/keyrings
+wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+  | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null
+sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] \
+  https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+sudo apt update && sudo apt install -y gh jq
+gh auth login          # do this now — an unauthenticated gh fails at the worst moment
+gh auth status         # verify; the deploy gate depends on this being green
+```
+
+`git filter-repo` is needed only at publication time (`release-oss` Phase 0) — install it then.
+
+---
 
 **Design decision:** dev and prod run on the **same physical host for now**, but
 a **future split to a separate prod host is expected**. Build the single-host
@@ -701,6 +731,24 @@ a single host, so they surface exactly when the box changes underneath you.**
     SSHes args to the box loses local quoting at the boundary; an arg with spaces or
     parens (`"0.27.0 (30.6.2026)"`) breaks remote parsing. `printf '%q '` each arg
     before handing it to `ssh … bash -s --`. (§2.5.)
+22. **Alpine healthchecks must use `127.0.0.1`, not `localhost`.** Alpine's resolver
+    answers `localhost` with `::1` first, so a check against a service bound to IPv4
+    fails and the container is marked unhealthy — which, behind a
+    `depends_on: condition: service_healthy`, silently blocks the whole stack from
+    starting. Write every in-container probe as `http://127.0.0.1:<port>/...`.
+23. **A `.env` file in the frontend build context beats the Dockerfile's `ENV`/`ARG`.**
+    Vite (and most bundlers) load `.env` from the project directory at build time and it
+    takes precedence over values injected by Docker — so a developer's local `.env`,
+    copied in by `COPY . .`, silently bakes dev settings into the production image. The
+    fix is one line in the Dockerfile, before the build step: `RUN rm -f .env .env.*`.
+    Add `.env` to `.dockerignore` too; keep both, since either alone can be bypassed.
+24. **A "mode" flag read for truthiness must be UNSET in prod, not set to a falsy word.**
+    The mirror image of trap #7: where the app does `if (import.meta.env.VITE_ENV_LABEL)`,
+    passing `VITE_ENV_LABEL=false` or `""`… still trips the dev banner, because any
+    non-empty string is truthy and an empty one may be treated as unset anyway. Decide per
+    variable whether the *presence* or the *value* is the signal, and say so beside its
+    declaration in `.env.example` — this is exactly the class of bug that ships looking
+    fine on dev.
 
 ---
 

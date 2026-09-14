@@ -34,13 +34,22 @@ Update **only what the session's changes touch** — this is surgical, not a rew
 - The living catalogs, if touched: migration matrix (any new migration), job registry (any
   new scheduled job), secrets inventory (any new secret — names/locations only).
 - **Version bump — standard step, not optional.** If the close ships any code change
-  (backend, frontend, migrations, config affecting runtime), bump the version **before**
-  committing: `--bump-minor` for a new user-facing capability or feature, `--bump-patch`
-  for fixes, tweaks, and internal changes. Decide yourself, state the choice + one-line
-  reason in the close report; the user can override. The date part of the version string
-  refreshes automatically with any bump. **Docs-only closes don't bump** (nothing rebuilds;
-  a bump would be noise). Remember the tag lands at current HEAD — bump-then-commit order
-  matters, or move the tag (`git tag -f`).
+  (backend, frontend, migrations, config affecting runtime), bump the version:
+  `--bump-minor` for a new user-facing capability or feature, `--bump-patch` for fixes,
+  tweaks, and internal changes. Decide yourself, state the choice + one-line reason in the
+  close report; the user can override. The date part of the version string refreshes
+  automatically with any bump. **Docs-only closes don't bump** (nothing rebuilds; a bump
+  would be noise).
+  **Who owns the commit and tag decides the order — check before you sequence anything:**
+  - *The version script writes files only* → bump **before** committing, so the version
+    ships inside the session's commit and the tag lands at the right HEAD (`git tag -f` to
+    move it if it didn't).
+  - *The version script also commits and tags itself* (common, and the shape in
+    `script-library.md` §4) → it owns that step. Commit the session's work and the doc
+    updates **first**, then run the bump script last and let it create its own
+    `chore: bump version to vX.Y.Z` commit plus the annotated tag. Instructing "bump before
+    committing" here produces either a doubled commit or a tag on the wrong HEAD.
+  Read the project's script before choosing; do not assume either shape.
 
 ## Phase 3 — commit + push (concurrency protocol applies in full)
 
@@ -49,7 +58,14 @@ Update **only what the session's changes touch** — this is surgical, not a rew
 2. Stage **explicit paths only** — the session's files + the docs just updated. Never
    `git add -A` / `.`. Never touch files another session is editing.
 3. Commit with a message that summarizes the session's work (reference the CR number if
-   one applies).
+   one applies). If the project appends a `Co-Authored-By:` trailer, take it **exactly as the
+   running environment supplies it** — never pin a model name in this file, in `CLAUDE.md`,
+   or by copying one out of `git log`. A pinned literal goes stale at the next model change
+   and then silently mis-attributes every commit; a history containing two different names is
+   the symptom.
+   *Do not add a branch-first step here without checking Phase 4/5:* a deploy script that
+   refuses to run from anything but `main` makes "branch, then deploy" impossible, and a close
+   that instructs both stalls on a contradiction the operator has to resolve by hand.
 4. **Verify what landed:** `git show --stat HEAD` — confirm only your files are in the
    commit; a concurrent session can sweep staged files into it despite careful staging.
 5. `git fetch` again, then push. One release at a time.
@@ -69,6 +85,13 @@ destructive step in /close and is always confirm-gated, even mid-flow.
 On confirmation, run the project's deploy script and follow the `deploy-single-host`
 sequence: backup-first, build, migrate-inside-container + ledger assert, public `/health`,
 smoke checks. Red smoke ⇒ rollback procedure, and the close report says so plainly.
+
+## Phase 5b — refresh the operator brief (only if one exists)
+
+If the project publishes an operator brief (see the `brief` skill), refresh it now — the
+close is where its inputs just changed. ⚠️ **Re-derive its figures; do not hand-patch the
+ones that moved.** A brief nobody refreshes is worse than none, because it reads as current.
+Skip silently if the project has no brief; do not create one as a side effect of closing.
 
 ## Phase 6 — close report
 

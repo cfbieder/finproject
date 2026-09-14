@@ -9,7 +9,7 @@
 > §10 and [`claude-collaboration.md`](claude-collaboration.md) both defer to this file for docs layout and the
 > required-reading block.
 >
-> **Last reviewed:** 2026-07-06.
+> **Last reviewed:** 2026-09-14.
 
 ## Why
 
@@ -82,12 +82,26 @@ sibling repos *coordinate* — the handoff ledger + pinned contract — see
 ## The `current/` tier
 
 - **`status.md`** — the only doc loaded every session. ≤ ~60 lines: current phase, live infrastructure, recently-shipped headlines (linked, not restated), what's next, and a pointer to conventions. It links onward; it does not duplicate.
+  **Holding the budget:** an overrun is restatement the index and roadmap already own, and it is
+  exactly where stale facts collect. Cut by **moving** what changes on a different clock — a
+  finished headline to `archive/status-log_<date>.md`, a table or infrastructure block to its
+  own `current/` or `guides/` file — never by deleting what is true, and re-point the relative
+  links inside whatever you moved. *One project's snapshot reached 405 lines against its
+  60-line budget within a month; every recovery came from moving, none from deleting.*
+- **`failure-patterns.md`** *(optional living catalog — start it the first time a shape
+  recurs)* — not a bug list: the **shapes** bugs take in this project, admitted only when found
+  more than once *and* having passed the gate meant to catch it. Per entry: the shape, a table
+  of instances (claimed vs what was true, linked to the CR), why it survives review, and the
+  counter-practice. `status.md` links to it; this file grows, status does not. Read it before
+  writing a rule, a warning sentence, or any figure that asserts what the code does.
 - **`project-description.md`** — the full "what's built" record. Read on demand. Keep prose scannable: bullet-per-fact, date as a leading tag, link to CR docs for detail.
 - **`project-roadmap.md`** — planned/in-progress work. Read when planning.
 
 ## The `cr/` tier (design records)
 
 Every non-trivial feature gets a numbered design doc and a row in `cr/README.md`. The index table (`CR | Title | Date | Status`) is the **single source of truth for what shipped when** — `status.md` and `project-description.md` link to it. Shipped CRs stay in `cr/` as historical records (not moved to archive); the README marks them ✓. Large projects may add a summary-by-status roll-up and (dual-track repos) a Track column — see the template's notes.
+
+**The one allowed exception to "status lives only in the index":** a CR body may carry its own `**Status:**` line. A CR is routinely opened on its own — from a link, a grep, a git blame — and a design doc that doesn't say whether it shipped is a genuine trap. What the body must **not** carry is the *ship date and version*: those stay in the index alone, because they are what actually goes stale and get restated across three docs. Keeping two statuses in sync costs one line at close time; keeping two dates in sync is the drift this rule exists to prevent. State the exception explicitly in the project's `CLAUDE.md` close checklist ("flip Status in the CR *and* the index row"), or a compliant project reads as a violating one.
 
 ## Working with an AI coding agent (Claude Code)
 

@@ -4,6 +4,8 @@
 > watching**, a **dangling ungated route**, two orphan tunnels, and two unadvertised backdoors into
 > prod — none of which any dashboard was showing, and none of which would ever have paged.
 >
+> **Last reviewed:** 2026-08-30.
+>
 > Companion to [`deploy-to-public.md`](deploy-to-public.md) (how to get an app *onto* the edge) and
 > [`observability-baseline.md`](observability-baseline.md) (how to watch it). This doc is about the
 > failure modes **specific to the edge** — the ones that produce a green dashboard over a broken or

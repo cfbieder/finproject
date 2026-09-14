@@ -48,6 +48,11 @@ working tree). Run the suites when the change is non-trivial (`npx jest --ci` in
 - Errors: nothing swallowed, nothing internal returned to the client, fail-loud on missing
   config, idempotency wherever a write can be retried (feed refresh, promote, import).
 - Flag copy-paste that should be a shared helper, unreachable branches, unused exports.
+- **Widening a shared component or function for a new caller** by making a previously-required
+  prop/parameter optional: every existing caller still works, and nothing now stops a call with
+  *neither* option, which renders or returns nothing, silently. Fin is plain JS with no type
+  system to lean on — prefer a separate component, or an explicit `throw` / dev warning when
+  neither (or both) is supplied, over two optionals and a comment saying "mutually exclusive".
 - **Altitude:** new code should read like the file around it — same naming, same comment
   density. Fin's comments explain *why*, not *what*; flag both mismatches.
 

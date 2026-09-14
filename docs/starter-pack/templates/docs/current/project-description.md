@@ -11,6 +11,8 @@
 ## Architecture at a glance
 - [YYYY-MM-DD] Stack: <<BACKEND>> · <<FRONTEND>> · <<DB>> · <<WEB>> ([CR-001](../cr/cr-001-architecture-foundation.md))
 - [YYYY-MM-DD] Topology: <3-tier / +worker>; dev = <shape>, prod = <shape> on <<HOST>>
+- [YYYY-MM-DD] Isolation model: <single-tenant / pool: tenant_id + RLS / schema-per-tenant —
+  and where it is enforced. The review agents read this line; keep it true.>
 
 ## Capabilities (by area)
 ### <area>

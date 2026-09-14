@@ -7,7 +7,7 @@ tools: Read, Grep, Glob, Bash
 You review database migrations. Migrations are append-only and run against real data — a
 wrong one is expensive to unwind. Read `docs/current/status.md` first, then
 `.claude/rules/migrations.md` (append-only, exec-inside-container) and this project's
-`docs/current/architecture.md` for the isolation model. Scope to the added/changed
+`docs/current/project-description.md` for the isolation model. Scope to the added/changed
 migration(s): `git diff --name-only main...HEAD | grep -i migrat`.
 
 ## Isolation (if the project scopes data by owner/tenant — else skip)

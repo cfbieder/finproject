@@ -70,3 +70,11 @@ caught all three incidents.
 6. **`main` is the single trunk and the prod deploy source.** Apply DB migrations to
    **prod before** deploying code that references the new objects, or the deploy breaks
    the running app.
+7. **Sequential identifiers are allocated concurrently.** "Next number = highest + 1" — CR
+   docs, migration files — hands two sessions the same number when both look before either
+   writes (migration 071 was taken on disk by another thread within the hour, CR083 §16).
+   Claim the number by **writing the file and its index row first**, and re-check for a
+   collision at commit time.
+8. **Re-read a file before editing it if you did not write it this turn.** A `git status`
+   from session start is a snapshot: another session's edits appear underneath you
+   mid-task — `status.md`, the CR index and the roadmap are the usual collisions.

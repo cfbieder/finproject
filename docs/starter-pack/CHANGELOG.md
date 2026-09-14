@@ -1,5 +1,287 @@
 # Starter Pack — Changelog
 
+## v1.8.2 — 2026-09-14
+
+**Upstreamed from Fin — its third sync (after v1.5.0 and v1.6.4).** No new files. Every addition
+is something that went wrong more than once in that project *and* had passed the gate meant to
+catch it; two came from adopting v1.8.1's own `/brief` there.
+
+### Changed
+- **`.claude/rules/git-concurrency.md` — rule 0: a session that will commit gets its own
+  worktree.** On one shared tree there is no safe commit primitive: `git commit -- <paths>` reads
+  the worktree, a bare commit reads the index, and both are shared. Three incidents in which the
+  victim had followed rules 1–2 correctly; the third pushed an unrelated **source file** under
+  another thread's message. With the one escape (demonstrably sole writer, re-checked right
+  before committing) and the caveat that a worktree isolates git, **not** the test rig.
+- **`.claude/rules/env-secrets.md` — there is no safe redaction of a multi-secret file.** Two
+  exposures in three days by two different mechanisms: a `sed` whose `&` re-inserts the match
+  it claims to mask, and a mask narrower than the region printed. The first incident's note held
+  the rule that would have stopped the second; it had been remembered as an idiom to avoid
+  rather than as *do not print `.env` lines*. Verify by count or name; `docker compose config`
+  counts as printing.
+- **`testing-and-ci.md` — "Checks that cannot fail"** (new subsection): a fixture that cannot
+  exhibit the bug (run the new test against the unfixed code first); warnings tested for
+  *firing* rather than *truth* (5 of 8 wrong in one audit); a restatement asserted as behaviour
+  (found ten times, the last reaching the ledger); a before/after gate that compares a number to
+  itself; proof of absence from a search that did not cover the file.
+- **`testing-and-ci.md` — a `SessionStart` hook is the cheapest way for a red gate to reach a
+  human**, with the three rules that keep one from being deleted: ask about the newest run on
+  `main`, not HEAD; never block or fail a session; full detail only on red. ⚠️ *A cron job
+  writing to a log is not an alert* — an off-host backup failed every run for 74 days into one.
+- **`data-ingestion-baseline.md` §7 (new) — an upstream id is a promise, not a key**, plus a rule
+  bullet in `.claude/rules/data-import.md`: an id-format change re-books the whole range, and
+  only value matching catches every class (a suffix query found 0 of 28 real duplicates); one
+  entity under two labels mints a twin; id width is a cross-repo contract (110-char ids against
+  a `VARCHAR(100)` consumer); a protection window must cover the fetch window — verified on the
+  one day the two coincided, it re-inserted 23 rows the next; and a human in the loop is not a
+  check unless the promote step runs one.
+- **`documentation-standard.md` — how to hold `status.md`'s budget** (move what changes on a
+  different clock, never delete what is true; one snapshot reached 405 lines against 60), and an
+  optional **`failure-patterns.md`** living catalog: the *shapes* bugs take, admitted only when
+  found twice and having passed a gate.
+- **`ui-design-reviewer` — rendered, in both themes, or say it was not.** The defect class no
+  suite sees: state that exists, renders and has no visible effect. Eleven instances in one
+  project, ten found by a person opening the page. Cascade losses are settled by a DOM probe,
+  not by reading CSS.
+- **`.claude/rules/collaboration.md` + `claude-collaboration.md` — check an objection before it
+  steers.** A reason given against an option must be verified; the reader cannot tell a guess
+  from a check.
+- **`brief` skill — two additions from its first adoption.** *A hand-kept roll-up is a copied
+  number too*: count the rows, not the index's summary table, and report a disagreement as an
+  action. And *decide what may appear on the page* before the first build: in a personal-finance
+  project the most natural tiles (balances, an uninsured deposit) are exactly the numbers that
+  must not leave the host.
+
+## v1.8.1 — 2026-09-10
+
+One new skill and the one-line change that keeps it honest. The pack could seed a project,
+drive its decisions and close its sessions, but had no way to *show* where a project stood —
+so status lived in terminal scrollback, which nobody can open on a phone and nobody outside
+the session can read at all.
+
+### Added
+- **`brief` skill (`/brief`)** — the **operator** brief: a single-page status artifact with
+  live tiles, owned next actions, progress against the tracker, and what shipped recently.
+  ⚠️ **Distinct from [`templates/project-brief.md`](templates/project-brief.md)**, which is the
+  *founding* brief — written once at kickoff, then frozen and fed to `/kickoff`. One is an input
+  to building; the other is a view of it. The names are close and the collision is called out in
+  both files rather than left to be discovered.
+
+  Two rules carry the skill, and both come from real defects:
+
+  - ⛔ **Every number is re-derived at build time; none is ever carried forward.** A figure
+    copied from the previous edition stops being derived from anything and goes wrong silently.
+    This was found the hard way in the source project on 2026-09-10: a tracker's own summary
+    table read `59 done · 7 partial · 25 to go` against its own checkboxes giving `60 · 9 · 27`,
+    while its note claimed the numbers had been *"re-derived, not typed"*. They had been — four
+    days earlier. The skill therefore requires a command per figure and says to **omit a tile**
+    rather than estimate one.
+  - ⛔ **It is a roadmap, not a diary.** No "what happened today". A status page exists to say
+    *done · open · next* and **who owns each** — an action with no owner is scheduled by nobody,
+    so every action card carries an owner chip (`you` / `me` / `needs hands` / `blocked`).
+
+  It also ships a validation phase that runs **before** publishing (re-derive the headline
+  figures a second time, cross-check the tracker with the project's own tool, balance the tags,
+  confirm no action card is already done, check links resolve), and a self-contained,
+  theme-aware HTML skeleton. ⚠️ The skeleton's dark-mode block is `@media` **outside**, selector
+  inside — the reverse is CSS nesting and fails silently on the viewer's default "system" theme,
+  which is where most readers are.
+
+### Changed
+- **`close` skill — new Phase 5b: refresh the operator brief.** A brief nobody refreshes is
+  *worse* than no brief, because it still reads as current; the close is exactly where its
+  inputs just changed. ⚠️ It says re-derive, not hand-patch the figures that moved — otherwise
+  `/close` becomes the mechanism by which the numbers start being copied forward, which is the
+  defect `/brief` exists to prevent. Skips silently when the project has no brief, and never
+  creates one as a side effect of closing.
+
+## v1.8.0 — 2026-09-02
+
+A completeness audit of the pack itself: every element the pack *prescribes* is now a file
+the pack *ships*, and every file it ships is now something the seeding path actually copies.
+No practice changed — the gaps were between the prose and the operational layer.
+
+### Added
+- **`.claude/settings.json` + `.claude/hooks/rm-guard.sh`** — the permission baseline from
+  [`claude-code-permissions.md`](claude-code-permissions.md) as **files**, not only prose:
+  bare-tool allowlist, a narrow `ask` net (`rm`, `sudo rm`), and the PreToolUse hook wired to
+  the guard that catches `rm` anywhere in a command line (prefix rules miss `cd x && rm y`).
+  The hook carries its three pipe-tests (ask / allow / false-positive) in its header — that
+  doc's own gotcha is that a broken hook fails *invisibly*, so `/kickoff` now tests it at
+  seed time. `additionalDirectories` stays out: it is per-machine user settings.
+- **`incident` skill (`/incident`)** — the 2 a.m. path as a triggerable procedure: triage
+  order outside-in, the explicit restore-vs-understand decision, and the close-the-loop
+  steps. [`incident-runbook.md`](incident-runbook.md) stays canonical for the failure-class
+  table. A runbook you have to remember to open is not a runbook at 2 a.m.
+- **`release-oss` skill (`/release-oss`)** — the publication path, gated on the irreversible
+  history scan running **first**. This is a one-way door, which is exactly the kind of
+  procedure that should trigger on intent ("make the repo public") rather than wait to be
+  looked up.
+- **`templates/project-readme.md`** — seeded projects had no `README.md` at all, while
+  [`open-source-release.md`](open-source-release.md) Phase 2 names it one of the four files a
+  public repo owes its readers.
+- **`templates/oss/`** — `LICENSE-MIT.txt`, `CONTRIBUTING.md` (with the PR no-secrets
+  checklist), `SECURITY.md`, and a README explaining that these are seeded at **publication**,
+  not at kickoff — an unfilled `SECURITY.md` is worse than none.
+- **`templates/scripts/ci-guards.sh` + `templates/.github/workflows/ci.yml`** — runnable
+  copies of what were previously only fenced blocks inside
+  [`testing-and-ci.md`](testing-and-ci.md), which `templates/CLAUDE.md` already advertised as
+  a project command. The doc stays canonical for the reasoning; both sides say "change them
+  together". Two fixes came out of extracting them: `fetch-depth: 0` (guard #3 diffs
+  `origin/main` and a shallow clone cannot), and a commented **guard #8** for tracked
+  `.claude/` config, to be enabled at publication.
+
+- **A host-toolchain prerequisite in `infra-bootstrap.md` §0** — `git`, `docker` + compose,
+  **`gh` (authenticated)**, `jq`, `tailscale`, with install lines and, for each, the failure
+  mode when it is absent. `gh` was an undeclared dependency: deploy gate #2 checks CI status
+  with `gh run list`, and without `gh` that gate is **skipped rather than failed** — it
+  degrades to "tests ran on my machine" while still printing a success banner. `jq` became
+  load-bearing the moment the `rm` guard hook shipped. `/kickoff` Phase 0.3 now checks all
+  five plus `gh auth status` before seeding.
+
+### Changed
+- **`/kickoff` Phase 1 now seeds `.gitignore`** (and the README, `settings.json` and the
+  hook). The pack shipped a seed `.gitignore` whose whole point is being right from the first
+  commit, and no seeding path — neither the skill nor README step 1 — ever copied it. It now
+  lands explicitly *before* the Phase 1.4 commit.
+- **`templates/.gitignore`** ignores `.claude/settings.local.json` and `CLAUDE.local.md`
+  (per-machine), with a comment stating that `.claude/` itself stays tracked — it is team
+  state until publication, when `release-oss` untracks it.
+- **The review agents no longer point at `docs/current/architecture.md`.** Five agents plus
+  their README deferred to a file the documentation standard never defined, the templates
+  never seeded, and `/kickoff` never created — it dangled in every project. They now read
+  `docs/current/project-description.md`, which gains an explicit **isolation model** line in
+  the template. One source of truth, and one that exists.
+- **`/kickoff` also creates `docs/reviews/`** — the review agents write there, and the
+  documentation standard lists it among the core dirs.
+- **Phase 0.2 placeholder confirmation** names `<<BROKER>>`; `<<PACK_VERSION>>` is called out
+  as filled from the pack README, not asked of the user.
+
+### Fixed
+- `public-edge-baseline.md` had no `Last reviewed` date — the one root doc missing the field
+  the pack's own maintenance loop depends on.
+- `deploy-to-shared-edge.md` used a one-off `<<HOST_IP>>` where the pack's token is
+  `<<TS_IP>>`; a seed-time find-replace would have left it unsubstituted.
+- README's placeholder list omitted `<<BACKEND>>`, `<<FRONTEND>>` and `<<PACK_VERSION>>`,
+  all of which are used in the templates and substituted by `/kickoff`.
+
+## v1.7.0 — 2026-08-30
+
+Upstreamed from **Noted** (Vue 3 + Fastify + Postgres, single-host, taken open-source
+2026-08-30) — the pack's first sync from that project.
+
+### Added
+- **`open-source-release.md`** — new playbook: taking a private repo's **source** public, as
+  distinct from exposing the running service (`deploy-to-public.md`). Covers the irreversible
+  **git-history scan** that projects skip (genericizing the working tree changes HEAD and
+  nothing about `git log -p`), a severity table for what history turns up (rotate vs rewrite
+  vs accept), genericizing hosts/IPs/companion clients, untracking personal agent config, the
+  four files a public repo owes its readers, and CI as the contributor contract. Indexed in
+  README's layout, the when-to-reach-for-what table, and the relationship diagram.
+
+### Changed
+- **`infra-bootstrap.md` §7** — three new single-host traps:
+  - **#22 Alpine healthchecks must use `127.0.0.1`, not `localhost`** — Alpine resolves to
+    `::1` first, the check fails against an IPv4 listener, and behind
+    `depends_on: service_healthy` that silently blocks the whole stack from starting.
+  - **#23 A `.env` in the frontend build context beats the Dockerfile's `ENV`/`ARG`** — Vite
+    loads it at build time and it wins, so a developer's local `.env` copied in by `COPY . .`
+    bakes dev settings into the production image. `RUN rm -f .env .env.*` before the build,
+    plus `.dockerignore`.
+  - **#24 A "mode" flag read for truthiness must be UNSET in prod** — the mirror image of
+    trap #7: any non-empty string is truthy, so `VITE_ENV_LABEL=false` still trips the dev
+    banner. Decide per variable whether presence or value is the signal, and say so in
+    `.env.example`.
+- **`testing-and-ci.md`** — two corrections to `ci-guards.sh` and the CI skeleton:
+  - The weak-secret-default guard now matches `:-[^}]`, not a bare `:-`. An **empty** default
+    (`${VAR:-}`) is the legitimate idiom for "integration off until a key is configured";
+    flagging it trains people to skip the guard. Also documents the blind spot beside it: a
+    bare `${JWT_SECRET}` is not fail-loud either — compose substitutes empty and the app boots
+    with an empty secret.
+  - **When the suite is end-to-end, mirror the dev setup script rather than inventing a CI
+    path** — plenty of real projects have no unit tests, only scripts that hit a running API.
+    Point a `services:` postgres at the credentials the dev config hardcodes and run the
+    project's own migrate/seed/start commands. Plus: exclude suites needing an unreachable
+    sibling service **by name in a `test:ci` manifest script**, not in a comment.
+- **`.claude/skills/close/SKILL.md`** — the version-bump step no longer prescribes
+  "bump before committing" unconditionally. **Who owns the commit and tag decides the
+  order:** a script that only writes files → bump first; a script that also commits and tags
+  itself (the shape in `script-library.md` §4) → commit the session's work first and let the
+  script create its own commit + tag last. The old advice produced a doubled commit or a tag
+  on the wrong HEAD against the more common script shape.
+- **`.claude/agents/ui-design-reviewer.md`** — added the **never native
+  `confirm()`/`alert()`/`prompt()`** rule: unstyleable, unlocalisable, main-thread-blocking,
+  and *suppressed outright* in some embedded and installed-PWA contexts — where a suppressed
+  `confirm()` returns `false` and the guarded action silently does nothing. Worth a CI guard
+  as well as a review, added as a **ratchet** where violations already exist. (Found live in a
+  project whose `CLAUDE.md` forbade it in bold: three had accumulated, two guarding
+  unsaved-work loss — the evidence for the pack's own "guidance is not enforcement" line.)
+- **`documentation-standard.md`** — resolved a contradiction the pack shipped with. A CR body
+  **may** carry its own `**Status:**` line (a design doc opened on its own that doesn't say
+  whether it shipped is a trap); what stays index-only is the **ship date and version**, which
+  is what actually drifts. Projects following the pack correctly were reading as violations.
+- **`cross-repo-integration.md`** — cites **Noted ↔ ocr-llm** as a second, independent
+  production instance of the handoff-ledger protocol: the provider gained a consumer without
+  gaining a coordination channel, and the `[provider → *]` broadcast form is what made it
+  cheap.
+
+## v1.6.5 — 2026-08-24
+
+**Upstreamed from the options project — what a second upload path exposed about the first
+one.** A feature that only added a page (drop both vendor exports at once, route each by its
+header) surfaced three defects that had been live for months in code the pack already had
+rules for. All three were invisible in the diff and invisible to tests; all three were caught
+by review asking what a number *claims*. Plus the concurrency case the pack described but
+under-specified: two agent sessions in one working tree, at the same time.
+
+**`data-ingestion-baseline.md` — two new sections and a corollary.**
+- **§4 corollary — a tie-out never ships without its exception count.** The pack already said
+  to assert a reconciliation invariant and surface it. It did not say that the control total
+  and the unresolved-record count measure different things: a reconstruction can balance
+  *while* records sit unattributed. Shown alone, "✓ balances" is read as "the import was
+  clean" — a stronger claim than the invariant makes. *Incident:* a receipt rendered
+  `✓ Tie-out balances` for an import with a non-empty `needs_review`; both values were in the
+  same response object and the page displayed one of them.
+- **§5 (new) — import time is not the data's date.** An ingest stamps when it *ran*; a human
+  in the loop makes that drift from when the data was true. Parse the vintage out of the
+  source into a **separate** field; where the format carries none, name the field
+  `imported_at` rather than `as_of` and have the UI say "imported". Every staleness check that
+  reads the ingest stamp is measuring when someone clicked upload. *Incident:* a positions
+  snapshot rendered *"as of 4:02pm"* for a file downloaded the day before — wrong since the
+  first import, noticed only when a second upload path made the stale file more likely.
+- **§6 (new) — undecodable and misrouted input is ordinary input.** An `accept=".csv"` filters
+  the picker dialog only; drag-and-drop and the API both bypass it, so a decode ahead of
+  validation turns a PDF or a spreadsheet's cp1252 export into a 500. Where two importable
+  formats exist, sniff and route **server-side, once** — the wrong-file error is a class you
+  can delete outright, and a client that re-implements the sniff duplicates rules that drift
+  the next time the vendor renames a column. Reject per-file, not per-batch.
+- **`.claude/rules/data-import.md`** carries all three as always-on bullets.
+
+**`.claude/rules/git-concurrency.md` — two rules for same-tree concurrency.**
+- **Sequential identifiers are allocated concurrently.** Any "next number = highest + 1"
+  scheme (CR/ADR/RFC docs, migration revisions) hands two sessions the same number when both
+  look before either writes. Claim the number by writing the file and its index row *first*,
+  before the work it names. Two sessions dodged a collision here by timing alone.
+- **A `git status` from session start is a snapshot, not the current state**, and a file you
+  did not write this turn may already be someone else's edit — re-read before editing.
+
+**`.claude/skills/close/SKILL.md` — two authoring traps.**
+- **Never pin a model name in a committed instruction file.** A project's copy of this skill
+  hard-coded a `Co-Authored-By:` model that had since changed; its git history now carries two
+  different names for the same author. Take the trailer as the environment supplies it.
+- **Don't add a branch-first step without checking the deploy phase.** A deploy script that
+  refuses to run from anything but `main` makes "branch, then deploy" impossible; a close
+  instructing both stalls on a contradiction the operator resolves by hand.
+
+**Reviewer agents.**
+- **`code-quality-reviewer`** — flag widening a shared component for a new caller by making a
+  required parameter optional. It compiles, every existing caller still passes, and the type
+  system stops enforcing what made the component work: a version with *neither* option now
+  typechecks and does nothing. Use a discriminated union, not two optionals and a docstring.
+- **`ui-design-reviewer`** — uploads and async results: client-side file filters are not
+  guards, batch operations report per item with a per-item retry, and asynchronous results
+  belong in a live region.
+
 ## v1.6.4 — 2026-08-02
 
 **Upstreamed from the Fin project — the second tenancy model, and five lessons from a

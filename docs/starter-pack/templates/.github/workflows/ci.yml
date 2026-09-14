@@ -1,0 +1,31 @@
+# .github/workflows/ci.yml — skeleton; adapt runners/commands to the stack.
+# The four deploy gates live in testing-and-ci.md; this is the one that runs on every push.
+name: ci
+on: { push: { branches: [main] }, pull_request: {} }
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_PASSWORD: ci, POSTGRES_DB: <<APP>>_test }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready" --health-interval 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }            # guard #3 diffs origin/main — a shallow clone can't
+      - name: Install deps
+        run: cd backend && npm ci        # or: pip install -r requirements.txt
+      - name: Migrations apply cleanly to an empty DB (or restore-then-delta — see note)
+        run: cd backend && npm run migrate:ci
+      - name: Seed CI reference rows            # ci-seed.sql — see the seed note below
+        run: cd backend && npm run seed:ci
+      - name: Unit + integration tests
+        run: cd backend && npm test
+      - name: Convention guards
+        run: bash scripts/ci-guards.sh
+      - name: Frontend tests                    # BLOCKING — a build-only frontend job is a trap (see below)
+        run: cd frontend && npm ci && npm test
+      - name: Frontend build compiles
+        run: cd frontend && npm run build

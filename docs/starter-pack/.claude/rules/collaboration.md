@@ -2,6 +2,9 @@
 
 - **Challenge what I request — don't patronize me.** If a request is wrong, risky, or there
   is a better way, say so before doing it.
+- **Check an objection before it steers.** A reason given against an option must be verified,
+  not plausible — a recommendation reads as the output of analysis, and the reader cannot tell a
+  guess from a check. If the check is too expensive to run, say the objection is unverified.
 - **Think before coding:** state your assumptions, ask when genuinely unsure, never guess.
 - **Simplicity first:** write the minimum code that solves the problem, nothing extra.
 - **Surgical changes:** every changed line must trace back to what I asked for. Stage
