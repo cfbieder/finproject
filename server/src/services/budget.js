@@ -312,25 +312,27 @@ async function getSummary(query) {
     GROUP BY EXTRACT(MONTH FROM t.transaction_date)
   `;
 
-  // Query budget entries by month
+  // Query budget entries by month — P&L CATEGORIES ONLY (owner, 2026-09-14). A budget
+  // is P&L: a row with no category is not budget, and the account on a budget line is
+  // where the money is expected to land, not a budget dimension — so the account
+  // filter narrows the ACTUAL side only. Before this, an unfiltered 2026 read totalled
+  // −224,315.52 against the P&L budget of −137,526.81.
   const budgetSql = `
     SELECT
       EXTRACT(MONTH FROM e.entry_date)::int as month,
       SUM(e.base_amount) as total
     FROM budget_entries e
-    LEFT JOIN accounts c ON e.category_id = c.id
-    LEFT JOIN accounts a ON e.account_id = a.id
-    WHERE e.budget_year = $${baseParams.length + 1}
-      AND EXTRACT(MONTH FROM e.entry_date) >= $${baseParams.length + 2}
-      AND EXTRACT(MONTH FROM e.entry_date) <= $${baseParams.length + 3}
+    JOIN accounts c ON e.category_id = c.id AND c.section = 'profit_loss'
+    WHERE e.budget_year = $${categoryParams.length + 1}
+      AND EXTRACT(MONTH FROM e.entry_date) >= $${categoryParams.length + 2}
+      AND EXTRACT(MONTH FROM e.entry_date) <= $${categoryParams.length + 3}
       ${categoryFilter}
-      ${accountFilter}
     GROUP BY EXTRACT(MONTH FROM e.entry_date)
   `;
 
   const [actualResult, budgetResult] = await Promise.all([
     db.query(actualSql, [...baseParams, parsedActualYear, parsedFromMonth, parsedToMonth]),
-    db.query(budgetSql, [...baseParams, parsedBudgetYear, parsedFromMonth, parsedToMonth])
+    db.query(budgetSql, [...categoryParams, parsedBudgetYear, parsedFromMonth, parsedToMonth])
   ]);
 
   // Build month -> total maps

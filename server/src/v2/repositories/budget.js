@@ -288,7 +288,8 @@ async function sumByCategory({ versionId, year } = {}) {
 }
 
 /**
- * Get monthly budget totals
+ * Get monthly budget totals — P&L categories only (owner, 2026-09-14: a budget is
+ * P&L; a row with no category is not budget).
  */
 async function sumByMonth({ versionId, year } = {}) {
   const conditions = [];
@@ -296,11 +297,11 @@ async function sumByMonth({ versionId, year } = {}) {
   let paramIndex = 1;
 
   if (versionId) {
-    conditions.push(`version_id = $${paramIndex++}`);
+    conditions.push(`e.version_id = $${paramIndex++}`);
     params.push(versionId);
   }
   if (year) {
-    conditions.push(`budget_year = $${paramIndex++}`);
+    conditions.push(`e.budget_year = $${paramIndex++}`);
     params.push(year);
   }
 
@@ -308,12 +309,13 @@ async function sumByMonth({ versionId, year } = {}) {
 
   const sql = `
     SELECT
-      DATE_TRUNC('month', entry_date)::date as month,
-      SUM(base_amount) as total_amount,
+      DATE_TRUNC('month', e.entry_date)::date as month,
+      SUM(e.base_amount) as total_amount,
       COUNT(*)::int as entry_count
-    FROM budget_entries
+    FROM budget_entries e
+    JOIN accounts c ON c.id = e.category_id AND c.section = 'profit_loss'
     ${whereClause}
-    GROUP BY DATE_TRUNC('month', entry_date)
+    GROUP BY DATE_TRUNC('month', e.entry_date)
     ORDER BY month
   `;
 
