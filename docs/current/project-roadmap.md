@@ -883,6 +883,11 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.2 Completed (chronological, latest first)
 
+- **v3.62.4** (2026-09-15) — **patch: one open Latest Estimate per year — [CR083](../cr/cr-083-budget-latest-estimate.md).** No migration.
+  - **Owner rule:** the current month's LE stays a draft all month (LE-09-26 is open during September) and is finalised once the month closes. The month-end order is finalise → FX recalculate → cut the next LE, because FX recalculate is refused while any LE for the year is a draft.
+  - Creating or re-cutting an LE while another for the year is a draft now answers **409 naming the draft**. Neither checked before, which is how prod held two 2026 drafts until 2026-09-14. Re-cutting a draft keeps its own 409.
+  - The month-end runbook gains **§7 Roll the Latest Estimate**, done after the feed settles so a draft's actual months are complete.
+  - New DB test: `cr083.leOpenDraft.test.js`.
 - **v3.62.3** (2026-09-15) — **patch: Unrealized and Transfers toggles on the Budget Worksheet.** No migration.
   - July 2026's "Expense (all)" actual read **94,869.82** on the Worksheet against **63,301.04** on Budget Analysis. The COA Expense group includes `Unrealized G/L` (July: −31,568.78, the whole gap) and the transfer subtree, both of which Budget Analysis leaves out by default.
   - The Worksheet gets the same two checkboxes, unticked by default and cleared by Reset. They apply to the Actual column and to the double-click drill-down, so a cell and its entries agree. Budget figures are unaffected.
