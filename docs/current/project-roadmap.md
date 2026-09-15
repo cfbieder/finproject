@@ -883,12 +883,17 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.2 Completed (chronological, latest first)
 
+- **v3.62.2** (2026-09-15) — **patch: the Budget Worksheet counts P&L budget only.** No migration, no frontend change.
+  - `/budget/summary` joined budget rows to categories with a LEFT JOIN and filtered them by account. So whenever no category filter was sent, 2026 budget totalled **−224,315.52** (every row) instead of the P&L **−137,526.81**, and picking an account narrowed the budget column.
+  - The budget side now joins a P&L category and ignores the account filter, which still narrows actuals. The default Expense view's figures are unchanged.
+  - The uncalled `/entries/summary/by-month` gets the same join.
+  - New DB test: `budget.summaryPlOnly.test.js`.
 - **v3.62.1** (2026-09-14) — **patch: a budget is P&L only — [CR083](../cr/cr-083-budget-latest-estimate.md) follow-up.** No migration.
   - **Owner decision:** the account on a budget line is where the money is expected to land, not a budget dimension. So the 72 budget rows with no category (−86,788.71 for 2026) are not budget, and the LE's unallocated-allowance memo line and **L6** are removed.
   - **L4 built:** it warns when a category's budget for the estimate months is ≥$1,000 but the estimate there is zero with no note.
   - **L10** is asserted in the lifecycle suite: grid NET equals the sum of lines, and frozen actuals equal the ledger at the freeze.
   - **Deviations on a final LE** now name a re-cut as the remedy.
-  - ⚠️ **Found, not fixed:** the Budget Worksheet's `/budget/summary` still totals every budget row — **−224,315.52** for 2026 against the P&L-only **−137,526.81** — as does `/entries/summary/by-month`, which has no frontend caller.
+  - ✅ **Fixed in v3.62.2 —** found here: the Budget Worksheet's `/budget/summary` still totals every budget row — **−224,315.52** for 2026 against the P&L-only **−137,526.81** — as does `/entries/summary/by-month`, which has no frontend caller.
 - **v3.62.0** (2026-09-14) — **minor: the Latest Estimate becomes a frozen artefact — [CR083](../cr/cr-083-budget-latest-estimate.md) finalise, recut and drift.** **Migration 082** (`budget_le_budget_fy` + `budget_le.finalized_at`).
   - **Finalise** re-reads the actual months and freezes them with the full-year budget. A final LE reads those figures on the grid AND in its worksheet, so an in-year budget edit no longer restates its variance.
   - **Recut** supersedes the old LE and inserts a new one in one transaction, seeding from the LE it supersedes. Deleting a recut's draft restores the final LE it replaced; a superseded LE cannot be deleted.
