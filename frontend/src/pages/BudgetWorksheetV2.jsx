@@ -38,6 +38,7 @@ import {
   parseNumericInput,
 } from "../features/BudgetEntry/utils/budgetInputUtils.js";
 import EmptyState from "../components/EmptyState.jsx";
+import "./PageLayout.css";
 import "./BudgetWorksheetV2.css";
 
 const MONTH_NAMES_SHORT = [
@@ -81,6 +82,11 @@ export default function BudgetWorksheetV2() {
 
   // ========== State: UI ==========
   const [showFilters, setShowFilters] = useState(false);
+  // Budget Analysis's two toggles, off by default (owner, 2026-09-15). Off, the Actual
+  // column counts ordinary income and expense only — no unrealized gains or transfers,
+  // which the budget never contains — so budget and actual compare like for like.
+  const [includeUnrealized, setIncludeUnrealized] = useState(false);
+  const [includeTransfers, setIncludeTransfers] = useState(false);
 
   // ========== State: Entry Form ==========
   const [entryForm, setEntryForm] = useState({
@@ -236,6 +242,8 @@ export default function BudgetWorksheetV2() {
     budgetYear,
     selectedAccounts,
     expandedCategories: expandedSelectedCategories,
+    includeUnrealized,
+    includeTransfers,
   });
 
   const currentExchangeRate = useMemo(() => {
@@ -368,6 +376,8 @@ export default function BudgetWorksheetV2() {
     setBudgetYear(defaultBudgetYear ?? new Date().getFullYear());
     setSelectedCategories([]);
     setSelectedAccounts(["All"]);
+    setIncludeUnrealized(false);
+    setIncludeTransfers(false);
   }, [setSelectedCategories, setSelectedAccounts, defaultBudgetYear]);
 
   const handleActualEntryCopy = useCallback(
@@ -405,6 +415,9 @@ export default function BudgetWorksheetV2() {
         expandedCategories: Array.isArray(expandedSelectedCategories)
           ? [...expandedSelectedCategories]
           : [],
+        // The drill-down applies the same toggles, so its entries add up to the cell.
+        includeUnrealized,
+        includeTransfers,
         formatCurrencyValue,
         budgetEntryAvailable: !derivedCategoryIsGroup,
         onActualEntryCopy: handleActualEntryCopy,
@@ -415,6 +428,8 @@ export default function BudgetWorksheetV2() {
       actualYear,
       selectedAccounts,
       expandedSelectedCategories,
+      includeUnrealized,
+      includeTransfers,
       derivedCategoryIsGroup,
       handleActualEntryCopy,
     ]
@@ -666,6 +681,29 @@ export default function BudgetWorksheetV2() {
           <RotateCcw size={13} />
           Reset
         </button>
+
+        {/* The same two toggles as Budget Analysis, off by default. They apply to the
+            Actual column and its drill-down; the budget holds neither kind of row. */}
+        <label className="report-toolbar__toggle" htmlFor="bwv2-include-unrealized">
+          <input
+            id="bwv2-include-unrealized"
+            type="checkbox"
+            className="report-toolbar__checkbox"
+            checked={includeUnrealized}
+            onChange={(e) => setIncludeUnrealized(e.target.checked)}
+          />
+          <span className="report-toolbar__toggle-text">Unrealized</span>
+        </label>
+        <label className="report-toolbar__toggle" htmlFor="bwv2-include-transfers">
+          <input
+            id="bwv2-include-transfers"
+            type="checkbox"
+            className="report-toolbar__checkbox"
+            checked={includeTransfers}
+            onChange={(e) => setIncludeTransfers(e.target.checked)}
+          />
+          <span className="report-toolbar__toggle-text">Transfers</span>
+        </label>
 
         {activeChips.length > 0 && (
           <>

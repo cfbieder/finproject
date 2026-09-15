@@ -245,6 +245,25 @@ async function updateEntry(id, body) {
 // ---------------------------------------------------------------------------
 
 /**
+ * The Budget Worksheet's "Unrealized" and "Transfers" toggles (owner, 2026-09-15), in the
+ * vocabulary Budget Analysis already sends (`includeUnrealizedGL`, `transfers`). ABSENT
+ * means include — these endpoints' behaviour before the toggles — so only a caller that
+ * asks is narrowed. Transfers are the `is_transfer` categories and unrealized gains are
+ * `Unrealized G/L`, the same rules the LE scope uses. `c` must be the category alias; an
+ * uncategorised row is neither, so it is kept.
+ */
+function worksheetScopeSql({ transfers, includeUnrealizedGL } = {}) {
+  let sql = '';
+  if (String(includeUnrealizedGL) === 'false') {
+    sql += ` AND (c.id IS NULL OR c.name <> 'Unrealized G/L')`;
+  }
+  if (transfers === 'exclude') {
+    sql += ` AND (c.id IS NULL OR NOT c.is_transfer)`;
+  }
+  return sql;
+}
+
+/**
  * Budget vs actual aggregated by month (v1-compatible response format).
  */
 async function getSummary(query) {
@@ -256,8 +275,11 @@ async function getSummary(query) {
     category,
     categories,
     account,
-    accounts
+    accounts,
+    transfers,
+    includeUnrealizedGL
   } = query;
+  const scopeFilter = worksheetScopeSql({ transfers, includeUnrealizedGL });
 
   const currentYear = new Date().getFullYear();
   const parsedActualYear = actualYear ? parseInt(actualYear) : currentYear;
@@ -309,6 +331,7 @@ async function getSummary(query) {
       AND EXTRACT(MONTH FROM t.transaction_date) <= $${baseParams.length + 3}
       ${categoryFilter}
       ${accountFilter}
+      ${scopeFilter}
     GROUP BY EXTRACT(MONTH FROM t.transaction_date)
   `;
 
@@ -327,6 +350,7 @@ async function getSummary(query) {
       AND EXTRACT(MONTH FROM e.entry_date) >= $${categoryParams.length + 2}
       AND EXTRACT(MONTH FROM e.entry_date) <= $${categoryParams.length + 3}
       ${categoryFilter}
+      ${scopeFilter}
     GROUP BY EXTRACT(MONTH FROM e.entry_date)
   `;
 
@@ -468,6 +492,7 @@ async function getActualEntries(query) {
     fromDate, toDate,
     category, categories, account, accounts,
     description, valueFrom, valueTo, currency,
+    transfers, includeUnrealizedGL,
     limit = 1000
   } = query;
 
@@ -529,6 +554,10 @@ async function getActualEntries(query) {
     params.push(...categoryList);
     paramIndex += categoryList.length;
   }
+
+  // The worksheet toggles — the same rule its summary applies, so a cell and the
+  // entries it drills into always agree.
+  sql += worksheetScopeSql({ transfers, includeUnrealizedGL });
 
   // Account filter
   if (accountList.length > 0) {

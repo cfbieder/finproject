@@ -330,8 +330,14 @@ export default class Rest {
     categories,
     accounts,
     limit,
+    transfers,
+    includeUnrealizedGL,
   } = {}) {
     const params = new URLSearchParams();
+    if (transfers) params.set("transfers", transfers);
+    if (typeof includeUnrealizedGL === "boolean") {
+      params.set("includeUnrealizedGL", String(includeUnrealizedGL));
+    }
     if (actualYear !== undefined && actualYear !== null) {
       params.set("actualYear", Number(actualYear));
     }
@@ -803,8 +809,14 @@ export default class Rest {
     budgetYear,
     categories,
     accounts,
+    transfers,
+    includeUnrealizedGL,
   } = {}) {
     const params = new URLSearchParams();
+    if (transfers) params.set("transfers", transfers);
+    if (typeof includeUnrealizedGL === "boolean") {
+      params.set("includeUnrealizedGL", String(includeUnrealizedGL));
+    }
     if (fromMonth) params.set("fromMonth", fromMonth);
     if (toMonth) params.set("toMonth", toMonth);
     if (actualYear !== undefined && actualYear !== null) {

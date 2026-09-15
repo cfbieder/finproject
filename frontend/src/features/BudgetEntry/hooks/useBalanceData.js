@@ -17,6 +17,8 @@ import {
  * @param {string} params.budgetYear - Year for budget data
  * @param {Array} params.selectedAccounts - Selected account filters
  * @param {Array} params.expandedCategories - Expanded category filters
+ * @param {boolean} [params.includeUnrealized] - Count `Unrealized G/L` in actuals
+ * @param {boolean} [params.includeTransfers] - Count transfer categories in actuals
  * @returns {Object} Balance data state
  * @property {Array} balanceRows - Monthly balance rows with actual, budget, difference
  * @property {Object} status - Loading status
@@ -31,6 +33,8 @@ export function useBalanceData({
   budgetYear,
   selectedAccounts,
   expandedCategories,
+  includeUnrealized,
+  includeTransfers,
 }) {
   const [balanceRows, setBalanceRows] = useState([]);
   const [status, setStatus] = useState({
@@ -69,6 +73,14 @@ export function useBalanceData({
           budgetYear,
           categories: categoryFilters,
           accounts: accountsToFilter,
+          // The worksheet's toggles, in Budget Analysis's vocabulary. Left unset when a
+          // caller passes neither, so the endpoint keeps its old include-everything default.
+          ...(typeof includeTransfers === "boolean"
+            ? { transfers: includeTransfers ? "include" : "exclude" }
+            : {}),
+          ...(typeof includeUnrealized === "boolean"
+            ? { includeUnrealizedGL: includeUnrealized }
+            : {}),
         });
 
         if (!isActive) return;
@@ -118,6 +130,8 @@ export function useBalanceData({
     budgetYear,
     selectedAccounts,
     expandedCategories,
+    includeUnrealized,
+    includeTransfers,
     refreshKey,
   ]);
 

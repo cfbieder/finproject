@@ -152,6 +152,8 @@ const BudgetEntriesAtualPopup = ({ request }) => {
     actualYear,
     selectedAccounts,
     expandedCategories,
+    includeUnrealized,
+    includeTransfers,
     formatCurrencyValue,
     budgetEntryAvailable,
     onActualEntryCopy,
@@ -328,6 +330,13 @@ const BudgetEntriesAtualPopup = ({ request }) => {
         categories: safeExpandedCategories,
         accounts: accountsToFilter,
         limit: 500,
+        // The worksheet's toggles, so these entries add up to the cell that opened them.
+        ...(typeof includeTransfers === "boolean"
+          ? { transfers: includeTransfers ? "include" : "exclude" }
+          : {}),
+        ...(typeof includeUnrealized === "boolean"
+          ? { includeUnrealizedGL: includeUnrealized }
+          : {}),
       });
 
       const fetchedEntries = Array.isArray(payload?.entries)
