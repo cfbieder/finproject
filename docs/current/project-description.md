@@ -233,7 +233,7 @@ and `buildCashFlowNode` reads **leaf categories only**, so transactions posted d
 (`Car Expense`, `Children - Anna` — $60.36 in 2026) count in the LE and not there. The KPI states its
 own scope rather than re-basing the page.
 
-**Budget (`/budget`):** versions CRUD+copy · entries CRUD (single/batch) · summaries (by-category/by-month/compare) · `fx-rates` (get/upsert/rate-map/preview/recalculate) · v1-compat `GET /`, `/actual-entries` (date-range aware, CR031; also filters `description`/`valueFrom`/`valueTo`/`currency` and returns `truncated` when the LIMIT is hit — CR068 P2), `/cash-flow`.
+**Budget (`/budget`):** versions CRUD+copy · entries CRUD (single/batch) · summaries (by-category/by-month/compare) · `fx-rates` (get/upsert/rate-map/preview/recalculate) · v1-compat `GET /`, `/actual-entries` (date-range aware, CR031; also filters `description`/`valueFrom`/`valueTo`/`currency` and returns `truncated` when the LIMIT is hit — CR068 P2), `/cash-flow`. `/summary` and `/actual-entries` take the Budget Worksheet's toggles as `transfers=exclude` / `includeUnrealizedGL=false` (absent = include; v3.62.3).
 
 **Categories (`/categories`):** P&L leaf accounts post-migration-021 (URL preserved; backed by `accounts`). List/lookup/single + mappings.
 

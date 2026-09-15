@@ -883,6 +883,11 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.2 Completed (chronological, latest first)
 
+- **v3.62.3** (2026-09-15) — **patch: Unrealized and Transfers toggles on the Budget Worksheet.** No migration.
+  - July 2026's "Expense (all)" actual read **94,869.82** on the Worksheet against **63,301.04** on Budget Analysis. The COA Expense group includes `Unrealized G/L` (July: −31,568.78, the whole gap) and the transfer subtree, both of which Budget Analysis leaves out by default.
+  - The Worksheet gets the same two checkboxes, unticked by default and cleared by Reset. They apply to the Actual column and to the double-click drill-down, so a cell and its entries agree. Budget figures are unaffected.
+  - `/budget/summary` and `/budget/actual-entries` accept Budget Analysis's `transfers` and `includeUnrealizedGL`; absent means include, so other callers are unchanged.
+  - New tests: `budget.worksheetToggles.test.js` (DB), `rest.worksheetToggles.test.js`.
 - **v3.62.2** (2026-09-15) — **patch: the Budget Worksheet counts P&L budget only.** No migration, no frontend change.
   - `/budget/summary` joined budget rows to categories with a LEFT JOIN and filtered them by account. So whenever no category filter was sent, 2026 budget totalled **−224,315.52** (every row) instead of the P&L **−137,526.81**, and picking an account narrowed the budget column.
   - The budget side now joins a P&L category and ignores the account filter, which still narrows actuals. The default Expense view's figures are unchanged.
