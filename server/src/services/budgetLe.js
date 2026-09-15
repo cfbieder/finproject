@@ -641,9 +641,32 @@ async function list({ budgetYear } = {}) {
   return repo.findAll({ budgetYear: budgetYear ? parseInt(budgetYear, 10) : undefined });
 }
 
+/**
+ * Owner rule, 2026-09-15: the current month's LE stays a DRAFT through that month, so it
+ * can be revised as news arrives, and is finalised once the month has closed. The
+ * month-end order is finalise → FX recalculate → cut the next LE; the FX refusal
+ * (`POST /fx-rates/recalculate`) needs the gap between the first and the third. Cutting or
+ * re-cutting while a draft is still open would leave two drafts and nothing would say the
+ * older one was never frozen — the state prod sat in until 2026-09-14. So both refuse,
+ * naming the draft.
+ */
+async function assertNoOpenDraft(budgetYear, { exceptId } = {}) {
+  const drafts = (await repo.findAll({ budgetYear }))
+    .filter((le) => le.status === 'draft' && le.id !== exceptId);
+  if (drafts.length) {
+    const names = drafts.map((d) => d.name).join(', ');
+    throw AppError.conflict(
+      `${names} ${drafts.length > 1 ? 'are' : 'is'} still a draft. Finalise it first — at month end: `
+        + 'finalise, recalculate FX, then cut the next estimate.',
+      'LE_DRAFT_OPEN'
+    );
+  }
+}
+
 async function create({ budgetYear, actualThrough, label, note }) {
   const year = parseInt(budgetYear, 10);
   if (!Number.isInteger(year)) throw validate.badRequest('budgetYear is required');
+  await assertNoOpenDraft(year);
   const cut = actualThrough || (await defaultCut(year));
   return repo.create({ budgetYear: year, actualThrough: cut, label, note });
 }
@@ -986,6 +1009,10 @@ async function recut(id, { actualThrough } = {}) {
       );
     }
   }
+  const target = await repo.findById(id);
+  if (!target) return null;
+  // The target itself is excluded: re-cutting a draft keeps its own 409 (LE_NOT_FINAL).
+  await assertNoOpenDraft(target.budget_year, { exceptId: target.id });
   try {
     return await repo.recut(id, { actualThrough });
   } catch (err) {

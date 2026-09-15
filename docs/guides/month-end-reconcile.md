@@ -25,6 +25,7 @@ was sitting inside what looked like a −107,830.71 "MTM gap"; only $804.50 of i
 3. Wait for the feed to settle.
 4. Book the MTM.
 5. Re-anchor any `calibrate` (cash) account still showing drift.
+6. Roll the Latest Estimate: finalise the open one, recalculate FX, cut the next.
 
 ---
 
@@ -150,6 +151,25 @@ have plugged a real gap and hidden it.
 
 Balance Calibration should read **`0 unreconciled`**, no red `unpaired legs` on any row, and
 each MTM entry dated at month-end (Ledger → source `mtm`).
+
+## 7. Roll the Latest Estimate
+
+**Owner rule (2026-09-15): the current month's estimate stays a draft all month.** LE-09-26
+(actuals through August) is open during September, so its Sep–Dec estimates can change as news
+arrives and the effect on the month and the year shows at once. Once the month has closed, on
+**Budget → Latest Estimate** and **Budget FX**:
+
+1. **Finalise the open LE.** Finalise re-reads its actual months from the ledger and freezes them
+   with the full-year budget.
+2. **Recalculate FX** for the month that just ended. It is refused while any LE for the year is a
+   draft, because it would move the budget figures a draft reports against — this is its window.
+3. **Cut the next LE.** It seeds its estimate months from the one just finalised. Cutting one while
+   a draft is still open is refused, and the message names the draft.
+
+Do this **after step 3's settle**, not on the 1st. A draft's actual months are the ledger as it
+stood at the cut, so a cut on the 1st shows the month short for all of the month it is open
+(83 of July's 85 late rows landed Aug 1–3). *Month may be incomplete* (L1) warns for the first
+four days; drift shows what has landed since. Finalising a month later re-reads them regardless.
 
 ---
 

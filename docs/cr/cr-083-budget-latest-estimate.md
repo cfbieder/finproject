@@ -1721,5 +1721,17 @@ cheap test CR081 skipped.
   - **L10 as a test, not a warning.** The lifecycle suite asserts an LE's grid NET equals the sum of its
     lines, and its frozen actuals equal the ledger at the freeze.
   - **Deviations on a final LE** now name the remedy: a re-cut.
+
+  **Owner decision, 2026-09-15 — the current month's LE stays a draft all month** (v3.62.4):
+  - LE-09-26 is open during September so it can be revised as news arrives, and is finalised once
+    the month has closed. This is the lifecycle finalise was already built for: it re-reads the
+    actual half at the freeze.
+  - **The month-end order is finalise → FX recalculate → cut the next LE.** The FX refusal (§5) is
+    unchanged; under the rule a draft exists all month, and the order is what gives recalculate its
+    window. Recalculate sets one ended month's rate from that month's actuals, so it was always a
+    month-end act. Written into [the month-end runbook](../guides/month-end-reconcile.md) §7.
+  - **Create and recut now refuse (409) while an LE for the year is a draft,**
+    naming it. Neither checked before, which is how prod held two 2026 drafts until 2026-09-14.
+    The repository is unchanged, so the lifecycle suites still build multi-draft fixtures.
 - **P1** (the advisory's accept path, `TRAIL_3`/`ZERO`, drift **L2**) and **P2** (§11.4's seed-next-
   year, still not specified enough to schedule).

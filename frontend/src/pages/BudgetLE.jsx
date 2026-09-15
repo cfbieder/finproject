@@ -114,7 +114,11 @@ function BudgetLE() {
       // December cut. Say which, rather than surfacing the constraint name.
       const msg = String(e?.message || "");
       setError(
-        /budget_le_year_cut_uniq|duplicate/i.test(msg)
+        // The open draft is named by the server, with the month-end order to follow.
+        // (The error handler sends `{ error, status }` only, so match the 409's sentence.)
+        e?.status === 409 && /still a draft/i.test(msg)
+          ? msg
+          : /budget_le_year_cut_uniq|duplicate/i.test(msg)
           ? `An estimate already exists for that cut. Delete it first, or wait for the next month to close.`
           : /not_january/i.test(msg)
             ? "An estimate needs at least one closed month — January is the earliest cut."
