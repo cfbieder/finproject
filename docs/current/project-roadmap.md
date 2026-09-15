@@ -2482,6 +2482,30 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
     tighter padding) and the page cap raised 1200 → 1320px, so at desktop widths the table fits with
     no horizontal scroll (1,136px content in a 1,136px box, measured).
 
+31. **🔴 FIXED 2026-09-15 — after a host reboot, prod came up with the databases on NO network (down ~40 min).**
+    - **What happened:** the host rebooted at 07:02 UTC and dockerd started at 07:04. The Tailscale address
+      `100.94.46.62` was not yet present, although `tailscaled` had gone active at 07:02:42. So
+      `fin-postgres` and `fin-postgres-dev` could not bind their ports on it (`:5433`, `:5434`).
+    - **Symptom:** Docker brought both database containers up **healthy but attached to no network**. The
+      API servers could not resolve them: every page failed with `getaddrinfo EAI_AGAIN fin-postgres`,
+      the first report being the Budget Worksheet.
+    - ⚠️ **A published port on a not-yet-present address takes the whole container off its network**, not
+      just the port. `docker restart` does not repair it.
+    - **Recovery (verified):** `docker network connect psproject_fin-network fin-postgres` and
+      `docker network connect psproject_fin-network-dev fin-postgres-dev`. This touches no container or
+      volume, and the host ports publish again with it.
+    - **Permanent fix (owner decision 2026-09-15, option A):** `docker.service` drop-in
+      `/etc/systemd/system/docker.service.d/wait-tailscale-ip.conf` runs
+      `/usr/local/sbin/fin-wait-tailscale-ip.sh` as `ExecStartPre`. It waits up to 180 s for the address,
+      then starts Docker regardless, so a Tailscale outage cannot block the host.
+    - **Why not "start after tailscaled":** that ordering is not enough, because the address arrived more
+      than ~93 s after `tailscaled` was active.
+    - **Verified without restarting Docker:** the unit check is clean and the script exits 0 under systemd.
+      ⚠️ **Not yet exercised by a real boot.** On the next reboot, check
+      `docker inspect fin-postgres --format '{{len .NetworkSettings.Networks}}'` is 1.
+    - **Host config, not in git:** both files live outside the repo, so a rebuilt host needs them
+      re-created from this entry.
+
 ---
 
 ## 4. Frontend Improvement Themes (ongoing)
