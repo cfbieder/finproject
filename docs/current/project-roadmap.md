@@ -1895,7 +1895,10 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
   `.includes('transfer')` and collects its leaves, so renaming `Transfers` silently disables the
   exclusion, and a `profit_loss` leaf named `Transfer - x` **outside** the subtree is silently
   excluded. `accounts.is_transfer` is already TRUE on exactly the right 13 accounts. Unify onto the
-  predicate, one copy.
+  predicate, one copy. *(2026-09-15: measured — the walk and the flag agree on prod today, so this is
+  robustness and dedupe, moving no figure; owner chose to keep it as backlog. It reaches every
+  cash-flow page and the forecast's base-year actuals, and `getNestedTree` does not carry the flag
+  yet. The Budget Worksheet's toggles (v3.62.3) and the LE landing already use `is_transfer`.)*
 
 - [ ] **`/budget-vs-actual` and `/cash-flow-periods` carry CR082's print-clipping defect TODAY**
   (found 2026-08-16 drafting [CR083](../cr/cr-083-budget-latest-estimate.md) §10.6). `DataTable.css:119-155`
@@ -1907,15 +1910,16 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
   sideways at all) and does not fix it. Same treatment as `DataTable.css`: release the overflow,
   un-stick the header, land it in `PageLayout.css`.
 
-- [ ] **`/budget-vs-actual` excludes transfers by NAME STRING, and never excludes `Unrealized G/L`**
-  (same source, CR083 §11.2). `extractTransferCategories` (`server/src/services/budget.js:72-92`)
-  walks the COA matching `node.name.toLowerCase().includes('transfer')`, which **misses
-  `Return of Capital` (217) and `Valuation - Historical` (229)** — both inside the `Transfers`
-  subtree — while `Unrealized G/L` (88, **+213,595 YTD 2026**) is not excluded under any of its
-  `exclude|only|include` options. `accounts.is_transfer` is already TRUE on exactly the right 13
-  accounts, so `NOT is_transfer AND id <> 88` is the correct predicate. **Deliberately NOT done in
-  CR083** — re-basing moves numbers on a page the owner reads weekly and needs a before/after check
-  on `/budget-vs-actual` (3 tabs), `/m/budget` and `/category-trend`. Worth doing on its own.
+- [x] **CORRECTED 2026-09-15 — not a defect on today's data; `/budget-vs-actual` moves no figure by
+  switching rules.** The entry (CR083 §11.2) said the name walk **misses `Return of Capital` (217) and
+  `Valuation - Historical` (229)** and that `Unrealized G/L` is never excluded. Measured on prod: the
+  walk and `accounts.is_transfer` select **the same 13 leaves, set difference empty** — the walk
+  collects every leaf under the node it matches, and both sit under `Transfers`. The Unrealized half
+  is out of date: `buildCashFlowReport` drops `Unrealized G/L` unless `includeUnrealizedGL`, and the
+  budget side has **zero** budget rows on it. The two rules can still part: `computeIsTransfer`
+  (`coa.js` create/move) keys on an ancestor named exactly `Transfers`, the walk on any node
+  containing "transfer" — so renaming `Transfers`, or a P&L leaf named `Transfer…` outside it, would
+  split them. Tracked as the dedupe item above, not as a figure defect.
 
 - [ ] **Two math evaluators, and the budget worksheet uses the weaker one** (same source, CR083 §10.5).
   `frontend/src/utils/amountFormula.js` is a recursive-descent parser with the load-bearing
