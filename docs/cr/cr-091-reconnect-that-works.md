@@ -1,4 +1,4 @@
-# CR091 — The reconnect button, and the three things its first live use found — **P1 BUILT (fin side)** · P2 U1 + U1b + P3 SHIPPED (U1/P3 v3.61.5) · U2 open · P4 SHIPPED in bank-feed `04815bd`
+# CR091 — The reconnect button, and the three things its first live use found — **COMPLETED 2026-09-15** · P1 BUILT (fin side) · P2 U1 + U1b + P3 SHIPPED (U1/P3 v3.61.5) · U2 SHIPPED in bank-feed `615b2bb` · P4 SHIPPED in bank-feed `04815bd`
 
 **Track: v3. No schema change, no migration.**
 
@@ -166,7 +166,10 @@ trailing-slash redirect (the reason the AI Review block is shaped that way too).
   consumes the endpoint's order.
 - U2: rank connection-level truth above job-derived text; a connection with `needs_reconnect: false`
   and a fresh `last_successful_update` is not `unhealthy` because yesterday's job failed.
-  🔄 **HANDED TO BANK-FEED (owner, 2026-09-14) — fin changes nothing.** v3.61.4 set the rule that
+  ✅ **SHIPPED in bank-feed `615b2bb`, deployed 2026-09-15 — fin changed nothing.** The five cases below
+  are bank-feed tests. Two existing tests asserted the old rule and were changed. ⚠️ Trade-off: a
+  connection whose syncs keep failing now turns `unhealthy` once the bank has gone unreached for 48h,
+  not the moment the flag flips. (Handed over by the owner 2026-09-14.) v3.61.4 set the rule that
   health is classified once, at source, so fin does not reinterpret it. Not reproducible today: all 13
   prod connections read `ok`. **The rule for `classifyUpstreamConnection`
   (`src/services/upstreamHealth.js`):** `healthy === false` yields `unhealthy` **only if the bank was

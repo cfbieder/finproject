@@ -1,4 +1,4 @@
-# CR059 — Fintable API ingestion (retire the Google Sheets adapter) — **DONE / LIVE** (cut over 2026-08-10; Sheet path retained as rollback + watchdog)
+# CR059 — Fintable API ingestion (retire the Google Sheets adapter) — **DONE / LIVE** (cut over 2026-08-10; the Sheet rollback + watchdog retired 2026-09-15, §26)
 
 > **Ingest source as of 2026-08-16: the REST API, exclusively.** `FINTABLE_SOURCE=api` in the live
 > service; **every** sync since the 2026-08-10 cutover has run `source=api` (24/24 in the last 24h) and
@@ -1645,7 +1645,23 @@ only a `yes` makes it a CR (three columns on `feed_accounts`, a `/v1/*` contract
 decision about where a due date would actually appear in fin). Recorded so nobody re-derives
 *"Fintable cannot do this"* in a year — same reason as §24.
 
-## 26. Retiring the Sheet path — the rollback AND the watchdog (owner decision 2026-09-14; handed to bank-feed)
+## 26. Retiring the Sheet path — the rollback AND the watchdog (owner decision 2026-09-14) — ✅ DONE 2026-09-15
+
+✅ **Done 2026-09-15** in bank-feed `615b2bb`, with hotfix `24f5695`, deployed the same evening.
+- **Checklist items 1–6 done as listed, with one change to item 2:** the `FINTABLE_SOURCE` switch was
+  removed rather than re-defaulted, so no environment variable can select the Sheet again.
+- **Item 8 verified:** 195 tests pass, 0 fail. `/v1/health/feeds` reads 13 connections, all `ok`.
+  Manual sync job 2699 succeeded (7 inserted, cursor advanced). The next morning's fin 06:00 refresh
+  is still to be checked.
+- ⚠️ **Item 7 is the owner's:** revoke the Sheet share and delete the service-account key in Google
+  Cloud. The local key file is deleted, but that does not disable the key.
+- ⚠️ **One miss, recorded because no gate could have caught it.** Removing the switch left two
+  `useApi` reads and a `fetched` read in `runSync`. The first post-deploy sync (job 2698) failed with
+  `useApi is not defined` inside its transaction, which rolled back, so nothing was written. The
+  manual sync run straight after the deploy caught it 4 minutes in, ahead of the first scheduled
+  tick. No unit test runs `runSync`, so a verification sync belongs in every bank-feed deploy.
+- **Not "a bank-feed session":** the work was done from fin's session, as bank-feed work always has
+  been. fin's CLAUDE.md said otherwise and is corrected.
 
 **Measured 2026-09-14, before deciding.** The P4 tail in §8 was dated ~2026-08-24 and never ran.
 - **The rollback cannot be used anyway.** Fintable re-keyed every GoCardless `ext_id` on 2026-08-20 (§22.12), and that value is the Sheet's transaction id. Flipping back would re-import every GoCardless row under a new id, and one live id (110 chars) overflows fin's `VARCHAR(100)`.

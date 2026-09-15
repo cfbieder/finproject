@@ -7,7 +7,7 @@
 ## Project facts
 - **What:** Fin — self-hosted personal-finance manager (accounts, transactions, budget, forecast, bank-feed integration).
 - **Stack:** Express 5 + pg (`server/`) · React 19 + Vite (`frontend/`) · PostgreSQL 16 · nginx — Docker Compose. Node 20.
-- **Separate repos, never modify from here:** `bank-feed/` (feed microservice, :3007) and `ocr-llm/` (LLM gateway) have their own git histories; cross-repo links keep their own naming.
+- **Separate repos with their own git histories:** `bank-feed/` (feed microservice, :3007) **is worked on from this session** — commit in its own repo (a worktree outside `psproject/`, since `bank-feed/` sits inside it), and record each cross-repo change in bank-feed's `HANDOFFS.md`. `ocr-llm/` (LLM gateway) is **never modified from here**. Cross-repo links keep their own naming.
 - **Hosts:** dev and prod are the **same machine** (`192.168.1.87` LAN / `100.94.46.62` Tailscale) — the agent can run prod docker/psql/deploy directly. Prod: `docker-compose.yml` (project `psproject`, API :3005, DB :5433, volume pinned `fin_postgres_data`); dev: `docker-compose.dev.yml` (:3105/:5434); v4: `docker-compose.v4.yml` (project `finv4`, :3205/:5435).
 - **Ops:** version in `VERSION` (`./Scripts/bump-version.sh`); deploy `./Scripts/deploy-to-production.sh` (backs up prod DB first). Skim `ls Scripts/` before recommending build/deploy/restart commands.
 

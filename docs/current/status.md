@@ -86,9 +86,9 @@ tenth (§22.9) is the first where the restatement is of a **measurement**, not t
 [status-log_2026-09-14](../archive/status-log_2026-09-14.md). Worth knowing at session start:
 - **#29 FIXED v3.61.7** — the feed FLIPS two FDIC sweeps between a ticker and a numeric id; migration
   081 merged them. ⚠️ A **third** label for the same deposit would still mint a new twin.
-- 🔄 **CR059's Sheet path — retire the rollback AND the watchdog** (owner, 2026-09-14): handed to
-  bank-feed as a checklist ([CR059 §26](../cr/cr-059-fintable-api-ingestion.md)). Until that session
-  runs, the hourly Sheet-vs-API gate keeps failing on five expired exceptions — expected, not a new fault.
+- ✅ **CR059's Sheet path is retired** (2026-09-15, bank-feed `615b2bb`, [§26](../cr/cr-059-fintable-api-ingestion.md)):
+  the rollback, the hourly watchdog and the `FINTABLE_SOURCE` switch are gone. ⚠️ **Owner:** revoke the
+  Sheet share and delete the service-account key in Google Cloud.
 - **#18** — a fresh DB enforces `fc_lines.line_type`'s CHECK while dev and prod do not, so a test can
   pass on dev and fail only in CI.
 - The timezone rule (#3), the ESLint JSX blind spot (#10), dirty-tree deploys (#17). Filed back to
@@ -105,8 +105,6 @@ scenarios are REGENERATED**. It changes far less often than this file does.
 > 2026-09-14 ([log](../archive/status-log_2026-09-14.md)). Statuses are canonical in the
 > [CR index](../cr/README.md), versions in [the roadmap](project-roadmap.md).
 
-- 🔄 **[CR091](../cr/cr-091-reconnect-that-works.md)** — only **U2** left: rank connection-level truth
-  above job-derived status text (P1–P4, U1/U1b/U4/U5 shipped v3.53.1–v3.61.5 + bank-feed `04815bd`).
 - 📋 **[CR090](../cr/cr-090-investments-section.md) P2 is the other half of the Investments work** — the **live-quote overlay**,
   the "real-time" half of the original ask: only **47.5% of the portfolio by value is quotable**, so it ships as
   a labelled panel *beside* the custodian total, never as a revaluation of it — repricing the equity sleeve would
