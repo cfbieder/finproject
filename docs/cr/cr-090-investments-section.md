@@ -256,7 +256,7 @@ which `Scripts/check-button-css.sh` ratchets.
 | Phase | What | Needs to accrue |
 |---|---|---|
 | **P1** | the register · reconciliation + residual row · unrealized on covered basis · provenance + weighted freshness · account TTM income · fin-vs-custodian drift · link to `/investment-returns` | nothing beyond CR061 P1 |
-| **P2** ✅ **BUILT 2026-09-16 (v3.63.0)** | **the quote overlay panel** · cash/MMF share · ~~concentration (top-N)~~ — already delivered by [CR093](cr-093-portfolio-xray.md) P2's `/investments/risk`, so building a second one here would be the "two answers to one question" §1.2 forbids | ✅ |
+| **P2** ✅ **BUILT 2026-09-16 (v3.63.0), owner visual QA PASSED the same day** — rendered and looked at in **both themes**, which §4 requires because no gate catches this CR's dead-state class | **the quote overlay panel** · cash/MMF share · ~~concentration (top-N)~~ — already delivered by [CR093](cr-093-portfolio-xray.md) P2's `/investments/risk`, so building a second one here would be the "two answers to one question" §1.2 forbids | ✅ |
 | **P3** ✅ **BUILT 2026-09-05 (v3.52.0)** | **the history view — TWO series, not one** · position value history · **quantity-change log** · position contribution to account change | ✅ **accrued** — [CR061](cr-061-holdings-and-prices.md) P2 landed **117 quarterly statement snapshots back to 2016-03-31** (2026-09-05), so the chart no longer waits on the daily feed. See §5.1 |
 
 **Not carried here** — trailing-12m position return and yield on cost are roadmap items until twelve
