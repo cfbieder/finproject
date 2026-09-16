@@ -80,7 +80,15 @@ async function positionsFor(snapshotIds) {
            p.price_source,
            p.market_value::text AS market_value,
            p.cost_basis::text   AS cost_basis,
-           p.currency
+           p.currency,
+           -- CR090 P2 — the latest live quote for this instrument, if one was
+           -- stored. LEFT, and gated on per-share pricing: a bond priced per 100 face
+           -- or a deposit at par must never pick up a per-share number, which is
+           -- the $25M shape CR061 §5 exists for. A position without a quote
+           -- renders custodian-priced rather than disappearing.
+           q.price::text        AS quote_price,
+           q.quoted_at          AS quote_at,
+           q.venue              AS quote_venue
       FROM security_positions p
       JOIN securities sec ON sec.id = p.security_id
       -- ONE name per position. A security can carry several fintable names since
@@ -93,6 +101,13 @@ async function positionsFor(snapshotIds) {
          ORDER BY (external_name = p.raw->>'symbol') DESC, id
          LIMIT 1
       ) m ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT price, quoted_at, venue
+          FROM security_quotes
+         WHERE security_id = sec.id
+         ORDER BY quoted_at DESC
+         LIMIT 1
+      ) q ON sec.price_basis = 'per_share'
      WHERE p.snapshot_id = ANY($1::int[])
      ORDER BY p.snapshot_id, p.market_value DESC NULLS LAST
   `, [snapshotIds]);
@@ -179,6 +194,89 @@ function summariseFreshness(positions) {
 }
 
 /**
+ * How much of the account is cash and money market — CR090 P2.
+ *
+ * Two tests, not one, because classification lags price behaviour: an
+ * instrument is cash-like if its asset class says so OR it is held at par.
+ * CR061 §6.4 resolves a par-priced instrument to `unknown` on purpose — we can
+ * see HOW it is priced without knowing WHAT it is — and three live positions
+ * ($86,309) sit there. Reading the class alone would report Cash Mgt as holding
+ * no cash.
+ */
+function summariseCashShare(positions) {
+  let cash = 0;
+  let total = 0;
+  for (const p of positions) {
+    const mv = Number(p.market_value) || 0;
+    total += mv;
+    if (p.asset_class === 'mmf' || p.asset_class === 'cash' || p.price_basis === 'par') cash += mv;
+  }
+  return {
+    cash_value: cash.toFixed(2),
+    cash_share: total === 0 ? 0 : cash / total,
+  };
+}
+
+/**
+ * The live-quote overlay — CR090 P2. A PANEL, never a revaluation.
+ *
+ * 🔴 The custodian's basis stays the account total and the only figure any other
+ * fin surface consumes: the balance sheet, `/investment-returns` and the MTM
+ * reconcile all key off it, and a second basis leaking into them recreates the
+ * `balance_from_feed` disagreement CR056 documents. It is also what keeps the
+ * Options residual legible.
+ *
+ * So the overlay is stated as a DIFFERENCE over the quoted positions only:
+ *
+ *     live_adjusted_total = custodian_balance + Σ(quantity × quote − market_value)
+ *
+ * Not `Σ(live) + Σ(custodian elsewhere)` — arithmetically the same for the
+ * reported rows, but that form silently drops the residual (the $33K of option
+ * contracts the feed never reports) and would show a smaller account.
+ *
+ * ⚠️ Freshness is the STALEST quote, never the newest, and coverage is a share
+ * of value — because "47% refreshed" and "100% refreshed" are different claims
+ * and only one of them is usually true. An account with nothing quotable returns
+ * `quoted_positions: 0` and null figures, so the caller can grey the panel
+ * rather than render a Δ of 0.00, which reads as "the market didn't move".
+ */
+function summariseQuotes(positions, { custodianBalance = null } = {}) {
+  let quotedAtCustodian = 0;
+  let quotedLive = 0;
+  let totalValue = 0;
+  let quoted = 0;
+  let stalest = null;
+  for (const p of positions) {
+    const mv = Number(p.market_value) || 0;
+    totalValue += mv;
+    const price = p.quote_price == null ? null : Number(p.quote_price);
+    const qty = Number(p.quantity);
+    // `per_share` is re-checked here even though the SQL gates on it: this is
+    // the arithmetic that multiplies a quantity by a price, and the one place
+    // where a wrong basis becomes a wrong number.
+    if (price === null || !Number.isFinite(price) || price <= 0) continue;
+    if (p.price_basis !== 'per_share' || !Number.isFinite(qty)) continue;
+    quoted += 1;
+    quotedAtCustodian += mv;
+    quotedLive += qty * price;
+    if (!stalest || (p.quote_at && new Date(p.quote_at) < new Date(stalest))) stalest = p.quote_at;
+  }
+  const delta = quotedLive - quotedAtCustodian;
+  const cb = custodianBalance == null ? null : Number(custodianBalance);
+  return {
+    quoted_positions: quoted,
+    // Of REPORTED position value, the same denominator as `quotable_share`, so
+    // the two figures on the page can be read against each other.
+    coverage: totalValue === 0 ? 0 : quotedAtCustodian / totalValue,
+    quoted_at_custodian: quoted ? quotedAtCustodian.toFixed(2) : null,
+    quoted_live: quoted ? quotedLive.toFixed(2) : null,
+    delta: quoted ? delta.toFixed(2) : null,
+    live_adjusted_total: quoted && cb !== null ? (cb + delta).toFixed(2) : null,
+    oldest_quote_at: stalest,
+  };
+}
+
+/**
  * The portfolio: one entry per tracked account, each reconciling to its
  * custodian balance.
  */
@@ -214,6 +312,8 @@ async function buildPortfolio({ asOf } = {}) {
       residual_material: residual !== null && Math.abs(residual) >= RESIDUAL_NOISE_FLOOR,
       unrealized: summariseUnrealized(pos),
       freshness: summariseFreshness(pos),
+      quotes: summariseQuotes(pos, { custodianBalance: s.custodian_balance }),
+      cash: summariseCashShare(pos),
       positions: pos.map((p) => ({
         // CR093 §5 — the stable handle for the security-detail chart. The symbol
         // cannot serve: a bond has none, and two custodians can spell one
@@ -230,6 +330,15 @@ async function buildPortfolio({ asOf } = {}) {
         price_basis: p.price_basis,
         price_source: p.price_source,
         market_value: p.market_value,
+        // CR090 P2. The row states its own contribution to the overlay, so the
+        // panel's Δ can be read back to the positions that produced it.
+        quote_price: p.quote_price,
+        quote_at: p.quote_at,
+        quote_venue: p.quote_venue,
+        quote_delta: p.quote_price != null && p.price_basis === 'per_share'
+          && Number.isFinite(Number(p.quantity)) && Number.isFinite(Number(p.quote_price))
+          ? (Number(p.quantity) * Number(p.quote_price) - (Number(p.market_value) || 0)).toFixed(2)
+          : null,
         // POSITION TOTAL. Never divided here — that quotient has three
         // different units across the three conventions.
         cost_basis: p.cost_basis,
@@ -328,6 +437,8 @@ module.exports = {
   // exposed for tests:
   summariseUnrealized,
   summariseFreshness,
+  summariseQuotes,
+  summariseCashShare,
   accountSnapshots,
   positionsFor,
   RESIDUAL_NOISE_FLOOR,

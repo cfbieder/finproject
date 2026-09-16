@@ -233,11 +233,74 @@
   color: var(--ink-tertiary);
 }
 
+/* ---- live-quote overlay (CR090 P2) --------------------------------------- */
+
+/* A panel BESIDE the custodian total, never a replacement for it — so it reads
+   as an annex to the reconciliation above rather than as the account's figures.
+   Tokens only: no gate catches a dark-mode defect, only rendering both themes. */
+.inv-quotes {
+  margin-top: var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--info-border);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+/* Nothing here can be quoted — bonds, CDs and deposits. Muted, because it is a
+   FACT about the account and not a fault (CR074). */
+.inv-quotes--none {
+  border-left-color: var(--border-strong);
+}
+
+.inv-quotes__head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.inv-quotes__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-family: var(--font-heading);
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.inv-quotes__figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xl);
+}
+
+.inv-quotes__empty,
+.inv-quotes__note {
+  margin: var(--space-sm) 0 0;
+  font-size: 0.8rem;
+  color: var(--ink-tertiary);
+  line-height: 1.45;
+}
+
+.inv-quotes__note--msg {
+  color: var(--ink-secondary);
+}
+
+.inv-quote-cell {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 /* ---- narrow screens ------------------------------------------------------ */
 
 @media (max-width: 720px) {
   .inv-account__header,
-  .inv-account__figures {
+  .inv-account__figures,
+  .inv-quotes__figures {
     flex-direction: column;
     gap: var(--space-md);
   }

@@ -883,6 +883,13 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.2 Completed (chronological, latest first)
 
+- **v3.63.0** (2026-09-16) — **minor: the live-quote overlay — [CR090](../cr/cr-090-investments-section.md) P2.** No migration (`security_quotes` has existed since 075).
+  - **The owner's real-time ask, under its measured limit:** only **47.7% of value is quotable** (IRA 97% · Stocks 86% · Bond 44% · Cash Mgt and Options 0%), so the quote is a **panel beside** the custodian total, never a revaluation of it. `live_adjusted = custodian_balance + Σ(quantity × quote − market_value)` over quoted rows only, so the **$33K of unreported option contracts survives the overlay**.
+  - **Quotes are fetched server-side and scheduled** — `POST /investments/quotes/refresh`, `Scripts/refresh-quotes.sh` every 15 min on weekdays 13:00–21:00 UTC, plus a **Refresh** button on the register. Retention is the latest per security plus 7 days.
+  - **Two refusals, both named on screen:** structural (only per-share securities are ever asked about) and magnitude (a quote outside 1/5..5× the custodian price). A refused row keeps its custodian price and drops the panel's coverage.
+  - 🔴 **Found by running it, not by a test: one bad symbol cost all 46 quotes.** `BRK/B` — written by the **Tradier** backfill, whose separator is a slash — makes fintable's `/prices?symbols=` answer **422 for the whole batch**. Quote requests now normalise to `BRK.B`, and a failed batch is **split** so one symbol can only cost itself. Berkshire quotes again (custodian 504.03 vs 516.42).
+  - **Cash/MMF share** per account, of *reported* positions — 100% on Options, where the one reported position is SPAXX at par and the contracts are the residual. **Concentration (top-N) was NOT built here**: CR093 P2's `/investments/risk` already has it.
+  - New tests: `marketQuotes.test.js` (14), `investments.quotes.test.js` (11), `quotePanel.test.jsx` (5).
 - **v3.62.4** (2026-09-15) — **patch: one open Latest Estimate per year — [CR083](../cr/cr-083-budget-latest-estimate.md).** No migration.
   - **Owner rule:** the current month's LE stays a draft all month (LE-09-26 is open during September) and is finalised once the month closes. The month-end order is finalise → FX recalculate → cut the next LE, because FX recalculate is refused while any LE for the year is a draft.
   - Creating or re-cutting an LE while another for the year is a draft now answers **409 naming the draft**. Neither checked before, which is how prod held two 2026 drafts until 2026-09-14. Re-cutting a draft keeps its own 409.

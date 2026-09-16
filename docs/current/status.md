@@ -105,10 +105,6 @@ scenarios are REGENERATED**. It changes far less often than this file does.
 > 2026-09-14 ([log](../archive/status-log_2026-09-14.md)). Statuses are canonical in the
 > [CR index](../cr/README.md), versions in [the roadmap](project-roadmap.md).
 
-- 📋 **[CR090](../cr/cr-090-investments-section.md) P2 is the other half of the Investments work** — the **live-quote overlay**,
-  the "real-time" half of the original ask: only **47.5% of the portfolio by value is quotable**, so it ships as
-  a labelled panel *beside* the custodian total, never as a revaluation of it — repricing the equity sleeve would
-  destroy the tie that makes the Options gap legible.
 - 📋 **[CR089](../cr/cr-089-month-end-observation-dating.md) P2 is now unblocked** by CR061 P1: it reads
   fin-local tables rather than a second live passthrough. ⚠️ It is still gated on its **own** §P2.3 measurement —
   two fintable price endpoints disagree by 0.65% about the same close, and the measured 0.005–1.3% bias exceeds

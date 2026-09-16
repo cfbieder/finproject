@@ -20,6 +20,7 @@ import {
   AsOf,
   AccountFigures,
   Reconciliation,
+  QuotePanel,
 } from "../features/Investments/investmentView.jsx";
 import { POSITION_COLUMNS } from "../features/Investments/positionColumns.jsx";
 import SecurityChartModal from "../features/Investments/SecurityChartModal.jsx";
@@ -45,6 +46,39 @@ export default function InvestmentAccount() {
   // it) — and comparing the id is also stricter, because it cannot briefly show
   // one account's history under another's name.
   const [history, setHistory] = useState(null);
+  // CR090 P2 — the quote refresh. It is a WRITE, and the only one on this page:
+  // it stores market facts in `security_quotes` and touches no balance, position
+  // or ledger row, so CR090 §0's read-only rule is intact. Quotes are otherwise
+  // refreshed on a schedule; nothing is fetched upstream on render (CR061 §5).
+  const [refreshing, setRefreshing] = useState(false);
+  const [quoteMsg, setQuoteMsg] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const refreshQuotes = async () => {
+    setRefreshing(true);
+    setQuoteMsg("");
+    try {
+      const s = Rest.unwrap(await Rest.post("/investments/quotes/refresh", {})) || {};
+      const refused = (s.refused || []).length;
+      // A refusal is NAMED, never dropped: a refused quote that left the row at
+      // its custodian price would read as "this didn't move" (CR061 §5).
+      setQuoteMsg(
+        [
+          `${s.stored ?? 0} new quote${s.stored === 1 ? "" : "s"}`,
+          refused ? `${refused} refused` : null,
+          (s.missing || []).length ? `${s.missing.length} with no quote` : null,
+          s.error ? `upstream partial: ${s.error}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      );
+      setRefreshKey((k) => k + 1);
+    } catch (e) {
+      setQuoteMsg(`Could not refresh quotes — ${e.message || e}`);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     let live = true;
@@ -59,7 +93,9 @@ export default function InvestmentAccount() {
     return () => {
       live = false;
     };
-  }, []);
+    // `refreshKey` re-reads the portfolio after a quote refresh, so the panel
+    // shows what was just stored rather than what was on screen before it.
+  }, [refreshKey]);
 
   const shownId = accountId || portfolio?.accounts?.[0]?.account_id;
   useEffect(() => {
@@ -165,6 +201,16 @@ export default function InvestmentAccount() {
         />
 
         <Reconciliation a={a} />
+
+        {/* Beneath the reconciliation on purpose: the custodian balance is the
+            line directly above, and this panel restates it as the account total
+            before stating any live figure. */}
+        <QuotePanel
+          a={a}
+          onRefresh={refreshQuotes}
+          refreshing={refreshing}
+          message={quoteMsg}
+        />
       </section>
 
       {picked && (

@@ -188,10 +188,221 @@ async function backfillCloses({ start, end, apply = false, fetchImpl } = {}) {
   return summary;
 }
 
+// ---------------------------------------------------------------------------
+// Live quotes — CR090 P2's overlay panel
+// ---------------------------------------------------------------------------
+
+/** fintable takes at most 50 symbols per call (CR061 §5). */
+const QUOTE_BATCH = 50;
+
+/**
+ * Is this quote safe to store? CR061 §5's magnitude refusal, as a pure function.
+ *
+ * The failure to design against is a CUSIP's 100,000 face priced at an equity's
+ * $250 — $25M from one bad classification. `probeableSecurities` is the
+ * structural half and this is the residue: a ratio outside 1/5..5 against the
+ * custodian's own price for the same instrument is a units error, not a market
+ * move. ⚠️ Deliberately NOT 20%: a single-name equity moves >20% on earnings,
+ * and a snapshot straddling a split gives exactly 2× or 0.5×.
+ *
+ * A refusal is never silence — the caller records the reason, the position keeps
+ * its custodian price, and the overlay's coverage drops by that position's
+ * weight. A refused position that read as "didn't move" is CR085's dead-state
+ * defect class.
+ */
+const MAGNITUDE_LIMIT = 5;
+
+function classifyQuote({ quotePrice, custodianPrice, priceBasis }) {
+  const q = Number(quotePrice);
+  if (!Number.isFinite(q) || q <= 0) return { ok: false, reason: 'no price' };
+  // The structural gate, restated here because this function is also the one a
+  // future caller will reach for first.
+  if (priceBasis !== 'per_share') return { ok: false, reason: `not per-share (${priceBasis})` };
+  const c = Number(custodianPrice);
+  // No custodian price to compare against: accept, because the structural gate
+  // has already run and a missing comparison is not evidence of an error.
+  if (!Number.isFinite(c) || c <= 0) return { ok: true, ratio: null };
+  const ratio = q / c;
+  if (ratio > MAGNITUDE_LIMIT || ratio < 1 / MAGNITUDE_LIMIT) {
+    return { ok: false, reason: `${ratio.toFixed(1)}× the custodian price`, ratio };
+  }
+  return { ok: true, ratio };
+}
+
+/**
+ * The form the QUOTE endpoint accepts, which is not always the one we store.
+ *
+ * 🔴 `quote_symbol` is "a symbol SOME price feed resolved", and the feeds do not
+ * agree. Berkshire class B is stored as `BRK/B` — written by the TRADIER
+ * backfill (`tradierPrices.js`), which measured that `BRK.B` and `BRK-B` return
+ * no bars there while `BRK/B` returns both bars and sector. fintable's quote
+ * endpoint wants the opposite: measured 2026-09-16, `BRK/B` → **422
+ * validation_failed**, `BRK.B` → a price, and `BRKB` (what the custodian calls
+ * it) → an empty list, the silent variant CR061 §4.7 priced at $25,202.
+ *
+ * ⚠️ That 422 fails the WHOLE batch, so this one symbol cost all 46 quotes on
+ * the first live run — which is why the fetch below also splits a failed batch.
+ *
+ * Normalised for the fintable REQUEST only, and this mapping is fintable's: the
+ * stored value stays as it is because Tradier's closes are keyed under it, and
+ * a caller fetching from Tradier must NOT route through here.
+ */
+function quoteRequestSymbol(stored) {
+  const s = String(stored || '').trim().toUpperCase().replace(/\//g, '.');
+  return /^[A-Z][A-Z.]{0,9}$/.test(s) ? s : null;
+}
+
+/**
+ * The securities worth quoting: the ones actually HELD in the latest snapshot
+ * per account, per-share, with a symbol a quote has already been observed under.
+ *
+ * Held, not "every probeable security": 46 symbols against 158 equities, which
+ * is one batch instead of four, and a quote for something nobody owns would be
+ * stored and never read. `quote_symbol` is NULL until a symbol has actually
+ * returned data (see backfillCloses), so this asks only about symbols known to
+ * resolve — the same earned-quotability rule.
+ */
+async function heldQuotableSecurities() {
+  const { rows } = await db.query(`
+    WITH latest AS (
+      SELECT DISTINCT ON (account_id) id
+        FROM security_position_snapshots
+       WHERE source = 'bank-feed'
+       ORDER BY account_id, polled_on DESC, fetched_at DESC
+    )
+    SELECT s.id, s.quote_symbol, s.price_basis,
+           -- The custodian's own price for the same instrument, for the
+           -- magnitude check. Largest holding wins when an instrument sits in
+           -- several accounts; they carry the same price.
+           (ARRAY_AGG(p.price ORDER BY p.market_value DESC NULLS LAST))[1] AS custodian_price
+      FROM latest l
+      JOIN security_positions p ON p.snapshot_id = l.id
+      JOIN securities s ON s.id = p.security_id
+     WHERE s.price_basis = 'per_share'
+       AND s.quote_symbol IS NOT NULL
+     GROUP BY s.id, s.quote_symbol, s.price_basis
+     ORDER BY s.id`);
+  return rows;
+}
+
+/**
+ * Fetch and store live quotes for everything held and quotable.
+ *
+ * ⚠️ Never called on a render path (CR061 §5). A scheduled script and an
+ * explicit button call it; the page only ever reads what is stored, and states
+ * how old it is. A failed fetch therefore degrades to custodian prices with
+ * nothing on screen breaking.
+ *
+ * `quoted_at` is the feed's own `as_of` — when the price was TRUE, not when we
+ * asked. Re-running while the market is shut re-sends the same `as_of`, which
+ * the UNIQUE(security_id, quoted_at, source) index absorbs: the second write is
+ * a no-op rather than a duplicate row claiming a fresh observation.
+ */
+async function refreshQuotes({ fetchImpl, now = new Date() } = {}) {
+  const securities = await heldQuotableSecurities();
+  const summary = {
+    at: now.toISOString(),
+    requested: securities.length,
+    returned: 0,
+    stored: 0,
+    unchanged: 0,
+    refused: [],   // a quote arrived and the guards rejected it
+    failed: [],    // the endpoint would not answer for this symbol
+    missing: [],   // asked, answered, no quote for it
+    error: null,
+  };
+  if (!securities.length) return summary;
+
+  const byRequestSymbol = new Map();
+  for (const s of securities) {
+    const req = quoteRequestSymbol(s.quote_symbol);
+    if (!req) {
+      summary.failed.push({ symbol: s.quote_symbol, reason: 'not a form the quote endpoint accepts' });
+      continue;
+    }
+    byRequestSymbol.set(req, s);
+  }
+  const symbols = [...byRequestSymbol.keys()];
+  const quotes = [];
+
+  /**
+   * 🔴 A failed batch is SPLIT, never abandoned. Two different failures look
+   * identical from here and neither may cost the other symbols their quotes:
+   * a 503 (the endpoint 503'd four batches in five when measured) and a 422 on
+   * ONE invalid ticker, which fails the whole request — `BRK/B` did exactly that
+   * on the first live run and cost all 46. Halving isolates the bad symbol in
+   * log₂(n) calls and reports it by name; everything else still lands.
+   */
+  const fetchBatch = async (batch) => {
+    try {
+      quotes.push(...(await fetchQuotes(batch, { fetchImpl })));
+    } catch (err) {
+      if (batch.length === 1) {
+        summary.failed.push({ symbol: batch[0], reason: err.message });
+        return;
+      }
+      const mid = Math.ceil(batch.length / 2);
+      await fetchBatch(batch.slice(0, mid));
+      await fetchBatch(batch.slice(mid));
+    }
+  };
+
+  for (let i = 0; i < symbols.length; i += QUOTE_BATCH) {
+    await fetchBatch(symbols.slice(i, i + QUOTE_BATCH));
+  }
+  summary.returned = quotes.length;
+  // An `error` means the run as a whole got nothing; individual casualties are
+  // in `failed` with their reasons, so a partial run is not reported as a failure.
+  if (!quotes.length && summary.failed.length) summary.error = summary.failed[0].reason;
+
+  const seen = new Set();
+  for (const q of quotes) {
+    // The endpoint echoes the form it was asked for; normalise anyway, so a
+    // response spelled back differently resolves rather than being dropped.
+    const sec = byRequestSymbol.get(q.symbol) || byRequestSymbol.get(quoteRequestSymbol(q.symbol));
+    if (!sec) continue;                     // not something we asked about
+    seen.add(quoteRequestSymbol(q.symbol) || q.symbol);
+    const verdict = classifyQuote({
+      quotePrice: q.price,
+      custodianPrice: sec.custodian_price,
+      priceBasis: sec.price_basis,
+    });
+    if (!verdict.ok) {
+      summary.refused.push({ symbol: q.symbol, reason: verdict.reason });
+      continue;
+    }
+    const { rowCount } = await db.query(`
+      INSERT INTO security_quotes (security_id, quoted_at, price, currency, source, venue)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      ON CONFLICT (security_id, quoted_at, source) DO NOTHING
+    `, [sec.id, q.as_of || now.toISOString(), q.price, q.currency || 'USD', SOURCE, q.feed || null]);
+    if (rowCount) summary.stored += 1; else summary.unchanged += 1;
+  }
+  summary.missing = symbols.filter((s) => !seen.has(s));
+
+  // Retention: the latest per security plus seven days (CR061 §6.3). Unbounded
+  // growth for data with no audit value is the alternative.
+  const { rowCount: pruned } = await db.query(`
+    DELETE FROM security_quotes q
+     WHERE q.quoted_at < NOW() - INTERVAL '7 days'
+       AND q.id <> (SELECT id FROM security_quotes
+                     WHERE security_id = q.security_id
+                     ORDER BY quoted_at DESC LIMIT 1)
+  `);
+  summary.pruned = pruned;
+  return summary;
+}
+
 module.exports = {
   fetchDailyCloses,
   fetchQuotes,
   probeableSecurities,
   backfillCloses,
+  heldQuotableSecurities,
+  classifyQuote,
+  quoteRequestSymbol,
+  refreshQuotes,
+  MAGNITUDE_LIMIT,
+  QUOTE_BATCH,
   PriceFeedError,
 };

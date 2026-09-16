@@ -82,6 +82,32 @@ export const POSITION_COLUMNS = (currency, onPickSecurity) => [
     render: (r) => <ProvenanceChip source={r.price_source} basis={r.price_basis} />,
   },
   {
+    /* CR090 P2. Only a per-share row can carry a quote — 52% of this portfolio
+       by value is bonds, CDs and deposits with no market quote by nature, and
+       those render "—" rather than a 0.00 that would read as "didn't move". */
+    key: "quote",
+    header: "Quote",
+    numeric: true,
+    render: (r) => {
+      if (r.quote_price === null || r.quote_price === undefined) return "—";
+      const d = r.quote_delta === null || r.quote_delta === undefined ? null : Number(r.quote_delta);
+      return (
+        <span className="inv-quote-cell">
+          {Number(r.quote_price).toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 4,
+          })}
+          {d !== null && (
+            <span className={d >= 0 ? "inv-pos" : "inv-neg"}>
+              {" "}
+              {money(d, r.currency || currency)}
+            </span>
+          )}
+        </span>
+      );
+    },
+  },
+  {
     key: "cost_basis",
     header: "Cost basis (total)",
     numeric: true,

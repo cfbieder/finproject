@@ -10,6 +10,7 @@
 const express = require('express');
 const router = express.Router();
 const investments = require('../../services/investments');
+const marketPrices = require('../services/marketPrices');
 const exposure = require('../../services/exposure');
 const securityChart = require('../../services/securityChart');
 const income = require('../../services/income');
@@ -28,6 +29,31 @@ router.get('/portfolio', async (req, res, next) => {
     }
     const data = await investments.buildPortfolio({ asOf });
     res.json({ data, meta: { as_of: asOf || null } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/v2/investments/quotes/refresh — CR090 P2.
+ *
+ * Fetches live quotes for the held per-share securities and stores them in
+ * `security_quotes`. ⚠️ The section is read-only about the LEDGER (CR090 §0) and
+ * this does not break that: a quote is a market fact stored beside the
+ * custodian's price, never instead of it. No balance, position or transaction
+ * is touched, and the account total stays the custodian's own number.
+ *
+ * Called by `Scripts/refresh-quotes.sh` on a schedule and by the register's
+ * Refresh button — never on a render path (CR061 §5): the upstream 503'd four
+ * batches in five when measured, so a fetch-on-load would demo its own outage.
+ *
+ * Always 200 with a summary, including a partial run: `error` names an upstream
+ * failure while `stored` reports what did land. A refusal is listed with its
+ * reason rather than dropped.
+ */
+router.post('/quotes/refresh', async (req, res, next) => {
+  try {
+    res.json({ data: await marketPrices.refreshQuotes() });
   } catch (err) {
     next(err);
   }
