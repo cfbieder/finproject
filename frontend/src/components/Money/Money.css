@@ -1,0 +1,27 @@
+/* CR087 P1 — `<Money>`. Tokens only; both themes come free. */
+
+.money {
+  /* Money lines up column-wise or it cannot be compared at a glance. */
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Absent, not zero. Muted so the eye skips it rather than reading it as a
+   figure — the distinction the whole component exists for. */
+.money--blank {
+  color: var(--muted);
+}
+
+.money--bold {
+  font-weight: 600;
+}
+
+/* Only ever applied to a SIGNED figure (a delta), never to a balance: a negative
+   liability is normal. A zero gets neither class. */
+.money--pos {
+  color: var(--growth-positive);
+}
+
+.money--neg {
+  color: var(--growth-negative);
+}

@@ -883,6 +883,11 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.2 Completed (chronological, latest first)
 
+- **v3.64.0** (2026-09-16) — **minor: the last unpreviewed write, and one money contract — [CR087](../cr/cr-087-money-legibility.md) P1 completes.** No migration.
+  - 🔴 **`/manual-calibration`'s Reset was approvable on figures the server never computed.** The dialog showed numbers — computed in the **browser** — while the write is computed server-side, and the apply carried no expectation, so a row that moved between render and click was written anyway under a confirmation that looked verified. It now previews with a **server dry run** and the apply carries `expect: {old_opening, sum_tx}`; a mismatch is **409 with the current figures** and the modal offers *"Apply updated figures"*. Same rule P0c gave `calibrate()`; this was the last write in the page family without it.
+  - **`<Money>`** (`components/Money/`) — **null → `—`, zero → a number** (the two conventions §6 found in conflict), the **locale pinned to `en-US`** (`toLocaleString(undefined, …)` renders `1.234,56` on a pl-PL browser — the reconcile queue did), and the **currency always stated**. Adopted on CR087's **two** surfaces only; CR086 still owns the 22-call-site sweep.
+  - New tests: `resetOpeningPreview.test.js` (6 DB), `Money.test.jsx` (10).
+  - **Still open:** §2's deferred `Local` column on the balance sheet, as its own increment.
 - **v3.63.0** (2026-09-16) — **minor: the live-quote overlay — [CR090](../cr/cr-090-investments-section.md) P2.** No migration (`security_quotes` has existed since 075).
   - **The owner's real-time ask, under its measured limit:** only **47.7% of value is quotable** (IRA 97% · Stocks 86% · Bond 44% · Cash Mgt and Options 0%), so the quote is a **panel beside** the custodian total, never a revaluation of it. `live_adjusted = custodian_balance + Σ(quantity × quote − market_value)` over quoted rows only, so the **$33K of unreported option contracts survives the overlay**.
   - **Quotes are fetched server-side and scheduled** — `POST /investments/quotes/refresh`, `Scripts/refresh-quotes.sh` every 15 min on weekdays 13:00–21:00 UTC, plus a **Refresh** button on the register. Retention is the latest per security plus 7 days.

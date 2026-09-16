@@ -5,19 +5,25 @@ import ReconcilePreviewModal from "./ReconcilePreviewModal.jsx";
 import ManualStatementUpload from "../ManualStatementUpload/ManualStatementUpload.jsx";
 import MtmDateControl, { lastMonthEndISO } from "../MtmDateControl.jsx";
 import { HEALTH_LABEL, attentionAdvice } from "../../utils/feedHealth.js";
+import { formatMoney } from "../Money/formatMoney.js";
 // Reuse the bank-feed diagnostic styles (bfd-* / num / generate-report-button)…
 import "../../pages/BankFeedDiagnostic.css";
 // …then layer this panel's own spacing/hierarchy polish on top (scoped .recon-panel).
 import "./BalanceReconciliation.css";
 
+// CR087 P1 — the shared money contract (`components/Money/formatMoney.js`), one
+// of this CR's two surfaces.
+//
+// 🔴 What changes here is the LOCALE. This read `toLocaleString(undefined, …)`,
+// which means "whatever machine this is": on a pl-PL browser the reconcile queue
+// rendered 1.234,56 while the balance sheet rendered $1,234.56 — two conventions
+// on one screen, neither labelled, on the page the month-end runbook is worked.
+//
+// The figures stay BARE: this table states each row's currency in its own cell
+// (P1), so repeating it on every number would be noise. That is what
+// `currency: null` means — stated once, nearby, not omitted.
 function fmtNum(n, decimals = 2) {
-  if (n == null || n === "") return "—";
-  const v = typeof n === "string" ? parseFloat(n) : n;
-  if (!Number.isFinite(v)) return String(n);
-  return v.toLocaleString(undefined, {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
+  return formatMoney(n, { currency: null, decimals });
 }
 
 // "synced N days ago" from the feed's real upstream sync time (CR035:

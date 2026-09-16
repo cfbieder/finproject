@@ -1,18 +1,18 @@
 import { useEffect, useState } from "react";
 import Rest from "../../js/rest.js";
 import ConfirmModal from "../ConfirmModal/ConfirmModal.jsx";
+import ResetOpeningPreviewModal from "./ResetOpeningPreviewModal.jsx";
 import MtmDateControl, { lastMonthEndISO } from "../MtmDateControl.jsx";
+import { formatMoney } from "../Money/formatMoney.js";
 // Reuse the bank-feed diagnostic styles (bfd-* / num / generate-report-button).
 import "../../pages/BankFeedDiagnostic.css";
 
+// CR087 P1 — one money contract, shared with `<Money>`. This surface states each
+// row's currency in its own cell, so the figures themselves stay bare; what the
+// shared helper fixes here is the locale (`toLocaleString(undefined, …)` renders
+// 1.234,56 on a pl-PL browser) and null → `—` rather than a fabricated zero.
 function fmtNum(n, decimals = 2) {
-  if (n == null || n === "") return "—";
-  const v = typeof n === "string" ? parseFloat(n) : n;
-  if (!Number.isFinite(v)) return String(n);
-  return v.toLocaleString(undefined, {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
+  return formatMoney(n, { currency: null, decimals });
 }
 
 function StatusPill({ label, kind }) {
@@ -33,6 +33,8 @@ export default function ManualReconciliation() {
   const [resettingId, setResettingId] = useState(null);
   const [msg, setMsg] = useState(null);
   const [confirm, setConfirm] = useState(null);
+  // CR087 P1 — the reset-opening preview: { account, preview, stale, error, busy }.
+  const [resetPreview, setResetPreview] = useState(null);
   const [savingMode, setSavingMode] = useState(null);
   const [savingBalanceId, setSavingBalanceId] = useState(null);
   const [edits, setEdits] = useState({}); // { [accountId]: "string being typed" }
@@ -139,64 +141,53 @@ export default function ManualReconciliation() {
   };
 
   // "Reset opening" — zero the pre-history plug so the ledger starts at the
-  // account's first real transaction. Spell out the shift, because it moves
-  // TODAY's balance (and net worth) by the same amount, not just the old rows.
-  const askResetOpening = (a) => {
-    const open = Number(a.opening_balance);
-    const after = a.computed_balance != null ? a.computed_balance - open : null;
-    // In calibrate mode Reconcile re-anchors opening_balance = entered − Σtx,
-    // i.e. it puts the exact plug back. Say so here rather than let the reset
-    // be silently undone by the very next click.
-    const modeWarning =
-      a.reconcile_mode === "mtm"
-        ? ""
-        : `\n\nNote: this account is in bank (calibrate) mode, where Reconcile ` +
-          `RE-ANCHORS the opening balance — clicking it after this would restore ` +
-          `${fmtNum(open)}. Switch the row to brokerage (mtm) first if you want ` +
-          `the gap booked as a dated entry.`;
-    setConfirm({
-      account: a,
-      action: "reset-opening",
-      title: "Reset opening balance",
-      message:
-        `Set opening_balance for "${a.name}" from ${fmtNum(open)} to 0.\n\n` +
-        `Every balance on this account drops by ${fmtNum(open)} — today's included` +
-        (after != null ? `: computed goes ${fmtNum(a.computed_balance)} → ${fmtNum(after)}.` : ".") +
-        `\n\nThe entered balance is not touched, so the account will show a gap ` +
-        `of ${fmtNum(open)} until you Reconcile it — which books the amount as a ` +
-        `dated entry instead of a hidden plug.` +
-        modeWarning +
-        `\n\nContinue?`,
-      confirmLabel: "Reset opening",
-    });
+  // account's first real transaction.
+  //
+  // 🔴 CR087 P1. This used to build its confirmation from figures computed HERE
+  // (`a.opening_balance`, `computed_balance − opening_balance`) while the write
+  // is computed on the server, and the apply carried no expectation — so a row
+  // that moved between render and click was written anyway, under a dialog that
+  // looked verified. It now previews with a server dry run and applies against
+  // what that preview returned; the server refuses anything else (409).
+  const askResetOpening = async (a) => {
+    setMsg(null);
+    setResetPreview({ account: a, preview: null, stale: false, error: null, busy: false });
+    setResettingId(a.account_id);
+    try {
+      const res = Rest.unwrap(
+        await Rest.post(`/manual-calibration/reset-opening/${a.account_id}`, { dryRun: true })
+      );
+      setResetPreview((s) => (s && s.account.account_id === a.account_id
+        ? { ...s, preview: res } : s));
+    } catch (err) {
+      setResetPreview((s) => (s && s.account.account_id === a.account_id
+        ? { ...s, error: `Could not compute the preview — ${err.message}` } : s));
+    } finally {
+      setResettingId(null);
+    }
   };
 
-  const doResetOpening = async (force = false) => {
-    const a = confirm?.account;
-    if (!a) return;
-    setConfirm(null);
+  const applyResetOpening = async (force = false) => {
+    const state = resetPreview;
+    const a = state?.account;
+    const preview = state?.preview;
+    if (!a || !preview) return;
+    setResetPreview((s) => ({ ...s, busy: true, error: null }));
     setResettingId(a.account_id);
-    setMsg(null);
     try {
-      // Enveloped endpoint ({data}) — unlike its bare pre-N8 neighbours.
       const res = Rest.unwrap(
         await Rest.post(`/manual-calibration/reset-opening/${a.account_id}`, {
           dryRun: false,
           force,
+          // What was on screen when the owner approved it. The server recomputes
+          // and refuses if either figure has moved.
+          expect: { old_opening: preview.old_opening, sum_tx: preview.sum_tx },
         })
       );
-      // Quicken-calibrated accounts are blocked server-side: there the opening
-      // balance is a computed anchor, not a plug. Offer a deliberate override
-      // rather than a dead end, the same way the MTM guard does.
+      // Blocked is not an error: a Quicken-calibrated account holds a computed
+      // anchor rather than a plug, so the modal offers a deliberate override.
       if (res.blocked && !force) {
-        setConfirm({
-          account: a,
-          action: "reset-opening",
-          force: true,
-          title: "Override safety guard?",
-          message: `${res.note}\n\nReset anyway?`,
-          confirmLabel: "Reset anyway (override)",
-        });
+        setResetPreview((s) => ({ ...s, preview: res, busy: false, stale: false }));
         return;
       }
       setMsg(
@@ -205,9 +196,16 @@ export default function ManualReconciliation() {
               `(computed ${fmtNum(res.computed_before)} → ${fmtNum(res.computed_after)})`
           : `${a.name}: ${res.note || "nothing to reset"}`
       );
+      setResetPreview(null);
       await load();
     } catch (err) {
-      setMsg(`${a.name}: reset failed — ${err.message}`);
+      // 409 — the figures moved. Show the server's CURRENT ones and let the
+      // owner approve those; re-previewing would only recompute the same thing.
+      if (err.status === 409 && err.current) {
+        setResetPreview((s) => ({ ...s, preview: err.current, stale: true, busy: false, error: null }));
+        return;
+      }
+      setResetPreview((s) => ({ ...s, busy: false, error: `Reset failed — ${err.message}` }));
     } finally {
       setResettingId(null);
     }
@@ -490,12 +488,21 @@ The <strong>Opening</strong> column is the plug the computed balance starts from
       <ConfirmModal
         state={confirm}
         busy={reconcilingId != null || resettingId != null}
-        onConfirm={() =>
-          confirm?.action === "reset-opening"
-            ? doResetOpening(confirm?.force || false)
-            : doReconcile(confirm?.force || false)
-        }
+        onConfirm={() => doReconcile(confirm?.force || false)}
         onCancel={() => setConfirm(null)}
+      />
+
+      {/* Reset opening has its own preview, on the Radix `<Modal>` — the figures
+          come from a server dry run and the apply is refused if they move. */}
+      <ResetOpeningPreviewModal
+        open={resetPreview != null}
+        account={resetPreview?.account}
+        preview={resetPreview?.preview}
+        stale={resetPreview?.stale}
+        error={resetPreview?.error}
+        busy={resetPreview?.busy}
+        onCancel={() => setResetPreview(null)}
+        onApply={(force) => applyResetOpening(force)}
       />
     </section>
   );

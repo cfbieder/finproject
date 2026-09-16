@@ -2,20 +2,20 @@ import { useEffect, useRef, useState } from "react";
 import PropTypes from "prop-types";
 import "./BalanceReport.css";
 import "../../components/ReportTable.css";
-const currencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
+import { formatMoney } from "../../components/Money/formatMoney.js";
 
-// Formats a number as USD currency, handling negative values with parentheses
-const formatCurrency = (value) => {
-  const amount = value ?? 0;
-  return amount < 0
-    ? `(${currencyFormatter.format(Math.abs(amount))})`
-    : currencyFormatter.format(amount);
-};
+/* CR087 P1 — the shared money contract, replacing this file's private formatter.
+   Two behaviours change, both deliberate:
+
+   - an ABSENT figure renders `—` instead of `$0.00`. A row with no balance was
+     asserting a measured zero, which is the convention CR087 §6 settles: null →
+     `—`, zero → a number.
+   - the locale is pinned, as it already was here — the drift was on the other
+     surfaces, and this now shares one implementation with them.
+
+   ⚠️ Every figure on this page is the USD-converted total (`totalUSD`), so USD
+   is correct here. The native `Local` column is a separate increment (§2). */
+const formatCurrency = (value) => formatMoney(value, { currency: "USD" });
 
 // Computes Net Worth (Assets + Liabilities) from a report's top-level accounts
 const computeNetWorth = (accounts) => {

@@ -1,0 +1,135 @@
+/* CR087 P1 — the reset-opening preview. Its own namespace rather than borrowing
+   the feed preview's `rpm-*`: a class that styles a different component is a
+   name that lies about what it belongs to (the `fx-options-*` defect).
+   Tokens only: no naked hex, no rgba() literals. Both themes come free. */
+
+.rop {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.rop__account {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border);
+}
+
+.rop__account-name {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.rop__ccy {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.rop__loading {
+  margin: 0;
+  color: var(--muted);
+}
+
+.rop__error {
+  margin: 0;
+  color: var(--danger);
+}
+
+/* A refusal or a no-op: the outcome, not a warning about one. */
+.rop__refused {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border-left: 3px solid var(--warning);
+  background: var(--surface-muted);
+  color: var(--ink-secondary);
+  font-size: 0.85rem;
+  border-radius: var(--radius-sm);
+}
+
+/* The apply was refused because the figures moved. Louder than a note: the
+   owner is about to approve numbers they have not seen before. */
+.rop__stale {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border-left: 3px solid var(--danger);
+  background: var(--surface-muted);
+  color: var(--ink-secondary);
+  font-size: 0.85rem;
+  border-radius: var(--radius-sm);
+}
+
+.rop__move {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.rop__move-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.rop__move-row--delta {
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-xs);
+}
+
+.rop__move-label {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.rop__num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.rop__arrow {
+  color: var(--muted);
+}
+
+.rop__facts {
+  margin: 0;
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.rop__facts > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.rop__facts dt {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.rop__facts dd {
+  margin: 0;
+}
+
+.rop__note {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--ink-tertiary);
+  line-height: 1.5;
+}
+
+.rop__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+}

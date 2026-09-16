@@ -239,7 +239,7 @@ async function mtm(client, accountId, m, monthEnd, dryRun, force = false) {
  * @param {boolean} [opts.force] override the Quicken-calibrated guard.
  * @returns {Promise<object>} action summary
  */
-async function resetOpeningBalance(accountId, { dryRun = false, force = false } = {}) {
+async function resetOpeningBalance(accountId, { dryRun = false, force = false, expect = null } = {}) {
   const m = (await db.query(
     `SELECT a.name, a.currency, a.section, a.opening_balance,
             EXISTS (
@@ -282,6 +282,35 @@ async function resetOpeningBalance(accountId, { dryRun = false, force = false } 
       `anchor rather than a plug — zeroing it moves every anchored valuation date. ` +
       `Pass force to override.`;
     return summary;
+  }
+
+  // CR087 P1 — REFUSE AN APPLY THAT NO LONGER MATCHES ITS PREVIEW.
+  //
+  // The same guard P0c put in front of `calibrate()`, for the last write in this
+  // page family that lacked it. Until now the figures the owner approved were
+  // computed in the BROWSER while the write is computed here, and nothing
+  // compared the two — so a row that moved between render and click was written
+  // anyway, under a dialog that looked verified.
+  //
+  // Two fields, because either can move independently and each changes a number
+  // the owner read: `old_opening` IS the shift (every balance moves by it), and
+  // `sum_tx` decides `computed_after` — what the account will show afterwards.
+  // A calibrate Reconcile re-anchors `opening_balance`, and the runbook has both
+  // buttons on the same page, so this is a live race, not a theoretical one.
+  if (!dryRun && expect) {
+    const drifted =
+      Number(expect.old_opening) !== summary.old_opening ||
+      (expect.sum_tx !== undefined && Number(expect.sum_tx) !== summary.sum_tx);
+    if (drifted) {
+      const err = new Error(
+        `the figures moved since you previewed them: opening ${expect.old_opening} ` +
+        `(Σtx ${expect.sum_tx}) → ${summary.old_opening} (Σtx ${summary.sum_tx}). ` +
+        'Nothing was written. Preview again.'
+      );
+      err.code = 'PREVIEW_STALE';
+      err.summary = { ...summary, expected_by_client: { ...expect } };
+      throw err;
+    }
   }
 
   if (!dryRun) {

@@ -130,14 +130,25 @@ router.post('/reset-opening/:accountId', async (req, res, next) => {
   try {
     const accountId = Number(req.params.accountId);
     if (!Number.isInteger(accountId)) return res.status(400).json({ error: 'invalid accountId' });
-    const { dryRun = false, force = false } = req.body || {};
+    const { dryRun = false, force = false, expect = null } = req.body || {};
+    const isDryRun = dryRun === true;
     const result = await resetOpeningBalance(accountId, {
-      dryRun: dryRun === true, force: force === true,
+      dryRun: isDryRun, force: force === true,
+      // Only an apply carries an expectation; a preview has nothing to compare to.
+      expect: isDryRun ? null : expect,
     });
     // Enveloped ({data}) — the CR043 N8 target shape; the caller reads it via
     // Rest.unwrap(). The neighbouring bare handlers are pre-N8 and unconverted.
     res.json({ data: result });
   } catch (err) {
+    // CR087 P1 — a stale preview is not a bad request, it is a conflict: the
+    // client's view of the figures is out of date. 409 with the CURRENT figures,
+    // so the UI can offer those for approval rather than reporting a generic
+    // failure and leaving the owner to guess what moved.
+    if (err.code === 'PREVIEW_STALE') {
+      console.warn('[v2/manual-calibration] reset-opening refused, preview stale:', err.message);
+      return res.status(409).json({ error: err.message, code: 'PREVIEW_STALE', current: err.summary });
+    }
     console.error('[v2/manual-calibration] reset-opening failed:', err.message);
     res.status(400).json({ error: err.message });
   }

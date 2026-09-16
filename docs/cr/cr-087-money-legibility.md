@@ -1,6 +1,6 @@
 # CR087 — Money legibility: the currency, the column, and the write with no record
 
-**Status:** **IN-PROGRESS** — **THE P0 IS COMPLETE AND SHIPPED:** P0a v3.38.0 (migration 074) · P0b v3.38.1 · P0c v3.39.0. **P1's reconcile-page half SHIPPED v3.40.0 (2026-08-24)**; `<Money>`, `resetOpeningBalance` and §2's deferred `Local` column remain.
+**Status:** **IN-PROGRESS** — **THE P0 IS COMPLETE AND SHIPPED:** P0a v3.38.0 (migration 074) · P0b v3.38.1 · P0c v3.39.0. **P1 SHIPPED across v3.40.0 (2026-08-24, the reconcile page) and v3.64.0 (2026-09-16, `<Money>` + `resetOpeningBalance` under a server preview).** Only §2's deferred `Local` column remains — its own increment, by §2's own recommendation.
 **Track:** v3
 **Migration:** **074** (071–073 taken) — the `accounts` audit trigger. Book Health needs a **second**
 migration for its own dismissals table (CR074's is FK-bound to `forecast_scenarios`).
@@ -640,7 +640,51 @@ kept exactly this rule and dropped the noisy ones.
 **5 DB tests** in `reconcileCurrency.test.js`, incl. the unconvertible-currency case and the mismatch
 flag. **838 v2 backend** + 582 frontend green, six guards at baseline.
 
-⚠️ **Still open in P1:** `<Money>` (with §10 P4's fence — CR087 builds it for its own two surfaces, the
-22-call-site `toLocaleString` sweep stays in CR086), `reconcileManual`'s `resetOpeningBalance` under the
-P0c preview, and §2's **deferred** `BalanceReport` `Local` column, which needs
-`ARRAY_AGG(DISTINCT t.currency)` plus a mixed marker plus migration 064's unanimity predicate.
+---
+
+## 15. P1 completed (v3.64.0, 2026-09-16) — the last unpreviewed write, and one money contract
+
+**`resetOpeningBalance` now previews on the SERVER, and the apply is refused if the figures moved.**
+
+🔴 **The defect was not a missing confirmation.** `/manual-calibration`'s **Reset** already opened a
+dialog with figures in it — and those figures were computed **in the browser**
+(`a.opening_balance`, `computed_balance − opening_balance`) while the write is computed in
+`reconcileManual.js`. Nothing compared the two, and the apply carried no expectation, so a row that
+moved between render and click was written anyway **under a dialog that looked verified**. That is
+strictly worse than no preview, which is the same reasoning P0c applied to `calibrate()` — this was
+the last write in the page family still doing it.
+
+- The click runs a **dry run** and renders the server's own summary: `old → 0`, the **shift** every
+  balance takes (today's included), `computed_before → computed_after`, and Σ transactions.
+- The apply carries `expect: { old_opening, sum_tx }`; the service recomputes and throws
+  `PREVIEW_STALE`, which the route returns as **409 with the current figures** — the modal then
+  offers **"Apply updated figures"**, so the owner approves what is actually there. Both fields
+  matter: `old_opening` IS the shift, `sum_tx` decides what the account will show afterwards. A
+  calibrate Reconcile re-anchors `opening_balance` and both buttons sit on the same page, so this is
+  a live race, not a theoretical one. `expect` is **opt-in** — scripts and the API are unaffected.
+- Built on the Radix **`<Modal>`** (`ResetOpeningPreviewModal`), not `ConfirmModal`, for the reason
+  §13 records: that component is dead to clicks under a Radix layer. The Quicken-anchor block keeps
+  its deliberate override, now inside the preview rather than as a second dialog.
+- **6 DB tests** (`resetOpeningPreview.test.js`): a dry run writes nothing **and leaves no audit row**
+  (074 fires on the column, so a preview that wrote would show up there); a matching apply writes and
+  is audited **once**; a moved `old_opening` **or** a transaction landing in between is refused with
+  nothing written; the refusal carries the current figures; an apply with no expectation still writes.
+
+**`<Money>` — one money contract, on CR087's own two surfaces.**
+`components/Money/` — `formatMoney.js` (the rule, usable in strings) + `Money.jsx` + 10 tests. Three
+behaviours, each a defect this repo shipped: **null → `—`, zero → a number** (§6: `formatters.js`
+documents `formatCurrency(null) → "$0.00"` while `FCEquity` renders `—` for a true zero); the
+**locale is pinned to `en-US`** (`toLocaleString(undefined, …)` renders `1.234,56` on a pl-PL browser
+— the reconcile queue did exactly this); and the **currency is always stated**, USD by symbol and
+everything else by code. A zero is never coloured, and only a *signed* figure is — a negative
+liability on a balance sheet is normal, not a loss.
+
+⚠️ **§10 P4's fence held:** adopted on `BalanceReport` and `/balance-calibration` only. The
+22-call-site `toLocaleString` sweep stays CR086's.
+
+⚠️ **Still open:** §2's **deferred** `BalanceReport` `Local` column, which needs
+`ARRAY_AGG(DISTINCT t.currency)` plus a mixed marker plus migration 064's unanimity predicate — three
+moving parts on a page the owner *reads*, and §2 itself proposed it as a separate increment. Note for
+whoever builds it: `fetchAccountBalances` returns a **positional** tuple
+`[currency, balance, exchangeRate, balanceInUSD]` that `netWorthBridge.js` destructures by index, so
+it can be appended to but not reshaped.
