@@ -134,30 +134,43 @@
 
 /* ---- ground ------------------------------------------------------------- */
 
-/* One flat ground, no zebra. PageLayout.css stripes even rows with an
-   `rgba(248, 250, 254, 0.35)` literal — a light-mode colour that in dark mode
-   lays a pale film over a dark surface. Rows are told apart by their rule and
-   their indent, which is what LEGrid does and what survives a theme swap. */
+/* A light zebra, from tokens defined in BOTH themes. CR088 had removed the
+   stripe because PageLayout.css drew it with an `rgba(248, 250, 254, 0.35)`
+   literal — a light-mode colour that laid a pale film over a dark surface. The
+   owner's rule (2026-09-17): rows are told apart by GROUND, never by text
+   colour, which carries sign only (see "sign colour" below). Hover is one step
+   stronger than the stripe so the row under the cursor still stands out. */
 .report-table .balance-report-table tbody td,
 .report-table .balance-report-table tbody tr:nth-child(even) td {
-  background: var(--surface);
   color: var(--ink);
+}
+
+.report-table .balance-report-table tbody td {
+  background: var(--surface);
+}
+
+.report-table .balance-report-table tbody tr:nth-child(even) td {
+  background: var(--table-row-stripe);
 }
 
 .report-table .balance-report-table tbody tr:hover td,
 .report-table .balance-report-table tbody tr:nth-child(even):hover td {
-  background: var(--surface-muted);
+  background: var(--table-row-hover);
 }
 
-/* The frozen column, opaque in every state — see the header note. */
-.report-table .balance-report-table tbody td:first-child,
-.report-table .balance-report-table tbody tr:nth-child(even) td:first-child {
+/* The frozen column, opaque in every state — see the header note. Both tokens
+   are solid colours, so a scrolled figure never shows through the label. */
+.report-table .balance-report-table tbody td:first-child {
   background: var(--surface);
+}
+
+.report-table .balance-report-table tbody tr:nth-child(even) td:first-child {
+  background: var(--table-row-stripe);
 }
 
 .report-table .balance-report-table tbody tr:hover td:first-child,
 .report-table .balance-report-table tbody tr:nth-child(even):hover td:first-child {
-  background: var(--surface-muted);
+  background: var(--table-row-hover);
 }
 
 /* ---- figures ------------------------------------------------------------ */
@@ -174,10 +187,10 @@
 
 /* Colour carries the sign; weight does not. The base rule bumps negatives to
    700, which made every expense row heavier than every income row and read as
-   emphasis rather than as sign. */
+   emphasis rather than as sign. The COLOUR half lives in "sign colour" at the
+   end of the file — see the note there for why it cannot live here. */
 .report-table .balance-report-table td.balance-report-table__value--negative,
 .report-table .balance-report-table th.balance-report-table__value--negative {
-  color: var(--growth-negative);
   font-weight: inherit;
 }
 
@@ -382,6 +395,24 @@
   }
 }
 
+/* ---- sign colour ---------------------------------------------------------- */
+
+/* The one rule for text colour on a figure: NEGATIVE is red, everything else
+   is ink. Colour is never used to tell rows apart — that is the ground's job.
+
+   ⚠️ It must out-score every rule that sets `color` on a cell, and two did:
+   `tbody tr:nth-child(even) td` (0,3,3) and the totals-row block (0,4,2) both
+   beat a plain `td.--negative` (0,3,1). So a negative was red on odd rows and
+   ink on even ones — which read as a deliberate row stripe — and a negative
+   total was never red at all. `:nth-child(n)` matches every row; it is here
+   only to lift the selector to (0,4,3), and the rule sits last so it also wins
+   any tie. The print block below repeats these selectors to force black. */
+.report-table .balance-report-table tbody tr:nth-child(n) td.balance-report-table__value--negative,
+.report-table .balance-report-table tfoot tr:nth-child(n) td.balance-report-table__value--negative,
+.report-table .balance-report-table thead tr:nth-child(n) th.balance-report-table__value--negative {
+  color: var(--growth-negative);
+}
+
 /* ---- print --------------------------------------------------------------- */
 
 /* Browsers print the live DOM, so a dark-mode `--ink` of #E2E8F0 lands
@@ -401,7 +432,9 @@
   .report-table .balance-report-table th,
   .report-table .balance-report-table td,
   .report-table .balance-report-table__value,
-  .report-table .balance-report-table td.balance-report-table__value--negative {
+  .report-table .balance-report-table td.balance-report-table__value--negative,
+  .report-table .balance-report-table tbody tr:nth-child(n) td.balance-report-table__value--negative,
+  .report-table .balance-report-table tfoot tr:nth-child(n) td.balance-report-table__value--negative {
     color: #000;
   }
 

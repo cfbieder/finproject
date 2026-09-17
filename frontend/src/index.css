@@ -7,6 +7,9 @@
   --surface-muted: #FAF9F5;
   --surface-elevated: #FFFFFF;
   --surface-glass: rgba(253, 252, 248, 0.92);
+  /* Report-table rows: the stripe tells rows apart, hover is one step stronger. */
+  --table-row-stripe: #F7F6F1;
+  --table-row-hover: #EEEDE6;
 
   /* Text Colors - Soft charcoal hierarchy */
   --ink: #2D3436;
@@ -217,6 +220,8 @@
   --surface-muted: #23272B;
   --surface-elevated: #262A2F;
   --surface-glass: rgba(19, 21, 23, 0.9);
+  --table-row-stripe: #212428;
+  --table-row-hover: #2B2F34;
 
   /* Text — off-white hierarchy */
   --ink: #E2E8F0;
