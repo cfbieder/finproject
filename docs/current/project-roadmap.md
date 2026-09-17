@@ -883,6 +883,9 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.2 Completed (chronological, latest first)
 
+- **v3.65.1** (2026-09-17) — **patch: Budget Analysis Chart — the preset period picker replaces the sidebar.** No migration.
+  - The Chart tab's Report type / Budget year / Actual year / Month sidebar (`BudgetBalancePanel`) is gone; it now carries the same `PeriodSelector` toolbar as Realization and Variances (presets + Custom), with Unrealized, Transfers and the LE compare modes beside it. The sidebar's expand/collapse buttons were wired to a no-op on this page and are dropped. `BudgetBalancePanel.jsx` has no page importing it any more.
+  - **Fix — Variances' period summary named the wrong period.** Its `PeriodSelector` was uncontrolled, so the internal state started at January–December: **This Month** was highlighted over the line "January–December 2026" while the table showed September. Now controlled by the page's own period.
 - **v3.65.0** (2026-09-17) — **minor: Budget Analysis — the Chart and Variances tabs gain the Realization tab's LE compare modes.** No migration.
   - **Chart:** `Act vs Bud` · `Act vs LE` · `LE vs Bud` · `All` — an LE bar (`--info`) beside Budget/Actual, the summary and the drill-down modal state one figure per subject and one per variance, each named after its pair. LE with no line renders `—`, not `$0`.
   - **Variances:** the same pairs except `All` (a ranking needs ONE variance); columns, sort and total follow the pair, and a failed LE load joins the error banner.
