@@ -9,6 +9,7 @@ import BudgetDetailModal from "../features/Budgets/BudgetDetailModal.jsx";
 import Rest from "../js/rest.js";
 import { useCoa } from "../hooks/useCoa.js";
 import { exportBudgetRealization } from "../utils/excelExporter.js";
+import { useLatestEstimate } from "../features/Budgets/latestEstimate.js";
 import "./PageLayout.css";
 
 // ============================================================================
@@ -110,31 +111,6 @@ const makeShouldDropRow = ({
     actualIsBlank &&
     leIsBlank
   );
-};
-
-/**
- * CR088 P2 — the set of leaf names the LE actually carries a line for.
- *
- * Separate from the totals map because the server's `hasLe` is the only way to
- * tell "the LE estimates zero here" from "the LE has no line here at all", and
- * the second must render `—`. Flattened the same way and keyed the same way, so
- * it lines up with the totals map row for row.
- */
-const buildLeafLePresenceSet = (nodes, set = new Set()) => {
-  if (!Array.isArray(nodes)) return set;
-
-  for (const node of nodes) {
-    if (!node || typeof node !== "object" || !node.name) continue;
-    const hasChildren =
-      Array.isArray(node.children) && node.children.length > 0;
-    if (hasChildren) {
-      buildLeafLePresenceSet(node.children, set);
-    } else if (node.hasLe) {
-      set.add(node.name);
-    }
-  }
-
-  return set;
 };
 
 /**
@@ -665,23 +641,9 @@ export default function BudgetRealization() {
   const [leafBudgetTotals, setLeafBudgetTotals] = useState(null);
 
   // ---- CR088 P2/P5: the Latest Estimate as a third subject ----------------
-  // ⚠️ P5 REFRAMED THIS. P2 modelled it as "what is the always-present BUDGET
-  // compared against", which is why the LE variance ended up named after the
-  // wrong benchmark (§11). There are three subjects — budget, actual, LE — and
-  // therefore THREE pairwise comparisons, and the budget is not privileged among
-  // them. `compareMode` now names the PAIR:
-  //
-  //   act-bud  BUDGETED · ACTUALS            · ACT vs BUD   (the default)
-  //   act-le   ACTUALS  · LE                 · ACT vs LE
-  //   le-bud   BUDGETED · LE                 · LE vs BUD
-  //   all      BUDGETED · ACTUALS · LE       · all three
-  //
-  // `leafLePresent` is the ABSENT-vs-ZERO set — see the note in
-  // renderCategoryRows.
-  const [compareMode, setCompareMode] = useState("act-bud");
-  const [leHeader, setLeHeader] = useState(null);
-  const [leafLeTotals, setLeafLeTotals] = useState(null);
-  const [leafLePresent, setLeafLePresent] = useState(null);
+  // The compare mode, the LE and its warnings live in `useLatestEstimate`,
+  // shared with the Chart and Variances tabs. `leafLePresent` is the
+  // ABSENT-vs-ZERO set — see the note in renderCategoryRows.
 
   // ========== State: UI ==========
   // Tracks what the user has EXPANDED. `collapsedPaths` is DERIVED from it below.
@@ -704,6 +666,17 @@ export default function BudgetRealization() {
     () => computePeriodRange(fromMonth, toMonth, actualYear),
     [fromMonth, toMonth, actualYear]
   );
+
+  const {
+    showBudget, showActual, showLe, varActBud, varLeBud, varActLe,
+    leHeader, leafLeTotals, leafLePresent, compareProps,
+  } = useLatestEstimate({
+    budgetYear,
+    lePeriodRange: budgetPeriodRange,
+    actualPeriodRange,
+    includeTransfers,
+    logTag: "BudgetRealization",
+  });
 
   // ========== Computed Values: Resolvers ==========
   const actualValueResolver = useMemo(
@@ -892,13 +865,6 @@ export default function BudgetRealization() {
     "balance-report-table__value--bold"
   );
 
-  // ---- CR088 P5: which subjects and which variances this mode renders ------
-  const showBudget = compareMode === "act-bud" || compareMode === "le-bud" || compareMode === "all";
-  const showActual = compareMode === "act-bud" || compareMode === "act-le" || compareMode === "all";
-  const showLe = compareMode === "act-le" || compareMode === "le-bud" || compareMode === "all";
-  const varActBud = compareMode === "act-bud" || compareMode === "all";
-  const varLeBud = compareMode === "le-bud" || compareMode === "all";
-  const varActLe = compareMode === "act-le" || compareMode === "all";
   const hasLeData = showLe && leafLeTotals !== null;
 
   const netLeValue =
@@ -932,52 +898,6 @@ export default function BudgetRealization() {
     hasLeData && hasActualData,
     "balance-report-table__value--bold budget-va__var-cell"
   );
-
-  // Whether the selected period reaches PAST the LE's cut. It is the whole
-  // point of the note the page renders: `budget_le_lines` carries the
-  // transactions verbatim for every closed month, so for a period ending on or
-  // before the cut the LE column is byte-identical to the actual one (measured
-  // on prod: 0 of 111 leaves differ over Jan–Jul, sums tie to the cent). Two
-  // columns that agree by construction read as corroboration and are not.
-  const periodReachesPastCut = useMemo(() => {
-    if (!leHeader || !leHeader.actualThrough || !actualPeriodRange) return false;
-    const end = formatDateParam(actualPeriodRange.end);
-    return Boolean(end) && end > leHeader.actualThrough;
-  }, [leHeader, actualPeriodRange]);
-
-  // ⚠️ How many months of the selected window have NOT finished yet. This is the
-  // guard that keeps `Act vs LE` honest, and it is not a nicety — measured on
-  // prod 2026-08-27, over the full year that comparison reads **+150,091
-  // favourable on expenses**, of which essentially all is that Sep–Dec have not
-  // happened: the LE covers twelve months and the actual covers eight. The other
-  // two comparisons cannot have this problem, because budget and LE are both
-  // whole-period figures and actual is measured against a budget that is also
-  // pro-rated to the same months.
-  //
-  // A month counts as unelapsed if its last day is still in the future. Compared
-  // date-only, because a `new Date()` on a timestamp is Known Issue #3 (the
-  // timezone rule) and a month-end is a date, not an instant.
-  const unelapsedMonths = useMemo(() => {
-    if (!actualPeriodRange) return { count: 0, total: 0 };
-    const today = new Date();
-    const todayKey = formatDateParam(
-      new Date(today.getFullYear(), today.getMonth(), today.getDate())
-    );
-    let count = 0;
-    let total = 0;
-    const cursor = new Date(
-      actualPeriodRange.start.getFullYear(),
-      actualPeriodRange.start.getMonth(),
-      1
-    );
-    while (cursor <= actualPeriodRange.end) {
-      total += 1;
-      const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0);
-      if (formatDateParam(monthEnd) > todayKey) count += 1;
-      cursor.setMonth(cursor.getMonth() + 1);
-    }
-    return { count, total };
-  }, [actualPeriodRange]);
 
   // ========== Effects: Initialization ==========
 
@@ -1081,93 +1001,6 @@ export default function BudgetRealization() {
       isActive = false;
     };
   }, [budgetPeriodRange, includeTransfers, includeUnrealized]);
-
-  // ---- CR088 P2: resolve the LE for the selected budget year --------------
-  // `findAll` already orders newest first and excludes superseded rows, so the
-  // head of the list is the LE to compare against. There is exactly one per
-  // budget year today; taking the head rather than adding a picker is the
-  // smaller thing that is also correct if that ever stops being true.
-  useEffect(() => {
-    if (!budgetYear) return undefined;
-    let isActive = true;
-
-    Rest.fetchBudgetLeList(budgetYear)
-      .then((rows) => {
-        if (!isActive) return;
-        const head = rows[0];
-        setLeHeader(
-          head
-            ? {
-                id: head.id,
-                name: head.name,
-                actualThrough: String(head.actual_through).slice(0, 10),
-              }
-            : null
-        );
-      })
-      .catch((error) => {
-        if (!isActive) return;
-        console.error("[BudgetRealization] Failed to load the LE list:", error);
-        setLeHeader(null);
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, [budgetYear]);
-
-  // A year with no LE cannot offer the comparison; fall back rather than render
-  // an empty column that looks like "the estimate is nothing".
-  useEffect(() => {
-    if (!leHeader && compareMode !== "act-bud") setCompareMode("act-bud");
-  }, [leHeader, compareMode]);
-
-  // Fetch the LE over the same period, with the same transfer convention, only
-  // when a mode that shows it is selected.
-  useEffect(() => {
-    if (!showLe || !leHeader || !budgetPeriodRange) {
-      setLeafLeTotals(null);
-      setLeafLePresent(null);
-      return undefined;
-    }
-
-    const fromDateParam = formatDateParam(budgetPeriodRange.start);
-    const toDateParam = formatDateParam(budgetPeriodRange.end);
-    if (!fromDateParam || !toDateParam) {
-      setLeafLeTotals(null);
-      setLeafLePresent(null);
-      return undefined;
-    }
-
-    let isActive = true;
-    const transfersMode = includeTransfers ? "include" : "exclude";
-
-    Rest.fetchLeCashFlowReport({
-      leId: leHeader.id,
-      fromDate: fromDateParam,
-      toDate: toDateParam,
-      transfers: transfersMode,
-    })
-      .then((report) => {
-        if (!isActive) return;
-        const nodes = Array.isArray(report && report.nodes) ? report.nodes : [];
-        setLeafLeTotals(buildLeafActualTotalsMap(nodes));
-        setLeafLePresent(buildLeafLePresenceSet(nodes));
-      })
-      .catch((error) => {
-        if (!isActive) return;
-        console.error("[BudgetRealization] Failed to load the LE:", error);
-        // ⚠️ null, never an empty map. An empty map resolves every row to 0 and
-        // renders a page of figures that look like real estimates of nothing —
-        // the exact failure CR087 P0b closed on the actuals side.
-        setLeafLeTotals(null);
-        setLeafLePresent(null);
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, [showLe, leHeader, budgetPeriodRange, includeTransfers]);
 
   // ========== Event Handlers ==========
 
@@ -1389,29 +1222,6 @@ export default function BudgetRealization() {
       varActBud,
       varLeBud,
       varActLe,
-    ]
-  );
-
-  const compareProps = useMemo(
-    () => ({
-      mode: compareMode,
-      onChange: setCompareMode,
-      leAvailable: Boolean(leHeader),
-      leName: leHeader ? leHeader.name : null,
-      leCut: leHeader ? leHeader.actualThrough : null,
-      periodReachesPastCut,
-      unelapsedMonths,
-      showBudget,
-      showActual,
-      showLe,
-      varActBud,
-      varLeBud,
-      varActLe,
-    }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      compareMode, leHeader, periodReachesPastCut, unelapsedMonths,
-      showBudget, showActual, showLe, varActBud, varLeBud, varActLe,
     ]
   );
 

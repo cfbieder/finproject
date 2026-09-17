@@ -4,6 +4,10 @@
   max-height: calc(100vh - 80px);
 }
 
+.budget-graph-compare {
+  margin: 0.5rem 0 1rem;
+}
+
 .budget-graph-empty {
   display: flex;
   align-items: center;
@@ -155,6 +159,12 @@
 
 .budget-graph-bar--actual {
   background: linear-gradient(90deg, var(--success-lighter) 0%, var(--success-light) 100%);
+}
+
+/* The Latest Estimate — a third hue, so an LE bar is never read as budget or
+   actual. Solid: the --info tints do not grade the same way in the dark theme. */
+.budget-graph-bar--le {
+  background: var(--info);
 }
 
 .budget-graph-bar-value {

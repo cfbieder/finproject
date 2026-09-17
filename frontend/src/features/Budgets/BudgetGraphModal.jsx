@@ -1,6 +1,7 @@
 import PropTypes from "prop-types";
 import { useState } from "react";
 import EmptyState from "../../components/EmptyState.jsx";
+import { chartSeries, chartVariances, compareFlags, varianceOf } from "./latestEstimate.js";
 import "./BudgetGraphModal.css";
 
 const chartCurrencyFormatter = new Intl.NumberFormat("en-US", {
@@ -16,16 +17,31 @@ const currencyFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
 
+// `null` is an UNKNOWN figure (an LE with no line, a variance with a missing
+// operand) and renders `—`, never `$0.00` (CR087 §4c).
 const formatCurrencyShort = (value) =>
-  chartCurrencyFormatter.format(Number.isFinite(Number(value)) ? Number(value) : 0);
+  value == null
+    ? "—"
+    : chartCurrencyFormatter.format(Number.isFinite(Number(value)) ? Number(value) : 0);
 
 const formatCurrencyValue = (value) => {
+  if (value == null) return "—";
   const amount = Number.isFinite(Number(value)) ? Number(value) : 0;
   const formatted = currencyFormatter.format(Math.abs(amount));
   return amount < 0 ? `(${formatted})` : formatted;
 };
 
-const BudgetGraphModal = ({ category, onClose, onCategoryClick }) => {
+// The Act vs Bud default, for a caller that does not pass a compare mode.
+const DEFAULT_FLAGS = compareFlags("act-bud");
+
+const BudgetGraphModal = ({
+  category,
+  onClose,
+  onCategoryClick,
+  series = chartSeries(DEFAULT_FLAGS),
+  variances = chartVariances(DEFAULT_FLAGS),
+  leName = "LE",
+}) => {
   const [tooltip, setTooltip] = useState(null);
 
   const handleOverlayClick = (event) => {
@@ -44,7 +60,7 @@ const BudgetGraphModal = ({ category, onClose, onCategoryClick }) => {
     return null;
   }
 
-  const { name, children = [], actual = 0, budget = 0, variance = 0 } = category;
+  const { name, children = [] } = category;
 
   return (
     <div className="fc-scenarios-modal-overlay" onClick={handleOverlayClick}>
@@ -58,34 +74,37 @@ const BudgetGraphModal = ({ category, onClose, onCategoryClick }) => {
         <div className="fc-scenarios-modal__header">
           <h3 className="fc-scenarios-modal__title">{name}</h3>
           <p className="fc-scenarios-modal__description">
-            Budget vs Actual comparison by subcategory
+            {variances.map((v) => v.label).join(" · ")} by subcategory
           </p>
         </div>
 
         <div className="fc-scenarios-modal__body">
           <div className="budget-graph-modal-summary">
-            <div className="budget-graph-modal-summary-item">
-              <span className="budget-graph-modal-summary-label">Budget:</span>
-              <span className="budget-graph-modal-summary-value">
-                {formatCurrencyValue(budget)}
-              </span>
-            </div>
-            <div className="budget-graph-modal-summary-item">
-              <span className="budget-graph-modal-summary-label">Actual:</span>
-              <span className="budget-graph-modal-summary-value">
-                {formatCurrencyValue(actual)}
-              </span>
-            </div>
-            <div className="budget-graph-modal-summary-item">
-              <span className="budget-graph-modal-summary-label">Variance:</span>
-              <span
-                className={`budget-graph-modal-summary-value ${
-                  variance < 0 ? "budget-graph-modal-summary-value--negative" : ""
-                }`}
-              >
-                {formatCurrencyValue(variance)}
-              </span>
-            </div>
+            {series.map((sub) => (
+              <div key={sub.key} className="budget-graph-modal-summary-item">
+                <span className="budget-graph-modal-summary-label">
+                  {sub.key === "le" ? leName : sub.label}:
+                </span>
+                <span className="budget-graph-modal-summary-value">
+                  {formatCurrencyValue(category[sub.key])}
+                </span>
+              </div>
+            ))}
+            {variances.map((v) => {
+              const value = varianceOf(category, v);
+              return (
+                <div key={v.key} className="budget-graph-modal-summary-item">
+                  <span className="budget-graph-modal-summary-label">{v.label}:</span>
+                  <span
+                    className={`budget-graph-modal-summary-value ${
+                      value < 0 ? "budget-graph-modal-summary-value--negative" : ""
+                    }`}
+                  >
+                    {formatCurrencyValue(value)}
+                  </span>
+                </div>
+              );
+            })}
           </div>
 
           {children.length === 0 ? (
@@ -94,13 +113,8 @@ const BudgetGraphModal = ({ category, onClose, onCategoryClick }) => {
             <div className="budget-graph-modal-bars">
               {children.map((child, childIndex) => {
                 const maxValue = Math.max(
-                  Math.abs(child.budget),
-                  Math.abs(child.actual)
+                  ...series.map(({ key }) => Math.abs(child[key] ?? 0))
                 );
-                const budgetWidth =
-                  maxValue > 0 ? (Math.abs(child.budget) / maxValue) * 100 : 0;
-                const actualWidth =
-                  maxValue > 0 ? (Math.abs(child.actual) / maxValue) * 100 : 0;
 
                 const hasSubcategories = child.children && child.children.length > 0;
 
@@ -120,50 +134,35 @@ const BudgetGraphModal = ({ category, onClose, onCategoryClick }) => {
                       {child.name}
                     </div>
                     <div className="budget-graph-modal-bars-wrapper">
-                      <div className="budget-graph-modal-bar-row">
-                        <span className="budget-graph-modal-bar-type">Budget</span>
-                        <div className="budget-graph-modal-bar-container">
-                          <div
-                            className="budget-graph-modal-bar budget-graph-modal-bar--budget"
-                            style={{ width: `${budgetWidth}%` }}
-                            onMouseEnter={(e) => {
-                              const rect = e.target.getBoundingClientRect();
-                              setTooltip({
-                                x: rect.left + rect.width / 2,
-                                y: rect.top,
-                                label: `${child.name} - Budget`,
-                                value: child.budget,
-                              });
-                            }}
-                            onMouseLeave={() => setTooltip(null)}
-                          />
-                        </div>
-                        <span className="budget-graph-modal-bar-value">
-                          {formatCurrencyShort(child.budget)}
-                        </span>
-                      </div>
-                      <div className="budget-graph-modal-bar-row">
-                        <span className="budget-graph-modal-bar-type">Actual</span>
-                        <div className="budget-graph-modal-bar-container">
-                          <div
-                            className="budget-graph-modal-bar budget-graph-modal-bar--actual"
-                            style={{ width: `${actualWidth}%` }}
-                            onMouseEnter={(e) => {
-                              const rect = e.target.getBoundingClientRect();
-                              setTooltip({
-                                x: rect.left + rect.width / 2,
-                                y: rect.top,
-                                label: `${child.name} - Actual`,
-                                value: child.actual,
-                              });
-                            }}
-                            onMouseLeave={() => setTooltip(null)}
-                          />
-                        </div>
-                        <span className="budget-graph-modal-bar-value">
-                          {formatCurrencyShort(child.actual)}
-                        </span>
-                      </div>
+                      {series.map((sub) => {
+                        const width =
+                          maxValue > 0 ? (Math.abs(child[sub.key] ?? 0) / maxValue) * 100 : 0;
+                        const subLabel = sub.key === "le" ? leName : sub.label;
+                        return (
+                          <div key={sub.key} className="budget-graph-modal-bar-row">
+                            <span className="budget-graph-modal-bar-type">{sub.label}</span>
+                            <div className="budget-graph-modal-bar-container">
+                              <div
+                                className={`budget-graph-modal-bar budget-graph-modal-bar--${sub.key}`}
+                                style={{ width: `${width}%` }}
+                                onMouseEnter={(e) => {
+                                  const rect = e.target.getBoundingClientRect();
+                                  setTooltip({
+                                    x: rect.left + rect.width / 2,
+                                    y: rect.top,
+                                    label: `${child.name} - ${subLabel}`,
+                                    value: child[sub.key],
+                                  });
+                                }}
+                                onMouseLeave={() => setTooltip(null)}
+                              />
+                            </div>
+                            <span className="budget-graph-modal-bar-value">
+                              {formatCurrencyShort(child[sub.key])}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );
@@ -206,16 +205,19 @@ BudgetGraphModal.propTypes = {
     name: PropTypes.string.isRequired,
     actual: PropTypes.number,
     budget: PropTypes.number,
-    variance: PropTypes.number,
+    le: PropTypes.number,
     children: PropTypes.arrayOf(
       PropTypes.shape({
         name: PropTypes.string.isRequired,
-        actual: PropTypes.number.isRequired,
-        budget: PropTypes.number.isRequired,
-        variance: PropTypes.number.isRequired,
+        actual: PropTypes.number,
+        budget: PropTypes.number,
+        le: PropTypes.number,
       })
     ),
   }),
+  series: PropTypes.arrayOf(PropTypes.shape({ key: PropTypes.string, label: PropTypes.string })),
+  variances: PropTypes.arrayOf(PropTypes.object),
+  leName: PropTypes.string,
   onClose: PropTypes.func.isRequired,
   onCategoryClick: PropTypes.func,
 };

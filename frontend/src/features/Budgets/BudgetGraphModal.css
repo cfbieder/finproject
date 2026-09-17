@@ -122,6 +122,12 @@
   background: linear-gradient(90deg, var(--success-lighter) 0%, var(--success) 100%);
 }
 
+/* The Latest Estimate — a third hue, so an LE bar is never read as budget or
+   actual. Solid: the --info tints do not grade the same way in the dark theme. */
+.budget-graph-modal-bar--le {
+  background: var(--info);
+}
+
 .budget-graph-modal-bar-value {
   font-size: 0.8125rem;
   font-weight: 500;

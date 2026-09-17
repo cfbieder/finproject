@@ -2,6 +2,8 @@ import { useCallback, useMemo, useState, useEffect } from "react";
 import PeriodSelector from "../components/PeriodSelector/PeriodSelector.jsx";
 import BudgetDetailModal from "../features/Budgets/BudgetDetailModal.jsx";
 import Rest from "../js/rest.js";
+import { COMPARE_MODES, useLatestEstimate } from "../features/Budgets/latestEstimate.js";
+import { LeCompareControl, LeCompareNotes } from "../features/Budgets/LeCompare.jsx";
 import "../components/ReportTable.css";
 import "./PageLayout.css";
 
@@ -87,6 +89,19 @@ const formatDateParam = (value) => {
   return `${year}-${month}-${day}`;
 };
 
+// The ranking needs ONE variance to sort by, so `All` (three at once) has no
+// meaning here — the other three pairs match the Realization tab.
+const VARIANCE_MODES = COMPARE_MODES.filter((m) => m.key !== "all");
+
+// Each pair as `a − b`. Every one is favourable-positive for income AND expense
+// without a per-root branch, because expenses are stored negative on all three
+// subjects (CR087 §4b).
+const PAIRS = {
+  "act-bud": { a: "actual", b: "budget", label: "Act vs Bud" },
+  "act-le": { a: "actual", b: "le", label: "Act vs LE" },
+  "le-bud": { a: "le", b: "budget", label: "LE vs Bud" },
+};
+
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
@@ -126,6 +141,18 @@ export default function BudgetVariances() {
       ),
     [periodValues.fromMonth, periodValues.toMonth, periodValues.actualYear]
   );
+
+  const {
+    mode, showBudget, showActual, showLe,
+    leHeader, leafLeTotals, leafLePresent, leError, compareProps,
+  } = useLatestEstimate({
+    budgetYear: periodValues.actualYear,
+    lePeriodRange: periodRange,
+    actualPeriodRange: periodRange,
+    logTag: "BudgetVariances",
+  });
+  const pair = PAIRS[mode] || PAIRS["act-bud"];
+  const leLabel = leHeader ? leHeader.name : "LE";
 
   // ========== Effects: Fetch Actuals ==========
   useEffect(() => {
@@ -222,14 +249,18 @@ export default function BudgetVariances() {
 
   // ========== Computed: Variance Rows ==========
   const varianceRows = useMemo(() => {
-    if (!leafBudgetTotals && !leafActualTotals) return [];
+    const leLoaded = Boolean(leafLeTotals && leafLePresent);
+    if (!leafBudgetTotals && !leafActualTotals && !leLoaded) return [];
 
     const allNames = new Set();
-    if (leafBudgetTotals) {
+    if (showBudget && leafBudgetTotals) {
       for (const name of leafBudgetTotals.keys()) allNames.add(name);
     }
-    if (leafActualTotals) {
+    if (showActual && leafActualTotals) {
       for (const name of leafActualTotals.keys()) allNames.add(name);
+    }
+    if (showLe && leLoaded) {
+      for (const name of leafLePresent) allNames.add(name);
     }
 
     // CR087 §4c. ⚠️ Two DIFFERENT reasons a figure can be absent, and conflating
@@ -238,6 +269,9 @@ export default function BudgetVariances() {
     // figure is UNKNOWN. The old code coalesced both with `?? 0`, so a failed
     // actuals fetch rendered every category at $0.00 actual and reported the
     // full budget as a FAVOURABLE variance, with no error anywhere on the page.
+    //
+    // The LE adds a third: a LOADED LE with no line for a category has no view
+    // on it, which is `—`, not an estimate of zero (the `hasLe` flag, CR088 P2).
     const budgetsUnknown = !leafBudgetTotals;
     const actualsUnknown = !leafActualTotals;
 
@@ -245,13 +279,22 @@ export default function BudgetVariances() {
     for (const name of allNames) {
       const budget = budgetsUnknown ? null : (leafBudgetTotals.get(name) ?? 0);
       const actual = actualsUnknown ? null : (leafActualTotals.get(name) ?? 0);
+      const le =
+        leLoaded && leafLePresent.has(name) ? (leafLeTotals.get(name) ?? 0) : null;
+      const values = { budget, actual, le };
+      const a = values[pair.a];
+      const b = values[pair.b];
       // A variance derived from a missing operand is not a number.
-      const variance = budget == null || actual == null ? null : actual - budget;
-      if (budget === 0 && actual === 0) continue;
+      const variance = a == null || b == null ? null : a - b;
+      // Dropped only when both subjects on screen are genuinely zero or absent.
+      const blank = (v, loaded) => loaded && (v == null || v === 0);
+      const loaded = { budget: !budgetsUnknown, actual: !actualsUnknown, le: leLoaded };
+      if (blank(a, loaded[pair.a]) && blank(b, loaded[pair.b])) continue;
       rows.push({
         name,
         budget,
         actual,
+        le,
         variance,
         // Unknown sorts last rather than as zero, which would bury it among the
         // genuinely-unchanged rows.
@@ -262,7 +305,10 @@ export default function BudgetVariances() {
     rows.sort((a, b) => b.absVariance - a.absVariance);
 
     return rows;
-  }, [leafBudgetTotals, leafActualTotals]);
+  }, [
+    leafBudgetTotals, leafActualTotals, leafLeTotals, leafLePresent,
+    showBudget, showActual, showLe, pair,
+  ]);
 
   // ========== Handlers: Double-Click ==========
   const handleValueDoubleClick = useCallback(
@@ -285,16 +331,17 @@ export default function BudgetVariances() {
     // most likely to be read.
     let budget = leafBudgetTotals ? 0 : null;
     let actual = leafActualTotals ? 0 : null;
+    let le = leafLeTotals ? 0 : null;
     for (const row of varianceRows) {
       if (budget != null) budget += row.budget;
       if (actual != null) actual += row.actual;
+      if (le != null && row.le != null) le += row.le;
     }
-    return {
-      budget,
-      actual,
-      variance: budget == null || actual == null ? null : actual - budget,
-    };
-  }, [varianceRows, leafBudgetTotals, leafActualTotals]);
+    const values = { budget, actual, le };
+    const a = values[pair.a];
+    const b = values[pair.b];
+    return { budget, actual, le, variance: a == null || b == null ? null : a - b };
+  }, [varianceRows, leafBudgetTotals, leafActualTotals, leafLeTotals, pair]);
 
   // ========== Render ==========
   return (
@@ -307,7 +354,7 @@ export default function BudgetVariances() {
               Budget Variances
             </h1>
             <p className="report-toolbar-header__description">
-              Line items ranked by largest budget-to-actual variance for the
+              Line items ranked by largest {pair.label} variance for the
               selected period.
             </p>
           </div>
@@ -317,7 +364,9 @@ export default function BudgetVariances() {
             renders a full table of 100%-favourable variances and looks like a
             good month. Keyed on an explicit error flag, NOT on the maps being
             null, because null is also the loading state and would flash. */}
-        {(actualsError || budgetsError) && (
+        {((showActual && actualsError) ||
+          (showBudget && budgetsError) ||
+          (showLe && leError)) && (
           <div
             role="alert"
             style={{
@@ -332,11 +381,14 @@ export default function BudgetVariances() {
             }}
           >
             <strong>
-              {actualsError && budgetsError
-                ? "Neither actuals nor budgets could be loaded."
-                : actualsError
-                  ? "Actuals could not be loaded."
-                  : "Budgets could not be loaded."}
+              {[
+                showActual && actualsError && "Actuals",
+                showBudget && budgetsError && "Budgets",
+                showLe && leError && "The Latest Estimate",
+              ]
+                .filter(Boolean)
+                .join(" and ")}{" "}
+              could not be loaded.
             </strong>{" "}
             Variances are shown as <code>—</code> rather than computed against a
             missing figure. Reload to try again.
@@ -345,13 +397,20 @@ export default function BudgetVariances() {
 
         {/* Toolbar */}
         <section className="realization-toolbar" aria-label="Report filters">
-          <PeriodSelector
-            onChange={handlePeriodChange}
-            defaultPreset="this-month"
-            hideBudgetYear
-            id="variance-period"
-          />
+          <div className="realization-toolbar__group realization-toolbar__group--selectors">
+            <PeriodSelector
+              onChange={handlePeriodChange}
+              defaultPreset="this-month"
+              hideBudgetYear
+              id="variance-period"
+            />
+          </div>
+          <div className="realization-toolbar__group realization-toolbar__group--toggles">
+            <LeCompareControl compareProps={compareProps} modes={VARIANCE_MODES} />
+          </div>
         </section>
+
+        <LeCompareNotes compareProps={compareProps} />
 
         {/* Table */}
         <div className="budget-realization-scroll">
@@ -367,9 +426,12 @@ export default function BudgetVariances() {
                       >
                         Category
                       </th>
-                      <th scope="col">Budgeted</th>
-                      <th scope="col">Actual</th>
-                      <th scope="col">Variance</th>
+                      {/* Subjects in the Realization tab's fixed order, and
+                          the variance header names its own pair (CR088 §11). */}
+                      {showBudget && <th scope="col">Budgeted</th>}
+                      {showActual && <th scope="col">Actual</th>}
+                      {showLe && <th scope="col">{leLabel}</th>}
+                      <th scope="col">{pair.label}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -380,20 +442,29 @@ export default function BudgetVariances() {
                             {row.name}
                           </span>
                         </td>
-                        <td
-                          className={getValueCellClassName(row.budget, true)}
-                          onDoubleClick={() => handleValueDoubleClick(row.name, "budget")}
-                          style={{ cursor: "pointer" }}
-                        >
-                          {formatCurrencyValue(row.budget)}
-                        </td>
-                        <td
-                          className={getValueCellClassName(row.actual, true)}
-                          onDoubleClick={() => handleValueDoubleClick(row.name, "actual")}
-                          style={{ cursor: "pointer" }}
-                        >
-                          {formatCurrencyValue(row.actual)}
-                        </td>
+                        {showBudget && (
+                          <td
+                            className={getValueCellClassName(row.budget, true)}
+                            onDoubleClick={() => handleValueDoubleClick(row.name, "budget")}
+                            style={{ cursor: "pointer" }}
+                          >
+                            {formatCurrencyValue(row.budget)}
+                          </td>
+                        )}
+                        {showActual && (
+                          <td
+                            className={getValueCellClassName(row.actual, true)}
+                            onDoubleClick={() => handleValueDoubleClick(row.name, "actual")}
+                            style={{ cursor: "pointer" }}
+                          >
+                            {formatCurrencyValue(row.actual)}
+                          </td>
+                        )}
+                        {showLe && (
+                          <td className={getValueCellClassName(row.le, true)}>
+                            {formatCurrencyValue(row.le)}
+                          </td>
+                        )}
                         <td
                           className={getValueCellClassName(row.variance, true)}
                         >
@@ -402,7 +473,7 @@ export default function BudgetVariances() {
                       </tr>
                     ))}
                     {varianceRows.length === 0 &&
-                      (leafBudgetTotals || leafActualTotals) && (
+                      (leafBudgetTotals || leafActualTotals || leafLeTotals) && (
                         <tr>
                           <td
                             colSpan={4}
@@ -425,12 +496,21 @@ export default function BudgetVariances() {
                             Total
                           </span>
                         </td>
-                        <td className={getValueCellClassName(totals.budget, true)}>
-                          {formatCurrencyValue(totals.budget)}
-                        </td>
-                        <td className={getValueCellClassName(totals.actual, true)}>
-                          {formatCurrencyValue(totals.actual)}
-                        </td>
+                        {showBudget && (
+                          <td className={getValueCellClassName(totals.budget, true)}>
+                            {formatCurrencyValue(totals.budget)}
+                          </td>
+                        )}
+                        {showActual && (
+                          <td className={getValueCellClassName(totals.actual, true)}>
+                            {formatCurrencyValue(totals.actual)}
+                          </td>
+                        )}
+                        {showLe && (
+                          <td className={getValueCellClassName(totals.le, true)}>
+                            {formatCurrencyValue(totals.le)}
+                          </td>
+                        )}
                         <td className={getValueCellClassName(totals.variance, true)}>
                           {formatCurrencyValue(totals.variance)}
                         </td>

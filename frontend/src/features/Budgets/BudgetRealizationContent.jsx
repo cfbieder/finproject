@@ -3,19 +3,9 @@ import { DollarSign, TrendingUp, TrendingDown, Target, ChevronDown, ChevronUp } 
 import PeriodSelector from "../../components/PeriodSelector/PeriodSelector.jsx";
 import { KpiCard, KpiCardRow } from "../../components/KpiCards.jsx";
 import FyLandingStrip from "./FyLandingStrip.jsx";
+import { LeCompareControl, LeCompareNotes } from "./LeCompare.jsx";
 import "../../components/ReportTable.css";
 import "./BudgetVaTable.css";
-
-// ⚠️ The modes name a PAIR, not "what the budget is compared against". P2 used
-// the second framing and it is what produced §11's mislabelled column: with
-// three subjects the budget is not privileged, and a control that implies it is
-// will keep generating headers that name the wrong benchmark.
-const COMPARE_MODES = [
-  { key: "act-bud", label: "Act vs Bud" },
-  { key: "act-le", label: "Act vs LE" },
-  { key: "le-bud", label: "LE vs Bud" },
-  { key: "all", label: "All" },
-];
 
 function BudgetRealizationContent({
   filteredCategoryTree,
@@ -44,7 +34,6 @@ function BudgetRealizationContent({
 }) {
   const { showBudget, showActual, showLe, varActBud, varLeBud, varActLe } = rowContext;
   const leLabel = compareProps && compareProps.leName ? compareProps.leName : "LE";
-  const unelapsed = (compareProps && compareProps.unelapsedMonths) || { count: 0, total: 0 };
   // The seam between SUBJECT and VARIANCE columns hangs off whichever variance
   // comes first — see the note in BudgetVaTable.css for why this is not CSS.
   const firstVar = varActBud ? "actbud" : varLeBud ? "lebud" : varActLe ? "actle" : null;
@@ -87,27 +76,7 @@ function BudgetRealizationContent({
               />
               <span className="realization-toolbar__toggle-text">Transfers</span>
             </label>
-            {compareProps && compareProps.leAvailable && (
-              <div
-                className="budget-va__compare"
-                role="group"
-                aria-label="What the budget is compared against"
-              >
-                {COMPARE_MODES.map((m) => (
-                  <button
-                    key={m.key}
-                    type="button"
-                    className={`budget-va__compare-btn${
-                      compareProps.mode === m.key ? " budget-va__compare-btn--on" : ""
-                    }`}
-                    aria-pressed={compareProps.mode === m.key}
-                    onClick={() => compareProps.onChange(m.key)}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-            )}
+            <LeCompareControl compareProps={compareProps} />
             <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={toggleProps.onExpandOneLayer} disabled={!toggleProps.hasCollapsiblePaths || toggleProps.isFullyExpanded} title="Expand one level"><ChevronDown size={16} /></button>
             <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={toggleProps.onCollapseOneLayer} disabled={!toggleProps.hasCollapsiblePaths || toggleProps.isFullyCollapsed} title="Collapse one level"><ChevronUp size={16} /></button>
             {canExport && onExport && (
@@ -125,55 +94,7 @@ function BudgetRealizationContent({
 
       <FyLandingStrip landing={fyLanding} />
 
-      {/* ⚠️ TWO different ways an LE comparison can read wrong, and they are not
-          the same hazard, so they are not the same sentence.
-
-          (1) LE vs Bud over a period at or before the cut: the LE holds those
-              actuals, so the column is byte-identical to Act vs Bud. Not wrong,
-              just not the second opinion it looks like.
-
-          (2) Act vs LE over a period that has not finished: THIS one produces a
-              figure that is wrong to act on. Measured on prod 2026-08-27, over
-              the full year it reads +150,091 favourable on expenses, of which
-              essentially all is that Sep–Dec have not happened — twelve months
-              of estimate against eight months of actual. It is the shape CR087
-              P0b closed on the actuals side (a page of favourable variances that
-              looked like good news), arrived at by honest arithmetic instead of
-              a bug, which makes it harder to catch. */}
-      {varLeBud && compareProps && compareProps.leCut && !compareProps.periodReachesPastCut && (
-        <p className="budget-va__cutnote" role="note">
-          <strong>The selected period ends on or before {compareProps.leName}&rsquo;s
-          cut ({compareProps.leCut}),</strong> where the Latest Estimate holds the
-          actual transactions themselves. <strong>LE will equal Actual on every
-          row,</strong> so <strong>LE vs Bud</strong> shows the same figures as{" "}
-          <strong>Act vs Bud</strong>. Choose a period reaching past the cut to see
-          where the estimate departs from the budget.
-        </p>
-      )}
-
-      {varActLe && unelapsed.count > 0 && (
-        <p className="budget-va__cutnote budget-va__cutnote--warn" role="note">
-          <strong>
-            {unelapsed.count} of the {unelapsed.total}{" "}
-            {unelapsed.total === 1 ? "month" : "months"} in this period{" "}
-            {unelapsed.count === 1 ? "has" : "have"} not finished.
-          </strong>{" "}
-          The Latest Estimate covers {unelapsed.total === 1 ? "it" : "all of them"} in
-          full; Actual only covers what has been booked so far, so{" "}
-          <strong>Act vs LE is measuring elapsed time, not performance</strong> — it
-          will read favourable simply because the period is not over. Compare a
-          window that has fully elapsed and sits past the cut.
-        </p>
-      )}
-
-      {varActLe && unelapsed.count === 0 && compareProps && !compareProps.periodReachesPastCut && (
-        <p className="budget-va__cutnote" role="note">
-          <strong>This period ends on or before the cut, where the Latest Estimate
-          IS the actual.</strong> <strong>Act vs LE will be zero on every row</strong>{" "}
-          &mdash; not a finding, an identity. It only carries information for a
-          window past {compareProps.leName}&rsquo;s cut ({compareProps.leCut}).
-        </p>
-      )}
+      <LeCompareNotes compareProps={compareProps} />
 
       {kpiData && (
         <KpiCardRow>

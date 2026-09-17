@@ -6,6 +6,14 @@ import BudgetBalancePanel, {
 import BudgetGraphModal from "../features/Budgets/BudgetGraphModal.jsx";
 import Rest from "../js/rest.js";
 import { useCoa } from "../hooks/useCoa.js";
+import {
+  useLatestEstimate,
+  chartSeries,
+  chartVariances,
+  varianceOf,
+  createLePresenceResolver,
+} from "../features/Budgets/latestEstimate.js";
+import { LeCompareControl, LeCompareNotes } from "../features/Budgets/LeCompare.jsx";
 import "./PageLayout.css";
 import "./BudgetRealizationGraph.css";
 
@@ -20,7 +28,10 @@ const currencyFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
 
+// `null` is an UNKNOWN figure (an LE with no line, a variance with a missing
+// operand) and renders `—`, never `$0.00` (CR087 §4c).
 const formatCurrencyValue = (value) => {
+  if (value == null) return "—";
   const amount = Number.isFinite(Number(value)) ? Number(value) : 0;
   const formatted = currencyFormatter.format(Math.abs(amount));
   return amount < 0 ? `(${formatted})` : formatted;
@@ -33,7 +44,9 @@ const chartCurrencyFormatter = new Intl.NumberFormat("en-US", {
 });
 
 const formatCurrencyShort = (value) =>
-  chartCurrencyFormatter.format(Number.isFinite(Number(value)) ? Number(value) : 0);
+  value == null
+    ? "—"
+    : chartCurrencyFormatter.format(Number.isFinite(Number(value)) ? Number(value) : 0);
 
 // ============================================================================
 // UTILITY FUNCTIONS - Data Processing
@@ -180,126 +193,45 @@ const filterCategoryTree = (nodes, { includeUnrealized, includeTransfers }) => {
 // CHART DATA BUILDING
 // ============================================================================
 
-const buildChartData = (
-  nodes,
-  leafActualTotals,
-  getActualValue,
-  leafBudgetTotals,
-  getBudgetValue,
-  path = []
-) => {
-  if (!Array.isArray(nodes) || nodes.length === 0) {
-    return [];
-  }
-
-  const hasActualData = leafActualTotals !== null;
-  const hasBudgetData = leafBudgetTotals !== null;
+/**
+ * One node per category — `{ name, budget, actual, le, children }`, recursively.
+ * Top-level nodes are the sections; their children are the bar groups, and any
+ * deeper level is what the drill-down modal shows.
+ *
+ * `le` is `null` where the LE has no line (or has not loaded) — ABSENT, not
+ * zero (CR088 P2). A node is dropped only when every subject on screen is zero
+ * or absent; a top-level node additionally needs those subjects loaded, so a
+ * section does not vanish while its data is still arriving.
+ */
+const buildChartData = (nodes, ctx, path = []) => {
+  if (!Array.isArray(nodes) || nodes.length === 0) return [];
+  const { resolvers, loaded, series } = ctx;
 
   return nodes.flatMap((node) => {
-    if (!node || typeof node !== "object" || !node.name) {
-      return [];
-    }
-
+    if (!node || typeof node !== "object" || !node.name) return [];
     const currentPath = [...path, node.name];
     const pathKey = currentPath.join(">");
-    const hasChildren = Array.isArray(node.children) && node.children.length > 0;
 
-    // Only include top-level categories (Income and Expense)
-    if (path.length > 0) {
-      return buildChartData(
-        node.children,
-        leafActualTotals,
-        getActualValue,
-        leafBudgetTotals,
-        getBudgetValue,
-        currentPath
-      );
-    }
+    const values = {
+      budget: resolvers.budget ? resolvers.budget(node, pathKey) : 0,
+      actual: resolvers.actual ? resolvers.actual(node, pathKey) : 0,
+      le:
+        resolvers.le && resolvers.lePresent && resolvers.lePresent(node, pathKey)
+          ? resolvers.le(node, pathKey)
+          : null,
+    };
 
-    const resolvedActualValue =
-      hasActualData && typeof getActualValue === "function"
-        ? getActualValue(node, pathKey)
-        : 0;
-    const resolvedBudgetValue =
-      hasBudgetData && typeof getBudgetValue === "function"
-        ? getBudgetValue(node, pathKey)
-        : 0;
-
-    // Skip if both values are zero
-    if (
-      hasActualData &&
-      hasBudgetData &&
-      resolvedActualValue === 0 &&
-      resolvedBudgetValue === 0
-    ) {
-      return [];
-    }
-
-    // Get children for nested chart with their own children (grandchildren)
-    const childData = hasChildren
-      ? node.children.flatMap((child) => {
-          const childPathKey = `${pathKey}>${child.name}`;
-          const childActual =
-            hasActualData && typeof getActualValue === "function"
-              ? getActualValue(child, childPathKey)
-              : 0;
-          const childBudget =
-            hasBudgetData && typeof getBudgetValue === "function"
-              ? getBudgetValue(child, childPathKey)
-              : 0;
-
-          if (childActual === 0 && childBudget === 0) {
-            return [];
-          }
-
-          // Check if child has its own children (grandchildren)
-          const childHasChildren = Array.isArray(child.children) && child.children.length > 0;
-          const grandchildData = childHasChildren
-            ? child.children.flatMap((grandchild) => {
-                const grandchildPathKey = `${childPathKey}>${grandchild.name}`;
-                const grandchildActual =
-                  hasActualData && typeof getActualValue === "function"
-                    ? getActualValue(grandchild, grandchildPathKey)
-                    : 0;
-                const grandchildBudget =
-                  hasBudgetData && typeof getBudgetValue === "function"
-                    ? getBudgetValue(grandchild, grandchildPathKey)
-                    : 0;
-
-                if (grandchildActual === 0 && grandchildBudget === 0) {
-                  return [];
-                }
-
-                return [
-                  {
-                    name: grandchild.name,
-                    actual: grandchildActual,
-                    budget: grandchildBudget,
-                    variance: grandchildActual - grandchildBudget,
-                  },
-                ];
-              })
-            : [];
-
-          return [
-            {
-              name: child.name,
-              actual: childActual,
-              budget: childBudget,
-              variance: childActual - childBudget,
-              children: grandchildData,
-            },
-          ];
-        })
-      : [];
+    const isTop = path.length === 0;
+    const blank = series.every(
+      ({ key }) => (!isTop || loaded[key]) && (values[key] == null || values[key] === 0)
+    );
+    if (blank) return [];
 
     return [
       {
         name: node.name,
-        actual: resolvedActualValue,
-        budget: resolvedBudgetValue,
-        variance: resolvedActualValue - resolvedBudgetValue,
-        children: childData,
+        ...values,
+        children: buildChartData(node.children, ctx, currentPath),
       },
     ];
   });
@@ -330,6 +262,7 @@ export default function BudgetRealizationGraph() {
   const [selectedCategory, setSelectedCategory] = useState(null);
 
   // ========== Computed Values: Date Range ==========
+  // (defined before the LE hook, which needs both ranges)
   const budgetPeriodRange = useMemo(
     () => computePeriodRange(reportType, selectedMonth, selectedYear),
     [reportType, selectedMonth, selectedYear]
@@ -338,6 +271,19 @@ export default function BudgetRealizationGraph() {
     () => computePeriodRange(reportType, selectedMonth, actualYear),
     [reportType, selectedMonth, actualYear]
   );
+
+  // ---- CR088: the same compare modes as the Realization tab --------------
+  const le = useLatestEstimate({
+    budgetYear: selectedYear,
+    lePeriodRange: budgetPeriodRange,
+    actualPeriodRange,
+    includeTransfers,
+    logTag: "BudgetRealizationGraph",
+  });
+  const { compareProps, leafLeTotals, leafLePresent } = le;
+  const leName = le.leHeader ? le.leHeader.name : "LE";
+  const series = useMemo(() => chartSeries(compareProps), [compareProps]);
+  const variances = useMemo(() => chartVariances(compareProps), [compareProps]);
 
   // ========== Computed Values: Resolvers ==========
   const actualValueResolver = useMemo(
@@ -350,6 +296,15 @@ export default function BudgetRealizationGraph() {
     () =>
       leafBudgetTotals ? createActualValueResolver(leafBudgetTotals) : null,
     [leafBudgetTotals]
+  );
+
+  const leValueResolver = useMemo(
+    () => (leafLeTotals ? createActualValueResolver(leafLeTotals) : null),
+    [leafLeTotals]
+  );
+  const lePresenceResolver = useMemo(
+    () => createLePresenceResolver(leafLePresent),
+    [leafLePresent]
   );
 
   // ========== Computed Values: Category Tree ==========
@@ -366,21 +321,34 @@ export default function BudgetRealizationGraph() {
   );
 
   // ========== Computed Values: Chart Data ==========
-  const chartData = useMemo(() => {
-    return buildChartData(
+  const chartData = useMemo(
+    () =>
+      buildChartData(filteredCategoryTree, {
+        resolvers: {
+          actual: actualValueResolver,
+          budget: budgetValueResolver,
+          le: leValueResolver,
+          lePresent: lePresenceResolver,
+        },
+        loaded: {
+          actual: leafActualTotals !== null,
+          budget: leafBudgetTotals !== null,
+          le: leafLeTotals !== null,
+        },
+        series,
+      }),
+    [
       filteredCategoryTree,
-      leafActualTotals,
       actualValueResolver,
+      budgetValueResolver,
+      leValueResolver,
+      lePresenceResolver,
+      leafActualTotals,
       leafBudgetTotals,
-      budgetValueResolver
-    );
-  }, [
-    filteredCategoryTree,
-    leafActualTotals,
-    actualValueResolver,
-    leafBudgetTotals,
-    budgetValueResolver,
-  ]);
+      leafLeTotals,
+      series,
+    ]
+  );
 
   const hasChartData = chartData.length > 0;
 
@@ -518,44 +486,39 @@ export default function BudgetRealizationGraph() {
               {category.name}
             </h3>
             <div className="budget-graph-category-summary">
-              <div className="budget-graph-summary-item">
-                <span className="budget-graph-summary-label">Budget:</span>
-                <span className="budget-graph-summary-value">
-                  {formatCurrencyValue(category.budget)}
-                </span>
-              </div>
-              <div className="budget-graph-summary-item">
-                <span className="budget-graph-summary-label">Actual:</span>
-                <span className="budget-graph-summary-value">
-                  {formatCurrencyValue(category.actual)}
-                </span>
-              </div>
-              <div className="budget-graph-summary-item">
-                <span className="budget-graph-summary-label">Variance:</span>
-                <span
-                  className={`budget-graph-summary-value ${
-                    category.variance < 0
-                      ? "budget-graph-summary-value--negative"
-                      : ""
-                  }`}
-                >
-                  {formatCurrencyValue(category.variance)}
-                </span>
-              </div>
+              {series.map((sub) => (
+                <div key={sub.key} className="budget-graph-summary-item">
+                  <span className="budget-graph-summary-label">
+                    {sub.key === "le" ? leName : sub.label}:
+                  </span>
+                  <span className="budget-graph-summary-value">
+                    {formatCurrencyValue(category[sub.key])}
+                  </span>
+                </div>
+              ))}
+              {variances.map((v) => {
+                const value = varianceOf(category, v);
+                return (
+                  <div key={v.key} className="budget-graph-summary-item">
+                    <span className="budget-graph-summary-label">{v.label}:</span>
+                    <span
+                      className={`budget-graph-summary-value ${
+                        value < 0 ? "budget-graph-summary-value--negative" : ""
+                      }`}
+                    >
+                      {formatCurrencyValue(value)}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
 
             {category.children && category.children.length > 0 && (
               <div className="budget-graph-bars">
                 {category.children.map((child, childIndex) => {
                   const maxValue = Math.max(
-                    Math.abs(child.budget),
-                    Math.abs(child.actual)
+                    ...series.map(({ key }) => Math.abs(child[key] ?? 0))
                   );
-                  const budgetWidth =
-                    maxValue > 0 ? (Math.abs(child.budget) / maxValue) * 100 : 0;
-                  const actualWidth =
-                    maxValue > 0 ? (Math.abs(child.actual) / maxValue) * 100 : 0;
-
                   const hasSubcategories = child.children && child.children.length > 0;
 
                   return (
@@ -570,50 +533,35 @@ export default function BudgetRealizationGraph() {
                         {child.name}
                       </div>
                       <div className="budget-graph-bars-wrapper">
-                        <div className="budget-graph-bar-row">
-                          <span className="budget-graph-bar-type">Budget</span>
-                          <div className="budget-graph-bar-container">
-                            <div
-                              className="budget-graph-bar budget-graph-bar--budget"
-                              style={{ width: `${budgetWidth}%` }}
-                              onMouseEnter={(e) => {
-                                const rect = e.target.getBoundingClientRect();
-                                setTooltip({
-                                  x: rect.left + rect.width / 2,
-                                  y: rect.top,
-                                  label: `${child.name} - Budget`,
-                                  value: child.budget,
-                                });
-                              }}
-                              onMouseLeave={() => setTooltip(null)}
-                            />
-                          </div>
-                          <span className="budget-graph-bar-value">
-                            {formatCurrencyShort(child.budget)}
-                          </span>
-                        </div>
-                        <div className="budget-graph-bar-row">
-                          <span className="budget-graph-bar-type">Actual</span>
-                          <div className="budget-graph-bar-container">
-                            <div
-                              className="budget-graph-bar budget-graph-bar--actual"
-                              style={{ width: `${actualWidth}%` }}
-                              onMouseEnter={(e) => {
-                                const rect = e.target.getBoundingClientRect();
-                                setTooltip({
-                                  x: rect.left + rect.width / 2,
-                                  y: rect.top,
-                                  label: `${child.name} - Actual`,
-                                  value: child.actual,
-                                });
-                              }}
-                              onMouseLeave={() => setTooltip(null)}
-                            />
-                          </div>
-                          <span className="budget-graph-bar-value">
-                            {formatCurrencyShort(child.actual)}
-                          </span>
-                        </div>
+                        {series.map((sub) => {
+                          const width =
+                            maxValue > 0 ? (Math.abs(child[sub.key] ?? 0) / maxValue) * 100 : 0;
+                          const subLabel = sub.key === "le" ? leName : sub.label;
+                          return (
+                            <div key={sub.key} className="budget-graph-bar-row">
+                              <span className="budget-graph-bar-type">{sub.label}</span>
+                              <div className="budget-graph-bar-container">
+                                <div
+                                  className={`budget-graph-bar budget-graph-bar--${sub.key}`}
+                                  style={{ width: `${width}%` }}
+                                  onMouseEnter={(e) => {
+                                    const rect = e.target.getBoundingClientRect();
+                                    setTooltip({
+                                      x: rect.left + rect.width / 2,
+                                      y: rect.top,
+                                      label: `${child.name} - ${subLabel}`,
+                                      value: child[sub.key],
+                                    });
+                                  }}
+                                  onMouseLeave={() => setTooltip(null)}
+                                />
+                              </div>
+                              <span className="budget-graph-bar-value">
+                                {formatCurrencyShort(child[sub.key])}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   );
@@ -657,10 +605,16 @@ export default function BudgetRealizationGraph() {
             <div className="report-toolbar-header__text">
               <h1 className="report-toolbar-header__title">Budget Realization Chart</h1>
               <p className="report-toolbar-header__description">
-                Visual comparison of budgeted vs actual performance by category.
+                Visual comparison of budget, actual and latest estimate by category.
               </p>
             </div>
           </div>
+          {compareProps.leAvailable && (
+            <div className="budget-graph-compare">
+              <LeCompareControl compareProps={compareProps} />
+            </div>
+          )}
+          <LeCompareNotes compareProps={compareProps} />
           {renderChart()}
         </div>
         <div className="budget-realization-sidebar">
@@ -685,6 +639,9 @@ export default function BudgetRealizationGraph() {
       </main>
       <BudgetGraphModal
         category={selectedCategory}
+        series={series}
+        variances={variances}
+        leName={leName}
         onClose={handleModalClose}
         onCategoryClick={handleCategoryClick}
       />
