@@ -1,8 +1,10 @@
-import { useMemo, useState, useEffect } from "react";
-import BudgetBalancePanel, {
+import { useCallback, useMemo, useState, useEffect } from "react";
+import PeriodSelector from "../components/PeriodSelector/PeriodSelector.jsx";
+import {
   MONTH_OPTIONS,
   YEAR_OPTIONS,
-} from "../features/Budgets/BudgetBalancePanel.jsx";
+  BUDGET_YEAR_OPTIONS,
+} from "../features/BudgetEntry/utils/budgetInputUtils.js";
 import BudgetGraphModal from "../features/Budgets/BudgetGraphModal.jsx";
 import Rest from "../js/rest.js";
 import { useCoa } from "../hooks/useCoa.js";
@@ -76,43 +78,11 @@ const buildLeafActualTotalsMap = (nodes, map = new Map()) => {
   return map;
 };
 
-const computePeriodRange = (reportType, selectedMonth, selectedYear) => {
-  const yearNumber = Number.parseInt(selectedYear, 10);
-  if (!Number.isFinite(yearNumber)) {
-    return null;
-  }
-
-  const normalizedReportType =
-    typeof reportType === "string" ? reportType : "month";
-  let startMonth = 1;
-  let endMonth = 12;
-
-  if (normalizedReportType === "month") {
-    const monthNumber = Number.parseInt(selectedMonth, 10);
-    if (!Number.isFinite(monthNumber)) {
-      return null;
-    }
-    startMonth = monthNumber;
-    endMonth = monthNumber;
-  } else if (normalizedReportType === "ytd") {
-    const monthNumber = Number.parseInt(selectedMonth, 10);
-    if (!Number.isFinite(monthNumber)) {
-      return null;
-    }
-    startMonth = 1;
-    endMonth = Math.min(Math.max(monthNumber, 1), 12);
-  } else if (normalizedReportType === "full-year") {
-    startMonth = 1;
-    endMonth = 12;
-  } else {
-    const monthNumber = Number.parseInt(selectedMonth, 10);
-    if (!Number.isFinite(monthNumber)) {
-      return null;
-    }
-    startMonth = monthNumber;
-    endMonth = monthNumber;
-  }
-
+const computePeriodRange = (fromMonth, toMonth, year) => {
+  const yearNumber = Number.parseInt(year, 10);
+  const startMonth = Number.parseInt(fromMonth, 10);
+  const endMonth = Number.parseInt(toMonth, 10);
+  if (![yearNumber, startMonth, endMonth].every(Number.isFinite)) return null;
   const start = new Date(yearNumber, startMonth - 1, 1);
   const end = new Date(yearNumber, endMonth, 0);
   return { start, end };
@@ -246,12 +216,13 @@ export default function BudgetRealizationGraph() {
   const { plTree } = useCoa();
 
   // ========== State: Report Parameters ==========
-  const [reportType, setReportType] = useState("month");
-  const [selectedMonth, setSelectedMonth] = useState(
-    MONTH_OPTIONS[new Date().getMonth()].value
-  );
-  const [selectedYear, setSelectedYear] = useState(YEAR_OPTIONS[3]);
-  const [actualYear, setActualYear] = useState(YEAR_OPTIONS[3]);
+  // The same preset period picker as the Realization and Variances tabs; it
+  // replaced a sidebar of Report type / Budget year / Actual year / Month.
+  const currentMonthValue = MONTH_OPTIONS[new Date().getMonth()].value;
+  const [fromMonth, setFromMonth] = useState(currentMonthValue);
+  const [toMonth, setToMonth] = useState(currentMonthValue);
+  const [actualYear, setActualYear] = useState(YEAR_OPTIONS[0]);
+  const [budgetYear, setBudgetYear] = useState(YEAR_OPTIONS[0]);
   const [includeUnrealized, setIncludeUnrealized] = useState(false);
   const [includeTransfers, setIncludeTransfers] = useState(false);
 
@@ -264,17 +235,27 @@ export default function BudgetRealizationGraph() {
   // ========== Computed Values: Date Range ==========
   // (defined before the LE hook, which needs both ranges)
   const budgetPeriodRange = useMemo(
-    () => computePeriodRange(reportType, selectedMonth, selectedYear),
-    [reportType, selectedMonth, selectedYear]
+    () => computePeriodRange(fromMonth, toMonth, budgetYear),
+    [fromMonth, toMonth, budgetYear]
   );
   const actualPeriodRange = useMemo(
-    () => computePeriodRange(reportType, selectedMonth, actualYear),
-    [reportType, selectedMonth, actualYear]
+    () => computePeriodRange(fromMonth, toMonth, actualYear),
+    [fromMonth, toMonth, actualYear]
+  );
+
+  const handlePeriodChange = useCallback(
+    ({ fromMonth, toMonth, actualYear, budgetYear }) => {
+      setFromMonth(fromMonth);
+      setToMonth(toMonth);
+      setActualYear(actualYear);
+      setBudgetYear(budgetYear);
+    },
+    []
   );
 
   // ---- CR088: the same compare modes as the Realization tab --------------
   const le = useLatestEstimate({
-    budgetYear: selectedYear,
+    budgetYear,
     lePeriodRange: budgetPeriodRange,
     actualPeriodRange,
     includeTransfers,
@@ -593,7 +574,7 @@ export default function BudgetRealizationGraph() {
 
   return (
     <>
-      <main className="budget-realization-main">
+      <main className="budget-realization-main budget-realization-main--single">
         <div className="budget-graph-content">
           {/* CR088 P6: the LAST rival title treatment — `budget-graph-title` at
               28px, found by sweeping all ELEVEN report pages rather than the
@@ -609,32 +590,47 @@ export default function BudgetRealizationGraph() {
               </p>
             </div>
           </div>
-          {compareProps.leAvailable && (
-            <div className="budget-graph-compare">
+          <section className="realization-toolbar" aria-label="Report filters">
+            <div className="realization-toolbar__group realization-toolbar__group--selectors">
+              <PeriodSelector
+                fromMonth={fromMonth}
+                toMonth={toMonth}
+                actualYear={actualYear}
+                budgetYear={budgetYear}
+                monthOptions={MONTH_OPTIONS}
+                yearOptions={YEAR_OPTIONS}
+                budgetYearOptions={BUDGET_YEAR_OPTIONS}
+                onChange={handlePeriodChange}
+                defaultPreset="this-month"
+                id="chart-period"
+              />
+            </div>
+            <div className="realization-toolbar__group realization-toolbar__group--toggles">
+              <label className="realization-toolbar__toggle" htmlFor="chart-include-unrealized">
+                <input
+                  id="chart-include-unrealized"
+                  type="checkbox"
+                  className="realization-toolbar__checkbox"
+                  checked={includeUnrealized}
+                  onChange={(event) => setIncludeUnrealized(event.target.checked)}
+                />
+                <span className="realization-toolbar__toggle-text">Unrealized</span>
+              </label>
+              <label className="realization-toolbar__toggle" htmlFor="chart-include-transfers">
+                <input
+                  id="chart-include-transfers"
+                  type="checkbox"
+                  className="realization-toolbar__checkbox"
+                  checked={includeTransfers}
+                  onChange={(event) => setIncludeTransfers(event.target.checked)}
+                />
+                <span className="realization-toolbar__toggle-text">Transfers</span>
+              </label>
               <LeCompareControl compareProps={compareProps} />
             </div>
-          )}
+          </section>
           <LeCompareNotes compareProps={compareProps} />
           {renderChart()}
-        </div>
-        <div className="budget-realization-sidebar">
-          <BudgetBalancePanel
-            includeUnrealized={includeUnrealized}
-            onIncludeUnrealizedChange={setIncludeUnrealized}
-            includeTransfers={includeTransfers}
-            onIncludeTransfersChange={setIncludeTransfers}
-            reportType={reportType}
-            onReportTypeChange={setReportType}
-            year={selectedYear}
-            actualYear={actualYear}
-            onYearChange={setSelectedYear}
-            onActualYearChange={setActualYear}
-            month={selectedMonth}
-            onMonthChange={setSelectedMonth}
-            isFullyCollapsed={false}
-            onToggleCollapseAll={() => {}}
-            hasCollapsiblePaths={false}
-          />
         </div>
       </main>
       <BudgetGraphModal

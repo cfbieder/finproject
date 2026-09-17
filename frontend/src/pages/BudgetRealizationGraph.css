@@ -4,8 +4,9 @@
   max-height: calc(100vh - 80px);
 }
 
-.budget-graph-compare {
-  margin: 0.5rem 0 1rem;
+/* The shared period toolbar sits directly above the first section card. */
+.budget-graph-content > .realization-toolbar {
+  margin-bottom: 1.5rem;
 }
 
 .budget-graph-empty {

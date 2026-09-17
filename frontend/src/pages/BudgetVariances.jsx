@@ -398,7 +398,14 @@ export default function BudgetVariances() {
         {/* Toolbar */}
         <section className="realization-toolbar" aria-label="Report filters">
           <div className="realization-toolbar__group realization-toolbar__group--selectors">
+            {/* Controlled: left uncontrolled, the selector's own state started at
+                January–December, so "This Month" was highlighted over a summary
+                line naming the whole year while the table showed this month. */}
             <PeriodSelector
+              fromMonth={periodValues.fromMonth}
+              toMonth={periodValues.toMonth}
+              actualYear={periodValues.actualYear}
+              budgetYear={periodValues.budgetYear}
               onChange={handlePeriodChange}
               defaultPreset="this-month"
               hideBudgetYear
