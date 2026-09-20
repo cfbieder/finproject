@@ -1508,7 +1508,7 @@ structural guarantee.** Migration **050** records Fintable re-serving Revolut hi
 `tx_` ids when that wallet was rebuilt — so `id` has moved before, on the very account these two
 `previous_ext_id` rows sit on. The content guard, not the choice of key, is what actually covers that.
 
-## 22.13 The guard claimed backwards — and ate a real charge (2026-09-20, v3.65.3)
+## 22.13 The guard claimed backwards — and ate a real charge (2026-09-20, v3.66.0)
 
 **Caixa EUR carried a EUR 30.25 drift from 2026-09-09 and it was the content guard's own doing.**
 

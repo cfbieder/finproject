@@ -90,7 +90,7 @@ yet a case for a button.**
 
 - **Not a duplicate detector.** CR059 §22 already owns that, in five layers. This reports what the
   dedupe layers *did*, which is a different question and the one nobody can currently ask.
-- **Not a new guard in the promote path.** The fix for §22.13 is shipped (v3.65.3). This is
+- **Not a new guard in the promote path.** The fix for §22.13 is shipped (v3.66.0). This is
   instrumentation, and instrumentation that can only read.
 - **Not a red number.** See §2. Every check ships with its known-benign classes already classified,
   or it joins the list of warnings people learn to scroll past.
