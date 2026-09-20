@@ -84,6 +84,16 @@ tenth (§22.9) is the first where the restatement is of a **measurement**, not t
 [roadmap §3](project-roadmap.md#3-known-issues) is canonical; the closed narrative that sat here
 (CR059 §22, #19–#21, #12, #23, the ocr-llm ack) moved to
 [status-log_2026-09-14](../archive/status-log_2026-09-14.md). Worth knowing at session start:
+- 🔴 **A Wise connection's bank access has EXPIRED** (2026-09-20) — the `SessionStart` hook has
+  been saying so. `WISE - EUR` carries **EUR 302.95** of drift. **Owner:** Settings → Bank Feed Setup
+  → Re-authorise, **then re-check the mapping** — [CR091](../cr/cr-091-reconnect-that-works.md) §U3 is
+  the case where a reconnect re-pointed a connection at a different account.
+- 🟡 **PKO's sync is FAILING** (last good 2026-09-18), so its feed balance is frozen and PKO's
+  **180.00 PLN** drift **cannot be adjudicated** until it syncs. Do not calibrate it away.
+- 🟡 **The feed can revise a date (or an amount) AFTER promote and the ledger keeps the old one** —
+  `staging.upsert` updates staging and never resets `promoted_transaction_id`. One live date instance
+  (PKO), **zero amount instances — but that path is permanent drift no re-run clears**.
+  [CR094](../cr/cr-094-promote-divergence-gate.md) is the gate; it is a DRAFT, unreviewed.
 - **#29 FIXED v3.61.7** — the feed FLIPS two FDIC sweeps between a ticker and a numeric id; migration
   081 merged them. ⚠️ A **third** label for the same deposit would still mint a new twin.
 - ✅ **CR059's Sheet path is retired** (2026-09-15, bank-feed `615b2bb`, [§26](../cr/cr-059-fintable-api-ingestion.md)):

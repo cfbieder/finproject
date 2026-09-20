@@ -10,6 +10,26 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.1 Open / In-Progress
 
+<a id="cr094"></a>
+- **CR094 — The promote divergence gate: name the cause, not just the drift. 📋 *DRAFT
+  2026-09-20 — not yet reviewed* (pass 1 `cr-technical-reviewer` + pass 2 `cr-signoff-pm` pending).**
+  Full spec: [cr-094-promote-divergence-gate.md](../cr/cr-094-promote-divergence-gate.md).
+  Born from [CR059 §22.13](../cr/cr-059-fintable-api-ingestion.md): **the drift was visible for
+  twelve days and its cause was not**, though the cause sat in `bankfeed_staging` the whole time,
+  readable by one query. CR059 §22 recorded `promoted_transaction_id` deliberately *"so a wrong skip
+  is auditable"* — and **nothing ever read it back.**
+  - **P0 — a negate-aware script, no UI.** Three checks: staging rows collapsed onto one ledger row,
+    amount divergence after `feed_negate_tx`, date divergence. ⚠️ **The raw amount-mismatch count is
+    250 and it is a lie** — the negate convention flags every Chase-card row; apply the mapping's own
+    sign and it falls to **2**. A gate that ships a red number nobody reads is the CR065 unpaired-leg
+    failure repeated.
+  - **P1 — surface it per account** beside the drift it explains, on CR065's unpaired-leg footing
+    (reported on its own terms, never folded into drift). **P2 — a one-click repair — deliberately
+    deferred:** twice in 2,392 rows is not yet a case for a button that writes to the ledger.
+  - **Recommendation in the CR's own open questions: P0 only**, and revisit P1 the next time a
+    collapse is found.
+
+
 <a id="cr093"></a>
 - **CR093 — Portfolio X-ray. ✅ *COMPLETE*: exposure + sector look-through v3.55.0 (migration 077), the manual sector picker v3.55.1, the fixed-income X-ray v3.56.0 (migration 078), the security detail chart v3.57.0, its yield row v3.57.1 (migration 079), P3 income v3.58.0, the cash rate v3.60.0 (migration 080), and P2 risk v3.61.0. ✅ COMPLETE.**
   Full spec: [cr-093-portfolio-xray.md](../cr/cr-093-portfolio-xray.md). Owner-asked: analysis
@@ -1794,6 +1814,31 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
 ---
 
 ## 3. Known Issues
+
+- [ ] 🔴 **A Wise bank connection's access has EXPIRED** *(found 2026-09-20; the `SessionStart`
+  hook has been printing it)*. `status_text`: *"Bank access has expired. Please reconnect this
+  bank."* Balances were still arriving on 2026-09-20, so it has not gone visibly stale yet — it
+  will. `WISE - EUR` carries **EUR 302.95** of drift and `Wise - USD` **−1.85**. **Owner action:**
+  Settings → Bank Feed Setup → Re-authorise, then **re-check the mapping** —
+  [CR091](../cr/cr-091-reconnect-that-works.md) §U3 is precisely the case where a reconnect
+  re-pointed a connection at a different account, caught only by a hand-taken pre-snapshot.
+- [ ] 🟡 **`PKO Bank Polski` reports "Last sync failed"** *(found 2026-09-20)*, last good
+  2026-09-18. Its feed balance is **frozen** at 102,178.48 for 09-19 and 09-20, so PKO's standing
+  **180.00 PLN** drift **cannot be adjudicated until the sync is repaired** — the only independent
+  figure is stale. Re-measure after the next successful sync rather than calibrating it away.
+  ⚠️ Not the [§22.13](../cr/cr-059-fintable-api-ingestion.md) collapse shape: every PKO staging row
+  in the window promoted 1:1.
+- [ ] 🟡 **The feed can revise a transaction's DATE after promote, and the ledger keeps the old
+  one** *(found 2026-09-20 — [CR094](../cr/cr-094-promote-divergence-gate.md))*. `staging.upsert`
+  does `ON CONFLICT DO UPDATE SET transaction_date = EXCLUDED.transaction_date` and deliberately
+  does **not** reset `promoted_transaction_id`, so staging takes the correction and the promoted row
+  does not. Live instance: PKO staging **144193** reads 2026-09-16, its ledger row **2710945** reads
+  2026-09-14. **No balance effect** — `computed_balance` sums amounts regardless of date — but it
+  moves a transaction between periods, and across a **month boundary** that moves a P&L figure.
+  ⚠️ **The same mechanism covers `amount`, where it would be permanent drift no re-run clears.
+  Zero instances today; the mechanism is live.** Measured DB-wide: 14 date divergences (13 are the
+  documented Chase/Akoya auth-vs-posted shift) and 2 amount divergences, **both deliberate owner
+  edits** rather than defects.
 
 - [x] **FIXED 2026-09-06. 🟡 The only caller that sends a `routing` preference never checked
   whether it was applied — and we had already written the rule down**
