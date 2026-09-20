@@ -566,6 +566,27 @@ async function promote() {
             [r.id, ins.rows[0].id]
           );
           inserted++;
+          // CLAIM WHAT THIS BATCH JUST CREATED. The content guard above claims a
+          // candidate so two staged rows cannot consume one ledger row — but it
+          // only ever claimed rows it SKIPPED against, never rows it inserted. So
+          // its invariant held for `N held + M incoming` and broke for the case
+          // with nothing held: of two identical rows arriving together under two
+          // ids, the first inserted and the second matched the row the first had
+          // just made, one transaction down and nothing on screen.
+          //
+          // Caixa EUR, 2026-09-08: CaixaBank charged `CERT. NO RESIDENCIA` twice,
+          // the feed delivered both (tx_01M20HN8F0W0E9VN5A0PP5DG9M and
+          // tx_01M20HN8EWZGCKH1E7E848AA64), and fin booked one — a EUR 30.25 drift
+          // that then sat on the reconcile page every day, unfixable by re-running
+          // promote, because on a second pass the twin is HELD and the guard skips
+          // it again for the reason it was built to.
+          //
+          // This claims forward without weakening re-delivery cover: a row held
+          // from an EARLIER run is still matchable, so §22's shape stays closed.
+          // What changes is only the same-batch case, and it changes it in the
+          // direction §22.7 chose on purpose — ambiguity resolves toward a VISIBLE
+          // duplicate, never a silent drop. The old behaviour inverted that.
+          contentClaimed.push(ins.rows[0].id);
 
           // CR032: inject the missing core-position counter-leg so the sweep
           // self-nets and never drifts the reconciled balance. source='auto-offset'

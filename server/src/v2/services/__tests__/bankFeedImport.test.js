@@ -645,6 +645,54 @@ dbDescribe('refreshBankFeedV2.promote (DB)', () => {
     expect(new Set(rows.map((x) => x.id)).size).toBe(3);
   });
 
+  // REGRESSION: the case the two above do not reach. Both seed HELD rows first,
+  // so they only ever exercise the guard against rows a PREVIOUS run inserted.
+  // With nothing held, the first staged row inserts and the second used to match
+  // what the first had just made — because `contentClaimed` was appended only on
+  // the skip branch, never on the insert.
+  //
+  // Live shape, Caixa EUR 2026-09-08: CaixaBank charged `CERT. NO RESIDENCIA`
+  // twice, the feed delivered both under two ULIDs in one batch, fin booked one,
+  // and the account carried a EUR 30.25 drift from that day on. Two staging rows
+  // pointed at a single ledger row, so promote could never reconsider it.
+  test('REGRESSION: 0 held + 2 identical incoming in ONE batch → both land', async () => {
+    await seedMapping(UUID_OK, false);
+    const desc = 'CERT. NO RESIDENCIA';
+    await stagedLike(ULID(11), { desc, amount: -30.25 });
+    await stagedLike(ULID(12), { desc, amount: -30.25 });
+
+    await orchestrator.promote();
+
+    const rows = await ledgerRows(desc);
+    expect(rows).toHaveLength(2);
+    // Each staged row owns its OWN ledger row — the collapse showed up in prod as
+    // two staging rows sharing one promoted_transaction_id, so assert that too.
+    expect(new Set(rows.map((x) => x.bank_feed_external_id)).size).toBe(2);
+    const claimed = (await db.query(
+      `SELECT promoted_transaction_id FROM bankfeed_staging WHERE external_id = ANY($1::text[])`,
+      [[ULID(11), ULID(12)]]
+    )).rows.map((x) => String(x.promoted_transaction_id));
+    expect(new Set(claimed).size).toBe(2);
+  });
+
+  // The other half of the same invariant: claiming forward must not blind the
+  // guard to rows an EARLIER run inserted, or CR059 §22 reopens.
+  test('and a later re-delivery of those two is still skipped — §22 stays closed', async () => {
+    await seedMapping(UUID_OK, false);
+    const desc = 'CERT. NO RESIDENCIA REDELIVERED';
+    await stagedLike(ULID(13), { desc, amount: -30.25 });
+    await stagedLike(ULID(14), { desc, amount: -30.25 });
+    await orchestrator.promote();
+    expect(await ledgerRows(desc)).toHaveLength(2);
+
+    await stagedLike(ULID(15), { desc, amount: -30.25 });   // same events, new ids
+    await stagedLike(ULID(16), { desc, amount: -30.25 });
+    const sync = await orchestrator.promote();
+
+    expect(await ledgerRows(desc)).toHaveLength(2);         // still two, not four
+    expect(sync.skippedDupContent).toBeGreaterThanOrEqual(2);
+  });
+
   test('a different date is NOT deduped — the match is exact-date by design', async () => {
     // Tolerance belongs to bank-feed's boundaryCarryover, which matches against
     // its own store. Widening it here would trade a visible duplicate for a

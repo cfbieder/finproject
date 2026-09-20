@@ -1508,6 +1508,50 @@ structural guarantee.** Migration **050** records Fintable re-serving Revolut hi
 `tx_` ids when that wallet was rebuilt — so `id` has moved before, on the very account these two
 `previous_ext_id` rows sit on. The content guard, not the choice of key, is what actually covers that.
 
+## 22.13 The guard claimed backwards — and ate a real charge (2026-09-20, v3.65.3)
+
+**Caixa EUR carried a EUR 30.25 drift from 2026-09-09 and it was the content guard's own doing.**
+
+CaixaBank charged `CERT. NO RESIDENCIA` **twice** on 2026-09-08. The feed delivered both, in one
+batch, under two distinct ULIDs (`tx_01M20HN8F0W0E9VN5A0PP5DG9M`, `tx_01M20HN8EWZGCKH1E7E848AA64`).
+Fin booked **one**. Both staging rows ended up pointing at the same ledger row.
+
+**The claiming matcher only ever claimed backwards.** §22.7 built the guard to *claim* a candidate
+rather than test existence, precisely so two staged rows cannot consume one ledger row — but
+`contentClaimed.push()` sat **only on the skip branch**. A row the same batch had just INSERTED was
+never claimed, so of two identical incoming rows the first inserted and the second matched what the
+first had just made. The invariant held for `N held + M incoming` and was false for `0 held + M`.
+
+**The shipped tests could not have caught it.** All three interchangeable-row cases seed HELD ledger
+rows first (`2 held + 2`, `2 held + 3`), so every one of them exercises the guard against a
+*previous* run's inserts. Nothing covered two identical rows arriving together with nothing held —
+which is the ordinary shape of a bank charging the same fee twice in a day.
+
+**It inverted the bias the guard was built on.** §22.7's stated rule is that ambiguity resolves
+toward a **visible duplicate**, never a silent drop, because a false match loses real money with
+nothing on screen. This did the opposite, and then made itself unfixable by re-run: on a second pass
+the twin is *held*, so the guard skips it again for the reason it exists.
+
+**Fix (one line, `refreshBankFeedV2.js`):** push the inserted id onto `contentClaimed`. Re-delivery
+cover is untouched — a row held from an earlier run is still matchable, so §22's shape stays closed
+— and a regression test asserts both halves, falsified against the unfixed code first (2 in, 1 out).
+
+**Blast radius, measured DB-wide:** staging rows sharing one `promoted_transaction_id` within one
+batch — **two groups**. This one, and LUXURY CARD `FUNCTION HEALTH` +19.00 on 2026-06-25, which is a
+*different* mechanism (a manual `man_` upload through `findPsMatch`'s ±1-day window, not the
+exact-date guard) on an account that currently reconciles at 0.00. Not conflated, not yet chased.
+
+**Ledger repaired on prod** the same day: the dropped charge booked under the feed id that was
+delivered and never used, `accepted=FALSE` so it surfaces in review as promote would have, category
+pre-set from its twin (`Taxes SP`). Staging row 133822 re-pointed onto its own ledger row. Caixa EUR
+drift **30.25 → 0.00**.
+
+**The lesson is the same one §22 keeps teaching in a new place.** Every guard here is built against
+*re-delivery* — the same event arriving twice across runs. None of them was built against the
+ordinary case of one event genuinely happening twice inside one batch, and the difference between
+those two is invisible to a matcher that only looks at content. What distinguished them was
+available and discarded: **two upstream ids were delivered, and we had both.**
+
 ## 23. Customizable descriptions — the upstream will fix our noise, and we should decline (2026-08-20)
 
 Fintable announced per-account **`description_parts`**: tick and reorder the pieces they join into
