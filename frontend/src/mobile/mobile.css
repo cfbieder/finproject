@@ -701,6 +701,7 @@
 /* ── Refresh PS list ── */
 .m-refresh-bar {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 16px;
 }
@@ -867,6 +868,47 @@
   pointer-events: none;
 }
 
+/* ── CR065 no-offset badge (Refresh Feeds review rows) ──
+   Lives at the head of .m-tx__meta, not inside .m-tx__desc: that line is
+   nowrap + ellipsis, so a trailing badge disappears on long descriptions. */
+.m-tx__flag {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--warning-subtle);
+  color: var(--warning-strong);
+  border: 1px solid var(--warning-lighter);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Body of the accept-without-offset confirmation sheet. */
+.m-warn-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  color: var(--ink);
+}
+
+.m-warn-body svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--warning-strong);
+}
+
+.m-warn-body p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
 /* ── Tappable category pill on its own row (Refresh PS) ── */
 .m-tx__cat {
   flex: 1 1 auto;
@@ -893,10 +935,15 @@
   background: var(--primary-lighter);
 }
 
+/* Uncategorized is a prompt, not an error — and on this page red already
+   means "negative amount". A red pill on every uncategorized row spends that
+   signal on something that is not about sign. Muted, still obviously a
+   control, still the row's only tappable pill. */
 .m-tx__cat--missing {
-  color: var(--danger);
-  background: var(--danger-subtle);
-  border-color: var(--danger-lighter);
+  color: var(--ink-secondary);
+  background: var(--bg-tertiary);
+  border-color: var(--border);
+  font-weight: 500;
 }
 
 .m-tx__cat:disabled {
