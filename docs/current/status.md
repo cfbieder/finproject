@@ -8,88 +8,45 @@
 > the failure table and the infrastructure block into their own files; **405 → 238 on 2026-09-05**,
 > by archiving twelve *Next* bullets that were already finished; **250 on 2026-09-14**, cut by
 > archiving the v3.61 headline write-ups, the closed Known-issues narrative and three shipped *Next*
-> bullets): overrun = restatement the CR index and roadmap already own, and it is where stale facts
-> collect. Each cut has come from MOVING something that changes on a different clock, never from
-> deleting what is true. ⚠️ **Still over budget** — the next cut is *Current phase* moving to its own
-> file (it changes on a regenerate, not on a release).
+> bullets; **167 → 113 on 2026-09-23**, by moving *Current phase* to
+> [current-phase.md](current-phase.md) — the cut this note had been naming): overrun = restatement
+> the CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
+> MOVING something that changes on a different clock, never from deleting what is true.
+> ⚠️ **Still over budget at 113.** The remaining overrun is the *Live version* paragraph, which is a
+> release log written in one line — the next cut is keeping only the current release's headline here
+> and letting [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first) own the rest,
+> since it already does.
 
 **Last updated:** 2026-09-23 · **Live version:** **v3.66.1** (see `VERSION` / git tags) — **v3.66.1: an edit no longer throws the transaction list back to the top** — the post-save reload unmounted the rows, so the scroller's height collapsed and the browser clamped its offset to 0; the table now stays mounted through a refresh. Both surfaces measured in a real browser with the fix reverted first — jsdom cannot measure a scroll offset ([roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first)). **v3.66.0: fin's own dedupe ate a real charge** — CaixaBank billed `CERT. NO RESIDENCIA` twice on 2026-09-08, the feed delivered both, fin booked one, and Caixa EUR carried a EUR 30.25 drift no re-run could clear. CR059 §22.7's content guard *claims* a candidate so two staged rows cannot consume one ledger row — but it claimed **only backwards**, never a row the same batch had just inserted, so its invariant was false for *0 held + N incoming*. All three shipped interchangeable-row tests seed HELD rows first, so none could see it. One line, two falsified regression tests, prod ledger repaired (**30.25 → 0.00**) ([§22.13](../cr/cr-059-fintable-api-ingestion.md)). **v3.65.2: on every report table, red means negative and nothing else** — a negative was ink on even rows and on totals; rows now get a light zebra ground instead. **v3.65.1: the Chart tab takes the shared preset period picker**, and Variances' period summary stops naming the whole year over a single month. **v3.65.0: Budget Analysis's Chart and Variances tabs compare against the LE too** — the Realization tab's `Act vs Bud` · `Act vs LE` · `LE vs Bud` (· `All` on Chart; Variances ranks by one pair) with the same cut and unelapsed-month warnings, now one shared hook ([roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first)). **v3.64.0: the last unpreviewed write, and one money contract** ([CR087](../cr/cr-087-money-legibility.md) P1 completes) — `/manual-calibration`'s Reset previewed figures the **browser** computed while the server computed the write; it now previews server-side and refuses an apply whose figures moved. `<Money>` settles null → `—` vs zero, pins the locale and always states the currency, on this CR's two surfaces. **v3.63.0: the live-quote overlay** ([CR090](../cr/cr-090-investments-section.md) P2, which COMPLETES it) — a panel beside each account's custodian total, never a revaluation: **47.7% of value is quotable**, quotes refresh on a schedule and a button, and a refused or missing quote is named rather than read as "didn't move". **v3.62.4: one open Latest Estimate per year** — the current month's LE stays a draft all month; a second draft is refused, and the month-end order is finalise → FX recalculate → cut ([runbook §7](../guides/month-end-reconcile.md)). **v3.62.3: the Budget Worksheet gains Budget Analysis's Unrealized and Transfers toggles**, off by default, so their actuals agree. **v3.62.2: the Budget Worksheet counts P&L budget only too** (`/budget/summary`). **v3.62.1: a budget is P&L only** — the LE drops the uncategorised memo line and L6, and gains L4 ([CR083](../cr/cr-083-budget-latest-estimate.md)). **v3.62.0: the Latest Estimate can be finalised, re-cut and checked for drift** ([CR083](../cr/cr-083-budget-latest-estimate.md), migration 082) — ⚠️ FX recalculate for 2026 answers 409 while a 2026 LE is a draft — LE-08-26 is final; LE-09-26 still is. **v3.61.7: the FDIC sweep the feed labels two ways is one security again** (migration 081, [#29](project-roadmap.md#3-known-issues)) — its 1.82% rate covers the whole balance and the Investments page lists it once. **v3.61.6: four wrong-number fixes**: the module editor dropped a disposal's selling cost on load (any save wrote NULL); Review's *Add cash transfer* wiped a module's whole Invest/Dispose schedule; the balance report valued an unconvertible currency at 1:1 (now throws); a budget copy into an occupied year doubled every budget figure (now 409). ✅ **Prod corrected and regenerated 2026-09-14 12:45Z** — the 2062 net-asset figures below predate it. Earlier v3.61.x headlines (CR091 feed health; CR093's FDIC finding — **Wells Fargo $48,380 over the insured limit**) are in [status-log_2026-09-14](../archive/status-log_2026-09-14.md) and [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
 
 ## Current phase
-**The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
-valuation + N first-class **streams***. Shipped since 2026-08-05 and not restated here —
-[CR070](../cr/cr-070-module-inputs-by-type.md)+[CR071](../cr/cr-071-forecast-numbers-vs-intent.md)
-· [CR072](../cr/cr-072-valuation-module-inputs.md) (**the balance-sheet form is CLOSED**) ·
-[CR073](../cr/cr-073-two-recurrence-guards.md) ·
-[CR074](../cr/cr-074-dismissible-cash-health-warnings.md) (migration 061 — a dismissal **expires
-when the warning's figures change**) · [CR075](../cr/cr-075-base-year-is-the-budget.md) (**year −2
-is ACTUAL, year −1 is the BUDGET**, read from `budget_entries`; one budget ⇒ one base year).
-
-
-⚠️ **Its durable lesson is a DEFECT CLASS, not a feature: state that exists, renders, and produces
-no visible effect, so it reads as absent.** In the engine that is a knob which writes, builds and
-moves nothing, drawing a zero-length bar that says *"this assumption does not matter"* in a chart
-whose whole claim is that the bars are ranked. In the UI it is a control too subtle to find, a
-picker that cannot say what is selected, a marker painted the colour of its own fill, or six
-measurements built and two drawn. **ELEVEN instances. TEN were found by a person looking at the
-page; ONE by a gate.** The engine half now HAS a gate —
-`Scripts/sweep-sensitivity-knobs.js` ([§22](../cr/cr-085-forecast-sensitivity.md)) applies every
-offered knob, rebuilds for real and hashes the entries, so a dead knob is measured rather than
-argued about; it caught two of its own author's fixes hiding working knobs. ⚠️ **The DISPLAY half
-still has none** — nothing checks that a chart draws everything it was handed — and that is where
-the owner found all but one of their instances. **It keeps recurring, and the count is not the point — the
-method is.** v3.41.0 found one this way in [CR054](../cr/cr-054-cash-flow-by-account.md) (a
-`Net Cash Flow` row in `<tfoot>` that missed the frozen-column selector and scrolled its label away
-from its figures; its fix was got wrong twice by reasoning about the cascade and settled by a DOM
-probe). [CR092](../cr/cr-092-net-worth-bridge.md) then found **five** at P0, more at P2, and
-**three more at P1** — including prose that read back the prompt's own tag words instead of any
-figure, which was schema-valid and passed every test. **Every one of those was found by opening the
-page, and none by a suite.** Until a display-side gate exists, rendering the change in both themes
-is not polish; it is the only instrument that has ever detected this class.
-
-🔴 **[CR076](../cr/cr-076-forecast-model-review.md) — the five-reviewer model review; §8 COMPLETE
-across v3.20.0–v3.22.0.** It corrected **our own published figures** and moved numbers eight times.
-**§1 records what is SOUND and is the larger half.** §7 + §11 still hold open owner decisions.
-Shipped since, all detailed in the [CR index](../cr/README.md) and the
-[roadmap](project-roadmap.md): [CR077](../cr/cr-077-assumption-advisor-tab.md) (v3.23.0 — Cash
-Health splits into **Integrity** vs **Assumptions to consider**, counted and dismissed separately)
-· [CR078](../cr/cr-078-disposal-selling-costs.md) (v3.24.0, migration 062 — a per-row selling cost
-off the cash **and** the gain; rates live since 2026-08-09) ·
-[CR079](../cr/cr-079-real-terms-view.md) (v3.25.0 the Review, **v3.26.0 Compare** — the plan in
-**today's money** on both; the export stays nominal).
-
-**Net assets at 2062 (as of 2026-08-10 — ⚠️ stale since the v3.61.6 regenerate, which set 2% on three
-business disposals; re-read from Compare):** Base **4,071,160** · Buy Business **9,102,335** · Downside
-**1,893,368** · Upside **7,404,138** · SRQ **−476,930**. Owner decisions applied 2026-08-09:
-selling costs by jurisdiction (**US 7 · Spain 6 · Poland 4 · business 2%**, CVC capital returns
-exempt — **−603K to −796K per scenario**, the plan had been keeping 100% of every sale);
-`Social Security` → **full CPI**; `OCME` at −30 a **deliberate write-off**. **2026-08-10:
-`Sarasota House` growth **0 → 1.0**** — the only US property not at full CPI, and an unset field
-rather than a belief (owner); only SRQ moved, **−1,392,889 → −476,930**, the other four
-**byte-identical** ([v3.26.1](project-roadmap.md)).
-
-⚠️ **SRQ is still −476,930.** It is bought **entirely for cash** (`House Morgage` is `exclude`
-everywhere), earns **no rent** against 45,000/yr, and sells at 7%. Financing is the untested lever,
-and testing it is **DECLINED** (owner, 2026-08-23) — not needed.
-
-### The recurring failure
-**[failure-patterns.md](failure-patterns.md) is the canonical list** — seven shapes, each found
-more than once, each having passed the gates meant to catch it. Read it before writing a rule, a
-warning sentence, or any figure that asserts what the engine does. The one that has cost most:
-**a restatement asserted as the engine's behaviour, found TEN times** — the ninth
-([CR059 §22](../cr/cr-059-fintable-api-ingestion.md)) is the first to reach the **ledger**, and the
-tenth (§22.9) is the first where the restatement is of a **measurement**, not the engine.
+**Moved to [current-phase.md](current-phase.md)** — it changes on a regenerate, not on a release.
+It holds the CR069 module model, the CR076 review, the 2062 net-asset figures and the SRQ question.
+Two things from it are worth carrying into every session:
+- ⚠️ **The recurring DEFECT CLASS: state that exists, renders, and produces no visible effect, so it
+  reads as absent.** Eleven instances; ten found by a person looking at the page, one by a gate. The
+  engine half now has a gate; **the DISPLAY half still has none.** Rendering a change in both themes
+  is not polish — it is the only instrument that has ever detected this class.
+- **[failure-patterns.md](failure-patterns.md) is the canonical list** of the seven recurring shapes.
+  Read it before writing a rule, a warning sentence, or any figure that asserts what the engine does.
 
 ## Known issues
 [roadmap §3](project-roadmap.md#3-known-issues) is canonical; the closed narrative that sat here
 (CR059 §22, #19–#21, #12, #23, the ocr-llm ack) moved to
 [status-log_2026-09-14](../archive/status-log_2026-09-14.md). Worth knowing at session start:
-- 🔴 **A Wise connection's bank access has EXPIRED** (2026-09-20) — the `SessionStart` hook has
-  been saying so. `WISE - EUR` carries **EUR 302.95** of drift. **Owner:** Settings → Bank Feed Setup
-  → Re-authorise, **then re-check the mapping** — [CR091](../cr/cr-091-reconnect-that-works.md) §U3 is
-  the case where a reconnect re-pointed a connection at a different account.
-- 🟡 **PKO's sync is FAILING** (last good 2026-09-18), so its feed balance is frozen and PKO's
-  **180.00 PLN** drift **cannot be adjudicated** until it syncs. Do not calibrate it away.
+- ✅ **Both 2026-09-20 feed alarms are CLOSED, measured 2026-09-23** — every Wise (4) and PKO (7)
+  account reads `state: ok` with `days_since_upstream_sync: 0`, and PKO's 180.00 PLN cleared on the
+  repaired sync rather than by calibration. ✅ **CR091 §U3's post-reconnect mapping re-check is DONE and
+  clean** (2026-09-23), run through the shipped v3.61.5 diff rather than by hand: **disappeared 0**
+  (no mapping points at an id the feed no longer has), **appeared 0**, and the single *duplicated*
+  row is `acc_01M1R5KN…` — §U3's **own specimen**, still `ignored`, i.e. the regression fixture
+  behaving. Wise's three mapped accounts still map one-to-one by currency, so the re-authorisation
+  re-pointed nothing. The one account upstream still flags `needs_reconnect` is **Bank Pekao**,
+  which fin deliberately ignores (`account_id = NULL`, one of 5) and has no account for, so
+  `attention-summary` correctly answers 0. **The rule that buys:** *"attention-summary says 0"
+  proves nothing about connections fin does not map* — it is scoped to mapped, non-ignored accounts
+  by CR060's own correction. Pekao's last good sync, `2026-09-18`, is also the date this file had
+  recorded as PKO's, so the PKO bullet probably named the wrong Polish bank.
 - 🟡 **The feed can revise a date (or an amount) AFTER promote and the ledger keeps the old one** —
   `staging.upsert` updates staging and never resets `promoted_transaction_id`. One live date instance
   (PKO), **zero amount instances — but that path is permanent drift no re-run clears**.

@@ -9,17 +9,26 @@ Each CR file's first line carries its status and links back to the matching anch
 ## Summary by status
 
 *Manual roll-up — update when a CR's status changes (alongside its row + CR-file header).*
+*⚠️ It is a COPIED number, so derive it from the rows rather than trusting it:*
+```
+grep -E '^\| \[CR[0-9]+' docs/cr/README.md | awk -F'|' '{print $3}' | sed -E 's/[*✅ ]//g' \
+  | grep -oE '^(COMPLETED|COMPLETE|IN-PROGRESS|OPEN|PLANNED|DRAFT|DEFERRED|SUPERSEDED|OBSOLETE)' \
+  | sed 's/^COMPLETE$/COMPLETED/' | sort | uniq -c
+```
+*On 2026-09-23 it stated 93 while its own parts added to 94, and filed CR094 as PLANNED
+although that CR's row reads DRAFT.*
 
 | Status | Count | CRs |
 |--------|------:|-----|
 | COMPLETED | 71 | CR001–CR013, CR016, CR017, CR018, CR024, CR025, CR026, CR028, CR030, CR031, CR032, CR033, CR034, CR035, CR036, CR037, CR038, CR039, CR040, CR041, CR042, CR043, CR044 *(decision record)*, CR045, CR046, CR047, CR049, CR051, CR053, CR054, CR055, CR056, CR057, CR058, CR059, CR061, CR062, CR063, CR065, CR067, CR068, CR069, CR070, CR071, CR072, CR073, CR074, CR075, CR078, CR079, CR080, CR082, CR084, CR085, CR088, CR090, CR091, CR092, CR093 *(the Portfolio X-ray: exposure, fixed income, the security chart, income and risk)* |
 | IN-PROGRESS | 11 | CR019, CR022, CR023, CR050, CR060, CR064, CR076, CR077, CR083, CR086, CR087 |
 | OPEN | 4 | CR020, CR021, CR048, CR066 |
-| PLANNED | 5 | CR027 *(v4, umbrella)*, CR029, CR052, CR089, CR094 *(DRAFT — not yet reviewed)* |
+| PLANNED | 4 | CR027 *(v4, umbrella)*, CR029, CR052, CR089 |
+| DRAFT | 1 | CR094 *(not yet reviewed)* |
 | DEFERRED | 1 | CR081 |
 | SUPERSEDED | 1 | CR014 |
 | OBSOLETE | 1 | CR015 |
-| **Total** | **93** | |
+| **Total** | **94** | |
 
 ## All CRs
 

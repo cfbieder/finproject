@@ -1821,19 +1821,34 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
 
 ## 3. Known Issues
 
-- [ ] 🔴 **A Wise bank connection's access has EXPIRED** *(found 2026-09-20; the `SessionStart`
-  hook has been printing it)*. `status_text`: *"Bank access has expired. Please reconnect this
-  bank."* Balances were still arriving on 2026-09-20, so it has not gone visibly stale yet — it
-  will. `WISE - EUR` carries **EUR 302.95** of drift and `Wise - USD` **−1.85**. **Owner action:**
-  Settings → Bank Feed Setup → Re-authorise, then **re-check the mapping** —
-  [CR091](../cr/cr-091-reconnect-that-works.md) §U3 is precisely the case where a reconnect
-  re-pointed a connection at a different account, caught only by a hand-taken pre-snapshot.
-- [ ] 🟡 **`PKO Bank Polski` reports "Last sync failed"** *(found 2026-09-20)*, last good
-  2026-09-18. Its feed balance is **frozen** at 102,178.48 for 09-19 and 09-20, so PKO's standing
-  **180.00 PLN** drift **cannot be adjudicated until the sync is repaired** — the only independent
-  figure is stale. Re-measure after the next successful sync rather than calibrating it away.
-  ⚠️ Not the [§22.13](../cr/cr-059-fintable-api-ingestion.md) collapse shape: every PKO staging row
-  in the window promoted 1:1.
+- [x] ✅ **A Wise bank connection's access had EXPIRED** *(found 2026-09-20; RESOLVED, verified
+  2026-09-23)*. All **four** Wise accounts in the upstream's `accounts_health` now read
+  `state: ok` with `days_since_upstream_sync: 0`, so the consent was re-authorised. ✅ **CR091 §U3's
+  re-check is DONE and clean** (2026-09-23), run through the diff P3 shipped in v3.61.5 rather than
+  by hand: **disappeared 0 · appeared 0 · duplicated 1**, and that one is `acc_01M1R5KN…` — §U3's own
+  specimen, still `ignored`, i.e. the regression fixture behaving. Wise's EUR/PLN/USD feed accounts
+  each still map to the matching fin account, so the re-authorisation re-pointed nothing. ⭐ It cost
+  one request because P3 had already built the comparison; doing it by hand would have been a second
+  implementation of the same rule. The drift figures this bullet quoted
+  are superseded: `WISE - EUR` now reads **−45.85** and `Wise - USD` **+169.38** (both `accrue`
+  mode, both synced 2026-09-23), which is ordinary accrual drift, not the 302.95 this recorded.
+- [x] ✅ **`PKO Bank Polski` reported "Last sync failed"** *(found 2026-09-20; RESOLVED, verified
+  2026-09-23)*. All **seven** PKO accounts read `state: ok`, `days_since_upstream_sync: 0`, and PKO
+  no longer appears among the accounts carrying drift — so the 180.00 PLN resolved on the repaired
+  sync rather than being calibrated away, which is what this bullet asked for.
+  ⚠️ **This bullet probably named the wrong bank.** The one account the upstream still flags
+  `needs_reconnect` is **Bank Pekao**, whose last successful sync is `2026-09-18T23:59:59Z` — the
+  exact "last good 2026-09-18" recorded here for PKO. Two Polish banks with confusable names, and
+  the evidence now fits Pekao rather than PKO. Not proof, but the reading to carry.
+- [x] ✅ **Nothing in fin reports the one connection that IS in `needs_reconnect`, and that is
+  correct** *(verified 2026-09-23)*. Upstream `accounts_health` has 32 entries: 31 `ok`, one
+  `needs_reconnect` (**Bank Pekao**, 4 days). Fin's `attention-summary` answers **0**, and the two
+  disagree only because `needsReconnect` is scoped to accounts fin maps and does not ignore —
+  CR060's own deliberate correction ([ops.js](../../server/src/v2/routes/util/ops.js)). That Pekao
+  row is one of **5** mappings with `ignored = TRUE` and `account_id = NULL`, and fin has **no
+  account named Pekao at all**. ⚠️ The consequence to know: an ignored upstream connection can sit
+  in `needs_reconnect` indefinitely with no fin surface saying so. That is the design, not a defect
+  — but it means *"attention-summary says 0"* proves nothing about connections fin does not map.
 - [ ] 🟡 **The feed can revise a transaction's DATE after promote, and the ledger keeps the old
   one** *(found 2026-09-20 — [CR094](../cr/cr-094-promote-divergence-gate.md))*. `staging.upsert`
   does `ON CONFLICT DO UPDATE SET transaction_date = EXCLUDED.transaction_date` and deliberately
