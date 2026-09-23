@@ -155,7 +155,23 @@ async function extractOne(text, checks, timeoutMs = 720000) {
     clearTimeout(timer);
   }
 
-  if (res.status === 413) throw new Error('prompt_too_long — split per section');
+  // ocr-llm's 413 body carries `estimated_tokens` (their pessimistic
+  // ceil(chars/3.5) estimate) and `max_supported` (context_limit − output_reserve).
+  // Until now this branch discarded the body, so the one number that says HOW FAR
+  // over we are never reached the operator — and when `max_supported` went missing
+  // from their 413 for 16 days (HANDOFFS 2026-09-20) we could not have noticed,
+  // because we were not reading it. Naming both turns "split per section" from a
+  // standing guess into a measurement. Worth having precisely here: this task's
+  // chain is two LOCAL steps, so a 413 is a floor with no tail to fall through to
+  // — shrinking the prompt is the only move, and the size of the cut is the
+  // question. `max_supported` stays optional in the message rather than assumed:
+  // it has been absent once already.
+  if (res.status === 413) {
+    const detail = await res.json().then((b) => b?.detail || {}).catch(() => ({}));
+    const { estimated_tokens: est, max_supported: max } = detail;
+    const sizing = est && max ? ` (est ${est} tok vs max ${max})` : est ? ` (est ${est} tok)` : '';
+    throw new Error(`prompt_too_long${sizing} — split per section`);
+  }
   if (!res.ok) throw new Error(`gateway ${res.status}: ${(await res.text()).slice(0, 160)}`);
 
   const { response, routing } = await res.json();

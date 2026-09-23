@@ -59,7 +59,14 @@ Two things from it are worth carrying into every session:
 - **#18** — a fresh DB enforces `fc_lines.line_type`'s CHECK while dev and prod do not, so a test can
   pass on dev and fail only in CI.
 - The timezone rule (#3), the ESLint JSX blind spot (#10), dirty-tree deploys (#17). Filed back to
-  ocr-llm and open: their protocols doc has **no client-abort rule**.
+  ocr-llm and open: their protocols doc has **no client-abort rule**; and (2026-09-23) their
+  `API_DOCUMENTATION.md` states a `finance_statement_extract` deadline of 420,000 ms (**live 600,000,
+  source `task`**) sized under "fin's 480 s client abort" (**720,000 since 2026-09-06**) — the
+  ordering still holds, so it is a stale worked example, not an incident.
+- ✅ **ocr-llm's 413 broadcast ACKED 2026-09-23** — we were unaffected and **measured** it
+  (`/clients?days=30`: 142 served / **0 errors**, window covering all 16 days), but only because our
+  one 413 branch **discarded the body**. Fixed: it now names `estimated_tokens` / `max_supported`,
+  treating the latter as optional. **Unaffected because unimplemented is not unaffected.**
 
 ## Live infrastructure
 Moved to [guides/infrastructure.md](../guides/infrastructure.md) — hosts, ports, the deploy script,

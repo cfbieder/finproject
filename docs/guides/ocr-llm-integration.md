@@ -77,7 +77,13 @@ you asked for (send `"on_unsatisfiable": "error"` for a `409`).
 > to `ollama_heavy`, which it does not declare, returns `200` on the default chain with
 > `{"applied": false, "reason": "not_in_route"}`. Frontier models (`deepseek`,
 `openai`, `kimi`) need four keys plus a per-client grant, **and zero grants are issued** —
-irrelevant to Fin, because neither Fin task declares a frontier step at all.
+irrelevant to Fin, because **none of Fin's three tasks declares a frontier step at all** — each is
+`ollama_heavy → ollama_mid` and nothing else. (Was "neither Fin task" until 2026-09-23: written when
+we had two, stale from the day `finance_networth_narration` was registered on 2026-09-05.
+Re-verified 2026-09-23 against the **corrected** `TASK_CATALOG.md`, which until 2026-09-20 rendered
+opt-in-only steps as ordinary chain members — so a route printed as ending in DeepSeek was never a
+fallback. ⚠️ The legend's warning binds us harder than most: when every non-opt-in step is too small
+you get a **413, not a fall-through**, and our chains are two local steps with no tail at all.)
 
 **5. Branch on `detail.error`, never on message text.** What we can actually hit:
 `401` unidentified · `409 routing_unsatisfiable` · `413 prompt_too_long` (body carries
@@ -85,6 +91,16 @@ irrelevant to Fin, because neither Fin task declares a frontier step at all.
 `invalid_context_type`, `empty_prompt` · `502` every provider failed · `503`
 `no_providers_available` · `504 deadline_exceeded` (body separates steps **never started**
 — unbilled — from those cancelled in flight).
+
+> 🟡 **We read exactly one of these bodies.** `extract-statements-llm.js` is Fin's only 413
+> branch; `aiReview.js` and `netWorthNarration.js` have none, and fold a 413 into their generic
+> `!ok` paths (a thrown `gateway 413: …` and a `reason: gateway-413` degrade respectively). That is
+> why ocr-llm's 2026-09-04 → 09-20 regression, which deleted `max_supported` from every 413, cost us
+> nothing: **we were not reading the field.** Unaffected because unimplemented is not the same as
+> unaffected. ✅ Fixed 2026-09-23 for the branch we do have — it now names `estimated_tokens` and
+> `max_supported` instead of printing a fixed "split per section", and treats `max_supported` as
+> optional, because it has gone missing once. Verified against a live 413 the same day
+> (est 377,657 tok vs max **57,344** on `finance_statement_extract`).
 
 ## Fin's three tasks — all LOCAL-ONLY by construction
 

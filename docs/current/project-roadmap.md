@@ -1821,6 +1821,18 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
 
 ## 3. Known Issues
 
+- [ ] 🟡 **ocr-llm's `API_DOCUMENTATION.md` documents a deadline they no longer run and an
+  abort we no longer use — theirs to fix, filed 2026-09-23** (`finance-api-doc-stale-deadline`).
+  Its `504` entry reads *"`finance_statement_extract` **420,000 ms** … under fin's own 480 s client
+  abort"*. Measured the same day: live `GET /task/routes` gives **`deadline_ms` 600,000,
+  `deadline_source: task`**, and our abort has been **720,000 since 2026-09-06** (`e48d28f2`).
+  **Nothing is broken** — the ordering still nests the right way (observed max 599.3 s < 600,000 <
+  720,000), so their typed `504` still beats our socket cut. It is a **worked example whose margins
+  do not exist**, on the page six clients are told to read first, and the stale half is *our* number,
+  which nothing they can query would reveal. ⚠️ **Still owed BY US and unchanged:** the uncensored
+  latency distribution for this task after the next quarterly filing — 599.3 s is 99.9% of the 600 s
+  ceiling that bounded it, so no deadline, including the current one, should be set from it.
+
 - [ ] 🟡 **`check-ci.sh --latest` named a commit CI has never run on — observed ONCE, not
   reproduced** *(2026-09-23 19:08Z)*. It printed `main @ 4415bbb — CI green`. At that moment
   `origin/main` was `653bc82d` and **`4415bbb8` is an older commit of ours**
