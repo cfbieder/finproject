@@ -1,5 +1,34 @@
 # Starter Pack — Changelog
 
+## v1.8.3 — 2026-09-23
+
+**Upstreamed from a sibling project's `/brief` practice.** One skill changed; no new files.
+
+### Changed
+- **`.claude/skills/brief/SKILL.md` — *Do next* becomes *Open items*, split by what is in the
+  way.** Numbered action cards with `you` / `me` / `blocked` owner chips are replaced by ONE
+  continuously-numbered list in three lettered buckets — **A · Ready now**, **B · Yours to
+  decide**, **C · Waiting** — each row a table with *Item · What it is · Next step · Benefit*
+  (C swaps the last two for *Waiting on · Benefit when unblocked*).
+  - **The bucket IS the owner**, so the chips go: an item whose owner was unclear was really an
+    item whose blocker had not been named, and a chip let it stay unnamed. A bucket forces the
+    question.
+  - **Continuous numbering across all three buckets** so an item keeps one number wherever it
+    sits — a move from C to A reads as a move, not as a new arrival.
+  - **A count line opens the section, naming which items came OFF since the last edition.** A
+    list that only grows reads as a backlog nobody works. This is the one place the previous
+    edition may be consulted — for what left, never for a figure.
+  - **A *Waiting on* cell must carry a measured distance** ("14 against the 20 it needs, this
+    build"), re-checked this build and said so. A blocker with no distance cannot be told from
+    an excuse, and "waiting" is the easiest place on the page for a dead item to hide, because
+    nothing about it looks wrong.
+  - **A *Benefit* cell argues for the item rather than restating it**; the best ones name what
+    is learned either way ("either the gate earns its place or it comes out").
+  - **Closed recently now states what was actually WRONG**, not the feature name — that is the
+    only thing in the section a reader can learn from.
+  - Skeleton: bucket tables replacing the card markup, with a phone layout that stacks each row
+    under its own column labels; Phase 3 gains a numbering/count/blocker self-check.
+
 ## v1.8.2 — 2026-09-14
 
 **Upstreamed from Fin — its third sync (after v1.5.0 and v1.6.4).** No new files. Every addition

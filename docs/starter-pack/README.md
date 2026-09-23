@@ -1,6 +1,6 @@
 # Project Starter Pack
 
-> **Pack version:** 1.8.2 · **Last reviewed:** 2026-09-14 · see [`CHANGELOG.md`](CHANGELOG.md)
+> **Pack version:** 1.8.3 · **Last reviewed:** 2026-09-23 · see [`CHANGELOG.md`](CHANGELOG.md)
 
 A consolidated set of standards, playbooks, rules, and script sources to drop into any new
 project (especially Claude Code projects). Each file is self-contained enough to copy on its
