@@ -362,6 +362,13 @@
   font-size: 0.82rem;
 }
 
+/* A refresh keeps the existing rows mounted so the scroll position survives it;
+   dim them while the new data is in flight. */
+.txv2-table--refreshing {
+  opacity: 0.6;
+  transition: opacity 120ms ease-in-out;
+}
+
 .txv2-table thead {
   position: sticky;
   top: 0;

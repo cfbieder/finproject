@@ -1486,6 +1486,13 @@
   color: var(--danger);
 }
 
+/* A refresh keeps the existing rows mounted so the scroll position survives it;
+   dim them while the new data is in flight. */
+.trans-budget-table--refreshing {
+  opacity: 0.6;
+  transition: opacity 120ms ease-in-out;
+}
+
 .filters-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

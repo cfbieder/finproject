@@ -172,11 +172,19 @@ export default function TransactionTable({
       ])
     : sortedTransactions;
 
+  // A reload that already has rows on screen keeps the table MOUNTED. Swapping it
+  // for the one-line "Loading..." message collapses the scroller's height, the
+  // browser clamps its scroll offset to the top, and remounting the table does not
+  // put it back — so an edit made halfway down the list came back at the top.
+  const isRefreshing = isLoading && hasFilteredTransactions;
+
   return (
     <section className="section-table" aria-label={`${label} table`}>
       <div className="section-table__content">
         <div className="trans-budget-table-wrapper">
-          {isLoading && renderMessage(`Loading ${lcLabel} transactions...`, false)}
+          {isLoading &&
+            !isRefreshing &&
+            renderMessage(`Loading ${lcLabel} transactions...`, false)}
           {!isLoading && error && renderMessage(error, true)}
           {!isLoading &&
             !error &&
@@ -187,8 +195,13 @@ export default function TransactionTable({
             hasTransactions &&
             !hasFilteredTransactions &&
             renderMessage(`No ${lcLabel} transactions match the filters.`)}
-          {!isLoading && !error && hasFilteredTransactions && (
-            <table className="trans-budget-table">
+          {(!isLoading || isRefreshing) && !error && hasFilteredTransactions && (
+            <table
+              className={`trans-budget-table${
+                isRefreshing ? " trans-budget-table--refreshing" : ""
+              }`}
+              aria-busy={isRefreshing || undefined}
+            >
               <thead>
                 <tr>
                   {(showSelection || hasRowActions) &&

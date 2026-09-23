@@ -286,6 +286,12 @@ export default function TransActual() {
     await reload();
   }, [clearSelection, reload]);
 
+  // A reload that already has rows on screen keeps the table MOUNTED. Swapping it
+  // for the spinner collapses .txv2-table-scroll, the browser clamps its scroll
+  // offset to the top, and remounting does not put it back — so an edit made
+  // halfway down the list came back at the top.
+  const isRefreshing = isLoading && sortedTransactions.length > 0;
+
   const computeBase = useCallback(
     (amount, currency, r) => computeTransactionBaseAmount(amount, currency, r),
     []
@@ -941,7 +947,7 @@ export default function TransActual() {
 
       {/* ── Data Table ── */}
       <div className="txv2-table-wrap">
-        {isLoading && (
+        {isLoading && !isRefreshing && (
           <div className="txv2-state">
             <Loader2 size={28} className="txv2-state__icon" style={{ animation: "spin 1s linear infinite" }} />
             <span className="txv2-state__text">Loading transactions...</span>
@@ -962,10 +968,13 @@ export default function TransActual() {
           />
         )}
 
-        {!isLoading && !error && sortedTransactions.length > 0 && (
+        {(!isLoading || isRefreshing) && !error && sortedTransactions.length > 0 && (
           <>
             <div className="txv2-table-scroll">
-              <table className="txv2-table">
+              <table
+                className={`txv2-table${isRefreshing ? " txv2-table--refreshing" : ""}`}
+                aria-busy={isRefreshing || undefined}
+              >
                 <thead>
                   <tr>
                     <th className="txv2-th--center">
