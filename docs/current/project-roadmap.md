@@ -1821,6 +1821,20 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
 
 ## 3. Known Issues
 
+- [ ] 🟡 **`check-ci.sh --latest` named a commit CI has never run on — observed ONCE, not
+  reproduced** *(2026-09-23 19:08Z)*. It printed `main @ 4415bbb — CI green`. At that moment
+  `origin/main` was `653bc82d` and **`4415bbb8` is an older commit of ours**
+  (`docs(cr093): the index still read IN-PROGRESS…`) that appears in **none** of the last 8 runs —
+  `gh run list --branch main --limit 8` gives `653bc82d` (17:00:59Z) as the newest. Six immediate
+  re-runs — three of the raw `gh run list --branch main --limit 1 --json headSha`, three of the
+  script — all returned `653bc82`. **Why it matters even though the verdict was right:**
+  `deploy-to-production.sh` branches on the **exit code**, not the sha, so a green verdict carrying
+  the wrong commit is the one shape that passes the gate while the tip is untested — which is
+  exactly what `--latest` exists to prevent (its own comment: *"the sha it names is not the one CI
+  last spoke about"*). ⚠️ **Do not "fix" this from the single observation** — the evidence fits a
+  transient `gh` response as readily as a script defect. Log the sha on every `--latest` call and
+  wait for a second instance.
+
 - [x] ✅ **A Wise bank connection's access had EXPIRED** *(found 2026-09-20; RESOLVED, verified
   2026-09-23)*. All **four** Wise accounts in the upstream's `accounts_health` now read
   `state: ok` with `days_since_upstream_sync: 0`, so the consent was re-authorised. ✅ **CR091 §U3's
