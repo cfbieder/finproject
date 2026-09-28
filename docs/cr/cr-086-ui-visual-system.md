@@ -1,6 +1,9 @@
 # CR086 — The visual system: six token values, three primitives, and a renderer that runs
 
-**Status:** **IN-PROGRESS** — §3's money-colour repoint **SHIPPED v3.37.2 (2026-08-23)**; the rest is designed, not built.
+**Status:** **COMPLETED** (2026-09-28, CR close-out review). Closed by the CR close-out review. §3 shipped in v3.37.2. The close-out built the three items still worth having: **ConfirmModal on the Radix `<Modal>`** (Esc, focus trap, dark mode; QuickenImport's private copy removed; `ConfirmModal.css` and its 17 hex literals deleted), **the last hard-coded colours** (modal scrim → new `--scrim` token, darker in dark mode; three zebra rules → `--surface-muted`), and **a 404 page** (desktop `*` route; unknown `/m/*` → `/m`). Rendered in both themes. **Dropped:** `<h1>` on FCReview/FCCompare/QuickenImport (largely absorbed by CR088's shared headers), the `ui-render` rig (never committed), and the Phase 1.1 contrast pass (no owner story). The type scale, `<FilterPanel>`, Phase 0 and Phase 4 were already cut at pass 2.
+
+
+**Previous status:** **IN-PROGRESS** — §3's money-colour repoint **SHIPPED v3.37.2 (2026-08-23)**; the rest is designed, not built.
 **Track:** v3 · **no schema change, no migration.**
 **Depends on:** [CR085](cr-085-forecast-sensitivity.md) (added `--primary-strong`) · [CR042](cr-042-ui-look-and-feel.md) (tokens/primitives) · [CR026](cr-026-ui-revamp.md) §14 (the gate it recommended and never shipped).
 **Roadmap anchor:** [project-roadmap.md#cr086](../current/project-roadmap.md)

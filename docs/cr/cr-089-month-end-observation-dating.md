@@ -1,4 +1,7 @@
-# CR089 — Month-end observation: relocate the control, then date it by evidence — P1 PROPOSED · P2 BLOCKED on CR061
+# CR089 — Month-end observation: relocate the control, then date it by evidence
+
+**Status:** **COMPLETED** (2026-09-28, CR close-out review). Closed by the CR close-out review. **P1 built:** the page-level "mark against balance dated" box is gone; the reconcile preview for `mtm` and `accrue` rows asks instead, pre-filled — never auto-applied — from the engine's `later_observations`, each candidate one click from a re-preview, "Engine's pick" to go back, nothing written until Apply. Rendered in both themes. **P2 killed (owner):** the discriminant failed its own §P2.3 gate (custodian prices differ from closes by up to 1.3% vs 0.7% between adjacent days), only 2 of 5 accounts could be dated, the stored close series stops at 2026-09-04, and the manual runbook step takes seconds twelve times a year.
+
 
 **Track: v3. No schema change, no migration.**
 

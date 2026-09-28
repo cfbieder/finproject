@@ -85,7 +85,7 @@ psproject/                          # ~/Programs/fin symlinks here
 │       ├── App.jsx  main.jsx  config/routes.jsx
 │       ├── components/             # Shared UI (Layout, Sidebar, TopStrip, CommandPalette, HelpPanel,
 │       │                           #  Toast, HierarchyFilter, CategorySelector, AccountSelector,
-│       │                           #  PeriodSelector, KpiCards, ConfirmModal, MtmDateControl,
+│       │                           #  PeriodSelector, KpiCards, ConfirmModal (on Radix <Modal>), MtmDateControl,
 │       │                           #  ErrorBoundary (route-level, CR037), …)
 │       ├── contexts/  hooks/  utils/  js/   # ToastContext/ForecastContext; useAPI/useCoa/…; rest.js
 │       ├── features/               # Balances, BudgetEntry, BudgetLE, Budgets, CashFlow,
@@ -132,7 +132,7 @@ Detail for each page lives in its CR file (linked) — this table is a directory
 
 | Path | Page | Category | Summary |
 |------|------|----------|---------|
-| `/` | Home | - | Live dashboard: net-worth/cash-flow KPIs (shared `useOverview` hook, also MobileHome) + "needs attention" strip (`AttentionStrip`) + quick actions ([CR038](../cr/cr-038-home-dashboard-attention.md)). The hero's delta opens **"What changed?"** ([CR092](../cr/cr-092-net-worth-bridge.md) P0) — the net-worth bridge as a modal, sharing `features/NetWorthBridge/` with `/net-worth-drivers`; **P1** puts an LLM narration above the table (`BridgeNarrative`), labelled as model-written and carrying the gateway's own disclaimer, replacing the deterministic `data.summary` only once it lands |
+| `/` | Home | - | Live dashboard: net-worth/cash-flow KPIs (shared `useOverview` hook, also MobileHome) + "needs attention" strip (`AttentionStrip`; since 2026-09-28 it also counts ledger rows whose currency is not their account's) + quick actions ([CR038](../cr/cr-038-home-dashboard-attention.md)). The hero's delta opens **"What changed?"** ([CR092](../cr/cr-092-net-worth-bridge.md) P0) — the net-worth bridge as a modal, sharing `features/NetWorthBridge/` with `/net-worth-drivers`; **P1** puts an LLM narration above the table (`BridgeNarrative`), labelled as model-written and carrying the gateway's own disclaimer, replacing the deterministic `data.summary` only once it lands |
 | `/upload-ps` | UploadPS | Database | One-time PocketSmith CSV upload (live PS API removed — [CR030](../cr/cr-030-automated-ps-retirement.md)) |
 | `/refresh-feeds` | RefreshFeeds | Transactions | **"Refresh Feeds"** — bank-feed review queue: refresh, tabbed review/edit, category suggestions, bulk accept, per-row kebab actions (Edit/Split/Neutralize/Transfer/Accept), group-by-account; renamed from `/refresh-ps` in v3.0.57 (old URL redirects) ([CR022](../cr/cr-022-bank-feed-parallel-import.md)/[CR028](../cr/cr-028-securities-trade-neutralization.md)) |
 | `/backup-database` | BackupDatabase | Database | Download DB backup (tar.gz of pg_dump) |

@@ -80,13 +80,14 @@ scenarios are REGENERATED**. It changes far less often than this file does.
 > 2026-09-14 ([log](../archive/status-log_2026-09-14.md)). Statuses are canonical in the
 > [CR index](../cr/README.md), versions in [the roadmap](project-roadmap.md).
 
-- ✅ **CR close-out review, 2026-09-28** — 22 non-closed CRs reviewed against code and prod: **16 closed**
-  (10 completed, 4 obsolete, 2 superseded — see the [CR index](../cr/README.md) roll-up), CR052's need
-  restated as DRAFT [CR095](../cr/cr-095-forecast-spend-currency-share.md). **Left open, each with a
-  small fix owed:** CR066 (Review page ignores parent-mapped categories), CR086 (ConfirmModal, 4
-  colours, 404), CR087 (**five wrong-currency rows skew the balance sheet by a few $k**), CR089 P1
-  (per-account MTM date; P2 killed). **CR064 is scoped to P2, the annual close — due before Jan 2027.**
-  The v4 track (CR027) is retired.
+- ✅ **CR close-out review, 2026-09-28** — 22 non-closed CRs reviewed against code and prod: **18 closed**
+  (12 completed, 4 obsolete, 2 superseded — see the [CR index](../cr/README.md) roll-up), CR052's need
+  restated as DRAFT [CR095](../cr/cr-095-forecast-spend-currency-share.md), the v4 track (CR027)
+  retired. Fixes built on branch `cr-closeout`: variant sync in a transaction, scenario delete prunes
+  its assumptions, cross-currency transfer offsets, CR066's parent-mapped leaves, CR086's ConfirmModal
+  / 404, CR089 P1. **Still open:** CR066 (owner's mapping pass), CR087 (**five wrong-currency prod
+  rows skew the balance sheet by a few $k** — correction awaiting approval), and **CR064, scoped to
+  P2, the annual close — due before Jan 2027.**
 - **LE-09-26 stays a draft through September by owner rule** (v3.62.4) — finalise it in early October,
   then FX recalculate, then cut LE-10-26.
 - **Re-examine SRQ** — **−476,930**: funds itself 35 of 36 years, dry in the last. Marginal, not

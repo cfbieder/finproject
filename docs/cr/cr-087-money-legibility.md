@@ -1,6 +1,9 @@
 # CR087 — Money legibility: the currency, the column, and the write with no record
 
-**Status:** **IN-PROGRESS** — **THE P0 IS COMPLETE AND SHIPPED:** P0a v3.38.0 (migration 074) · P0b v3.38.1 · P0c v3.39.0. **P1 SHIPPED across v3.40.0 (2026-08-24, the reconcile page) and v3.64.0 (2026-09-16, `<Money>` + `resetOpeningBalance` under a server preview).** Only §2's deferred `Local` column remains — its own increment, by §2's own recommendation.
+**Status:** **IN-PROGRESS** (2026-09-28, CR close-out review). Close-out review: the `Local` column is **dropped** (no demand, and it would have printed wrong native figures). Found instead: **five prod rows in a currency other than their account's**, which the balance sheet sums as if they were the account's currency — CVC Fund IX +€5,069.24 (a USD 41,564.86 mirror counted as EUR), Fidelity Bond −$2,705.63 (three EUR dividends counted as USD), Misc Investments −$379.64. **Cause fixed:** `transferToAccount` now books the offset in the target account's currency at the date's rate, refusing when no rate exists. **Guard:** Home's attention strip counts wrong-currency rows (bar is zero). **Closes when the five rows are corrected.**
+
+
+**Previous status:** **IN-PROGRESS** — **THE P0 IS COMPLETE AND SHIPPED:** P0a v3.38.0 (migration 074) · P0b v3.38.1 · P0c v3.39.0. **P1 SHIPPED across v3.40.0 (2026-08-24, the reconcile page) and v3.64.0 (2026-09-16, `<Money>` + `resetOpeningBalance` under a server preview).** Only §2's deferred `Local` column remains — its own increment, by §2's own recommendation.
 **Track:** v3
 **Migration:** **074** (071–073 taken) — the `accounts` audit trigger. Book Health needs a **second**
 migration for its own dismissals table (CR074's is FK-bound to `forecast_scenarios`).

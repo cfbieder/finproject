@@ -1,4 +1,7 @@
-# CR066 — Every category with activity reaches an FC line, and nothing silently sits outside the forecast — 🔴 OPEN (P0 scoped, not built)
+# CR066 — Every category with activity reaches an FC line, and nothing silently sits outside the forecast
+
+**Status:** **IN-PROGRESS** (2026-09-28, CR close-out review). Code done in the CR close-out review. **P0 (the join, not a mapping decision):** `review-structure` now returns each line's inherited leaf names, so the Review page matches the `Patrick - *` leaves (mapped via `Children - Patrick`, ~39,000 of 2025 spend) — measured on prod, the only line affected is Children (6 leaves). **P1 in part:** the `/forecast-mapping` unassigned pool gains an Actual column and ranks by the larger of budget and actual; the "excluded on purpose" state is dropped (it needs a migration and has no demand). **P2 is moot** once the rows are mapped. **Remaining — owner, ~5 minutes on `/forecast-mapping`:** Property One-Off, Tax Adjustment → One-Off Items (or wherever you judge); Healthcare - Other → Healthcare; Purchases - IT Costs → Purchases; Car Expense → Car Expenses; Utilities - Garden → Property Costs; Other Inc → an income line; Rental - Spain → Rental Income or leave (no 2026 activity). ⚠️ `Unrealized G/L` and the `Transfer - *` categories now sort to the top of the pool by actual value; they are unmapped on purpose.
+
 
 Twelve Chart-of-Accounts categories carrying **−78,689 of 2025 expense and +31,474 of 2025 income**
 map to no FC line at all. They are therefore absent from the forecast's base-year P&L, absent from

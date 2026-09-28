@@ -250,29 +250,10 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
   more dead rules deleted with it. **All eleven now verified, both themes, 0 console errors.**
 
 <a id="cr086"></a>
-- **CR086 — The visual system: six token values, three primitives, and a renderer that runs. 🔄 IN-PROGRESS — §3's money-colour repoint SHIPPED v3.37.2 (2026-08-23); the rest designed, not built.** ⚠️ **§3's money-colour repoint SHIPPED v3.37.2 (2026-08-23):** six token values, **light only**, taking light-mode contrast failures **2,364 → 1,227 (−48%)** with the two money colours and `--success-strong` now failing **zero** times and **dark byte-identical**; the delta ties to prediction within **one** element. Two traps a naive repoint would have hit, both found by deriving the ramp: `--success-strong` was **already failing** and would have ended up **lighter than its own base**, and `--danger-strong` was **already** the target value, so the two `--danger → --danger-strong` gradients would have rendered **flat**.  ([CR086](../cr/cr-086-ui-visual-system.md))
-  Built on a **live headless-Chromium pass over all 37 nav-visible routes in both themes**, which
-  falsified four claims of the two static review passes that preceded it — all recorded in
-  [§4](../cr/cr-086-ui-visual-system.md) rather than dropped. **Dark mode is NOT broadly broken**
-  (32 of 37 routes render zero light-surface leaks; the largest dark defect is **three CSS
-  declarations** of one value painting 324 washed cells on `/forecast-compare`), the quoted
-  "698 rgba literals" was a filtered count (**877 then and 877 now — the metric has never moved**),
-  "five money tables lack tabular figures" is two, and `frontend/dark-audit.mjs` **does not exist**.
-  ⚠️ **The argument is one table:** over v3.28.3 → v3.37.1 the frontend grew **+2,161 CSS lines** and
-  added **zero** new `rgba()` and **zero** new hex — while adding **93 `font-size` declarations at
-  zero token adoption**, so type-scale adoption *fell* to **1.23%** (13 of 1,059). Colour held because
-  `check-inline-hex.sh` ratchets it; type did not because nothing measures it, and
-  `check-dead-tokens.sh` structurally cannot see it. **Six token values are 92% of every contrast failure — 45% of them the two money colours**
-  — `--muted-light` **2.27:1**, `--primary` **3.68:1**, `--success` **3.39:1** on every positive money
-  figure, `--muted` 4.45 on cream — and the fix needs almost no invention because
-  **`--primary-strong: #537453` already exists** from [CR085](../cr/cr-085-forecast-sensitivity.md)'s
-  focus-ring fix (**the one P1 of this review already closed**, v3.36.0). ⚠️ **`--success` is still
-  spreading:** `/budget-le` shipped `+$52,802.82` at **3.22:1** on 2026-08-18, eight days after the
-  defect was measured. [§8](../cr/cr-086-ui-visual-system.md) commits the rig as
-  `Scripts/check-ui-render.sh` — the display-half gate CR085 said was missing after finding
-  **eleven defects of one shape, ten found by a person rather than a gate**.
+- **CR086** — ✅ **COMPLETED 2026-09-28** (CR close-out review). The visual system: §3 money colours (v3.37.2); close-out finished ConfirmModal on the Radix `<Modal>`, the `--scrim` token and zebra rules, and a 404 page. Everything else was cut at pass 2 and stays cut. Record: [cr-086-ui-visual-system.md](../cr/cr-086-ui-visual-system.md).
 
 <a id="cr087"></a>
+- **CR087** — 🔄 **IN-PROGRESS 2026-09-28** (CR close-out review). P0 and P1 complete. Close-out found and fixed the cause of five wrong-currency ledger rows (cross-currency "transfer to account" copied the source currency); Home now flags any such row. **Closes when the five prod rows are corrected** (owner approval pending). The deferred `Local` column is dropped. Record: [cr-087-money-legibility.md](../cr/cr-087-money-legibility.md).
 - **CR087 — Money legibility: the currency, the column, and the write with no record. 🔄 IN-PROGRESS — THE P0 IS COMPLETE AND SHIPPED: P0a v3.38.0 (migration 074) · P0b v3.38.1 · P0c v3.39.0. P1's reconcile-page half SHIPPED v3.40.0; `<Money>`, `resetOpeningBalance` and §2's deferred `Local` column remain.** ([CR087](../cr/cr-087-money-legibility.md))
   Carved out of CR086 deliberately — that one is how the app *looks*, this is whether a figure can be
   **read wrong**, and they must not share a priority queue. ⚠️ **Every claim was re-opened and
@@ -521,6 +502,7 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
   - *Not in scope: cross-base overlay, any change to `/forecast-compare`'s behaviour, a generate action on the page, or any engine/schema change.*
 
 <a id="cr066"></a>
+- **CR066** — 🔄 **IN-PROGRESS 2026-09-28** (CR close-out review). Code done: the Review page now reaches leaves mapped through a parent (the `Patrick - *` ~39,000), and the `/forecast-mapping` unassigned pool shows actuals. **Closes when the owner maps the remaining categories** (Property One-Off, Tax Adjustment, Healthcare - Other, Purchases - IT Costs, Utilities - Garden, Car Expense, Other Inc; Rental - Spain optional). Record: [cr-066-fc-line-mapping-completeness.md](../cr/cr-066-fc-line-mapping-completeness.md).
 - **CR066 — [Every category with activity reaches an FC line](../cr/cr-066-fc-line-mapping-completeness.md)** — *🔴 OPEN · v3 · P0 is an owner decision per row (no code); P1/P2 scoped, not built. **Next up**, at the owner's request (2026-08-03).* Twelve COA categories carrying **−78,689 of 2025 expense and +31,474 of income** map to no FC line, so they sit outside the forecast entirely — base-year P&L, every FC-line row on the Review page, and the modelled years — with no screen reporting it. Surfaced by v3.11.14: putting the actuals column onto the stacked breakdown made the 2025 stack (487,897) disagree with the `Expense` header above it (566,586). **Neither figure is wrong** — the header reads the ledger's COA level-1 total, every child row is an FC line resolved through `categoryToLineMap`, and a leaf with no line is counted by the first and neither the second nor the chart. They had always disagreed in that column; nothing had ever drawn them side by side.
   - **P0 — decide each row.** `Property One-Off` (−47,187) is the largest and reads as a plain oversight, though "one-off" may argue for deliberate exclusion from a run-rate forecast. The five-row `Patrick - *` cluster (−36,500, plus `Travel - Patrick` −2,502) looks **deliberately** held apart from `Living Expenses`/`Children` — if that spend continues the forecast understates expense by ~39K/yr; if it is ending, exclusion is right and should be *recorded* as a decision. `Tax Adjustment` is **+8,078** — a credit inside Expense, to be understood before it is mapped onto a modelled cost line. `Healthcare - Other` (−303) and `Utilities - Garden` (−276) are almost certainly oversights.
   - **P0 (income) — probably a non-issue, and that is the interesting part.** `Rental - Spain` (+31,306) is likely **already in the forecast** via the SP property modules' `bs_module_income` path (the `CR046 Rent Line` carries no categories at all), so mapping the category too would **double-count** it. Verify against a generated scenario's `SP - *` income before touching it.
@@ -586,8 +568,7 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 - **CR060** — ✅ **COMPLETED 2026-09-28** (CR close-out review). Per-connection health from fintable, surfaced on Home and on every reconcile row; the reconnect button (made to work by CR091). Record: [cr-060-feed-connection-health.md](../cr/cr-060-feed-connection-health.md).
 
 <a id="cr089"></a>
-- **CR089 — [Dating the month-end observation](../cr/cr-089-month-end-observation-dating.md)** — *📋 PLANNED · v3.* *(Anchor added 2026-09-02 on that CR's own request — its §Housekeeping deferred it to avoid sweeping another thread's uncommitted doc edits into a pathspec commit.)* `bankfeed_balances.balance_date` is the date a row was **synced**, not the day its figure describes, so booking month-end MTM required the owner to know a poll date. Fidelity posts closes with a lag: the **09-02** observation holds Monday **08-31's** close.
-  - ⚠️ **A lag constant will not do, and neither will the rule that looks equivalent.** Both observed months happen to be +2, but *"the first observation whose value changes"* gets **July wrong** — 08-01 is an intermediate the custodian later restated, and 08-02 is what was booked. Dates the observation **by evidence** instead, cross-checking the snapshot's position prices against dated closes (which also supply the **trading calendar**, so "last trading day of the month" stops being a guess). Dates the **connection**, not the account, since 3 of 5 accounts hold only CUSIPs and money-market and cannot be dated at all. Owns the bank-feed holdings **passthrough** that [CR061](../cr/cr-061-holdings-and-prices.md) then consumes.
+- **CR089** — ✅ **COMPLETED 2026-09-28** (CR close-out review). P1 built: the month-end observation is chosen per row in the reconcile dialog, pre-filled from `later_observations`. P2 (dating by price evidence) killed. Record: [cr-089-month-end-observation-dating.md](../cr/cr-089-month-end-observation-dating.md).
 
 <a id="cr090"></a>
 - **CR090 — [The Investments section](../cr/cr-090-investments-section.md)** — *✅ **P1 SHIPPED v3.50.0 (2026-09-03) · P3 SHIPPED v3.52.0 (2026-09-05)**; P2 (live-quote overlay) open · v3.* Its own top-level section below Reports, with two pages: **Investment Summary** (`/investments`) and **Investment Positions** (`/investments/positions[/:accountId]`). fin's first answer to *"what do I actually own"* over the five tracked Fidelity accounts — ~**$3.87M, 43% of net worth**, until now five numbers with nothing underneath them.
