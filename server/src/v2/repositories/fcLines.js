@@ -207,7 +207,11 @@ async function unassignCategory(fcLineId, categoryId) {
 }
 
 /**
- * Get all categories not assigned to any FC Line, with optional budget totals
+ * Get all categories not assigned to any FC Line, with optional budget totals.
+ *
+ * CR066: also the ACTUAL for the same year (same basis as getActualTotals — `base_amount`, the
+ * calendar year). Budget alone hid the gap: Property One-Off and Tax Adjustment carried real 2025
+ * activity with no budget, so the pool listed them as zero while the forecast silently lost them.
  */
 async function findUnassignedCategories(budgetYear) {
   const result = await db.query(`
@@ -222,7 +226,11 @@ async function findUnassignedCategories(budgetYear) {
     )
     SELECT c.id, c.name, c.parent_id, pc.name as parent_name,
            NULL::int as mapped_account_id, NULL::text as mapped_account_name,
-           COALESCE(SUM(be.base_amount), 0) as budget_total
+           COALESCE(SUM(be.base_amount), 0) as budget_total,
+           (SELECT COALESCE(SUM(t.base_amount), 0) FROM transactions t
+             WHERE t.category_id = c.id AND $1::int IS NOT NULL
+               AND t.transaction_date >= make_date($1, 1, 1)
+               AND t.transaction_date <= make_date($1, 12, 31)) as actual_total
     FROM accounts c
     LEFT JOIN accounts pc ON c.parent_id = pc.id
     LEFT JOIN budget_entries be ON be.category_id = c.id
@@ -458,8 +466,43 @@ async function createBatch(names) {
   return created;
 }
 
+/**
+ * CR066 — the leaf categories each line reaches ONLY through a mapped parent, by name.
+ *
+ * The Review page matches ledger leaves to lines by exact name, so a line mapped at a parent
+ * (`Children - Patrick`) matched none of that parent's leaves and ~39,000 of 2025 spend fell out
+ * of the P&L rows while every server-side total — which walks the tree — counted it. This is the
+ * same recursive walk those totals use. A leaf that is itself mapped directly is left to its own
+ * mapping, so a conflicting parent mapping cannot re-route it.
+ *
+ * @returns {Promise<Map<number, string[]>>} fc_line_id → descendant leaf names
+ */
+async function findInheritedLeafNames() {
+  const result = await db.query(`
+    WITH RECURSIVE cat_tree AS (
+      SELECT flc.fc_line_id, c.id
+        FROM fc_line_categories flc JOIN accounts c ON c.id = flc.category_id
+      UNION
+      SELECT ct.fc_line_id, ch.id
+        FROM cat_tree ct JOIN accounts ch ON ch.parent_id = ct.id
+    )
+    SELECT DISTINCT ct.fc_line_id, a.name
+      FROM cat_tree ct JOIN accounts a ON a.id = ct.id
+     WHERE NOT EXISTS (SELECT 1 FROM accounts ch WHERE ch.parent_id = ct.id)
+       AND NOT EXISTS (SELECT 1 FROM fc_line_categories d WHERE d.category_id = ct.id)
+     ORDER BY a.name
+  `);
+  const byLine = new Map();
+  for (const r of result.rows) {
+    if (!byLine.has(r.fc_line_id)) byLine.set(r.fc_line_id, []);
+    byLine.get(r.fc_line_id).push(r.name);
+  }
+  return byLine;
+}
+
 module.exports = {
   findAll,
+  findInheritedLeafNames,
   findById,
   findByName,
   create,

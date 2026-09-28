@@ -20,6 +20,10 @@ const fmt = (v) =>
     ? Math.abs(Number(v)).toLocaleString("en-US", { maximumFractionDigits: 0 })
     : "0";
 
+// Unassigned-pool ranking: the larger of a category's budget and its actual (CR066).
+const weight = (c) =>
+  Math.max(Math.abs(parseFloat(c.budget_total) || 0), Math.abs(parseFloat(c.actual_total) || 0));
+
 export default function FCLineMapping() {
   const [lines, setLines] = useState([]);
   const [unassigned, setUnassigned] = useState([]);
@@ -576,11 +580,19 @@ export default function FCLineMapping() {
               </div>
             ) : (
               <div style={{ padding: "0.5rem", display: "flex", flexDirection: "column", gap: "0.15rem" }}>
+                <div style={{ display: "flex", gap: "0.5rem", fontSize: "0.7rem", color: "var(--ink-secondary)", padding: "0 0.5rem" }}>
+                  <span style={{ flex: 1 }}>Category</span>
+                  <span>Budget {budgetYear}</span>
+                  <span>Actual {budgetYear}</span>
+                </div>
                 {filteredUnassigned
                   .slice()
-                  .sort((a, b) => Math.abs(parseFloat(b.budget_total) || 0) - Math.abs(parseFloat(a.budget_total) || 0))
+                  // CR066: rank by the larger of budget and actual — a category with real spend and
+                  // no budget is exactly the one that silently drops out of the forecast.
+                  .sort((a, b) => weight(b) - weight(a))
                   .map((cat) => {
                   const bt = parseFloat(cat.budget_total) || 0;
+                  const at = parseFloat(cat.actual_total) || 0;
                   return (
                   <div
                     key={cat.id}
@@ -593,7 +605,7 @@ export default function FCLineMapping() {
                     onDoubleClick={() => selectedLineId && handleAssignCategory(selectedLineId, cat.id)}
                     style={{
                       padding: "0.3rem 0.5rem",
-                      background: selectedCatIds.has(cat.id) ? "var(--info-subtle)" : bt !== 0 ? "var(--warning-subtle)" : "var(--surface-elevated)",
+                      background: selectedCatIds.has(cat.id) ? "var(--info-subtle)" : bt !== 0 || at !== 0 ? "var(--warning-subtle)" : "var(--surface-elevated)",
                       borderRadius: "0.25rem",
                       fontSize: "0.8rem", cursor: "pointer",
                       border: selectedCatIds.has(cat.id) ? "1px solid var(--primary-light)" : "1px solid var(--border)",
@@ -607,6 +619,15 @@ export default function FCLineMapping() {
                       color: bt < 0 ? "var(--danger, #C0504D)" : bt > 0 ? "var(--success, #5B8C5B)" : "#A0AEB9",
                     }}>
                       {bt !== 0 ? (bt < 0 ? "-" : "") + fmt(bt) : "—"}
+                    </span>
+                    <span
+                      title={`Actual ${budgetYear}`}
+                      style={{
+                        fontFamily: "var(--font-mono)", fontSize: "0.75rem",
+                        color: at < 0 ? "var(--danger)" : at > 0 ? "var(--ink)" : "var(--ink-secondary)",
+                      }}
+                    >
+                      {at !== 0 ? (at < 0 ? "-" : "") + fmt(at) : "—"}
                     </span>
                     <span style={{ color: "#A0AEB9", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{cat.parent_name || ""}</span>
                   </div>

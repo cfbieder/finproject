@@ -11,6 +11,7 @@ const http = require('http');
 // Mock the repository before requiring the router
 const mockRepo = {
   findAll: jest.fn(),
+  findInheritedLeafNames: jest.fn().mockResolvedValue(new Map()),
   findById: jest.fn(),
   findByName: jest.fn(),
   create: jest.fn(),
@@ -105,6 +106,21 @@ describe('FC Lines API', () => {
 
     expect(res.status).toBe(409);
     expect(res.body.error).toMatch(/already exists/);
+  });
+
+  // CR066: the Review page matches LEAF names, so a parent-mapped line must list its leaves too.
+  test('GET /review-structure adds leaves a line reaches through a mapped parent', async () => {
+    mockRepo.findAll.mockResolvedValue([
+      { id: 7, name: 'Children', line_type: 'forecast_expense',
+        categories: [{ category_id: 1, category_name: 'Children - Patrick' }] },
+    ]);
+    mockRepo.findInheritedLeafNames.mockResolvedValue(new Map([[7, ['Patrick - School', 'Patrick - Travel']]]));
+
+    const res = await request(app, 'GET', '/review-structure', null);
+
+    expect(res.status).toBe(200);
+    expect(res.body.expense[0].categories)
+      .toEqual(['Children - Patrick', 'Patrick - School', 'Patrick - Travel']);
   });
 
   // T1.3: List lines with categories

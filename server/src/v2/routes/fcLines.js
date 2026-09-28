@@ -197,10 +197,12 @@ router.get('/unassigned-categories', async (req, res, next) => {
 router.get('/review-structure', async (req, res, next) => {
   try {
     const lines = await repo.findAll(null);
+    const inherited = await repo.findInheritedLeafNames(); // CR066 — leaves mapped via a parent
     const income = [];
     const expense = [];
     for (const line of lines) {
-      const categoryNames = (line.categories || []).map(c => c.category_name);
+      const direct = (line.categories || []).map(c => c.category_name);
+      const categoryNames = [...new Set([...direct, ...(inherited.get(line.id) || [])])];
       const entry = { name: line.name, id: line.id, type: line.line_type, categories: categoryNames };
       if (line.line_type === 'bs_module_income' || line.line_type === 'forecast_income') {
         income.push(entry);
