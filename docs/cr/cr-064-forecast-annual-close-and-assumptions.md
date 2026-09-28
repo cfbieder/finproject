@@ -1,4 +1,6 @@
-# CR064 — Forecast: the annual close, the assumptions key, and the module form — IN-PROGRESS
+# CR064 — Forecast: the annual close, the assumptions key, and the module form — IN-PROGRESS (scoped to P2)
+
+**Status:** IN-PROGRESS — **scoped down 2026-09-28 (CR close-out review) to P2, the annual close, plus the §3.3 anchor-staleness badge. Due before the January 2027 roll-forward.** Prod still has 18 modules per scenario anchored at 2025-12-31 (16 at 2026-12-31) with every scenario on `PeriodStart = 2027`; the copy route (`routes/forecast.js` scenario copy) calls `refreshModulesFromActuals` outside the copy's transaction, moves no `PeriodStart` and previews nothing. Everything else is closed — see §15.
 
 Three findings and four improvements that came out of one question — *"we customised the module
 form for Loan; should the other types get the same treatment?"* The answer to that question is
@@ -933,14 +935,14 @@ Reuse, not new machinery — but nothing is *wrong* without it, which is why it 
 
 ## 15. Status
 
-- **P0** — pending.
-- **P1** — pending (migration 052).
-- **P2** — pending.
-- **P3** — pending.
-- **P6** — built (migration 055), dormant, **live as v3.11.8**.
-- **P7** — built, no migration.
-- **P8** — built, no migration, **live as v3.11.10**. The base-year column is corrected on read; the stored forecast entries still carry the old opening cash. **Regenerate deferred** until §8.6's UB question is answered, so the plan is rebuilt once on a confirmed number.
-- **P9** — built, no migration.
-- **P11** — built, no migration.
-- **P12** — built, no migration. Net Assets moves in any scenario carrying a liability.
-- **P10 / P4 / P5** — designed here, not scheduled.
+*(Rewritten 2026-09-28 — the previous list still read "pending" for phases that shipped in v3.11.3.)*
+
+- **P0, P1, P3** — built, **live as v3.11.3** (P1: migration 052).
+- **P6** — built (migration 055), **live as v3.11.8**. **P7–P9, P11** — built, v3.11.8 → v3.11.13. **P12** — v3.11.15. **P13** — v3.11.16.
+- **P8's deferred regenerate** — unchanged by this close-out.
+- **P2 — OPEN, the only remaining scope** (with the §3.3 staleness badge). Due before the January 2027 close.
+- **P4 (plan vs actual) — CLOSED, obsolete** (owner, 2026-09-28): since [CR075](cr-075-base-year-is-the-budget.md) the forecast's current year *is* the budget, so `/budget-vs-actual` ([CR088](cr-088-budget-vs-actual-le-table.md)) and the Latest Estimate ([CR083](cr-083-budget-latest-estimate.md)) answer "is this year tracking to plan".
+- **P5 (sensitivity) — CLOSED, superseded** by [CR085](cr-085-forecast-sensitivity.md).
+- **P10 (base year from the budget) — CLOSED, delivered by CR075** (base-year P&L and the sweep's opening cash read `budget_entries`); the residual relabel of module amounts to the first forecast year has no defect behind it and is dropped.
+- **Loose ends §6.5, §7.4** — moot (`income_amount` no longer exists, CR069 migration 060). **§11a.7** — fixed (account 65 is PLN, migration 064).
+- ⚠️ **§2.4 is wrong about one thing** (found 2026-09-28): rename is *not* the only path that desynchronises `forecast_assumptions` from `forecast_scenarios`. `DELETE /scenarios/byname/:name` deletes the row only and the assumptions document is pruned client-side (`FCScenarios.jsx`), so prod carries an orphan "ZZ SRQ financed" in `scenarios`/`inflation`/`FX`/`Tax Rate`. Tracked as a roadmap known issue.

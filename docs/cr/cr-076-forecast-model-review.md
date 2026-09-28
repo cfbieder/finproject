@@ -1,6 +1,11 @@
 # CR076 — The forecast model review, and the figures it corrected
 
-**Status:** IN-PROGRESS — **§8 is COMPLETE**, shipped across **v3.20.0 → v3.22.0** *(⚠️ each step
+**Status:** **COMPLETED** (2026-09-28, CR close-out review). The review is finished: §8, §11, §13 and §21 shipped across v3.20.0 → v3.25.0. Owner decisions, 2026-09-28: **Polish property gains stay at the default 30%** — deliberate, consistent with CR048's flat-tax world, and above the likely effective rate for a US taxpayer (US tax on the gain, Polish tax credited). §7 Q1 (interest on idle cash) and the loss carry-forward move to the roadmap backlog; both are engine changes that move numbers. §7 Q5 (base year vs first forecast year) is CR064 P10, closed as delivered by CR075. The sub-1 stream multipliers were settled by the second §13 (keep all four).
+
+> The status line below is the previous one, kept as history.
+
+
+**Previous status:** IN-PROGRESS — **§8 is COMPLETE**, shipped across **v3.20.0 → v3.22.0** *(⚠️ each step
 MOVED NUMBERS and each was measured individually; no migration)*. §11 (the growth hint + R10) and
 §21 (the `Fixed $` money basis) also shipped, in v3.21.0 and v3.25.0. **Still open:** §7's
 remaining owner decisions — price idle cash, loss carry-forward — and the sub-1 stream multipliers

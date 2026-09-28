@@ -70,6 +70,31 @@ the true pair and neutralize the other leg properly. Removing would have reached
 account total while leaving the sweep without its core-position leg. If an orphan appears,
 find out *why* before deleting it.
 
+**Drift with no unpaired leg — did the feed revise a row after it was promoted?** A staging row
+the bank later changes (new amount, new date, or two upstream ids collapsing onto one) keeps its
+`promoted_transaction_id`, and the ledger row does not follow. Three read-only checks name the
+cause (from [CR094](../cr/cr-094-promote-divergence-gate.md), closed 2026-09-28 in favour of this
+step; all three returned 0 for rows since the 2026-08-10 API cutover):
+
+```sql
+BEGIN READ ONLY;
+-- A. collapse: two staging rows, one ledger row
+SELECT promoted_transaction_id, count(*) FROM bankfeed_staging
+ WHERE promoted_transaction_id IS NOT NULL AND transaction_date >= DATE '2026-08-10'
+ GROUP BY 1 HAVING count(*) > 1;
+-- B. amount divergence, after the feed_negate_tx convention (owner edits show up here too)
+SELECT s.id, t.id AS tx_id, s.amount AS feed, t.amount AS ledger
+  FROM bankfeed_staging s JOIN transactions t ON t.id = s.promoted_transaction_id
+  LEFT JOIN account_source_mappings m ON m.account_id = t.account_id AND m.source = 'bank-feed'
+ WHERE s.transaction_date >= DATE '2026-08-10'
+   AND t.amount <> CASE WHEN COALESCE(m.feed_negate_tx, false) THEN -s.amount ELSE s.amount END;
+-- C. date divergence
+SELECT s.id, t.id AS tx_id, s.transaction_date AS feed, t.transaction_date AS ledger
+  FROM bankfeed_staging s JOIN transactions t ON t.id = s.promoted_transaction_id
+ WHERE s.transaction_date >= DATE '2026-08-10' AND t.transaction_date <> s.transaction_date;
+ROLLBACK;
+```
+
 ## 3. Wait for the feed to settle — this is the step people skip
 
 **The feed labels a balance with the date it SYNCED, and it syncs in the small hours.** The

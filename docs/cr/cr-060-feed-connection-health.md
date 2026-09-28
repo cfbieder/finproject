@@ -1,4 +1,9 @@
-# CR060 — Feed connection health, and the reconnect it exists to trigger — IN-PROGRESS (health side deployed; reconnect built v3.48.0 and made to work by [CR091](cr-091-reconnect-that-works.md); remaining: per-feed health on the reconcile page, optional `GET /institutions`)
+# CR060 — Feed connection health, and the reconnect it exists to trigger
+
+**Status:** **COMPLETED** (2026-09-28, CR close-out review). The last listed item — per-feed health on the reconcile page's rows — shipped in `b028fc77` (2026-08-16): `attachFeedHealth` in `routes/bankFeed.js` and `<ConnectionHealth>` on each row of `BalanceReconciliation.jsx`; the "remaining" line was never struck. The optional `GET /institutions` passthrough is dropped; no need for it has come up.
+
+> Previous status (was in the title): IN-PROGRESS (health side deployed; reconnect built v3.48.0 and made to work by [CR091](cr-091-reconnect-that-works.md); remaining: per-feed health on the reconcile page, optional `GET /institutions`)
+
 
 Surface what fintable already tells us about the *health* of each bank connection, so a dead feed is
 visible the day it dies instead of the week someone notices the numbers stopped moving.

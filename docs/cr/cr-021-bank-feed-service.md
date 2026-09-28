@@ -1,4 +1,8 @@
-**Status:** OPEN — [Plan](../current/project-roadmap.md#cr021)
+**Status:** **COMPLETED** (2026-09-28, CR close-out review). The service is live and its remaining phases were delivered elsewhere or superseded: feed health (`/v1/health/feeds`, `upstreamHealth.js` 48h threshold — CR060), reconnect link minting (`POST /v1/connections/:id/link` — CR060/CR091), the admin page, statement upload (CR036), the cutover (CR022/CR023/CR030), and the Google Sheet upstream retired 2026-09-15 (bank-feed `615b2bb`). **Dropped:** the Phase 5 per-day expected-count gap detector (connection-level health is better evidence than a count heuristic) and the Phase 6 Plaid Link "Add connection" (fintable owns connections). Minor leftovers moved to the roadmap: the PKO same-day ordering in `/v1/health/feeds` `latest_balance_after` (cosmetic).
+
+> The status line below is the previous one, kept as history.
+
+**Previous status:** OPEN — [Plan](../current/project-roadmap.md#cr021)
 
 > **Post-ship update 2026-06-03 (bank-feed v0.2.0):** `POST /v1/sync` hardened for client-triggered refresh — `?max_age=<minutes>` freshness cap (skip the Sheet read if a recent sync is still fresh), `?force=true` bypass, and in-flight **coalescing** (concurrent callers + the hourly cron share one running sync). Additive within `/v1`; plain `POST /v1/sync` unchanged. Code in `fintableSync.js` (`requestSync` / pure `freshnessDecision`) + `routes/sync.js` + `scheduler.js`; tests `tests/syncGuard.test.js`; contract README updated. **Second consumer added:** the OCME app imports from the same fintable Sheet via `/v1/*` over Tailscale (it does **not** re-read the Sheet directly) — shares the existing `BANK_FEED_API_KEY`, applies its own R1 opt-in mapping, drops R2 (single-source). Build guide: [OCME_BANK_FEED_IMPORT_GUIDE.md](../guides/ocme-bank-feed-import.md). The service now serves **3 institutions** (PKO, Fidelity, Bank Pekao) via per-institution dispatch.
 

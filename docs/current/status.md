@@ -50,7 +50,8 @@ Two things from it are worth carrying into every session:
 - 🟡 **The feed can revise a date (or an amount) AFTER promote and the ledger keeps the old one** —
   `staging.upsert` updates staging and never resets `promoted_transaction_id`. One live date instance
   (PKO), **zero amount instances — but that path is permanent drift no re-run clears**.
-  [CR094](../cr/cr-094-promote-divergence-gate.md) is the gate; it is a DRAFT, unreviewed.
+  [CR094](../cr/cr-094-promote-divergence-gate.md) was closed 2026-09-28 as not warranted (0 cases since
+  the 08-10 cutover); its three checks are now a step in the [month-end runbook](../guides/month-end-reconcile.md).
 - **#29 FIXED v3.61.7** — the feed FLIPS two FDIC sweeps between a ticker and a numeric id; migration
   081 merged them. ⚠️ A **third** label for the same deposit would still mint a new twin.
 - ✅ **CR059's Sheet path is retired** (2026-09-15, bank-feed `615b2bb`, [§26](../cr/cr-059-fintable-api-ingestion.md)):
@@ -79,35 +80,28 @@ scenarios are REGENERATED**. It changes far less often than this file does.
 > 2026-09-14 ([log](../archive/status-log_2026-09-14.md)). Statuses are canonical in the
 > [CR index](../cr/README.md), versions in [the roadmap](project-roadmap.md).
 
-- 📋 **[CR089](../cr/cr-089-month-end-observation-dating.md) P2 is now unblocked** by CR061 P1: it reads
-  fin-local tables rather than a second live passthrough. ⚠️ It is still gated on its **own** §P2.3 measurement —
-  two fintable price endpoints disagree by 0.65% about the same close, and the measured 0.005–1.3% bias exceeds
-  the 0.7% adjacent-day separation, so *if the corrected margin does not separate, P2 does not get built*.
-- 🔄 **[CR087](../cr/cr-087-money-legibility.md)** — **P0 and P1 complete** (v3.38.0–v3.40.0, v3.64.0).
-  Only §2's deferred `BalanceReport` **`Local` column** remains: native amounts with a mixed-currency
-  marker, needing `ARRAY_AGG(DISTINCT t.currency)` and migration 064's unanimity predicate. The
-  22-call-site `toLocaleString` sweep stays [CR086](../cr/cr-086-ui-visual-system.md)'s.
-- 🔄 **[CR083](../cr/cr-083-budget-latest-estimate.md)** — finalise, recut, drift L2, L1, L6 and the
-  FX-recalculate refusal **shipped v3.62.0** (migration 082); L4 + L10 (as a test) v3.62.1.
-  A budget is P&L only everywhere since v3.62.2 (the Budget Worksheet's summary no longer counts category-less rows). LE-08-26 was finalised 2026-09-14; **LE-09-26 stays a draft through September by owner rule** (v3.62.4) — finalise it in early October, then FX recalculate, then cut LE-10-26.
+- ✅ **CR close-out review, 2026-09-28** — 22 non-closed CRs reviewed against code and prod: **16 closed**
+  (10 completed, 4 obsolete, 2 superseded — see the [CR index](../cr/README.md) roll-up), CR052's need
+  restated as DRAFT [CR095](../cr/cr-095-forecast-spend-currency-share.md). **Left open, each with a
+  small fix owed:** CR066 (Review page ignores parent-mapped categories), CR086 (ConfirmModal, 4
+  colours, 404), CR087 (**five wrong-currency rows skew the balance sheet by a few $k**), CR089 P1
+  (per-account MTM date; P2 killed). **CR064 is scoped to P2, the annual close — due before Jan 2027.**
+  The v4 track (CR027) is retired.
+- **LE-09-26 stays a draft through September by owner rule** (v3.62.4) — finalise it in early October,
+  then FX recalculate, then cut LE-10-26.
 - **Re-examine SRQ** — **−476,930**: funds itself 35 of 36 years, dry in the last. Marginal, not
   hopeless. Financing would be the untested lever (all cash, no rent, sells at 7%), and testing it
   is **DECLINED** (owner, 2026-08-23) — so this is a judgement to make, not an experiment to run.
 - **`Retirement Home`** — ~**105,000**/yr today for two, reasonable for assisted living, but the plan
   **double-counts** `Living Expenses` on top (~83,000) while escalating care at general inflation.
   The two errors nearly cancel — by luck, not design.
-- **CR076 §7 remainder** — price idle cash (two scenario scalars); loss carry-forward (tax rules
-  the owner would maintain; same-year netting already covers the live case).
-- **CR077's LLM stage** — only over the deterministic rules, never instead of them.
-- **Owner QA of the P&L module inputs** — CR076 §5 and §7 are the agenda.
-- **[CR066](../cr/cr-066-fc-line-mapping-completeness.md) P0** · **CR064 P2/P4/P5/P10** ·
-  **CR060's per-feed health on the reconcile page** (CR059 is **done** — cut over to the API
-  2026-08-10; its dated tails are ⚠️ **OVERDUE**, see Known issues).
+- **Backlog from the close-out** (roadmap §2): idle-cash interest, loss carry-forward, CR083's P1
+  warnings and P2 seed. CR059 is **done** — cut over to the API 2026-08-10; its dated tails are
+  ⚠️ **OVERDUE**, see Known issues.
   **Fintable re-keyed every GoCardless `ext_id` 2026-08-20 — we were unaffected, because we key on
   `tx.id`** ([§22.12](../cr/cr-059-fintable-api-ingestion.md)); it makes the Sheet rollback a
   repair-before-use path, not a revert.
-- **With the owner, do not start unasked:** "2026 Downside" (being redone) · CR048's equity-growth
-  and FX-stress decisions · [CR058 §12.8–12.9](../cr/cr-058-quicken-valuation-anchors.md) ·
+- **With the owner, do not start unasked:** "2026 Downside" (being redone) · [CR058 §12.8–12.9](../cr/cr-058-quicken-valuation-anchors.md) ·
   [CR059](../cr/cr-059-fintable-api-ingestion.md)'s Chase date basis. **`House Morgage` is
   deliberately `setup_status='new'`** (owner, 2026-08-05) — parked, not broken.
 - Full plan: [project-roadmap.md](project-roadmap.md).

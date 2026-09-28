@@ -1,6 +1,11 @@
 # CR027 `[v4]` — Multi-Tenancy & Final-Release Readiness
 
-**Status:** PLANNED — **umbrella / program doc.** Direction approved; **not approved for implementation as a single CR.** Per engineering review (2026-06-06) the work is split into independently-shippable sub-CRs **CR027A–E** (see §"Sub-CR breakdown"). Each sub-CR gets its own file when picked up; no code starts on the DB layer until the §"DB-access audit" and §"Migration strategy" gates below are satisfied.
+**Status:** **OBSOLETE** (2026-09-28, CR close-out review). Superseded by [CR044](cr-044-productization-marketability.md)'s owner decision to **stay personal** (2026-07-11), confirmed 2026-09-28. No code was ever written behind `FIN_MULTI_TENANT` / `AUTH_ENABLED` — the only `cr027` commit is the Step 0 scaffold (`f5d5e770`, 2026-06-06) and the sub-CRs CR027A–E were never created. The prerequisites worth having shipped on their own: the migration runner (CR043), assumptions off disk (CR039), network exposure (roadmap P0b). The v4 scaffolding (compose file, scripts, the dual-track rule in CLAUDE.md) is retired in the same close-out.
+
+> The status line below is the previous one, kept as history.
+
+
+**Previous status:** PLANNED — **umbrella / program doc.** Direction approved; **not approved for implementation as a single CR.** Per engineering review (2026-06-06) the work is split into independently-shippable sub-CRs **CR027A–E** (see §"Sub-CR breakdown"). Each sub-CR gets its own file when picked up; no code starts on the DB layer until the §"DB-access audit" and §"Migration strategy" gates below are satisfied.
 **Anchor in FC_NEXT_STEPS.md:** [cr027](../current/project-roadmap.md#cr027)
 **Supersedes the "future CR027" placeholder** referenced in [CR026](cr-026-ui-revamp.md) (auth / multi-tenancy / de-personalisation).
 

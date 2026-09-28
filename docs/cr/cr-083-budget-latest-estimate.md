@@ -1,4 +1,9 @@
-# CR083 — Budget: the Latest Estimate (LE) — 🔨 IN-PROGRESS (P0a + P0b LIVE, v3.31.0)
+# CR083 — Budget: the Latest Estimate (LE)
+
+**Status:** **COMPLETED** (2026-09-28, CR close-out review). Built and live: P0a/P0b (v3.31.0, migration 072); finalise, recut and delete-restore with the frozen full-year budget (v3.62.0, migration 082); warnings L1, L2 and L4; L10 asserted as a test; the FX-recalculate refusal; one open draft per year (v3.62.4). L6 was removed by owner decision. Prod holds a finalised August LE and a September draft. **Moved to the roadmap backlog (owner, 2026-09-28):** warnings L3/L5/L8, the `TRAIL_3` / `ZERO` override modes, the timing-vs-permanent variance split, and P2 (seed next year's budget from an LE), which §11.4 already called unschedulable as written. This explicit closure satisfies the CR085 P1 unblock condition "CR083 P1 or its explicit closure".
+
+> Previous status (was in the title): 🔨 IN-PROGRESS (P0a + P0b LIVE, v3.31.0)
+
 
 Roadmap anchor: [project-roadmap.md#cr083](../current/project-roadmap.md#cr083). **Track: v3** —
 no flags, no tenant context, nothing under `server/src/v2/db/`.

@@ -1,6 +1,11 @@
 # CR052 — Partial FX Exposure on an Expense Line ("20% of this line is PLN")
 
-**Status:** PLANNED — **deferred pending CR-051 real-world validation** (decision 2026-07-15) · **Track:** v3 · **Opened:** 2026-07-15
+**Status:** **SUPERSEDED** (2026-09-28, CR close-out review). Superseded by [CR095](cr-095-forecast-spend-currency-share.md). This design cannot be built: it targets `fcbuilder-incexp.js`, `forecast_income_expense` and `FCExpModal.jsx`, all removed by [CR069](cr-069-forecast-streams.md), and its migration number 040 is taken. Its build gate ("count the part-foreign categories") is answered by data: every forecast expense module is USD, while about **$203K of ~$409K** of discretionary spend over 2025-09 → 2026-08 went through PLN accounts. The owner kept the need (2026-09-28); CR095 restates it against `forecast_streams`.
+
+> The status line below is the previous one, kept as history.
+
+
+**Previous status:** PLANNED — **deferred pending CR-051 real-world validation** (decision 2026-07-15) · **Track:** v3 · **Opened:** 2026-07-15
 
 > **Gate before build (PM sign-off, 2026-07-15).** Not cleared to build. First use CR-051 on the
 > real budget for ~a week, then bring back:

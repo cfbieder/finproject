@@ -1,6 +1,11 @@
 # CR050 — Forecast Scenario Variants (inherit-unless-overridden)
 
-**Status:** IN-PROGRESS (shipped v3.0.108, fixes v3.0.110–112, rolled into the **v3.1.0** minor milestone, 2026-07-14; awaiting owner acceptance + the adopt decision on "2026 Downside" / "2026 Upside") · **Track:** v3 · **Opened:** 2026-07-14
+**Status:** **COMPLETED** (2026-09-28, CR close-out review). Live since v3.1.0 and adopted: on prod "2026 Upside" (58) and "2026 Downside" (60) both carry `parent_scenario_id = 47`, and all four non-base scenarios are variants. CR064 P11 and CR067 are built on them. A defect found by the close-out review — the lazy read-path sync running outside a transaction — is tracked as its own roadmap known issue rather than reopening this CR.
+
+> The status line below is the previous one, kept as history.
+
+
+**Previous status:** IN-PROGRESS (shipped v3.0.108, fixes v3.0.110–112, rolled into the **v3.1.0** minor milestone, 2026-07-14; awaiting owner acceptance + the adopt decision on "2026 Downside" / "2026 Upside") · **Track:** v3 · **Opened:** 2026-07-14
 **Depends on:** nothing. **Touches:** `forecast_scenarios`, `forecast_modules`,
 `forecast_income_expense`, `forecast_assumptions`, the forecast routes, and the three
 Forecast setup pages. **Does not touch the engine.**

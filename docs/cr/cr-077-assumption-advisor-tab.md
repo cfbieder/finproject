@@ -1,6 +1,11 @@
 # CR077 — Splitting the Cash Health panel: integrity vs. assumption advice
 
-**Status:** IN-PROGRESS — **increment 1 SHIPPED in v3.23.0 (2026-08-09)**; the LLM stage (§4) and
+**Status:** **COMPLETED** (2026-09-28, CR close-out review). Increment 1 (v3.23.0) and the §7 guards (v3.26.0) were the deliverable, and the owner walked the tab with no model change. The LLM stage (§4) went to CR081, itself superseded by CR084; §5's open questions (a "considered" state, the badge count, per-plan dismissals) are dropped — nothing has asked for them.
+
+> The status line below is the previous one, kept as history.
+
+
+**Previous status:** IN-PROGRESS — **increment 1 SHIPPED in v3.23.0 (2026-08-09)**; the LLM stage (§4) and
 §5's open questions remain. No migration; **no forecast number moves** — a reading surface over the
 existing derivation, and the only release in this sequence that needed no regenerate. Its
 prerequisite (CR076 §8 step 6) is complete.

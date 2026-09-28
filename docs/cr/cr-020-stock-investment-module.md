@@ -1,4 +1,8 @@
-**Status:** OPEN — Planning (skeleton) · Depends on CR019 (Quicken Import) · **NARROWED 2026-09-02**
+**Status:** **OBSOLETE** (2026-09-28, CR close-out review). Killed by the owner. The overview, ingest and price source went to [CR061](cr-061-holdings-and-prices.md)/[CR090](cr-090-investments-section.md), and unrealized G/L comes from the snapshot `cost_basis`. What remained — realized G/L, tax lots, wash sales, HIFO/FIFO selection and the Closed Lots import — duplicates the custodian's 1099-B and Closed Lots view, and nothing in Fin reads lot data: `security_lots`, `security_lot_disposals` and `security_transactions` hold **0 rows** on prod. The tables stay in the schema; nothing is dropped.
+
+> The status line below is the previous one, kept as history.
+
+**Previous status:** OPEN — Planning (skeleton) · Depends on CR019 (Quicken Import) · **NARROWED 2026-09-02**
 
 > ⚠️ **This CR's v1 has been taken, and split across two CRs.**
 > [CR061](cr-061-holdings-and-prices.md) takes the **ingest and the price source** — fintable's daily

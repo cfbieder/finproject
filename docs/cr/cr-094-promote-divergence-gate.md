@@ -1,6 +1,11 @@
-# CR094 — The promote divergence gate: name the cause, not just the drift — **DRAFT**
+# CR094 — The promote divergence gate: name the cause, not just the drift
 
-**Status:** DRAFT (2026-09-20) · **Track:** v3 · **Migration:** none expected
+**Status:** **OBSOLETE** (2026-09-28, CR close-out review). Not warranted. Measured on prod 2026-09-28: **0 collapses, 0 amount and 0 date divergences** among rows dated since the 2026-08-10 API cutover; every hit is June–July (Sheet/PS era), and the Caixa/PKO case cited above has since self-corrected. The three negate-aware checks are now a step in [the month-end reconcile runbook](../guides/month-end-reconcile.md#2-check-nothing-is-left-unpaired). The mechanism is still possible (`staging.upsert` never resets `promoted_transaction_id`); reopen if drift ever traces back to it.
+
+> The status line below is the previous one, kept as history.
+
+
+**Previous status:** DRAFT (2026-09-20) · **Track:** v3 · **Migration:** none expected
 **Origin:** [CR059 §22.13](cr-059-fintable-api-ingestion.md) — the content guard dropped a real
 charge and Caixa EUR carried EUR 30.25 of drift for twelve days before anyone asked why.
 

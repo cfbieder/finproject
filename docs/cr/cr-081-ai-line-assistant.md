@@ -1,6 +1,11 @@
 # CR081 — Ask about this line: AI-proposed edits, previewed before they land
 
-**Status:** **DEFERRED** (owner, 2026-08-14) after a two-pass review — pass 1 *revise*, pass 2 *defer*. **P0a was carved out and SHIPPED (v3.28.3)** as a defect fix; see §12. The successor for the value this CR was reaching for is an **editor-side consequence preview with no LLM** (§13).
+**Status:** **SUPERSEDED** (2026-09-28, CR close-out review). Superseded by [CR084](cr-084-save-time-consequence-preview.md), the editor-side consequence preview this CR's own §13 named as its successor, live since v3.29.0. P0a shipped in v3.28.3. The AI half had an acceptance rate of 0/15, twice, and AI Review has not been used since 2026-08-16. A sourced benchmark, if ever wanted, is a new small CR.
+
+> The status line below is the previous one, kept as history.
+
+
+**Previous status:** **DEFERRED** (owner, 2026-08-14) after a two-pass review — pass 1 *revise*, pass 2 *defer*. **P0a was carved out and SHIPPED (v3.28.3)** as a defect fix; see §12. The successor for the value this CR was reaching for is an **editor-side consequence preview with no LLM** (§13).
 **Track:** v3
 **Origin:** owner request 2026-08-11, from the [CR076 §13](cr-076-forecast-model-review.md) advisory
 session: *"add AI Help where I ask a specific question about a line, the local LLM proposes a few

@@ -1,4 +1,8 @@
-**Status:** IN-PROGRESS — Phases A–E on **dev + prod**; investment side **descoped to value-only** (§22; lot walker deferred to CR020). **Prod cutover is underway via a per-account delete-and-replace loop (§24), which SUPERSEDES the §23 `copy-quicken-to-prod` / `retire-handoff` runbook.** Accounts done on prod: **PKO**. · Blocks CR020 (Stock Investment Module)
+**Status:** **COMPLETED** (2026-09-28, CR close-out review). The import tooling (Phases A–E) is built and on prod. Prod holds `quicken-import` rows on six accounts — Chase Checking 6,058 · Chase Saving 181 · PKO 2,575 · Santandar 2,388 · Fidelity IRA 822 · Fidelity Stocks 3,334 — last promote 2026-07-30. The investment side was descoped to value-only (§22) and CR058 finished its anchors. Loading more QIF files is an owner operation on the existing `/quicken-import` page, not development. The lot walker this CR deferred went to CR020, now OBSOLETE — so the "blocks CR020" dependency is gone too.
+
+> The status line below is the previous one, kept as history.
+
+**Previous status:** IN-PROGRESS — Phases A–E on **dev + prod**; investment side **descoped to value-only** (§22; lot walker deferred to CR020). **Prod cutover is underway via a per-account delete-and-replace loop (§24), which SUPERSEDES the §23 `copy-quicken-to-prod` / `retire-handoff` runbook.** Accounts done on prod: **PKO**. · Blocks CR020 (Stock Investment Module)
 
 # CR019 — Quicken Historical Import
 

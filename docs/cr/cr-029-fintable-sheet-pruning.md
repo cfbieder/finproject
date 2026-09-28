@@ -1,4 +1,8 @@
-**Status:** PLANNED (scoped, not started). — [anchor](../current/project-roadmap.md#cr029)
+**Status:** **OBSOLETE** (2026-09-28, CR close-out review). bank-feed retired the Google Sheet upstream on 2026-09-15 (`615b2bb`, `24f5695`; `src/config.js` records it). A relay buffer nothing reads does not need pruning. Nothing was ever built.
+
+> The status line below is the previous one, kept as history.
+
+**Previous status:** PLANNED (scoped, not started). — [anchor](../current/project-roadmap.md#cr029)
 
 # CR029 — Fintable Sheet Pruning (bank-feed admin action)
 

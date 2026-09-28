@@ -1,4 +1,8 @@
-**Status:** 🟢 OPEN — [Roadmap](../current/project-roadmap.md)
+**Status:** **COMPLETED** (2026-09-28, CR close-out review). A1–A3 and §4b shipped (v3.0.90 / .91 / .93). **B3** (test equity growth in a scenario copy) is superseded: the "2026 Base - Market Returns" scenario no longer exists and [CR085](cr-085-forecast-sensitivity.md)'s growth knobs answer the question without a copy. **B5** (FX stress inside Downside) is in the data: Downside carries 2027 PLN 4.5 / EUR 0.90 against Base 3.9 / 0.86. That stress moves assets only — every expense line is USD — which is what [CR095](cr-095-forecast-spend-currency-share.md) exists to fix.
+
+> The status line below is the previous one, kept as history.
+
+**Previous status:** 🟢 OPEN — [Roadmap](../current/project-roadmap.md)
 
 # CR048 — Forecast Model Review: Engine Fixes + Ratified Assumptions
 
