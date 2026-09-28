@@ -24,7 +24,7 @@ inventory.
   that never got an entry); deferred CR items landed here rather than vanishing.
 - **`docs/cr/README.md`** — the canonical index. Every recent feature has a row; each status
   matches code reality (a CR marked open whose code shipped, or complete whose code did not);
-  track column (v3/v4) present.
+  track column present.
 - **`docs/current/migrations.md`** — every file in `server/db/migrations/` has a row, with
   honest **dev/prod applied status**. Prod is this host, so verify rather than trust: compare
   the registry against the files on disk and, when it matters, against the ledger on dev

@@ -1,9 +1,8 @@
 # Dual-Track Development Workflow (ship-current + build-vNext in parallel)
 
 A reusable workflow for keeping a current version shipping while building a large,
-not-ready-for-prod version in parallel — without a merge tax. In this repo it is the
-basis for **[CR027 §"Step 0"](../cr/cr-027-multi-tenancy-final-release.md)** (the v3 → v4
-multi-tenancy track); this file states the pattern generically so it can be reused.
+not-ready-for-prod version in parallel — without a merge tax. In this repo it was the
+basis for the v3 → v4 multi-tenancy track (CR027, retired 2026-09-28); this file states the pattern generically so it can be reused.
 
 ## When to use this
 You need to keep shipping small changes to the **current** version while building a
@@ -86,15 +85,9 @@ Not a big-bang merge. Because the code already lives on `main`, releasing vNext 
 - vNext is fully exercisable in isolation before it ever affects production.
 - Release is a config flip, not a high-risk merge event.
 
-## How this repo applies it (concrete example)
-| Element | This repo |
-|---|---|
-| Branch | `main` (trunk; prod deploy source) |
-| vNext flags | `FIN_MULTI_TENANT`, `AUTH_ENABLED` (default OFF) |
-| Backward-compat invariant | no tenant context ⇒ `search_path = public` ⇒ identical to v3 |
-| Prod runtime | `docker-compose.yml` — :5433 / :3005 / `postgres_data` |
-| Dev runtime | `docker-compose.dev.yml` — :5434 / :3105 / `postgres_data_dev` |
-| vNext runtime | `docker-compose.v4.yml` — :5435 / :3205 / `postgres_data_v4`, flags ON |
-| Wrapper | `Scripts/v4-up.sh` (`up`/`down`/`logs`/`psql`/`status`) |
-| Seed script | `Scripts/sync-db-prod-to-v4.sh` |
-| Short-lived branches | only the irreversible steps (owner cutover, legacy-UI removal) |
+## How this repo applied it (retired)
+Fin ran this pattern for the v3 → v4 multi-tenancy track ([CR027](../cr/cr-027-multi-tenancy-final-release.md)),
+flag-gated behind `FIN_MULTI_TENANT` / `AUTH_ENABLED` with an isolated `docker-compose.v4.yml` stack.
+**Retired 2026-09-28:** the owner chose to stay personal ([CR044](../cr/cr-044-productization-marketability.md)),
+no code was ever written behind the flags, and the v4 compose file and scripts were removed.
+Fin is now single-track; the pattern above is kept as a generic reference.

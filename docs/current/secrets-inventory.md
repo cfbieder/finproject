@@ -117,5 +117,5 @@ Non-secret endpoint config that travels with `.env` (no rotation): `BANK_FEED_UR
 (auto-managed by `Scripts/bump-version.sh`).
 
 **Gaps / TODO:** escrow status unknown for the live secrets (no off-box copy recorded) —
-decide an escrow location and tick the column. v4 (CR027) auth will add a JWT/session
-secret when `AUTH_ENABLED` becomes real — add its row in that CR.
+decide an escrow location and tick the column. *(The v4/CR027 JWT/session
+secret this line used to anticipate will not exist — that track was retired 2026-09-28.)*

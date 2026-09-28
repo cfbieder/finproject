@@ -115,11 +115,10 @@ psproject/                          # ~/Programs/fin symlinks here
 │                                   #   sensitivity knob and MEASURES whether it moves the
 │                                   #   plan; a dead knob is a bar that reads "this does
 │                                   #   not matter" when the engine never reads the field),
-│                                   #  bump-version, rebuild-frontend, backup-to-remote, v4-up, …
+│                                   #  bump-version, rebuild-frontend, backup-to-remote, …
 ├── .github/workflows/ci.yml        # CI: backend tests (fresh DB) + frontend build + e2e + secret scan
 ├── docker-compose.yml              # Production (project name: psproject)
 ├── docker-compose.dev.yml          # Development (postgres-dev + server-dev)
-├── docker-compose.v4.yml           # Isolated v4/CR027 stack (flags ON, own volume)
 └── VERSION  NOTES.md
 ```
 
@@ -332,7 +331,6 @@ Registry (one line per migration, 001–080): **[migrations.md](migrations.md)**
 |-------|------|------------|--------------|
 | Production | `docker-compose.yml` (project **psproject**) | fin-postgres / fin-server / fin-frontend | DB 5433 (localhost+Tailscale), API 3005, web 3006/5175 |
 | Development | `docker-compose.dev.yml` | fin-postgres-dev / fin-server-dev (+ local Vite :5174) | DB 5434 (localhost+Tailscale), API 3105 |
-| v4 (CR027) | `docker-compose.v4.yml` (project **finv4**) | fin-postgres-v4 / fin-server-v4 | DB 5435, API 3205; own volume, flags ON |
 
 Notes: `POSTGRES_PASSWORD` is **required** (no default — compose fails fast; set it in `.env`). The prod data volume is pinned to the legacy name `fin_postgres_data` (see comment in `docker-compose.yml`). Prod frontend build args: `VITE_NAV_LAYOUT=sidebar`, `VITE_APP_VERSION` from `.env`.
 
@@ -348,7 +346,7 @@ ssh cfbieder@192.168.1.87 && cd ~/psproject
 - Frontend: instant HMR. Backend: nodemon restart. DB shell: `docker exec -it fin-postgres-dev psql -U fin -d fin`.
 - Frontend env per `frontend/.env-cmdrc` (local, untracked — template `.env-cmdrc.example`): `npm run tail` (Tailscale API, recommended) / `npm run dev` / `npm run docker`.
 - Deploy: `./Scripts/deploy-to-production.sh` (backs up DB, rebuilds, health-checks). A new migration goes to **dev first, through `migrate.js`** (the deploy refuses one that has never run there, and a `psql -f` apply leaves no ledger row to see); the deploy then applies it to prod at Step 2b, **before** the rebuild — schema ahead of the code that reads it. *Restoring from a deploy's own backup lands you one migration SHORT:* Step 1 dumps, Step 2b migrates, so the dump is a pre-migration snapshot (found 2026-08-05 restoring dev from the v3.14.1 backup — it came back with the four tables 060 had just dropped). Run the migrator after any such restore.
-- Dual-track v3/v4: see [DEV_WORKFLOW.md](../guides/dev-workflow.md) and CR027 §Step 0.
+- Single track: the v4/CR027 dual-track setup was retired 2026-09-28 ([dev-workflow.md](../guides/dev-workflow.md)).
 - Month-end close (promote → neutralize → wait for the feed → MTM → re-anchor cash):
   [month-end-reconcile.md](../guides/month-end-reconcile.md). Bookkeeping first, market
   value last — an MTM absorbs any outstanding error and relabels it an unrealized gain.
@@ -382,7 +380,6 @@ ssh cfbieder@192.168.1.87 && cd ~/psproject
 | `check-modal-adoption.sh` | `<Modal>` guardrail: blocks new bespoke `role="dialog"` overlays (also `npm run lint:modals`) — **blocking in CI** |
 | `check-dead-tokens.sh` | Dangling-token guardrail: every `var(--x)` must resolve to a defined token (a dangling one silently falls back and ignores the theme). **No baseline — the bar is zero.** Also `npm run lint:tokens` — **blocking in CI** |
 | `check-inline-hex.sh` | Naked-hex guardrail: per-file baseline of `color: "#hex"` inline styles, count may only shrink (also `npm run lint:hex`) — **blocking in CI** |
-| `v4-up.sh`, `sync-db-prod-to-v4.sh` | Isolated v4 stack |
 | `provision-vm.sh`, `deploy-on-vm.sh` | KVM provisioning |
 | `boot-reconcile-docker.sh`, `fin-docker-reconcile.service` | Boot-time `compose up -d` on prod/dev/bank-feed stacks — fixes dockerd reboot race that leaves postgres containers detached from their networks (seen 2026-07-04); unit installed + enabled in `/etc/systemd/system/` 2026-07-05 |
 | `backup-mongo.sh`, `restore-mongo.sh` | **Dead (Mongo era)** — deletion backlogged |

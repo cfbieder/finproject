@@ -206,9 +206,8 @@ docker exec <container> sh -lc 'wget -qO-   --header="X-Client-Id: finance" --he
 **Run it three ways, not one** — with the headers, without them, and with a wrong key. A probe that
 cannot fail has not run: if the no-header call also returns `OK`, you are testing an ungated route
 and learning nothing. Measured 2026-09-06 on `fin-server` and `fin-server-dev`: `OK` / `FAIL` /
-`FAIL` on both. The v4 stack was down; its compose maps the key non-empty
-(`docker compose -f docker-compose.v4.yml config`), which is a static check, not a probe — **re-run
-the real one whenever :3205 is next up.**
+`FAIL` on both. The v4 stack was down at the time and has since been retired (2026-09-28), so these two are the
+whole set.
 
 ⚠️ **Do not build anything on `/clients` `source_ips`.** It is the **observed peer** address, not the
 calling machine: anything arriving through Docker's published port records as the bridge

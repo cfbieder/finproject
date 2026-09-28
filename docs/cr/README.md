@@ -4,7 +4,7 @@ Status legend: **COMPLETED** · **IN-PROGRESS** · **OPEN** · **PLANNED** (scop
 
 Each CR file's first line carries its status and links back to the matching anchor in [NEXT_STEPS.md](../current/project-roadmap.md). New CRs get the next available number. **This index is a one-line roll-up — the CR file is the spec; keep descriptions to a single line.**
 
-**Version track:** **v4** = the unreleased multi-tenancy line — **CR027** + sub-CRs **CR027A–E** (flag-gated/dormant on `main`; see [DEV_WORKFLOW.md](../guides/dev-workflow.md)). Everything else is v3 / current.
+**Version track:** everything is **v3** / current. The **v4** multi-tenancy line (CR027) was retired 2026-09-28 — no code was ever built behind its flags.
 
 ## Summary by status
 

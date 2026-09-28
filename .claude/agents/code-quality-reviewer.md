@@ -14,10 +14,7 @@ working tree). Run the suites when the change is non-trivial (`npx jest --ci` in
 1. **Simplicity first** — flag anything beyond the minimum that solves the problem.
 2. **Surgical changes** — every changed line traces to what was asked. Flag drive-by
    refactors, reformatting, and unrelated churn folded into a feature diff.
-3. **Track discipline** — a change to `server/src/v2/db/`, auth, migrations, or anything
-   flag-related must declare v3 or v4. v4 code must be dormant-safe: flags OFF ⇒ byte-for-byte
-   v3 behavior. An undeclared track on those paths is Blocking.
-4. Secrets, PII, and `search_path` go to `security-reviewer` — don't duplicate them here.
+3. Secrets, PII, and `search_path` go to `security-reviewer` — don't duplicate them here.
 
 ## Fin's repeat defect classes — check these on every relevant diff
 - **Date parsing west of UTC (Known Issue #3, three instances and counting).** DATE columns

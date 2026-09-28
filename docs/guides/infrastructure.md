@@ -6,7 +6,7 @@ around it, which is exactly why it does not belong in a session snapshot.
 
 ## Hosts and deploy
 - **Dev and prod are the same host** (`192.168.1.87` / Tailscale `100.94.46.62`) — prod
-  `psproject` :3005/:5433 (volume `fin_postgres_data`), dev :3105/:5434, v4 `finv4` :3205/:5435.
+  `psproject` :3005/:5433 (volume `fin_postgres_data`), dev :3105/:5434.
   Prod: `https://fin.tail413695.ts.net`. `bank-feed/` :3007 feeds 28 accounts; ocr-llm gateway
   `100.66.213.40:8080`. Both are separate repos.
 - Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations **dev first, through

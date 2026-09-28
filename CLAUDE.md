@@ -8,7 +8,7 @@
 - **What:** Fin — self-hosted personal-finance manager (accounts, transactions, budget, forecast, bank-feed integration).
 - **Stack:** Express 5 + pg (`server/`) · React 19 + Vite (`frontend/`) · PostgreSQL 16 · nginx — Docker Compose. Node 20.
 - **Separate repos with their own git histories:** `bank-feed/` (feed microservice, :3007) **is worked on from this session** — commit in its own repo (a worktree outside `psproject/`, since `bank-feed/` sits inside it), and record each cross-repo change in bank-feed's `HANDOFFS.md`. `ocr-llm/` (LLM gateway) is **never modified from here**. Cross-repo links keep their own naming.
-- **Hosts:** dev and prod are the **same machine** (`192.168.1.87` LAN / `100.94.46.62` Tailscale) — the agent can run prod docker/psql/deploy directly. Prod: `docker-compose.yml` (project `psproject`, API :3005, DB :5433, volume pinned `fin_postgres_data`); dev: `docker-compose.dev.yml` (:3105/:5434); v4: `docker-compose.v4.yml` (project `finv4`, :3205/:5435).
+- **Hosts:** dev and prod are the **same machine** (`192.168.1.87` LAN / `100.94.46.62` Tailscale) — the agent can run prod docker/psql/deploy directly. Prod: `docker-compose.yml` (project `psproject`, API :3005, DB :5433, volume pinned `fin_postgres_data`); dev: `docker-compose.dev.yml` (:3105/:5434). Single track — the v4/CR027 multi-tenancy line was retired 2026-09-28 (CR044: stay personal); changes verify on dev.
 - **Ops:** version in `VERSION` (`./Scripts/bump-version.sh`); deploy `./Scripts/deploy-to-production.sh` (backs up prod DB first). Skim `ls Scripts/` before recommending build/deploy/restart commands.
 
 ## Required reading at session start
@@ -17,16 +17,6 @@ Read on demand: `docs/current/project-description.md` (full current state),
 `docs/current/project-roadmap.md` (plan / open items), `docs/cr/README.md` (CR index —
 canonical CR statuses), `docs/current/migrations.md` (migration registry).
 If the task touches an active CR, read its `docs/cr/cr-NNN-*.md` file.
-
-## Version track — v3 (current) vs v4 / CR027 (dual-path)
-Trunk-based: v3 (live) and v4 (= CR027 multi-tenancy) both live on `main`. v4 is
-flag-gated (`FIN_MULTI_TENANT` / `AUTH_ENABLED`, default OFF) and ships dormant.
-Full pattern: `docs/guides/dev-workflow.md`; setup: CR027 §"Step 0".
-
-- The user signals the track with a prefix like **"v3 tweak"** or **"v4 / CR027x"**. **If a request doesn't say which, ASK before editing** — especially DB-layer files (`server/src/v2/db/`), auth, migrations, or anything flag-related.
-- **v3** changes must not depend on the v4 flags; verify against dev (`:3105`).
-- **v4** changes must be flag-gated and dormant-safe (flags OFF ⇒ byte-for-byte v3 behavior, e.g. no tenant context ⇒ `search_path = public`); verify against the isolated v4 stack (`:3205`). Only merge to `main` once dormant-safe.
-- Commit scope reflects the track (`feat(cr027a): …` for v4). Prod deploys `main` with flags OFF — never put flag-ON values in the prod compose.
 
 ## After completing any task — doc sync (before committing)
 Update only what the change touches (rules: `docs/documentation-standard.md`):

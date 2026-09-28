@@ -17,8 +17,7 @@ current diff unless told otherwise.
 owner-user (CR044 settled this — stay personal). There is no funnel, no conversion metric, no
 competitor to benchmark, and no legal accessibility obligation. Judge UI on whether it makes
 the owner's own work faster and the numbers harder to misread. Do **not** propose i18n,
-marketing surfaces, onboarding flows, or multi-user affordances — that's out of scope unless
-the change is explicitly v4/CR027 work.
+marketing surfaces, onboarding flows, or multi-user affordances — that's out of scope.
 
 ## 1. Code / design-system adherence
 - **Tokens, not hardcodes.** All color/spacing/type comes from the ~174 custom properties

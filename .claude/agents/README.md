@@ -11,7 +11,7 @@ gates). Keep them that way: when a standard changes, change the doc it points at
 
 | Agent | Lens | Reach for it when… |
 |---|---|---|
-| `security-reviewer` | secrets, PII escape, injection, v4 `search_path` boundary | a diff touches SQL, compose/env, a new endpoint, or v4/CR027 db-layer code |
+| `security-reviewer` | secrets, PII escape, injection | a diff touches SQL, compose/env, or a new endpoint |
 | `migration-reviewer` | append-only, fresh-DB safety, dev→prod→deploy order | any file under `server/db/migrations/` is added or changed |
 | `code-quality-reviewer` | correctness, simplicity, Fin's repeat defect classes | after a non-trivial change, before committing |
 | `ui-design-reviewer` | frontend code quality **and** product design | any change under `frontend/src` |

@@ -18,7 +18,7 @@ a single owner-user. CR044 settled this deliberately — the market scan validat
 but the audience was a niche-of-a-niche, and the owner decided *stay personal*. So value is
 measured against the owner's own workflow, not a market. Do **not** score a CR on
 addressable-market, competitor parity, or release-readiness framing; flag productization and
-multi-user gold-plating as out of scope unless the CR is explicitly v4/CR027 work.
+multi-user gold-plating as out of scope (the v4/CR027 track was retired 2026-09-28).
 
 ## Sign-off review
 - **Scope discipline.** Is this genuinely ONE CR? Are **In** and explicit **Out**/non-goals
@@ -31,8 +31,6 @@ multi-user gold-plating as out of scope unless the CR is explicitly v4/CR027 wor
   (feed/import, ledger, forecast, COA, frontend shell). Two CRs editing the same pages at once
   on a single shared trunk is a real cost, not a theoretical one. Does building it block or
   unblock higher-value work?
-- **Track fit (v3 vs v4).** v3 ships to prod continuously; v4 (CR027) rides dormant on `main`
-  behind flags. Flag a CR that mixes the two, or that lets v4 work block a v3 release.
 - **Owner value.** What does it actually change for the owner? The strongest cases: it removes
   manual effort from the weekly *refresh → review → reconcile* loop, it prevents or surfaces a
   silently-wrong number, or it unlocks a planned module (e.g. CR019 → CR020). Flag a CR that

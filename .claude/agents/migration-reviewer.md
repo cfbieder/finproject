@@ -49,11 +49,6 @@ registry, with per-environment applied status). Scope:
   `opening_balance` is a plug, so a wrong sign leaves *today's* balance correct while
   corrupting every earlier date — a balance check does **not** validate a sign change.
 
-## v4 / CR027
-Fin is **schema-per-tenant**, not RLS — never ask for a `tenant_id` column or a policy. Instead:
-does this migration need to apply to **every** `tenant_<id>` schema (fan-out), or is it control
-plane (`public`) / reference data (`shared`)? A migration that hardcodes a schema is a finding.
-
 ## Paperwork (blocking, per CLAUDE.md)
 Every new migration ⇒ a row in `docs/current/migrations.md` (number, purpose, dev/prod status,
 CR reference). Flag if absent.

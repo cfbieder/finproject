@@ -16,13 +16,10 @@ the structural exemplar and `docs/documentation-standard.md` for the rules. The 
 CR; else review the most recently added/changed `docs/cr/cr-*.md`.
 
 ## Technical review
-- **Track first.** Fin is dual-track on one trunk: **v3** (live) and **v4** (= CR027
-  multi-tenancy, flag-gated dormant). If the CR doesn't state its track, that is a Blocking
-  question — the answer changes the whole design. **v3** must not depend on the v4 flags and
-  is verified on dev (`:3105`). **v4** must be flag-gated (`FIN_MULTI_TENANT` / `AUTH_ENABLED`,
-  default OFF), **dormant-safe** (flags OFF ⇒ byte-for-byte v3 behavior; no tenant context ⇒
-  `search_path = public`), and verified on the isolated v4 stack (`:3205`). A v4 CR that
-  doesn't name its flags and guarantee dormant-OFF is a Blocking finding.
+- **Single track.** Fin is a single-owner app on one trunk; changes are verified on dev
+  (`:3105`). The v4/CR027 multi-tenancy track was retired 2026-09-28 (CR044: stay personal) —
+  a CR that reintroduces tenancy, auth or multi-user scope is out of scope unless the owner
+  has reopened that decision.
 - **Design substance.** For each significant decision: are options, choice, and rationale
   actually present, or is it hand-wavy? Flag decisions made by omission. Would a future
   session reconstruct *why* from this doc?
