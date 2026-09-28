@@ -254,7 +254,7 @@
 }
 
 .fc-modules-table__row:nth-child(even) {
-  background: rgba(248, 250, 254, 0.35);
+  background: var(--surface-muted);
 }
 
 .fc-modules-table__row:hover {

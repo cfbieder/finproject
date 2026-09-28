@@ -7,6 +7,7 @@
   --surface-muted: #FAF9F5;
   --surface-elevated: #FFFFFF;
   --surface-glass: rgba(253, 252, 248, 0.92);
+  --scrim: rgba(45, 52, 54, 0.18);
   /* Report-table rows: the stripe tells rows apart, hover is one step stronger. */
   --table-row-stripe: #F7F6F1;
   --table-row-hover: #EEEDE6;
@@ -220,6 +221,7 @@
   --surface-muted: #23272B;
   --surface-elevated: #262A2F;
   --surface-glass: rgba(19, 21, 23, 0.9);
+  --scrim: rgba(0, 0, 0, 0.55);
   --table-row-stripe: #212428;
   --table-row-hover: #2B2F34;
 

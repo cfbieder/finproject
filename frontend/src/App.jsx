@@ -10,6 +10,7 @@ import {
 import { getRouterRoutes, getCategoryRoutes } from "./config/routes";
 import Layout from "./components/Layout";
 import LoadingSpinner from "./components/LoadingSpinner";
+import NotFound from "./pages/NotFound.jsx";
 import ErrorBoundary from "./components/ErrorBoundary";
 import useIsMobile from "./mobile/useIsMobile";
 import MobileLayout from "./mobile/MobileLayout";
@@ -85,6 +86,7 @@ function AppShell() {
             <Route path="/m/transactions" element={<MobileTransactions />} />
               <Route path="/m/refresh-feeds" element={<MobileRefreshFeeds />} />
               <Route path="/m/reconcile" element={<MobileReconcile />} />
+              <Route path="*" element={<Navigate to="/m" replace />} />
           </Routes>
           </Suspense>
         </ErrorBoundary>
@@ -159,6 +161,7 @@ function AppShell() {
             path="/budget-variances"
             element={<Navigate to="/budget-vs-actual/variances" replace />}
           />
+          <Route path="*" element={<NotFound />} />
         </Routes>
         </Suspense>
       </ErrorBoundary>

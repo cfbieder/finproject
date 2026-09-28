@@ -1102,7 +1102,7 @@
 }
 
 .trans-budget-table tbody tr:nth-child(even) td {
-  background: rgba(248, 250, 254, 0.35);
+  background: var(--surface-muted);
 }
 
 .fc-review-table tbody tr:nth-child(even) td {
@@ -2600,7 +2600,7 @@
 }
 
 .balance-report-table tbody tr:nth-child(even) td {
-  background: rgba(248, 250, 254, 0.35);
+  background: var(--surface-muted);
 }
 
 .balance-report-table tbody tr:nth-child(even):hover td {

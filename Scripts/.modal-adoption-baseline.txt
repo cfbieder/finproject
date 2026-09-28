@@ -1,5 +1,4 @@
 components/CommandPalette/CommandPalette.jsx
-components/ConfirmModal/ConfirmModal.jsx
 components/HelpPanel/HelpPanel.jsx
 components/ManualStatementUpload/ManualStatementUpload.jsx
 features/BudgetEntry/components/BudgetExpenseSignModal.jsx

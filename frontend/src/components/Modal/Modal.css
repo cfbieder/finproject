@@ -15,7 +15,7 @@
 .modal__overlay {
   position: fixed;
   inset: 0;
-  background: rgba(45, 52, 54, 0.18);
+  background: var(--scrim);
   z-index: 10400;
 }
 

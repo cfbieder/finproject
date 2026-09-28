@@ -23,6 +23,7 @@ import {
 } from "../components/AccountPicker/AccountPicker.jsx";
 import "./PageLayout.css";
 import "./QuickenImport.css";
+import ConfirmModal from "../components/ConfirmModal/ConfirmModal.jsx";
 
 // ───────────────────────────────────────────────────────────────────────────
 // CreateCoaModal — inline form to create a new COA leaf without leaving the
@@ -904,34 +905,6 @@ function BulkMapModal({ open, selectedRows, optionsForRole, batchId, onClose, on
               {saving ? `Mapping… (${results.length}/${selectedRows.length})` : `Map ${selectedRows.length} & assign`}
             </button>
           )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ───────────────────────────────────────────────────────────────────────────
-// ConfirmModal — styled in-app replacement for window.confirm(). Pass a config
-// object (or null) via `state`; onConfirm/onCancel close it.
-// ───────────────────────────────────────────────────────────────────────────
-function ConfirmModal({ state, busy, onConfirm, onCancel }) {
-  if (!state) return null;
-  return (
-    <div className="qi-modal-overlay" onClick={busy ? undefined : onCancel}>
-      <div className="qi-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-        <div className="qi-modal-header">{state.title}</div>
-        <div className="qi-modal-body">
-          <p className="qi-modal-hint" style={{ whiteSpace: "pre-line" }}>{state.message}</p>
-        </div>
-        <div className="qi-modal-footer">
-          <button className="qi-btn" onClick={onCancel} disabled={busy}>Cancel</button>
-          <button
-            className={`qi-btn ${state.danger ? "qi-btn-danger" : "qi-btn-primary"}`}
-            onClick={onConfirm}
-            disabled={busy}
-          >
-            {busy ? "Working…" : (state.confirmLabel || "Confirm")}
-          </button>
         </div>
       </div>
     </div>
