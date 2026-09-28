@@ -119,6 +119,7 @@ d('routes/util.js', () => {
     test('GET /attention-summary → 200', async () => {
       const r = await req('GET', '/attention-summary');
       expect(r.status).toBe(200);
+      expect(Number.isInteger(r.body.wrongCurrency.count)).toBe(true);
     });
   });
 

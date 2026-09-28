@@ -57,6 +57,18 @@ export default function AttentionStrip() {
       tone: "warn",
     });
   }
+  // A row in a currency other than its account's is summed as if it were in the
+  // account's currency — the balance sheet is wrong by the FX difference until it
+  // is re-booked. The bar is zero.
+  if (summary.wrongCurrency?.count > 0) {
+    items.push({
+      key: "wrongCurrency",
+      to: "/ledger",
+      icon: BadgeDollarSign,
+      label: `${summary.wrongCurrency.count} ledger row${summary.wrongCurrency.count === 1 ? "" : "s"} in a currency other than its account's — balance mis-stated`,
+      tone: "alert",
+    });
+  }
   // CR060 — a bank consent has expired. Placed BEFORE staleFeeds deliberately:
   // it is the same failure caught earlier and named correctly, and a reader who
   // meets "feed data stale" first will go looking for a sync problem instead of

@@ -570,7 +570,7 @@ router.post('/:id/transfer', async (req, res, next) => {
     const result = await repo.transferToAccount(id, targetAccountId);
     res.json({ data: result });
   } catch (error) {
-    if (/must differ|not found/i.test(error.message)) {
+    if (/must differ|not found|cannot book the offset/i.test(error.message)) {
       return res.status(400).json({ error: error.message });
     }
     next(error);

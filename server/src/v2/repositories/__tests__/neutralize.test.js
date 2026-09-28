@@ -265,6 +265,30 @@ dbDescribe('transactions.neutralize (DB)', () => {
     }
   });
 
+  // The balance sheet sums `amount` per account in the ACCOUNT's currency, so an offset that kept
+  // the original's currency mis-stated the target: prod's 41,564.86 USD wire mirrored into a EUR
+  // fund read as EUR 41,564.86 (2026-09-28, CR087 close-out).
+  test('transferToAccount books a cross-currency offset in the target account\'s currency', async () => {
+    await freshAccount();
+    const target = (await db.query(
+      `INSERT INTO accounts (name, account_type, section, currency, opening_balance)
+       VALUES ($1,'asset','balance_sheet','EUR',0) RETURNING id`, [`${ACCT}Target`]
+    )).rows[0].id;
+    try {
+      const txId = await addTx(-1200, '2026-07-30', categoryId);    // USD, base -1200
+      const rate = await require('../../services/fx').rateAsOf(db, 'EUR', '2026-07-30');
+      const out = await repo.transferToAccount(txId, target);
+
+      expect(out.offset.currency).toBe('EUR');
+      expect(Number(out.offset.base_amount)).toBe(1200);             // USD value still nets to zero
+      expect(Number(out.offset.amount)).toBeCloseTo(1200 / rate, 2); // the EUR that arrived
+      expect(Number(out.offset.amount)).not.toBe(1200);
+    } finally {
+      await db.query(`DELETE FROM transactions WHERE account_id = $1`, [target]);
+      await db.query(`DELETE FROM accounts WHERE id = $1`, [target]);
+    }
+  });
+
   test('the database refuses a double-claim even if the query guard is bypassed', async () => {
     await freshAccount();
     const a = await addTx(-700);

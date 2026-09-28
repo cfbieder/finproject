@@ -41,6 +41,10 @@ const execFileAsync = promisify(execFile);
  *    the day after a booking, so raw drift would flag them all month.
  *  - mtmDue: fed MTM-mode accounts with no source='mtm' entry dated the last
  *    completed month-end — the actually-actionable MTM signal.
+ *  - wrongCurrency: ledger rows whose currency is not their account's. The
+ *    balance sheet sums `amount` in the ACCOUNT's currency, so each one silently
+ *    mis-states that account (five on prod, 2026-09-28, CR087 close-out). The
+ *    bar is zero.
  *  - needsReconnect: bank connections whose consent has expired (CR060). PSD2
  *    consents lapse about every 90 days on the 8 GoCardless connections, and
  *    until now nothing told the owner — `staleFeeds` catches it only as a
@@ -50,12 +54,16 @@ const execFileAsync = promisify(execFile);
 router.get('/attention-summary', async (req, res, next) => {
   try {
 
-    const [reviewRow, verifyRow, fedRecon, manRecon] = await Promise.all([
+    const [reviewRow, verifyRow, wrongCcyRow, fedRecon, manRecon] = await Promise.all([
       db.query(`SELECT COUNT(*)::int AS n FROM transactions WHERE accepted IS NOT TRUE`),
       db.query(`
         SELECT COUNT(*)::int AS n FROM transactions
         WHERE accepted IS NOT TRUE AND currency = 'USD'
           AND description1 ILIKE 'ADJUST WIRE TRANSFER%'
+      `),
+      db.query(`
+        SELECT COUNT(*)::int AS n FROM transactions t JOIN accounts a ON a.id = t.account_id
+        WHERE t.currency <> a.currency
       `),
       bankFeedRecon.balanceReconcile({}),
       manualRecon.manualBalanceReconcile({}),
@@ -131,6 +139,7 @@ router.get('/attention-summary', async (req, res, next) => {
     res.json({
       review: { count: reviewRow.rows[0].n },
       verifyUsd: { count: verifyRow.rows[0].n },
+      wrongCurrency: { count: wrongCcyRow.rows[0].n },
       staleFeeds: {
         count: staleDays.length,
         worstDays: staleDays.length ? Math.max(...staleDays) : null,

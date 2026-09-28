@@ -5,6 +5,7 @@
  */
 
 const db = require('../db');
+const { usdBaseAmount, rateAsOf } = require('../services/fx');
 
 /**
  * Get all transactions with optional filtering
@@ -813,9 +814,13 @@ async function neutralize(id, categoryId, { dryRun = false } = {}) {
  * zero (the two base_amounts cancel) — e.g. a -3000 PLN PKO outflow funding the
  * OCME business account creates a +3000 PLN entry on OCME.
  *
- * V1 carries the original's currency to the offset (correct for same-currency
- * transfers, the common case); the USD balance sheet nets regardless via the
- * negated base_amount.
+ * The offset is booked in the TARGET account's currency. The balance sheet sums
+ * `amount` per account as if it were in the account's currency, so carrying the
+ * original's currency across (as V1 did) mis-states the target whenever the two
+ * differ — a 41,564.86 USD wire mirrored into a EUR fund counted as EUR 41,564.86
+ * (2026-09-28). A cross-currency offset takes the original's USD value and
+ * converts it at the target currency's rate on the transaction date; no rate is
+ * a refusal, never a silent 1:1.
  *
  * @param {number} id - original transaction id
  * @param {number} targetAccountId - account to receive the offsetting entry
@@ -827,11 +832,29 @@ async function transferToAccount(id, targetAccountId) {
   if (Number(targetAccountId) === Number(original.account_id)) {
     throw new Error('Transfer target must differ from the source account');
   }
+  const target = await db.query('SELECT currency FROM accounts WHERE id = $1', [targetAccountId]);
+  if (target.rows.length === 0) throw new Error('Target account not found');
+  const targetCurrency = target.rows[0].currency || original.currency;
 
-  const negatedAmount = parseFloat((-parseFloat(original.amount)).toFixed(2));
-  const negatedBaseAmount = original.base_amount != null
-    ? parseFloat((-parseFloat(original.base_amount)).toFixed(2))
+  const date = String(original.transaction_date).slice(0, 10);
+  let baseAmount = original.base_amount != null ? parseFloat(original.base_amount) : null;
+  if (baseAmount == null && original.currency !== targetCurrency) {
+    baseAmount = await usdBaseAmount(db, original.amount, original.currency, date);
+  }
+  const negatedBaseAmount = baseAmount != null
+    ? parseFloat((-baseAmount).toFixed(2))
     : null;
+
+  let negatedAmount;
+  if (original.currency === targetCurrency) {
+    negatedAmount = parseFloat((-parseFloat(original.amount)).toFixed(2));
+  } else {
+    const rate = await rateAsOf(db, targetCurrency, date);
+    if (!rate || negatedBaseAmount == null) {
+      throw new Error(`No ${original.currency}→${targetCurrency} rate for ${date}; cannot book the offset in the target account's currency`);
+    }
+    negatedAmount = parseFloat((negatedBaseAmount / rate).toFixed(2));
+  }
 
   return db.transaction(async (client) => {
     const updated = await client.query(
@@ -858,7 +881,7 @@ async function transferToAccount(id, targetAccountId) {
       original.description1,
       original.description2,
       negatedAmount,
-      original.currency,
+      targetCurrency,
       negatedBaseAmount,
       original.base_currency || 'USD',
       original.transaction_type,
