@@ -64,8 +64,10 @@ export default function MtmDateControl({ value, onChange, balanceDate = "", onBa
       )}
       <span className="bfd-muted bfd-mtm-hint">
         — the date box dates the <strong>Unrealized-G/L</strong> entry on brokerage rows only;
-        accrual rows date themselves from the observation they measure. The override picks the
-        observation for <strong>both</strong>. Calibrate rows ignore the pair.
+        accrual rows date themselves from the observation they measure.{" "}
+        {onBalanceDateChange
+          ? <>The override picks the observation for <strong>both</strong>. Calibrate rows ignore the pair.</>
+          : <>Which observation to mark against is chosen per row, in the reconcile dialog. Calibrate rows ignore the date.</>}
       </span>
     </div>
   );

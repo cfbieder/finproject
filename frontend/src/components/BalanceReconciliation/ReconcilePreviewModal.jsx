@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import Modal from "../Modal/Modal.jsx";
 import "./ReconcilePreviewModal.css";
 
@@ -26,7 +27,18 @@ export default function ReconcilePreviewModal({
   onCancel,
   onApply,
   fmtNum,
+  balanceDate = "",
+  onBalanceDateChange,
 }) {
+  // CR089 P1 — which feed OBSERVATION this row marks against. It used to be a page-level box
+  // that applied to every row reconciled while it was set; it is now this row's own question,
+  // PRE-FILLED (never auto-applied) from the candidates the engine returns when its own pick was
+  // synced before the day ended. "Confirm" must also mean "change": the field stays editable.
+  const candidates = preview?.later_observations || [];
+  const suggested = balanceDate || candidates[0]?.balance_date || "";
+  const [draftDate, setDraftDate] = useState(suggested);
+  useEffect(() => { setDraftDate(suggested); }, [suggested]);
+
   if (!open || !account) return null;
 
   const ccy = account.currency ? ` ${account.currency}` : "";
@@ -189,6 +201,63 @@ export default function ReconcilePreviewModal({
                 {ccy}
               </span>
             </div>
+          </div>
+        )}
+
+        {(mode === "mtm" || mode === "accrue") && onBalanceDateChange && preview && (
+          <div className="rpm__observation">
+            <label className="rpm__observation-label">
+              Mark against balance dated
+              <input
+                type="date"
+                value={draftDate}
+                onChange={(e) => setDraftDate(e.target.value)}
+                disabled={busy}
+              />
+            </label>
+            <span className="rpm__observation-actions">
+              <button
+                type="button"
+                className="btn btn--secondary"
+                onClick={() => onBalanceDateChange(draftDate)}
+                disabled={busy || !draftDate || draftDate === balanceDate}
+              >
+                Preview against this date
+              </button>
+              {balanceDate && (
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() => onBalanceDateChange("")}
+                  disabled={busy}
+                >
+                  Engine&apos;s pick
+                </button>
+              )}
+            </span>
+            {candidates.length > 0 && (
+              <ul className="rpm__candidates">
+                {candidates.map((c) => (
+                  <li key={c.balance_date}>
+                    <button
+                      type="button"
+                      className="btn btn--ghost"
+                      onClick={() => onBalanceDateChange(c.balance_date)}
+                      disabled={busy || c.balance_date === balanceDate}
+                    >
+                      {c.balance_date}
+                    </button>{" "}
+                    <span className="rpm__num">{fmtNum(c.balance)}{ccy}</span>
+                    <span className="rpm__muted"> · synced {c.synced_on}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="rpm__muted">
+              {balanceDate
+                ? `Figures above are measured against the balance dated ${balanceDate}.`
+                : "Figures above use the engine's own pick. The feed dates a balance by when it synced, in the small hours — see the month-end runbook §3 for choosing between candidates."}
+            </p>
           </div>
         )}
 

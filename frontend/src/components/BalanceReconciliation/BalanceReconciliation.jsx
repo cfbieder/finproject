@@ -103,9 +103,11 @@ export default function BalanceReconciliation() {
   const [institutionFilter, setInstitutionFilter] = useState("all"); // feed/institution filter
   const [statusFilter, setStatusFilter] = useState("all"); // reconciliation-status filter
   const [bookDate, setBookDate] = useState(lastMonthEndISO()); // MTM booking date
-  // CR065 §11: optional — which OBSERVATION to mark against, when the booking
-  // date would pick one taken before that day ended. Blank = same as bookDate.
-  const [markBalanceDate, setMarkBalanceDate] = useState("");
+  // CR065 §11 / CR089 P1: which OBSERVATION to mark against is chosen PER ROW,
+  // in the preview dialog (`preview.balanceDate`). It used to be a page-level box
+  // that applied to every row reconciled while it was set — so a date left over
+  // from a brokerage month-end pinned the next ACCRUAL to the wrong observation,
+  // and an accrual books permanent income that nothing re-examines (CR080 §B4).
   const [uploadAccount, setUploadAccount] = useState(null); // CR036: manual statement upload target
   const [showHelp, setShowHelp] = useState(false); // sign-convention explainer, collapsed by default
   const [showAttention, setShowAttention] = useState(false); // "N feeds need attention" → what to do
@@ -193,26 +195,28 @@ export default function BalanceReconciliation() {
   // month-end, so sending it would date EVERY accrual at month-end instead of at
   // the day its observation can speak for. The engine accepts it for accrue (for
   // scripts and deliberate use); the page has no business volunteering it.
-  const reconcileBody = (a, extra = {}) =>
+  const reconcileBody = (a, balanceDate, extra = {}) =>
     a.reconcile_mode === "mtm"
-      ? { bookDate, ...(markBalanceDate ? { balanceDate: markBalanceDate } : {}), ...extra }
+      ? { bookDate, ...(balanceDate ? { balanceDate } : {}), ...extra }
       : a.reconcile_mode === "accrue"
-        ? { ...(markBalanceDate ? { balanceDate: markBalanceDate } : {}), ...extra }
+        ? { ...(balanceDate ? { balanceDate } : {}), ...extra }
         : { ...extra };
 
-  const runPreview = async (a) => {
-    setPreview({ account: a, data: null, error: null, stale: false });
+  // `balanceDate` "" = the engine's own pick. Re-previewing with another date is
+  // how the owner changes the observation; nothing is written until Apply.
+  const runPreview = async (a, balanceDate = "") => {
+    setPreview({ account: a, balanceDate, data: null, error: null, stale: false });
     setPreviewBusy(true);
     try {
       // dryRun computes and writes nothing — and since P0c it no longer syncs
       // upstream or upserts `bankfeed_balances` either (routes/bankFeed.js).
       const res = await Rest.post(
         `/bank-feed/reconcile/${a.account_id}`,
-        reconcileBody(a, { dryRun: true })
+        reconcileBody(a, balanceDate, { dryRun: true })
       );
-      setPreview({ account: a, data: res, error: null, stale: false });
+      setPreview({ account: a, balanceDate, data: res, error: null, stale: false });
     } catch (err) {
-      setPreview({ account: a, data: null, error: err.message, stale: false });
+      setPreview({ account: a, balanceDate, data: null, error: err.message, stale: false });
     } finally {
       setPreviewBusy(false);
     }
@@ -248,7 +252,7 @@ export default function BalanceReconciliation() {
           : a.reconcile_mode === "accrue"
             ? null
             : { new_opening: preview.data.new_opening, feed_date: preview.data.feed_date };
-      const body = reconcileBody(a, { dryRun: false, ...(expect ? { expect } : {}) });
+      const body = reconcileBody(a, preview.balanceDate, { dryRun: false, ...(expect ? { expect } : {}) });
       const res = await Rest.post(`/bank-feed/reconcile/${a.account_id}`, body);
       setReconcileMsg(
         res.mode === "mtm"
@@ -552,8 +556,6 @@ export default function BalanceReconciliation() {
       <MtmDateControl
         value={bookDate}
         onChange={setBookDate}
-        balanceDate={markBalanceDate}
-        onBalanceDateChange={setMarkBalanceDate}
       />
       <div className="recon-table-wrap">
       <table className="bfd-accounts">
@@ -804,6 +806,8 @@ export default function BalanceReconciliation() {
         error={preview?.error || null}
         stale={preview?.stale === true}
         fmtNum={fmtNum}
+        balanceDate={preview?.balanceDate || ""}
+        onBalanceDateChange={(d) => preview?.account && runPreview(preview.account, d)}
         onCancel={() => setPreview(null)}
         onApply={doReconcile}
       />

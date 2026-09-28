@@ -1,5 +1,5 @@
-import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import ReconcilePreviewModal from "./ReconcilePreviewModal.jsx";
 
 /**
@@ -81,5 +81,63 @@ describe("ReconcilePreviewModal — refused", () => {
     expect(screen.getByText("Accrual")).toBeTruthy();
     expect(screen.getByText("Books to")).toBeTruthy();
     expect(screen.queryByText(/Refused/)).toBeNull();
+  });
+});
+
+/**
+ * CR089 P1 — the observation is this ROW's question, asked in its own dialog. It used to be a
+ * page-level box that silently applied to every row reconciled while it was set.
+ */
+describe("ReconcilePreviewModal — the observation to mark against", () => {
+  const mtmAccount = { account_id: 3, name: "Fidelity Stocks", currency: "USD", reconcile_mode: "mtm" };
+  const staleMtm = {
+    mode: "mtm", feed_date: "2026-08-31", month_end: "2026-08-31", mtm_amount: 24352.57,
+    refused: true, applied: false, note: "synced before 2026-08-31 ended",
+    later_observations: [
+      { balance_date: "2026-09-02", balance: 1000000, synced_on: "2026-09-02" },
+      { balance_date: "2026-09-03", balance: 1000500, synced_on: "2026-09-03" },
+    ],
+  };
+  const renderWith = (props) =>
+    render(
+      <ReconcilePreviewModal
+        open account={mtmAccount} busy={false} error={null} stale={false}
+        onCancel={() => {}} onApply={() => {}} fmtNum={fmtNum} {...props}
+      />
+    );
+
+  it("pre-fills the first later observation but does not apply it", () => {
+    const onBalanceDateChange = vi.fn();
+    renderWith({ preview: staleMtm, onBalanceDateChange });
+    expect(screen.getByLabelText(/Mark against balance dated/).value).toBe("2026-09-02");
+    expect(onBalanceDateChange).not.toHaveBeenCalled();
+    expect(screen.getByText(/engine's own pick/)).toBeTruthy();
+  });
+
+  it("picking a candidate re-previews against it", () => {
+    const onBalanceDateChange = vi.fn();
+    renderWith({ preview: staleMtm, onBalanceDateChange });
+    fireEvent.click(screen.getByRole("button", { name: "2026-09-03" }));
+    expect(onBalanceDateChange).toHaveBeenCalledWith("2026-09-03");
+  });
+
+  it("a chosen date can be changed back to the engine's pick", () => {
+    const onBalanceDateChange = vi.fn();
+    renderWith({ preview: { ...staleMtm, refused: false }, balanceDate: "2026-09-02", onBalanceDateChange });
+    expect(screen.getByText(/measured against the balance dated 2026-09-02/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Engine's pick" }));
+    expect(onBalanceDateChange).toHaveBeenCalledWith("");
+  });
+
+  it("a calibrate row is not asked", () => {
+    render(
+      <ReconcilePreviewModal
+        open account={{ ...mtmAccount, reconcile_mode: "calibrate" }}
+        preview={{ mode: "calibrate", feed_date: "2026-09-01", old_opening: 0, new_opening: 1 }}
+        busy={false} error={null} stale={false} fmtNum={fmtNum}
+        onCancel={() => {}} onApply={() => {}} onBalanceDateChange={() => {}}
+      />
+    );
+    expect(screen.queryByLabelText(/Mark against balance dated/)).toBeNull();
   });
 });
