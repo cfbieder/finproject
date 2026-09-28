@@ -17,7 +17,7 @@
 > and letting [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first) own the rest,
 > since it already does.
 
-**Last updated:** 2026-09-28 · **Live version:** **v3.67.0** (see `VERSION` / git tags) — **v3.67.0: the CR close-out** — 22 open CRs reviewed, 20 closed; the v4 track retired; fixes for the variant sync, scenario delete, cross-currency transfer offsets, CR066's parent-mapped leaves, the ConfirmModal/404, and the per-row month-end observation. Release notes: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
+**Last updated:** 2026-09-28 · **Live version:** **v3.67.0** (see `VERSION` / git tags) — **v3.67.0: the CR close-out** — 21 open CRs reviewed, 20 closed (CR066 the same day, after v3.67.0); the v4 track retired; fixes for the variant sync, scenario delete, cross-currency transfer offsets, CR066's parent-mapped leaves, the ConfirmModal/404, and the per-row month-end observation. Release notes: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
 
 ## Current phase
 **Moved to [current-phase.md](current-phase.md)** — it changes on a regenerate, not on a release.
@@ -78,13 +78,13 @@ scenarios are REGENERATED**. It changes far less often than this file does.
 > 2026-09-14 ([log](../archive/status-log_2026-09-14.md)). Statuses are canonical in the
 > [CR index](../cr/README.md), versions in [the roadmap](project-roadmap.md).
 
-- ✅ **CR close-out review, 2026-09-28** — 22 non-closed CRs reviewed against code and prod: **19 closed**
-  (13 completed, 4 obsolete, 2 superseded — see the [CR index](../cr/README.md) roll-up), CR052's need
+- ✅ **CR close-out review, 2026-09-28** — 21 non-closed CRs reviewed against code and prod: **20 closed**
+  (14 completed, 4 obsolete, 2 superseded — see the [CR index](../cr/README.md) roll-up), CR052's need
   restated as DRAFT [CR095](../cr/cr-095-forecast-spend-currency-share.md), the v4 track (CR027)
   retired. Fixes built on branch `cr-closeout`: variant sync in a transaction, scenario delete prunes
   its assumptions, cross-currency transfer offsets, CR066's parent-mapped leaves, CR086's ConfirmModal
   / 404, CR089 P1. Five wrong-currency prod rows (CR087, a few $k of net worth) were corrected on prod
-  the same day. **Still open:** CR066 (owner's mapping pass) and **CR064, scoped to P2, the annual
+  the same day. CR066 closed after the owner's mapping pass. **Still open: CR064, scoped to P2, the annual
   close — due before Jan 2027.**
 - **LE-09-26 stays a draft through September by owner rule** (v3.62.4) — finalise it in early October,
   then FX recalculate, then cut LE-10-26.
