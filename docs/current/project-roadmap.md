@@ -1719,7 +1719,7 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
 
 - [x] **FIXED 2026-09-28 — Deleting a scenario leaves its assumptions behind.** The delete route now prunes the four keys in the same transaction as the row (`forecast.delete-scenario.test.js`); the prod orphan "ZZ SRQ financed" was removed from all four keys the same day (owner-approved, with the CR087 data fix). (found 2026-09-28, CR close-out review; see [CR064 §15](../cr/cr-064-forecast-annual-close-and-assumptions.md#15-status)). `DELETE /scenarios/byname/:name` (`routes/forecast.js`) deletes the `forecast_scenarios` row only; the `forecast_assumptions` document is pruned by the browser (`FCScenarios.jsx`), the same split-brain CR048 §4b fixed for copy. Prod carries an orphan **"ZZ SRQ financed"** in `scenarios`, `inflation`, `FX` and `Tax Rate`. Fix: prune server-side in the delete's transaction with the existing `pruneAssumptionsForName` (`forecastScratch.js`), plus a one-off cleanup of the orphan.
 
-- [ ] 🟡 **ocr-llm's `API_DOCUMENTATION.md` documents a deadline they no longer run and an
+- [x] **FIXED UPSTREAM — verified 2026-09-28** at ocr-llm `f249397` (2026-09-27): the doc no longer quotes either number, `LLM_PROTOCOLS.md` §10 now states the client-abort rule, and their handoff board has no open threads. Original: 🟡 **ocr-llm's `API_DOCUMENTATION.md` documents a deadline they no longer run and an
   abort we no longer use — theirs to fix, filed 2026-09-23** (`finance-api-doc-stale-deadline`).
   Its `504` entry reads *"`finance_statement_extract` **420,000 ms** … under fin's own 480 s client
   abort"*. Measured the same day: live `GET /task/routes` gives **`deadline_ms` 600,000,
@@ -1731,8 +1731,7 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
   latency distribution for this task after the next quarterly filing — 599.3 s is 99.9% of the 600 s
   ceiling that bounded it, so no deadline, including the current one, should be set from it.
 
-- [ ] 🟡 **`check-ci.sh --latest` named a commit CI has never run on — observed ONCE, not
-  reproduced** *(2026-09-23 19:08Z)*. It printed `main @ 4415bbb — CI green`. At that moment
+- [ ] 🟡 **`check-ci.sh --latest` named a commit CI has never run on — REPRODUCED 2026-09-28, three instances, always the SAME stale run** *(2026-09-23 19:08Z; 2026-09-28 at session start and again at ~13:40Z, a minute after a push)*. All three printed `main @ 4415bbb` — the run for `4415bbb8`, a push of **2026-09-08 19:32Z** (run 34269536074). The identical stale answer each time points at `gh run list --branch main --limit 1` returning a cached result page, not at random ordering; a re-run seconds later returned the true newest run. **Fix (small):** ask for `--limit 20` and pick the newest `createdAt` client-side, so a stale first page cannot name the tip. Original report: It printed `main @ 4415bbb — CI green`. At that moment
   `origin/main` was `653bc82d` and **`4415bbb8` is an older commit of ours**
   (`docs(cr093): the index still read IN-PROGRESS…`) that appears in **none** of the last 8 runs —
   `gh run list --branch main --limit 8` gives `653bc82d` (17:00:59Z) as the newest. Six immediate
@@ -1773,7 +1772,7 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
   account named Pekao at all**. ⚠️ The consequence to know: an ignored upstream connection can sit
   in `needs_reconnect` indefinitely with no fin surface saying so. That is the design, not a defect
   — but it means *"attention-summary says 0"* proves nothing about connections fin does not map.
-- [ ] 🟡 **The feed can revise a transaction's DATE after promote, and the ledger keeps the old
+- [x] **DECIDED 2026-09-28 — no gate; the month-end runbook diagnoses it.** CR094 closed as not warranted (0 divergences since the 08-10 cutover); its three checks are a step in [month-end-reconcile.md](../guides/month-end-reconcile.md) §2. Original: **The feed can revise a transaction's DATE after promote, and the ledger keeps the old
   one** *(found 2026-09-20 — [CR094](../cr/cr-094-promote-divergence-gate.md))*. `staging.upsert`
   does `ON CONFLICT DO UPDATE SET transaction_date = EXCLUDED.transaction_date` and deliberately
   does **not** reset `promoted_transaction_id`, so staging takes the correction and the promoted row
@@ -1868,7 +1867,7 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
   upstream changing its id scheme* — landing on CONNECTIONS instead of transactions, where §22.11's
   generation detector was never pointed.**
 
-- [ ] **`balanceDate` is sent only for `mtm`, so an `accrue` row cannot be steered to the observation
+- [x] **DONE — found stale 2026-09-28.** `reconcileBody` has sent `balanceDate` for `accrue` since the 2026-09-01 split, and since v3.67.0 (CR089 P1) the observation is chosen per row in the dialog. Original: **`balanceDate` is sent only for `mtm`, so an `accrue` row cannot be steered to the observation
   that would reconcile it** *(found 2026-09-01 while fixing
   [CR080 B3.1](../cr/cr-080-feed-accrual-reconcile-mode.md))*. The engine honours `balanceDate` for
   **both** modes; `reconcileBody` in
