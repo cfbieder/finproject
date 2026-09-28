@@ -447,7 +447,9 @@ async function syncVariant(variantId, { client = null, force = false } = {}) {
 
     return { synced: true, ...stats };
   };
-  return client ? run(client) : db.transaction(run);
+  // The pool is not a transaction: syncIfStale's default client is `db`, and running on it would
+  // autocommit each statement and make the advisory lock a no-op.
+  return client && client !== db ? run(client) : db.transaction(run);
 }
 
 async function syncEntity(c, { variantId, baseId, entityType, overrides }) {

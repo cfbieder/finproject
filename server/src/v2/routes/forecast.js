@@ -21,6 +21,8 @@ const { baseYearFxRate } = require('../../services/forecast/fcbuilder-setup'); /
 const { generateForecast } = require('../../services/forecast');
 const autoAdjust = require('../services/forecastAutoAdjust'); // CR053
 const sensitivity = require('../services/forecastSensitivity'); // CR085
+const { pruneAssumptionsForName } = require('../services/forecastScratch');
+const db = require('../db');
 const { PATHS } = require('../../services/forecast/constants');
 
 // Fields PUT /scenarios/:id may set (mirrors updateScenario's own allow-list).
@@ -418,7 +420,13 @@ router.delete('/scenarios/byname/:name', async (req, res, next) => {
       });
     }
 
-    await repo.deleteScenario(scenario.id);
+    // The assumptions document is keyed by scenario NAME, so the row and its entries go together.
+    // Leaving the prune to the browser (which only drops them from unsaved local state) is how
+    // prod came to carry an orphan "ZZ SRQ financed" in all four keys.
+    await db.transaction(async (client) => {
+      await pruneAssumptionsForName(client, scenario.name);
+      await repo.deleteScenario(scenario.id, client);
+    });
     res.json({ success: true });
   } catch (error) {
     console.error('[forecast/scenarios/byname DELETE] Failed:', error);

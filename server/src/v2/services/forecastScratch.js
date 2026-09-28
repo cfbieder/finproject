@@ -171,4 +171,6 @@ module.exports = {
   // Exported for the stale-scratch sweep and for tests that assert nothing was left behind.
   destroyScratch,
   sweepStaleScratch,
+  // The owner's scenario delete prunes the same four keys (routes/forecast.js).
+  pruneAssumptionsForName,
 };

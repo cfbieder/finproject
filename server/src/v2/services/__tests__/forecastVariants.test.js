@@ -388,6 +388,25 @@ dbDescribe('forecastVariants (DB)', () => {
     expect(after.map((r) => r.name)).toEqual(before.map((r) => r.name));
   });
 
+  // The lazy read-path sync used to pass the POOL as its client, and syncVariant took any client
+  // as "already inside a transaction" — so each statement autocommitted on whichever pooled
+  // connection was free, the parked `__sync_<id>` names were visible to other readers, and
+  // pg_advisory_xact_lock released the instant it was taken.
+  test('syncIfStale opens its own transaction rather than running on the bare pool', async () => {
+    await db.query('UPDATE forecast_scenarios SET updated_at = NOW() WHERE id = $1', [baseId]);
+    // On the pool, the advisory lock is a statement of its own and protects nothing; inside a
+    // transaction it runs on the transaction's client and never reaches db.query at all.
+    const spy = jest.spyOn(db, 'query');
+    try {
+      const res = await variants.syncIfStale(variantId);
+      expect(res.synced).toBe(true);
+      const onPool = spy.mock.calls.map(([sql]) => String(sql)).filter((sql) => sql.includes('pg_advisory_xact_lock'));
+      expect(onPool).toEqual([]);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   // -------------------------------------------------------------------------
   // No silent overwrite — every bypass write path
   // -------------------------------------------------------------------------

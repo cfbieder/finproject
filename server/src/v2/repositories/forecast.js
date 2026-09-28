@@ -196,9 +196,9 @@ async function renameScenario(id, newName) {
 /**
  * Delete a scenario (cascades to modules and incexp)
  */
-async function deleteScenario(id) {
+async function deleteScenario(id, client = db) {
   const sql = `DELETE FROM forecast_scenarios WHERE id = $1 RETURNING id`;
-  const result = await db.query(sql, [id]);
+  const result = await client.query(sql, [id]);
   return result.rowCount > 0;
 }
 
