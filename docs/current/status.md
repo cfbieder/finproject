@@ -17,7 +17,7 @@
 > and letting [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first) own the rest,
 > since it already does.
 
-**Last updated:** 2026-10-01 · **Live version:** **v3.68.1** (see `VERSION` / git tags) — **v3.68.1:** the net-worth bridge names the top 3–5 items per driver, footed by an "Everything else" row ([CR092 §6a](../cr/cr-092-net-worth-bridge.md)). **v3.68.0: [CR096](../cr/cr-096-owner-fixes-le-walk-unpair-split-card.md)** — LE walk + seeding fix, Unpair, Ledger transfer, Wise split card payments. Release notes: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
+**Last updated:** 2026-10-01 · **Live version:** **v3.69.0** (see `VERSION` / git tags) — **v3.69.0:** mobile Home masks the net worth until tapped; an **All pages** menu opens any desktop page inside the mobile shell. **v3.68.1:** the net-worth bridge names the top 3–5 items per driver ([CR092 §6a](../cr/cr-092-net-worth-bridge.md)). **v3.68.0: [CR096](../cr/cr-096-owner-fixes-le-walk-unpair-split-card.md).** Release notes: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
 
 ## Current phase
 **Moved to [current-phase.md](current-phase.md)** — it changes on a regenerate, not on a release.
