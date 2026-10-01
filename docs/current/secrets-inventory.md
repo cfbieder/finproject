@@ -6,7 +6,7 @@
 
 | Secret (env var) | Used by | Lives in | Escrowed? | Last rotated | Rotation trigger |
 |---|---|---|---|---|---|
-| POSTGRES_PASSWORD ⚠️ **EXPOSED 2026-09-08 — owner declined rotation, note below** | postgres + server (all three stacks) | `.env` at repo root on 192.168.1.87 (fail-loud since CR034) | ☐ | 2026-06 (CR034 hardening) | exposure / host migration |
+| POSTGRES_PASSWORD ⚠️ **EXPOSED 2026-09-08 (+ partly 2026-10-01) — owner declined rotation, notes below** | postgres + server (all three stacks) | `.env` at repo root on 192.168.1.87 (fail-loud since CR034) | ☐ | 2026-06 (CR034 hardening) | exposure / host migration |
 | BANK_FEED_API_KEY | server ↔ bank-feed microservice (:3007) | `.env` at repo root; counterpart in `bank-feed/` repo config | ☐ | 2026-06 (CR034) | exposure / bank-feed redeploy |
 | FINTABLE_API_TOKEN | bank-feed → fintable REST API V2 (CR059) | `bank-feed/.env` on 192.168.1.87 (placeholder in `.env.example`) | ☐ | 2026-07-28 (created) | **expires 1 year — 2027-07-28** / exposure / scope change (read → write for reconnect) |
 | TRADIER_ACCESS_TOKEN ⚠️ **EXPOSED 2026-09-08 — owner declined rotation, note below** | **host-run scripts only** (CR093 — daily price history via `/v1/markets/history`, single-name sector via `/beta/markets/fundamentals/company`). ⚠️ **Not mapped into any container**, and must be if a server-side caller is ever added — a value in `.env` alone never reaches one, which is the omission that 401'd AI Review on the v4 stack | `.env` at repo root on 192.168.1.87 (placeholder in `.env.example`) | ☐ | 2026-09-05 (created, owner's existing brokerage account) | exposure / brokerage account change. Measured on creation: history 3,112 daily bars to 2014-04-17; single-name sector 12/12; **fund asset class and fund sector weights BOTH null** for QQQ and FLDR, which is why it is not the fund-data provider |
@@ -24,6 +24,14 @@ or committed. The owner declined rotation for both — the database is reachable
 Tailnet and rotating it means the role plus three compose stacks, and the Tradier token is read-only
 against the owner's own brokerage account. Recorded here **so the next reader does not mistake an
 unrotated key for an unnoticed one**; if either calculus changes, rotate then.
+
+**`POSTGRES_PASSWORD` was partly printed AGAIN on 2026-10-01 — logged, not rotated (owner, same day).**
+A review subagent printed the first 80 characters of `server/.env-cmdrc` while looking up how tests
+reach the database, which put part of the `development` `DATABASE_URL` — password included — into the
+session transcript. It was first reported as a *dev-only* password; a hash comparison (no value printed)
+showed every `DATABASE_URL` in that file uses the same value as `POSTGRES_PASSWORD`, so it is this
+already-exposed secret, not a new one. Same scope as above; the 2026-09-08 decision stands. ⚠️
+`server/.env-cmdrc` is a secrets file like `.env` — the never-print rule covers it too.
 
 ⚠️ **This is the SECOND redaction failure in three days, and the 2026-09-06 note below already
 carried the rule that would have stopped it** — *check for presence rather than printing a line that

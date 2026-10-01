@@ -26,7 +26,12 @@ fail on the old code).
 **Repair (prod, 2026-10-01).** LE-10-26 is a draft, so its 21 dropped cells were restored from
 LE-09-26 by SQL, skipping the one cell the owner had edited. LE-10-26 now lands at **−64,674.76**,
 +9,096 vs LE-09-26 (September +11,096, Option Trade −2,000). **LE-09-26 is final and was left as
-finalised** — it was cut from LE-08-26 by the same code and may have lost cells too.
+finalised** — it was cut from LE-08-26 by the same code, and 11 cells typed in LE-08-26 are absent from
+it. Clearing a cell and the bug dropping it leave the same trace, so they cannot be told apart. Because
+the repair copied from LE-09-26, five categories still lack their LE-08 figures in LE-10-26's Oct–Dec:
+Anna − Exp (−400/mo typed vs −308 budget), Education Oct (−1,500), FL − Food and Drink Nov (−2,000),
+FL − Groceries Nov (−2,000), Groceries Nov–Dec (−500/mo vs −856 budget) — about −5,060 if all restored.
+**Owner decision 2026-10-01: decide each in the worksheet; no SQL restore.**
 
 **The walk** — `GET /api/v2/budget/le/:id/walk?from=<id>` and a collapsed panel on `/budget-le`
 (`LEWalk.jsx`): prior FY + restated + closed-month actual vs estimate + re-estimated = new FY, per
