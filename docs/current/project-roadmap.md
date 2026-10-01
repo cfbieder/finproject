@@ -781,11 +781,12 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.2 Completed (chronological, latest first)
 
-- **Unreleased — [CR096](../cr/cr-096-owner-fixes-le-walk-unpair-split-card.md)** (2026-10-01, on `main`, not yet released) — four owner fixes. No migration.
+- **v3.68.0** (2026-10-01) — **minor: [CR096](../cr/cr-096-owner-fixes-le-walk-unpair-split-card.md), four owner fixes.** No migration.
   - **LE seeding bug fixed** — a new LE dropped typed estimates where the month had no budget row or the budget was non-USD (LE-10-26 lost ~26k, 21,425 of it Taxes US Oct). **Prod LE-10-26 repaired** (21 cells from LE-09-26); it lands at −64,674.76, not −38,655. LE-09-26 (final) left as finalised.
   - **LE walk** on `/budget-le` (`GET /le/:id/walk`) — reverses part of CR083 §11.1.
   - **Unpair** — undo for neutralize/transfer (`POST /transactions/:id/unpair`, audit-backed), Undo toast on Refresh Feeds + Ledger; **Transfer…** on Ledger; transfer refuses an already-paired row.
   - **WISE − EUR −45.85** — two 2026-09-21 card payments Wise part-funded from USD, booked on both accounts. **Prod repaired** (two manual rows +45.79 EUR, 0.06 accrual forced); `balance-recon` now flags `split_card_payments`.
+  - 1,451 backend + 709 frontend tests; every new regression test fails on the old code; walk, Ledger bar, undo toast and transfer modal rendered in both themes; two reviews' eleven findings fixed before release.
 
 - **v3.67.0** (2026-09-28) — **minor: the CR close-out.** No migration; **no forecast numbers move** (one prod data correction, below). 21 non-closed CRs reviewed against code and prod with the owner: **19 closed** (13 completed, 4 obsolete, 2 superseded) *(corrected 2026-09-28: first written as "22 … 20 closed … 5 obsolete"; the index that morning held 21 non-closed rows)*, CR052's need restated as DRAFT [CR095](../cr/cr-095-forecast-spend-currency-share.md); open are CR064 (the annual close, due before Jan 2027) and CR066 (owner mapping pass).
   - **v4 retired** ([CR027](../cr/cr-027-multi-tenancy-final-release.md) obsolete): `docker-compose.v4.yml`, `v4-up.sh`, `sync-db-prod-to-v4.sh` and the CLAUDE.md dual-track rule removed.
