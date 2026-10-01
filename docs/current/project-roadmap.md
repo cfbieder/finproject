@@ -781,7 +781,7 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.2 Completed (chronological, latest first)
 
-- **Unreleased — [CR096](../cr/cr-096-owner-fixes-le-walk-unpair-split-card.md)** (2026-10-01, branch `owner-fixes`) — four owner fixes. No migration.
+- **Unreleased — [CR096](../cr/cr-096-owner-fixes-le-walk-unpair-split-card.md)** (2026-10-01, on `main`, not yet released) — four owner fixes. No migration.
   - **LE seeding bug fixed** — a new LE dropped typed estimates where the month had no budget row or the budget was non-USD (LE-10-26 lost ~26k, 21,425 of it Taxes US Oct). **Prod LE-10-26 repaired** (21 cells from LE-09-26); it lands at −64,674.76, not −38,655. LE-09-26 (final) left as finalised.
   - **LE walk** on `/budget-le` (`GET /le/:id/walk`) — reverses part of CR083 §11.1.
   - **Unpair** — undo for neutralize/transfer (`POST /transactions/:id/unpair`, audit-backed), Undo toast on Refresh Feeds + Ledger; **Transfer…** on Ledger; transfer refuses an already-paired row.

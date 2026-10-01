@@ -1,4 +1,4 @@
-**Status:** COMPLETED 2026-10-01 (code on branch `owner-fixes`; prod data repairs applied the same day) · [roadmap](../current/project-roadmap.md#12-completed-chronological-latest-first)
+**Status:** COMPLETED 2026-10-01 (code on `main`, not yet released; prod data repairs applied the same day) · [roadmap](../current/project-roadmap.md#12-completed-chronological-latest-first)
 
 # CR096 — Four owner fixes: the LE walk (and the seeding bug it exposed), Unpair, Ledger transfer, Wise split card payments
 

@@ -90,7 +90,7 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   LE-10-26 cut; the new LE-to-LE walk showed ~26k of typed estimates dropped by a seeding bug (fixed;
   prod LE-10-26 repaired → −64,674.76). Also Unpair (undo neutralize/transfer), Transfer… on Ledger, and
   WISE − EUR's −45.85: Wise part-funding a card payment from USD is booked on both accounts (repaired;
-  now flagged on the reconcile page). **Code is on branch `owner-fixes`, not yet released.**
+  now flagged on the reconcile page). **Merged to `main`, not yet released or deployed.**
 - **Re-examine SRQ** — **−476,930**: funds itself 35 of 36 years, dry in the last. Marginal, not
   hopeless. Financing would be the untested lever (all cash, no rent, sells at 7%), and testing it
   is **DECLINED** (owner, 2026-08-23) — so this is a judgement to make, not an experiment to run.
