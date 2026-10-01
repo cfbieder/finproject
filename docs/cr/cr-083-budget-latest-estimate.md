@@ -1219,6 +1219,9 @@ the one guarding §2.1's −35,900 double-count, whose memo line P0b ships. Plus
 - **The Compare tab, the Versions tab, the LE-vs-prior-LE walk, the trend chart, `PY_SEASON` and
   `L11`.** All of them serve the *frozen series* reading, which the owner explicitly did **not**
   pick. A minimal saved-LE list is still needed to re-open one; a comparison surface is not.
+  ⚠️ **The walk came back 2026-10-01 ([CR096](cr-096-owner-fixes-le-walk-unpair-split-card.md))** — as a
+  collapsed panel, not a tab — after LE-10-26 read 35k better than LE-09-26 and ~26k of that turned
+  out to be typed estimates the seeding had dropped. Two grids side by side could not show that.
 - **The accept/reject drawer, `proposed_amount`, the `proposed_accepted` / `proposed_rejected`
   sources and the undo stack** — superseded by §10.4's advisory. `source` collapses to
   `actual | budget_carry | manual` — **and `method` is NOT collapsed with it.** `method` keeps

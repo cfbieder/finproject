@@ -17,7 +17,7 @@
 > and letting [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first) own the rest,
 > since it already does.
 
-**Last updated:** 2026-09-28 · **Live version:** **v3.67.0** (see `VERSION` / git tags) — **v3.67.0: the CR close-out** — 21 open CRs reviewed, 20 closed (CR066 the same day, after v3.67.0); the v4 track retired; fixes for the variant sync, scenario delete, cross-currency transfer offsets, CR066's parent-mapped leaves, the ConfirmModal/404, and the per-row month-end observation. Release notes: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
+**Last updated:** 2026-10-01 · **Live version:** **v3.67.0** (see `VERSION` / git tags) — **v3.67.0: the CR close-out** — 21 open CRs reviewed, 20 closed (CR066 the same day, after v3.67.0); the v4 track retired; fixes for the variant sync, scenario delete, cross-currency transfer offsets, CR066's parent-mapped leaves, the ConfirmModal/404, and the per-row month-end observation. Release notes: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
 
 ## Current phase
 **Moved to [current-phase.md](current-phase.md)** — it changes on a regenerate, not on a release.
@@ -86,8 +86,11 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   / 404, CR089 P1. Five wrong-currency prod rows (CR087, a few $k of net worth) were corrected on prod
   the same day. CR066 closed after the owner's mapping pass. **Still open: CR064, scoped to P2, the annual
   close — due before Jan 2027.**
-- **LE-09-26 stays a draft through September by owner rule** (v3.62.4) — finalise it in early October,
-  then FX recalculate, then cut LE-10-26.
+- **[CR096](../cr/cr-096-owner-fixes-le-walk-unpair-split-card.md), 2026-10-01** — LE-09-26 finalised and
+  LE-10-26 cut; the new LE-to-LE walk showed ~26k of typed estimates dropped by a seeding bug (fixed;
+  prod LE-10-26 repaired → −64,674.76). Also Unpair (undo neutralize/transfer), Transfer… on Ledger, and
+  WISE − EUR's −45.85: Wise part-funding a card payment from USD is booked on both accounts (repaired;
+  now flagged on the reconcile page). **Code is on branch `owner-fixes`, not yet released.**
 - **Re-examine SRQ** — **−476,930**: funds itself 35 of 36 years, dry in the last. Marginal, not
   hopeless. Financing would be the untested lever (all cash, no rent, sells at 7%), and testing it
   is **DECLINED** (owner, 2026-08-23) — so this is a judgement to make, not an experiment to run.
