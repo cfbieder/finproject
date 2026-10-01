@@ -137,6 +137,50 @@ describe('balanceReconcile currency + USD-equivalent ordering (DB, CR087 P1)', (
     }
   });
 
+  // WISE - EUR, 2026-09-21: a 54.10 EUR card payment with 36.51 EUR in the
+  // balance — Wise funded the rest from USD, and the feed booked 54.10 on EUR
+  // AND 20.19 on USD under the same CARD id. The converted part counted twice.
+  test('a card payment booked on TWO accounts is named on the paying one, until repaired', async () => {
+    const tx = async (accountId, amount, ccy, desc, extId) => {
+      const id = (await db.query(
+        `INSERT INTO transactions (transaction_date, description1, amount, currency, base_amount, account_id, source)
+         VALUES (DATE '2026-08-21', $1, $2, $3, $2, $4, 'bank-feed') RETURNING id`,
+        [TAG, amount, ccy, accountId]
+      )).rows[0].id;
+      await db.query(
+        `INSERT INTO bankfeed_staging (external_id, source, transaction_date, amount, currency, description, promoted_transaction_id)
+         VALUES ($1, 'fintable', DATE '2026-08-21', $2, $3, $4, $5)`,
+        [`${TAG}${extId}`, amount, ccy, desc, id]
+      );
+    };
+    try {
+      await tx(plnId, -54.10, 'PLN', 'CARD-999000111.17 -- Card transaction of 54.10 PLN', 'a');
+      await tx(usdId, -20.19, 'USD', 'CARD-999000111.18 -- Card transaction of 54.10 PLN (fee: 0.06 USD)', 'b');
+      await tx(usdId, -0.06, 'USD', 'Wise Charges for: CARD-999000111 -- fee', 'c');
+
+      let res = await balanceReconcile({ asOf: AS_OF });
+      const pick = (r, suffix) => mine(r).find((a) => a.name.endsWith(suffix));
+      // Named on the PAYING account (the card's face currency) only — the
+      // funding side's converted row is correct, and the fee row is no hit at all.
+      expect(pick(res, '_pln').split_card_payments).toEqual([expect.objectContaining({
+        card: '999000111', amount: -54.1, other_amount: -20.19, other_currency: 'USD',
+      })]);
+      expect(pick(res, '_usd').split_card_payments).toEqual([]);
+
+      // The repair — a manual row naming the CARD id — clears it.
+      await db.query(
+        `INSERT INTO transactions (transaction_date, description1, amount, currency, base_amount, account_id, source)
+         VALUES (DATE '2026-08-21', $1, 20, 'PLN', 5, $2, 'manual')`,
+        [`${TAG} split: CARD-999000111 paid from USD`, plnId]
+      );
+      res = await balanceReconcile({ asOf: AS_OF });
+      expect(pick(res, '_pln').split_card_payments).toEqual([]);
+    } finally {
+      await db.query(`DELETE FROM bankfeed_staging WHERE external_id LIKE $1`, [`${TAG}%`]);
+      await db.query(`DELETE FROM transactions WHERE description1 LIKE $1`, [`${TAG}%`]);
+    }
+  });
+
   test('an account whose currency disagrees with its feed is FLAGGED', async () => {
     // The actuals twin of the forecast's R11. It fires on 0 live accounts, which
     // is the point — the values agree and are simply in different units, so no

@@ -4270,3 +4270,7 @@
   background: var(--warning-subtle);
   border: 1px solid var(--warning-light);
 }
+
+/* TransferToAccountModal (CR096): the row being moved, and cross-currency/loading notes. */
+.transfer-modal__source { margin: 0 0 0.75rem; font-size: 0.85rem; color: var(--ink); }
+.transfer-modal__note { margin: 0.6rem 0 0; font-size: 0.8rem; line-height: 1.5; color: var(--muted); }

@@ -5,6 +5,7 @@ import LEGrid from "../features/BudgetLE/LEGrid.jsx";
 import LECategorySheet from "../features/BudgetLE/LECategorySheet.jsx";
 import LEDeviations from "../features/BudgetLE/LEDeviations.jsx";
 import LEAdvisories from "../features/BudgetLE/LEAdvisories.jsx";
+import LEWalk from "../features/BudgetLE/LEWalk.jsx";
 import "./PageLayout.css";
 
 /**
@@ -19,7 +20,9 @@ import "./PageLayout.css";
  *
  * One screen and no tab strip — §11.1 cut the Compare and Versions tabs with the
  * frozen-series reading the owner did not pick. Saved LEs are a picker in the
- * header. The confirm is the Radix `<Modal>`, not `ConfirmModal`, which CR086 §5
+ * header. The one comparison that came back is the WALK from the prior LE
+ * (LEWalk, 2026-10-01), a collapsed panel rather than a tab.
+ * The confirm is the Radix `<Modal>`, not `ConfirmModal`, which CR086 §5
  * measured as having no Esc and no focus trap.
  */
 const CONFIRM = {
@@ -260,6 +263,10 @@ function BudgetLE() {
 
       {shownGrid && (
         <LEDeviations data={forSelected(deviations)} onOpenCategory={setOpenCategory} />
+      )}
+
+      {shownGrid && (
+        <LEWalk key={selectedId} leId={selectedId} list={list} refreshKey={refreshKey} onOpenCategory={setOpenCategory} />
       )}
 
       {shownGrid && <LEGrid grid={shownGrid} onOpenCategory={setOpenCategory} />}

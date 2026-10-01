@@ -171,6 +171,16 @@
   color: var(--muted);
 }
 
+/* ---- the walk (LE → LE) -------------------------------------------------- */
+
+.le-walk__controls { display: flex; gap: 1rem; margin-bottom: 0.6rem; }
+.le-walk { margin-top: 0.25rem; }
+/* The grid shades its 2nd column as the ACTUAL half; here it is the prior FY. */
+.le-walk tbody td:nth-child(2) { background: var(--surface); }
+/* The estimate → actual pair is context for the delta beside it, not a figure to read first. */
+.le-walk__pair { font-size: 0.72rem; color: var(--muted); }
+.le-walk__pair .le-grid__money { color: var(--muted); }
+
 /* ---- the grid ---------------------------------------------------------- */
 
 .le-grid-wrap { margin-top: 0.5rem; }

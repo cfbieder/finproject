@@ -18,6 +18,8 @@ import {
   Scale,
   Landmark,
   Wallet,
+  ArrowLeftRight,
+  Undo2,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { LEDGER_CONFIG } from "../features/Transaction/transactionConfig.js";
@@ -36,6 +38,8 @@ import {
 import TransactionEditModal from "../features/Transaction/TransactionEditModal.jsx";
 import TransactionDeleteModal from "../features/Transaction/TransactionDeleteModal.jsx";
 import BookAtSourceModal from "../features/Transaction/BookAtSourceModal.jsx";
+import TransferToAccountModal from "../features/Transaction/TransferToAccountModal.jsx";
+import { postUnpair, summarizeUnpairs } from "../features/Transaction/pairing.js";
 import CategorySelector from "../components/CategorySelector/CategorySelector.jsx";
 import SearchableSelect from "../components/SearchableSelect/SearchableSelect.jsx";
 import PeriodSelector from "../components/PeriodSelector/PeriodSelector.jsx";
@@ -98,7 +102,7 @@ const formatAmount = (value) => {
 };
 
 export default function Ledger() {
-  const { showSuccess, showError: showErrorToast } = useToast();
+  const { showSuccess, showError: showErrorToast, showUndoable } = useToast();
   const { bsTree, accountCurrencyMap, plTree } = useCoa();
 
   // ─── Account selection (single account — running balance needs one) ───
@@ -477,6 +481,22 @@ export default function Ledger() {
     }
   }, [selectedRows, postNeutralize, showErrorToast]);
 
+  // Undo pairings one at a time, for the same reason they are made one at a time.
+  // Each is reported on its own terms: a batch that fails part-way must still say
+  // what it DID undo, and a "category not restored" caveat on any row must surface.
+  const undoPairings = useCallback(async (ids) => {
+    const results = [];
+    const failures = [];
+    for (const id of ids) {
+      try { results.push(await postUnpair(id)); } catch (err) { failures.push(err?.message ?? "failed"); }
+    }
+    if (results.length) showSuccess(summarizeUnpairs(results));
+    if (failures.length) {
+      showErrorToast(`${failures.length} could not be undone: ${[...new Set(failures)].join("; ")}`);
+    }
+    await handleSuccess();
+  }, [showSuccess, showErrorToast, handleSuccess]);
+
   // Step 2: apply (on confirm).
   //
   // CR065: SEQUENTIALLY, never Promise.all. Each neutralize can consume a
@@ -500,13 +520,17 @@ export default function Ledger() {
       const created = results.filter((r) => r?.action === "mirror").length;
       const noop = results.filter((r) => r?.action === "already-paired").length;
       const drifted = predictedMirrors != null && predictedMirrors !== created;
-      showSuccess(
+      // Only the rows THIS click paired — an already-paired row was left alone and
+      // undoing it would undo an earlier, deliberate neutralize.
+      const madeHere = ids.filter((_, i) => results[i]?.action !== "already-paired");
+      const message =
         (ids.length === 1
           ? (paired ? "Neutralized (paired with offsetting leg)" : "Neutralized (offset entry created)")
           : `Neutralized ${ids.length} transactions — ${created} offset entr${created === 1 ? "y" : "ies"} created, ${paired} paired`) +
         (noop > 0 ? ` · ${noop} already neutralized, left alone` : "") +
-        (drifted ? ` · note: ${predictedMirrors} new entr${predictedMirrors === 1 ? "y was" : "ies were"} predicted` : "")
-      );
+        (drifted ? ` · note: ${predictedMirrors} new entr${predictedMirrors === 1 ? "y was" : "ies were"} predicted` : "");
+      if (madeHere.length) showUndoable(message, () => undoPairings(madeHere));
+      else showSuccess(message);
       setNeutralizeConfirm(null);
       clearSelection();
       await handleSuccess();
@@ -515,7 +539,44 @@ export default function Ledger() {
     } finally {
       setIsNeutralizing(false);
     }
-  }, [neutralizeConfirm, postNeutralize, handleSuccess, clearSelection, showSuccess, showErrorToast]);
+  }, [neutralizeConfirm, postNeutralize, handleSuccess, clearSelection, showSuccess, showUndoable, undoPairings, showErrorToast]);
+
+  // ─── Transfer to another account (CR022, as on Refresh Feeds) / Unpair ───
+  const [transferEntry, setTransferEntry] = useState(null);
+  const handleTransferDone = useCallback(async (result) => {
+    const id = result?.original?.id;
+    setTransferEntry(null);
+    clearSelection();
+    showUndoable("Transfer recorded — offsetting entry created", () => undoPairings([id]));
+    await handleSuccess();
+  }, [clearSelection, showUndoable, undoPairings, handleSuccess]);
+
+  const selectedIds = [...selectedRows.values()].map((e) => e?.id).filter(Boolean);
+  const allPaired = selectedIds.length > 0
+    && [...selectedRows.values()].every((e) => e?.paired_with_id != null);
+  // Both legs of one pair can be selected (a mirror sits in the same account);
+  // unpairing either undoes the pair, so the second call would 404 on a deleted row.
+  const [unpairConfirm, setUnpairConfirm] = useState(null); // { ids, message }
+  const handleUnpairRequest = useCallback(() => {
+    const rows = [...selectedRows.values()].filter((e) => e?.id);
+    const ids = [];
+    for (const r of rows) {
+      if (!ids.some((id) => String(id) === String(r.paired_with_id))) ids.push(r.id);
+    }
+    setUnpairConfirm({
+      ids,
+      message:
+        `Undo ${ids.length} neutralize/transfer pairing${ids.length === 1 ? "" : "s"}: a synthetic offsetting entry is ` +
+        "removed (or a claimed real leg released), and the category and accepted flag the pairing overwrote are restored. " +
+        "A row you have edited since is only unlinked, never overwritten.\n\nContinue?",
+    });
+  }, [selectedRows]);
+  const doUnpair = useCallback(async () => {
+    const ids = unpairConfirm?.ids || [];
+    setUnpairConfirm(null);
+    clearSelection();
+    await undoPairings(ids);
+  }, [unpairConfirm, clearSelection, undoPairings]);
 
   const safeCategoryOptions = useMemo(
     () => normalizeStringOptions(categoryOptions, edit.editFormValues.Category ?? ""),
@@ -905,6 +966,28 @@ export default function Ledger() {
             <Scale size={13} />
             {isNeutralizing ? "Neutralizing…" : "Neutralize"}
           </button>
+          {selectedRow?.id && selectedRow.paired_with_id == null && (
+            <button
+              type="button"
+              className="btn btn--sm btn--outline"
+              onClick={() => setTransferEntry(selectedRow)}
+              title="Transfer: offset this transaction against another account (creates the opposite entry there)"
+            >
+              <ArrowLeftRight size={13} />
+              Transfer…
+            </button>
+          )}
+          {allPaired && (
+            <button
+              type="button"
+              className="btn btn--sm btn--outline"
+              onClick={handleUnpairRequest}
+              title="Unpair: undo a neutralize or transfer — removes the offsetting entry and restores the category, unless you have edited the row since"
+            >
+              <Undo2 size={13} />
+              Unpair
+            </button>
+          )}
           {(bookableRow || selectedRestatement) && (
             <button
               type="button"
@@ -1103,6 +1186,21 @@ export default function Ledger() {
         restatement={bookAtSource?.id ? restatements[String(bookAtSource.id)] : null}
         onClose={() => setBookAtSource(null)}
         onDone={handleBookAtSourceDone}
+      />
+
+      {transferEntry && (
+        <TransferToAccountModal
+          entry={transferEntry}
+          onClose={() => setTransferEntry(null)}
+          onDone={handleTransferDone}
+          onError={showErrorToast}
+        />
+      )}
+
+      <ConfirmModal
+        state={unpairConfirm ? { title: "Unpair", message: unpairConfirm.message, confirmLabel: "Unpair" } : null}
+        onConfirm={doUnpair}
+        onCancel={() => setUnpairConfirm(null)}
       />
 
       {/* ── Neutralize confirm (warns before creating a new offsetting entry) ── */}

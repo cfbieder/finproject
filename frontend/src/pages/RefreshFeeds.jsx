@@ -15,7 +15,8 @@ import { REVIEW_CONFIG } from "../features/Transaction/transactionConfig.js";
 import { useTransactionSelection } from "../features/Transaction/hooks/useTransactionSelection.js";
 import TransactionTable from "../features/Transaction/TransactionTable.jsx";
 import CategorySelector from "../components/CategorySelector/CategorySelector.jsx";
-import { AccountPicker, buildHierarchyOptions } from "../components/AccountPicker/AccountPicker.jsx";
+import TransferToAccountModal from "../features/Transaction/TransferToAccountModal.jsx";
+import { postUnpair, describeUnpair } from "../features/Transaction/pairing.js";
 import { useCoa } from "../hooks/useCoa.js";
 import Modal from "../components/Modal/Modal.jsx";
 import ConfirmModal from "../components/ConfirmModal/ConfirmModal.jsx";
@@ -27,17 +28,14 @@ import "./RefreshFeeds.css";
 const reviewConfig = REVIEW_CONFIG;
 
 export default function RefreshFeeds() {
-  const { showSuccess, showError: showErrorToast } = useToast();
+  const { showSuccess, showError: showErrorToast, showUndoable } = useToast();
   const [lastIngestStatus, setLastIngestStatus] = useState(null);
   const [lastRefreshStatus, setLastRefreshStatus] = useState(null);
   const [psDataCountStatus, setPsDataCountStatus] = useState(null);
   const [refreshStatus, setRefreshStatus] = useState(null);
   const [isRefreshingFeed, setIsRefreshingFeed] = useState(false);
   // CR022 transfer-to-account action (review queue)
-  const [accountOptions, setAccountOptions] = useState([]);
   const [transferEntry, setTransferEntry] = useState(null);
-  const [transferTargetId, setTransferTargetId] = useState("");
-  const [isTransferring, setIsTransferring] = useState(false);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [newTransactions, setNewTransactions] = useState([]);
   const [isLoadingNewTransactions, setIsLoadingNewTransactions] =
@@ -774,6 +772,17 @@ export default function RefreshFeeds() {
   // table can show that row's Neutralize button as busy and lock its actions.
   const [neutralizingId, setNeutralizingId] = useState(null);
 
+  // Undo a neutralize / transfer from its toast. The neutralized row leaves the
+  // review list (it is accepted), so the toast is the only place to reach it.
+  const undoPairing = useCallback(async (id) => {
+    try {
+      showSuccess(describeUnpair(await postUnpair(id)));
+      await loadReviewTransactions();
+    } catch (err) {
+      showErrorToast(err?.message ?? "Failed to undo");
+    }
+  }, [showSuccess, showErrorToast, loadReviewTransactions]);
+
   const handleNeutralizeClick = useCallback(async (_rowId, entryArg) => {
     if (neutralizingId != null) return; // a neutralize is already in flight
     const entry = entryArg || (selectedRows.size === 1 ? [...selectedRows.values()][0] : null);
@@ -794,19 +803,20 @@ export default function RefreshFeeds() {
           body: JSON.stringify({}),
         }
       );
-      if (!response.ok) {
-        const body = await response.json().catch(() => null);
-        throw new Error(body?.error || "Failed to neutralize transaction");
-      }
+      const body = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(body?.error || "Failed to neutralize transaction");
       clearSelection();
-      showSuccess("Transaction neutralized — offsetting entry created");
+      // An already-paired row was left alone; Undo there would reverse an EARLIER
+      // deliberate neutralize, so only a pairing made by this click is undoable.
+      if (body?.data?.action === "already-paired") showSuccess("Already neutralized — left alone");
+      else showUndoable("Transaction neutralized — offsetting entry created (later: Ledger → Unpair)", () => undoPairing(id));
       await loadReviewTransactions();
     } catch (err) {
       showErrorToast(err?.message ?? "Failed to neutralize transaction");
     } finally {
       setNeutralizingId(null);
     }
-  }, [neutralizingId, selectedRows, clearSelection, loadReviewTransactions, showSuccess, showErrorToast]);
+  }, [neutralizingId, selectedRows, clearSelection, loadReviewTransactions, showSuccess, showUndoable, undoPairing, showErrorToast]);
 
   // CR022: suggest categories for uncategorized rows from history, then apply
   // them as pending (not accepted) so they're reviewed before committing.
@@ -854,20 +864,6 @@ export default function RefreshFeeds() {
    * Transfer to another account (CR022)
    **************************/
 
-  // COA options for the transfer-target picker (flat, breadcrumb labels).
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        const rows = await Rest.fetchAccountsV2();
-        if (active) setAccountOptions(buildHierarchyOptions(rows));
-      } catch {
-        // non-fatal: the Transfer picker simply shows no options
-      }
-    })();
-    return () => { active = false; };
-  }, []);
-
   const handleTransferClick = useCallback((_rowId, entryArg) => {
     const entry = entryArg || (selectedRows.size === 1 ? [...selectedRows.values()][0] : null);
     if (!entry) return;
@@ -876,41 +872,15 @@ export default function RefreshFeeds() {
       return;
     }
     setTransferEntry(entry);
-    setTransferTargetId("");
   }, [selectedRows, showErrorToast]);
 
-  const handleTransferCancel = useCallback(() => {
+  const handleTransferDone = useCallback(async (result) => {
+    const id = result?.original?.id;
     setTransferEntry(null);
-    setTransferTargetId("");
-  }, []);
-
-  const handleTransferConfirm = useCallback(async () => {
-    if (!transferEntry || !transferTargetId) return;
-    setIsTransferring(true);
-    try {
-      const response = await fetch(
-        Rest.buildUrl(`${reviewConfig.endpoint}/${transferEntry.id}/transfer`),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ targetAccountId: Number(transferTargetId) }),
-        }
-      );
-      if (!response.ok) {
-        const body = await response.json().catch(() => null);
-        throw new Error(body?.error || "Failed to create transfer");
-      }
-      setTransferEntry(null);
-      setTransferTargetId("");
-      clearSelection();
-      showSuccess("Transfer recorded — offsetting entry created");
-      await loadReviewTransactions();
-    } catch (err) {
-      showErrorToast(err?.message ?? "Failed to create transfer");
-    } finally {
-      setIsTransferring(false);
-    }
-  }, [transferEntry, transferTargetId, clearSelection, loadReviewTransactions, showSuccess, showErrorToast]);
+    clearSelection();
+    showUndoable("Transfer recorded — offsetting entry created (later: Ledger → Unpair)", () => undoPairing(id));
+    await loadReviewTransactions();
+  }, [clearSelection, loadReviewTransactions, showUndoable, undoPairing]);
 
   /**************************
    * Formatters for read-only tables
@@ -1176,51 +1146,12 @@ export default function RefreshFeeds() {
               acceptingId={acceptingId}
             />
             {transferEntry && (
-              <Modal
-                open
-                onClose={handleTransferCancel}
-                title="Transfer to account"
-                description="Creates an offsetting entry in the chosen account (the negated amount), making this a net-worth-neutral transfer. Both legs are accepted."
-                dismissable={!isTransferring}
-                footer={
-                  <>
-                    <button
-                      className="btn btn--outline"
-                      type="button"
-                      onClick={handleTransferCancel}
-                      disabled={isTransferring}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      className="btn btn--primary"
-                      type="button"
-                      onClick={handleTransferConfirm}
-                      disabled={isTransferring || !transferTargetId}
-                    >
-                      {isTransferring ? "Saving…" : "Create transfer"}
-                    </button>
-                  </>
-                }
-              >
-                <label className="trans-budget-edit-modal__field trans-budget-edit-modal__field--full-row">
-                  <span>Destination account</span>
-                  <AccountPicker
-                    value={transferTargetId}
-                    options={accountOptions.filter(
-                      // Balance-sheet leaves only: a net-worth-neutral transfer
-                      // must offset to a real asset/liability, not a P&L account.
-                      (o) =>
-                        o.isLeaf &&
-                        o.section === "balance_sheet" &&
-                        o.id !== transferEntry.account_id
-                    )}
-                    onChange={setTransferTargetId}
-                    placeholder="Search accounts…"
-                    autoFocus
-                  />
-                </label>
-              </Modal>
+              <TransferToAccountModal
+                entry={transferEntry}
+                onClose={() => setTransferEntry(null)}
+                onDone={handleTransferDone}
+                onError={showErrorToast}
+              />
             )}
             {editingDate && (
               <Modal

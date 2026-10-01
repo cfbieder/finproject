@@ -284,6 +284,45 @@ async function balanceReconcile({ asOf = null, tolerance = 0.01 } = {}) {
         Boolean(r.currency) && Boolean(r.account_currency) && r.currency !== r.account_currency,
     }));
 
+  // SPLIT-FUNDED CARD PAYMENTS (2026-10-01). When a Wise currency balance cannot
+  // cover a card payment, Wise funds the shortfall from another currency — and
+  // the feed books the FULL amount on the paying currency AND the converted part
+  // on the funding one, under the same `CARD-<n>` id. The shortfall is counted
+  // twice: WISE - EUR sat 45.85 adrift from 2026-09-21, and in accrue mode no
+  // reconcile can clear it (the rate guard rightly refuses a 45.85 "yield").
+  // Name the pair so the drift explains itself; the repair is an adjusting row
+  // on the PAYING account — the one in the card's face currency ("Card
+  // transaction of 54.10 EUR"); the funding side's converted row is correct.
+  // A manual row on the paying account naming the CARD id marks it repaired.
+  // Anchored on ^CARD-, which skips "Wise Charges for:".
+  const { rows: splits } = await db.query(`
+    WITH c AS (
+      SELECT t.id, t.account_id, a.name AS account_name, t.transaction_date::text AS date,
+             t.amount::float AS amount, t.currency,
+             substring(s.description FROM '^CARD-([0-9]+)') AS card,
+             substring(s.description FROM 'Card transaction of [0-9.,]+ ([A-Z]{3})') AS face_currency
+        FROM transactions t
+        JOIN bankfeed_staging s ON s.promoted_transaction_id = t.id
+        JOIN accounts a ON a.id = t.account_id
+       WHERE t.transaction_date >= COALESCE($1::date, CURRENT_DATE) - 60
+         AND s.description ~ '^CARD-[0-9]+'
+    )
+    SELECT c1.account_id, c1.card, c1.date, c1.id, c1.amount, c1.currency,
+           c2.account_name AS other_account, c2.id AS other_id,
+           c2.amount AS other_amount, c2.currency AS other_currency
+      FROM c c1 JOIN c c2 ON c1.card = c2.card AND c1.account_id <> c2.account_id
+     WHERE c1.currency = c1.face_currency AND c2.currency <> c1.face_currency
+       AND NOT EXISTS (
+         SELECT 1 FROM transactions x
+          WHERE x.account_id = c1.account_id AND x.source = 'manual'
+            AND x.description1 ~ ('CARD-' || c1.card || '([^0-9]|$)'))
+     ORDER BY c1.date, c1.card`, [asOf]);
+  for (const a of accounts) {
+    a.split_card_payments = splits
+      .filter((r) => r.account_id === a.account_id)
+      .map(({ account_id: _ignored, ...rest }) => rest);
+  }
+
   // CR087 P1 — SORT THE QUEUE ON USD-EQUIVALENT DRIFT.
   //
   // ⚠️ It sorted on raw |drift| across currencies, so a 5,000 PLN drift

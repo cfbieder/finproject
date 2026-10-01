@@ -573,6 +573,26 @@ router.post('/:id/transfer', async (req, res, next) => {
     if (/must differ|not found|cannot book the offset/i.test(error.message)) {
       return res.status(400).json({ error: error.message });
     }
+    if (/already paired/i.test(error.message)) {
+      return res.status(409).json({ error: error.message });
+    }
+    next(error);
+  }
+});
+
+// POST /api/v2/transactions/:id/unpair
+// Undo a neutralize or a transfer, from either leg: deletes a synthetic offset
+// (or releases a claimed counter-leg) and restores what the pairing changed,
+// except on a row edited since. Returns { original, deletedOffsetId, restored, keptEdits }.
+router.post('/:id/unpair', async (req, res, next) => {
+  try {
+    const result = await repo.unpair(parseInt(req.params.id, 10), { force: (req.body || {}).force === true });
+    res.json({ data: result });
+  } catch (error) {
+    if (/not found/i.test(error.message)) return res.status(404).json({ error: error.message });
+    if (/not paired|no record|booking built on it/i.test(error.message)) {
+      return res.status(409).json({ error: error.message });
+    }
     next(error);
   }
 });

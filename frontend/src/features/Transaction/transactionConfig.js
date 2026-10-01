@@ -407,6 +407,8 @@ export const LEDGER_CONFIG = {
       Note: txn.note,
       Bank: txn.bank,
       Source: txn.source,
+      // The neutralize / transfer partner — drives Ledger's Transfer… vs Unpair.
+      paired_with_id: txn.paired_with_id ?? null,
     };
   },
 

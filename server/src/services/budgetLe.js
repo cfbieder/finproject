@@ -1030,8 +1030,136 @@ async function remove(id) {
   return repo.remove(id);
 }
 
+/**
+ * The walk from one LE to a later one: why the full-year figure moved.
+ *
+ * This reverses part of §11.1's cut (the "LE-vs-prior-LE walk"), and the reason
+ * is a defect it would have exposed at a glance: LE-10-26 was cut with ~26,000
+ * of LE-09-26's typed estimates silently dropped, and two grids side by side
+ * read as "the forecast improved by 35k". A walk names WHERE the change sits:
+ *
+ *   prior FY + restated + closed + re-estimated = new FY
+ *
+ *   restated     — actual months both LEs hold as fact (≤ the prior cut): new − old.
+ *                  Non-zero means the ledger moved under a frozen month.
+ *   closed       — months the prior LE estimated and the new one holds as actual:
+ *                  new actual − old estimate. This is "how the month came in".
+ *   re-estimated — months both still estimate: new − old. With the basis on each
+ *                  side, so a typed figure that turned back into the budget shows
+ *                  as `Typed → Budget` rather than as a quiet number change.
+ *
+ * Every figure is a sum of the two LEs' stored lines, so each side ties to its
+ * own grid's NET (L10). `fromId` defaults to the latest live LE of the same year
+ * cut BEFORE this one.
+ */
+async function getWalk(toId, fromId = null) {
+  const to = await repo.findById(toId);
+  if (!to) return null;
+  const toCut = String(to.actual_through).slice(0, 10);
+
+  const from = fromId
+    ? await repo.findById(fromId)
+    : (await db.query(
+      `SELECT * FROM budget_le
+        WHERE budget_year = $1 AND id <> $2 AND status <> 'superseded'
+          AND actual_through < $3::date
+        ORDER BY actual_through DESC, created_at DESC
+        LIMIT 1`,
+      [to.budget_year, to.id, toCut]
+    )).rows[0];
+  const header = (le) => le && ({
+    id: le.id, name: le.name, status: le.status,
+    actualThrough: String(le.actual_through).slice(0, 10),
+  });
+  if (!from) return { leId: to.id, to: header(to), from: null, rows: [], totals: null };
+  if (from.budget_year !== to.budget_year) {
+    throw validate.badRequest('Both estimates must be for the same year.');
+  }
+  const fromCut = String(from.actual_through).slice(0, 10);
+  if (fromCut > toCut) {
+    throw validate.badRequest(`${from.name} is cut later than ${to.name} — compare the earlier one to the later one.`);
+  }
+
+  const { rows } = await db.query(
+    `WITH l AS (
+       SELECT le_id, category_id, period_month, source, base_amount::numeric AS b
+         FROM budget_le_lines
+        WHERE le_id IN ($1, $2) AND category_id IS NOT NULL
+     )
+     SELECT l.category_id, a.name,
+            COALESCE(SUM(b) FILTER (WHERE le_id = $1), 0) AS prior_fy,
+            COALESCE(SUM(b) FILTER (WHERE le_id = $2), 0) AS new_fy,
+            COALESCE(SUM(b) FILTER (WHERE le_id = $2 AND period_month <= $3::date), 0)
+              - COALESCE(SUM(b) FILTER (WHERE le_id = $1 AND period_month <= $3::date), 0) AS restated,
+            COALESCE(SUM(b) FILTER (WHERE le_id = $1 AND period_month > $3::date AND period_month <= $4::date), 0) AS closed_estimate,
+            COALESCE(SUM(b) FILTER (WHERE le_id = $2 AND period_month > $3::date AND period_month <= $4::date), 0) AS closed_actual,
+            COALESCE(SUM(b) FILTER (WHERE le_id = $1 AND period_month > $4::date), 0) AS prior_remaining,
+            COALESCE(SUM(b) FILTER (WHERE le_id = $2 AND period_month > $4::date), 0) AS new_remaining,
+            ARRAY_AGG(DISTINCT source) FILTER (WHERE le_id = $1 AND period_month > $4::date) AS prior_sources,
+            ARRAY_AGG(DISTINCT source) FILTER (WHERE le_id = $2 AND period_month > $4::date) AS new_sources
+       FROM l
+       JOIN accounts a ON a.id = l.category_id
+      GROUP BY l.category_id, a.name`,
+    [from.id, to.id, fromCut, toCut]
+  );
+
+  // The grid's own BASIS words, so the two screens describe a cell the same way.
+  const basis = (sources) => {
+    const s = (sources || []).filter(Boolean);
+    if (!s.length) return '—';
+    if (s.length > 1) return 'Mixed';
+    return s[0] === 'manual' ? 'Typed' : 'Budget';
+  };
+  const round = (n) => Math.round(Number(n) * 100) / 100;
+
+  const out = rows.map((r) => {
+    const priorFy = round(r.prior_fy);
+    const newFy = round(r.new_fy);
+    const closedEstimate = round(r.closed_estimate);
+    const closedActual = round(r.closed_actual);
+    const priorBasis = basis(r.prior_sources);
+    const newBasis = basis(r.new_sources);
+    return {
+      categoryId: r.category_id,
+      categoryName: r.name,
+      priorFy,
+      restated: round(r.restated),
+      closedEstimate,
+      closedActual,
+      closed: round(closedActual - closedEstimate),
+      reestimated: round(Number(r.new_remaining) - Number(r.prior_remaining)),
+      priorBasis,
+      newBasis,
+      basisChanged: priorBasis !== newBasis,
+      newFy,
+      change: round(newFy - priorFy),
+    };
+  })
+    // A category that did not move and kept its basis is not part of the walk.
+    .filter((r) => Math.abs(r.change) >= 0.005 || Math.abs(r.restated) >= 0.005
+      || Math.abs(r.closed) >= 0.005 || Math.abs(r.reestimated) >= 0.005 || r.basisChanged)
+    .sort((a, b) => Math.abs(b.change) - Math.abs(a.change)
+      || a.categoryName.localeCompare(b.categoryName));
+
+  // Totals over EVERY line, not the filtered rows — a filtered-out row moved by
+  // less than half a cent, but the NET must tie to both grids exactly.
+  const totals = rows.reduce((t, r) => ({
+    priorFy: t.priorFy + Number(r.prior_fy),
+    restated: t.restated + Number(r.restated),
+    closedEstimate: t.closedEstimate + Number(r.closed_estimate),
+    closedActual: t.closedActual + Number(r.closed_actual),
+    reestimated: t.reestimated + Number(r.new_remaining) - Number(r.prior_remaining),
+    newFy: t.newFy + Number(r.new_fy),
+  }), { priorFy: 0, restated: 0, closedEstimate: 0, closedActual: 0, reestimated: 0, newFy: 0 });
+  for (const k of Object.keys(totals)) totals[k] = round(totals[k]);
+  totals.closed = round(totals.closedActual - totals.closedEstimate);
+  totals.change = round(totals.newFy - totals.priorFy);
+
+  return { leId: to.id, to: header(to), from: header(from), rows: out, totals };
+}
+
 module.exports = {
   defaultCut, getGrid, list, create, remove, budgetFyByCategory,
   getCategoryWorksheet, saveCategoryEstimates, getDeviations,
-  getCashFlow, finalize, recut, getDrift, getAdvisories,
+  getCashFlow, finalize, recut, getDrift, getAdvisories, getWalk,
 };

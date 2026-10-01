@@ -443,6 +443,18 @@ router.get('/le/:id/deviations', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// GET /api/v2/budget/le/:id/walk?from=<id> — why the FY figure moved since an
+// earlier LE (default: the latest live one cut before this). Reverses part of
+// CR083 §11.1's cut; the service says why.
+router.get('/le/:id/walk', async (req, res, next) => {
+  try {
+    const fromId = req.query.from ? parseInt(req.query.from, 10) : null;
+    const walk = await budgetLeService.getWalk(parseInt(req.params.id, 10), fromId);
+    if (!walk) return res.status(404).json({ error: 'Latest Estimate not found' });
+    res.json({ data: walk });
+  } catch (error) { next(error); }
+});
+
 // POST /api/v2/budget/le/:id/finalize — draft → final, one transaction (§7.2)
 router.post('/le/:id/finalize', async (req, res, next) => {
   try {

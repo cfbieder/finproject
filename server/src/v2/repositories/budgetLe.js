@@ -248,28 +248,35 @@ async function createIn(client, { budgetYear, actualThrough, label, note, seedFr
       [budgetYear, le.id]
     );
 
-  let priorByCell = new Map();
+  // ⚠️ The cell is (category, month) — NOT (category, month, currency). Keying
+  // on currency too, and looping only over the budget's own cells, dropped two
+  // kinds of typed figure without a word (LE-10-26, 2026-10-01: ~26,000 of the
+  // owner's estimates, 21,425 of it one Taxes US month):
+  //   - a month with NO budget row at all — nothing to look the prior cell up from;
+  //   - a typed figure over a non-USD budget: the worksheet stores a typed cell
+  //     as one USD row, so its key never matched the PLN budget row, and the
+  //     budget came back in its place.
+  const cellKey = (r) => `${r.category_id}|${String(r.period_month).slice(0, 10)}`;
+  let priorLines = [];
   if (prior.length) {
-    const { rows: pl } = await client.query(
-      `SELECT category_id, period_month, currency, amount, base_amount,
-              source, method, fx_rate, fx_basis
-       FROM budget_le_lines
-       WHERE le_id = $1 AND source <> 'actual' AND period_month > $2::date`,
+    ({ rows: priorLines } = await client.query(
+      `WITH scope AS (${SCOPE_SQL})
+       SELECT l.category_id, l.period_month, l.currency, l.amount, l.base_amount,
+              l.source, l.method, l.fx_rate, l.fx_basis
+       FROM budget_le_lines l
+       JOIN scope s ON s.id = l.category_id
+       WHERE l.le_id = $1 AND l.source <> 'actual' AND l.period_month > $2::date`,
       [prior[0].id, actualThrough]
-    );
-    priorByCell = new Map(
-      pl.map((r) => [`${r.category_id}|${String(r.period_month).slice(0, 10)}|${r.currency}`, r])
-    );
+    ));
   }
+  const priorCells = new Set(priorLines.map(cellKey));
 
-  const lines = await materialise({ budgetYear, actualThrough }, client);
-  for (const raw of lines) {
-    // An estimate cell the prior LE already answered wins over the budget.
-    const key = `${raw.category_id}|${String(raw.period_month).slice(0, 10)}|${raw.currency}`;
-    const carried = raw.source !== 'actual' && priorByCell.get(key);
-    const l = carried ? { ...raw, ...carried, snapshot_row_count: null, snapshot_sum: null } : raw;
-    await insertLine(client, le.id, l);
-  }
+  // An estimate cell the prior LE already answered wins over the budget — all
+  // of its currency slices, and none of the budget's.
+  const lines = (await materialise({ budgetYear, actualThrough }, client))
+    .filter((l) => l.source === 'actual' || !priorCells.has(cellKey(l)))
+    .concat(priorLines.map((l) => ({ ...l, snapshot_row_count: null, snapshot_sum: null })));
+  for (const l of lines) await insertLine(client, le.id, l);
 
   return { ...le, line_count: lines.length, seeded_from_le: prior[0]?.id || null };
 }

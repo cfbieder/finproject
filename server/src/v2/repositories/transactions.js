@@ -748,10 +748,18 @@ async function neutralize(id, categoryId, { dryRun = false } = {}) {
     // that got there first loses the swap instead of silently sharing the leg.
     // A lost race means the pool shrank by one — look again rather than falling
     // straight to a mirror, which would double-count against the leg we lost.
+    // The state `unpair` restores (2026-10-01): nothing recorded it before, so a
+    // mis-click could only be repaired by hand. Read under the lock, before any write.
+    const before = (await client.query(
+      `SELECT category_id, accepted FROM transactions WHERE id = $1`, [id]
+    )).rows[0];
+
     let offset = null;
+    let claimedBefore = null;
     for (let attempt = 0; attempt < NEUTRALIZE_CLAIM_ATTEMPTS && !offset; attempt++) {
       const candidate = (await client.query(NEUTRALIZE_CANDIDATE_SQL, candidateParams)).rows[0];
       if (!candidate) break;
+      claimedBefore = { id: candidate.id, category_id: candidate.category_id, accepted: candidate.accepted };
       const claimed = await client.query(
         `UPDATE transactions
             SET category_id = $1, accepted = TRUE, paired_with_id = $2, updated_at = NOW()
@@ -802,6 +810,7 @@ async function neutralize(id, categoryId, { dryRun = false } = {}) {
     );
 
     const paired = offset.source !== 'auto-offset';
+    await recordPairing(client, 'neutralize', id, before, offset.id, paired ? claimedBefore : null);
     return { original: updated.rows[0], offset, paired, action: paired ? 'pair' : 'mirror' };
   });
 }
@@ -829,6 +838,11 @@ async function neutralize(id, categoryId, { dryRun = false } = {}) {
 async function transferToAccount(id, targetAccountId) {
   const original = await findById(id);
   if (!original) throw new Error('Transaction not found');
+  // A second offset would re-point `paired_with_id` away from the first and leave
+  // it an orphan (or trip the unique index). Unpair first — now reachable from Ledger.
+  if (original.paired_with_id != null) {
+    throw new Error('Transaction is already paired (neutralized or transferred) — unpair it first');
+  }
   if (Number(targetAccountId) === Number(original.account_id)) {
     throw new Error('Transfer target must differ from the source account');
   }
@@ -857,11 +871,17 @@ async function transferToAccount(id, targetAccountId) {
   }
 
   return db.transaction(async (client) => {
+    const before = (await client.query(
+      `SELECT category_id, accepted, paired_with_id FROM transactions WHERE id = $1 FOR UPDATE`, [id]
+    )).rows[0];
+    if (!before) throw new Error('Transaction not found');
+    if (before.paired_with_id != null) {
+      throw new Error('Transaction is already paired (neutralized or transferred) — unpair it first');
+    }
     const updated = await client.query(
       `UPDATE transactions SET accepted = TRUE, updated_at = NOW() WHERE id = $1 RETURNING *`,
       [id]
     );
-    if (updated.rows.length === 0) throw new Error('Transaction not found');
 
     // CR065: this is a pair too — the counter-leg simply lives in another
     // account. Recording it keeps a legitimate CROSS-account transfer from
@@ -897,8 +917,180 @@ async function transferToAccount(id, targetAccountId) {
       `UPDATE transactions SET paired_with_id = $1 WHERE id = $2 RETURNING *`,
       [offset.rows[0].id, id]
     );
+    await recordPairing(client, 'transfer', id, before, offset.rows[0].id, null);
 
     return { original: linked.rows[0], offset: offset.rows[0] };
+  });
+}
+
+/**
+ * One `audit_log` row per neutralize / transfer, holding what `unpair` needs to
+ * put things back: the original's category and accepted flag, and — on the pair
+ * path, where an EXISTING row was claimed and recategorised — that row's too.
+ * Written in the same transaction as the pairing, so `created_at` (NOW(), the
+ * transaction's start) equals the `updated_at` the pairing stamped; a later
+ * `updated_at` is how unpair knows a row was edited since.
+ */
+async function recordPairing(client, action, originalId, before, offsetId, claimed) {
+  await client.query(
+    `INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, user_info)
+     VALUES ('transactions', $1, $2, $3, $4, 'pairing')`,
+    [
+      originalId, action,
+      JSON.stringify({ category_id: before.category_id, accepted: before.accepted, claimed }),
+      JSON.stringify({ offset_id: offsetId }),
+    ]
+  );
+}
+
+/**
+ * Undo a neutralize or a transfer, from EITHER leg (2026-10-01).
+ *
+ *   mirror / transfer — the counter-leg is a synthetic `auto-offset` row: delete it.
+ *   pair              — the counter-leg is a real row neutralize claimed: release it
+ *                       and give it back its category and accepted flag.
+ *   both              — the original gets back its category and accepted flag.
+ *
+ * Restoring is skipped for any row EDITED since the pairing (its `updated_at` is
+ * later than the audit row): the owner's own correction must not be overwritten
+ * by the state before the mistake. Such a row is only unlinked, and the result
+ * says so. A pair with no audit row (made before this existed, or by the feed's
+ * own auto-pairing) can still be unpaired when its counter-leg is synthetic —
+ * deleting a mirror is always safe — but nothing is restored.
+ */
+async function unpair(id, { force = false } = {}) {
+  return db.transaction(async (client) => {
+    const head = (await client.query(
+      `SELECT id, paired_with_id FROM transactions WHERE id = $1`, [id]
+    )).rows[0];
+    if (!head) throw new Error('Transaction not found');
+    if (head.paired_with_id == null) throw new Error('Transaction is not paired');
+    // Lock BOTH legs in id order: two unpairs started from opposite legs would
+    // otherwise take the locks in opposite orders and deadlock.
+    const legs = (await client.query(
+      `SELECT * FROM transactions WHERE id = ANY($1::bigint[]) ORDER BY id FOR UPDATE`,
+      [[head.id, head.paired_with_id]]
+    )).rows;
+    const self = legs.find((r) => String(r.id) === String(head.id));
+    const partner = legs.find((r) => String(r.id) !== String(head.id));
+    if (!self || !partner || String(self.paired_with_id) !== String(partner.id)) {
+      throw new Error('Transaction is not paired');
+    }
+
+    const audit = (await client.query(
+      `SELECT * FROM audit_log
+        WHERE table_name = 'transactions' AND action IN ('neutralize', 'transfer')
+          AND record_id = ANY($1::bigint[])
+          AND (new_values->>'offset_id')::bigint = ANY($1::bigint[])
+        ORDER BY id DESC LIMIT 1`,
+      [[self.id, partner.id]]
+    )).rows[0];
+
+    // Which leg is the original? The audit row says; without one, the synthetic
+    // leg is the offset by construction.
+    let original;
+    let counter;
+    if (audit) {
+      original = Number(audit.record_id) === Number(self.id) ? self : partner;
+      counter = original === self ? partner : self;
+    } else if (force && (partner.source === 'auto-offset' || self.source === 'auto-offset')) {
+      // ⚠️ Only on request. An unrecorded pair is usually one the FEED REFRESH made
+      // on purpose — the core-sweep mirror (refreshBankFeedV2) that keeps a sweep
+      // netting to zero — and deleting it re-opens the drift with nothing to put
+      // the mirror back (the staging row is already promoted).
+      counter = partner.source === 'auto-offset' ? partner : self;
+      original = counter === self ? partner : self;
+    } else {
+      throw new Error(
+        'No record of this pairing — it predates undo or was made by the feed refresh (a sweep mirror), ' +
+        'so it is not unpaired automatically. Pass force to remove a synthetic offset anyway.'
+      );
+    }
+
+    // A booking built ON the offset must not be cascaded away or 500 on a FK:
+    // book-at-source can run on a transfer's offset when it carries an income category.
+    const refs = (await client.query(
+      `SELECT
+         (SELECT COUNT(*) FROM income_restatements
+           WHERE $1 IN (source_transaction_id, income_leg_id, transfer_leg_id))
+       + (SELECT COUNT(*) FROM security_transactions WHERE cash_transaction_id = $1) AS n`,
+      [counter.id]
+    )).rows[0];
+    if (counter.source === 'auto-offset' && Number(refs.n) > 0) {
+      throw new Error(
+        `The offsetting entry ${counter.id} has a booking built on it (book-at-source or a security ` +
+        'transaction) — undo that first, then unpair'
+      );
+    }
+
+    const old = audit ? audit.old_values : null;
+    // Compared in SQL, at the database's own precision: the pairing stamped
+    // updated_at = NOW() in the same transaction that wrote the audit row.
+    const untouched = new Set(audit ? (await client.query(
+      `SELECT id FROM transactions
+        WHERE id = ANY($1::bigint[])
+          AND updated_at <= (SELECT created_at FROM audit_log WHERE id = $2)`,
+      [[original.id, counter.id], audit.id]
+    )).rows.map((r) => String(r.id)) : []);
+    const untouchedSince = (row) => untouched.has(String(row.id));
+    const restored = [];
+    const keptEdits = [];
+
+    // Unlink both first: the partial unique index on paired_with_id must not see
+    // a half-unlinked pair, and a delete below must not cascade into a live link.
+    await client.query(
+      `UPDATE transactions SET paired_with_id = NULL WHERE id = ANY($1::bigint[])`,
+      [[original.id, counter.id]]
+    );
+
+    let deletedOffsetId = null;
+    if (counter.source === 'auto-offset') {
+      await client.query(`DELETE FROM transactions WHERE id = $1`, [counter.id]);
+      deletedOffsetId = counter.id;
+    } else if (old && old.claimed && Number(old.claimed.id) === Number(counter.id)) {
+      if (untouchedSince(counter)) {
+        await client.query(
+          `UPDATE transactions SET category_id = $1, accepted = $2, updated_at = NOW() WHERE id = $3`,
+          [old.claimed.category_id, old.claimed.accepted, counter.id]
+        );
+        restored.push(counter.id);
+      } else {
+        keptEdits.push(counter.id);
+      }
+    }
+
+    if (old) {
+      if (untouchedSince(original)) {
+        await client.query(
+          `UPDATE transactions SET category_id = $1, accepted = $2, updated_at = NOW() WHERE id = $3`,
+          [old.category_id, old.accepted, original.id]
+        );
+        restored.push(original.id);
+      } else {
+        keptEdits.push(original.id);
+      }
+    }
+
+    await client.query(
+      `INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, user_info)
+       VALUES ('transactions', $1, 'unpair', $2, $3, 'pairing')`,
+      [
+        original.id,
+        JSON.stringify({ paired_with_id: counter.id, undoes: audit ? audit.id : null }),
+        JSON.stringify({ deleted_offset_id: deletedOffsetId, restored, kept_edits: keptEdits }),
+      ]
+    );
+
+    const after = (await client.query(
+      `SELECT * FROM transactions WHERE id = $1`, [original.id]
+    )).rows[0];
+    return {
+      original: after,
+      deletedOffsetId,
+      restored,
+      keptEdits,
+      undid: audit ? audit.action : (counter.source === 'auto-offset' ? 'unrecorded' : null),
+    };
   });
 }
 
@@ -1039,6 +1231,7 @@ module.exports = {
   split,
   neutralize,
   transferToAccount,
+  unpair,
   findTransfers,
   findImpliedRate,
   updateTransferMatchedFlags

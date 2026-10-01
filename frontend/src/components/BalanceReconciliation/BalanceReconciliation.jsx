@@ -688,6 +688,33 @@ export default function BalanceReconciliation() {
                       {a.transfer_unpaired_legs === 1 ? "" : "s"} {fmtNum(a.transfer_imbalance, 2)}
                     </div>
                   )}
+                  {/* A card payment the feed booked on TWO accounts (Wise funding a
+                      short balance from another currency) — the converted part is
+                      counted twice. Shown only while the row is adrift. */}
+                  {a.reconciled === false && a.split_card_payments?.length > 0 && (
+                    <div
+                      className="bfd-danger"
+                      style={{ fontSize: "0.7rem" }}
+                      title={
+                        "The same card payment appears on this account AND another one — the bank paid " +
+                        "part of it from a second currency balance, and the feed books the full amount " +
+                        "here plus the converted part there. The difference is counted twice. Fix: add an " +
+                        "adjusting entry here (same category) for the part paid from the other account.\n\n" +
+                        a.split_card_payments
+                          .map((p) => `${p.date} CARD-${p.card}: ${fmtNum(p.amount, 2)} ${p.currency} here · ` +
+                            `${fmtNum(p.other_amount, 2)} ${p.other_currency} on ${p.other_account}`)
+                          .join("\n")
+                      }
+                    >
+                      {a.split_card_payments.length} split card payment
+                      {a.split_card_payments.length === 1 ? "" : "s"}:{" "}
+                      {fmtNum(a.split_card_payments.reduce((n, p) => n + p.amount, 0), 2)}{" "}
+                      {a.split_card_payments[0].currency} here, also{" "}
+                      {fmtNum(a.split_card_payments.reduce((n, p) => n + p.other_amount, 0), 2)}{" "}
+                      {a.split_card_payments[0].other_currency} on {a.split_card_payments[0].other_account}
+                      {" "}— add the part paid there back here
+                    </div>
+                  )}
                 </td>
                 <td className="bfd-muted">
                   {a.feed_date || "—"}
