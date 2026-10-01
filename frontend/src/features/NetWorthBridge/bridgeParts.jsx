@@ -82,6 +82,20 @@ export function Waterfall({ data }) {
               </tr>
             ))}
 
+            {/* The rest, footed — so the named items add up to the driver. */}
+            {d.others && (
+              <tr className="nwb__row nwb__row--contrib" key={d.key + "|others"}>
+                <td className="nwb__contrib-label">
+                  Everything else ({d.others.count}{" "}
+                  {d.namedBy === "category" ? "categories" : "accounts"})
+                </td>
+                <td className="nwb__bar-cell" />
+                <td className={"nwb__amount " + signClass(d.others.amount)}>
+                  {signedUSD(d.others.amount)}
+                </td>
+              </tr>
+            )}
+
             {/* A cancelling driver names no item, because naming its biggest
                 legs under a near-zero net is what misleads. It says the thing
                 the reader actually wants instead: the money moved, it did not

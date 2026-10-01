@@ -30,6 +30,7 @@ const payload = {
         // Larger than its own driver, because other marks were positive. Real,
         // and the reason no percentage is rendered.
         contributors: [{ label: "United Beverages", amount: -1873619 }],
+        others: { count: 7, amount: 132221 },
       },
       {
         key: "spending", label: "Money spent", amount: -482691,
@@ -169,6 +170,12 @@ describe("NetWorthBridgeModal", () => {
     // …and no percentage anywhere near it: the UB figure EXCEEDS its own driver
     // (other marks were positive), so a share would render as "108%".
     expect(screen.queryByText(/\d+%/)).toBeNull();
+  });
+
+  it("FOOTS the named items with an Everything-else row, so the list adds up to its driver", () => {
+    renderModal();
+    const row = screen.getByRole("row", { name: /Everything else \(7 accounts\)/ });
+    expect(within(row).queryByText(/\$132,221/)).not.toBeNull();
   });
 
   it("says a cancelling driver cancelled, instead of naming its biggest legs", () => {

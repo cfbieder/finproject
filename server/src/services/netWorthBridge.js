@@ -74,11 +74,15 @@ const HERO_SECTIONS = ['assets', 'liabilities'];
 const MAX_PERIODS = 60;
 const MAX_MOVERS = 12;
 // A named item is listed under its driver when it is worth at least this share
-// of it, up to MAX_CONTRIBUTORS. 15% keeps "one thing did this" legible and
-// stays silent where a driver is genuinely diffuse — measured on prod, spending
-// has no item above 13.5%, and that silence is itself the answer.
-const CONTRIBUTOR_FLOOR = 0.15;
-const MAX_CONTRIBUTORS = 4;
+// of the driver's gross, up to MAX_CONTRIBUTORS, and the rest is footed as one
+// "everything else" figure. ⚠️ This was 15% / 4 until 2026-10-01, which left a
+// −1.69M re-valuation showing United Beverages alone (Fidelity Stocks +116K and
+// four more over 28K hidden) and Money spent showing NOTHING (its top five run
+// 23K–61K, none above 13.5% of gross). The owner asked for the top 3–5; 2% only
+// drops crumbs. Diffuse is no longer silence — the footing row says how much
+// sits outside the named five.
+const CONTRIBUTOR_FLOOR = 0.02;
+const MAX_CONTRIBUTORS = 5;
 // Below this ratio of net-to-gross a driver is CANCELLING, and naming its
 // biggest legs under its net figure misleads rather than explains. Transfers
 // net to −23,621 out of ~2.0M gross (0.012); a re-valuation of −1,741,398 out
@@ -342,13 +346,20 @@ function topContributors(byLabel, driverTotal) {
   }
 
   const floor = gross * CONTRIBUTOR_FLOOR;
-  return {
-    contributors: entries
-      .filter(([, amount]) => Math.abs(amount) >= floor)
-      .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
-      .slice(0, MAX_CONTRIBUTORS)
-      .map(([label, amount]) => ({ label, amount: round(amount) })),
-  };
+  const contributors = entries
+    .filter(([, amount]) => Math.abs(amount) >= floor)
+    .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+    .slice(0, MAX_CONTRIBUTORS)
+    .map(([label, amount]) => ({ label, amount: round(amount) }));
+  // The footing row: what the named items do NOT account for, so the list adds
+  // up to its driver. It is also what makes a contributor larger than its
+  // driver legible (UB −1.81M under a −1.69M line: the rest was +115K).
+  const named = new Set(contributors.map((c) => c.label));
+  const rest = entries.filter(([label]) => !named.has(label));
+  const othersAmount = round(driverTotal - contributors.reduce((a, c) => a + c.amount, 0));
+  return contributors.length && rest.length && Math.abs(othersAmount) >= 1
+    ? { contributors, others: { count: rest.length, amount: othersAmount } }
+    : { contributors };
 }
 
 async function buildNetWorthBridge({

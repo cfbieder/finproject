@@ -184,6 +184,15 @@ falsified before being trusted. Server-side, the rules are asserted **as rules**
 net-of-gross ratio) rather than against figures dev happens to hold; the first draft asserted the
 fixture's own mark was listed and failed, because prod's −1.87M correctly outranks it.
 
+**Revised 2026-10-01 (owner): top 3–5, footed.** At a 15% floor the −1.69M re-valuation named United
+Beverages alone — Fidelity Stocks +116K, SP − Panorama −96K and US − Nokomis +58K sat hidden — and
+Money spent named nothing, its top five running 23K–61K each. The floor is now **2% of gross, up to
+five**, and each list ends in an **"Everything else (N accounts/categories)"** row carrying the
+remainder, so the named items **add up to the driver** (`others: {count, amount}`). That row also
+retires rule 3's awkwardness: UB −1.81M under a −1.69M line now reads beside its +38K remainder.
+**Rule 2 is unchanged** — a cancelling driver still names no legs (transfers' top two are +603K and
++515K under −6K). Tests: server asserts the footing as a rule; the modal test asserts the row renders.
+
 ## 6b. P2 — the drivers report (owner request, 2026-09-05)
 
 *"I really like this graph — can we make this a report in the reports section where the user can

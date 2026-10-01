@@ -392,6 +392,25 @@ dbDescribe('buildNetWorthBridge — the drivers add up (DB)', () => {
     }
   });
 
+  it('names up to five items and FOOTS the rest, so each list adds up to its driver', async () => {
+    // Owner, 2026-10-01: a −1.69M re-valuation showed United Beverages alone, and
+    // Money spent showed nothing. Asserted as the rule, not as this DB's figures.
+    const { data } = await buildNetWorthBridge({
+      fromDate: FROM, toDate: TO, granularity: 'month', moverLimit: 500,
+    });
+    for (const d of data.drivers) {
+      if (d.offsetting) {
+        expect(d.others).toBeUndefined();
+        continue;
+      }
+      expect(d.contributors.length).toBeLessThanOrEqual(5);
+      const named = d.contributors.reduce((a, c) => a + c.amount, 0);
+      const others = d.others ? d.others.amount : 0;
+      expect(Math.abs(named + others - d.amount)).toBeLessThan(0.02);
+      if (d.others) expect(d.others.count).toBeGreaterThan(0);
+    }
+  });
+
   it('emits no share percentage, because a contributor can exceed its driver', async () => {
     // United Beverages is −1,873,619 against a −1,741,398 re-valuation, because
     // other marks were positive. "108%" would read as an error rather than as
