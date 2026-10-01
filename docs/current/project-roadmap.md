@@ -781,6 +781,7 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.2 Completed (chronological, latest first)
 
+- **Unreleased** (2026-10-01) — **mobile:** net worth masked on Home until tapped (never remembered); an **All pages** menu opens any desktop page inside the mobile shell (`/m/d/<path>`).
 - **v3.68.1** (2026-10-01) — **patch: the net-worth bridge names the top 3–5 items per driver** ([CR092 §6a](../cr/cr-092-net-worth-bridge.md)), footed by an "Everything else" row so each list adds up to its driver; cancelling drivers unchanged.
 - **v3.68.0** (2026-10-01) — **minor: [CR096](../cr/cr-096-owner-fixes-le-walk-unpair-split-card.md), four owner fixes.** No migration.
   - **LE seeding bug fixed** — a new LE dropped typed estimates where the month had no budget row or the budget was non-USD (LE-10-26 lost ~26k, 21,425 of it Taxes US Oct). **Prod LE-10-26 repaired** (21 cells from LE-09-26); it lands at −64,674.76, not −38,655. LE-09-26 (final) left as finalised.

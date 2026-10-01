@@ -1370,3 +1370,42 @@
   color: var(--ink-secondary);
   overflow-wrap: anywhere;
 }
+
+/* ── A desktop page inside the mobile shell (/m/d/*, the "All pages" menu) ──
+   The page keeps its desktop layout; where it is wider than the phone it
+   scrolls sideways inside this box instead of widening the shell. */
+.m-desktop-page {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 calc(-1 * var(--m-pad));
+  padding: 0 var(--m-pad);
+}
+
+/* Net worth is masked until tapped (owner, 2026-10-01 — the phone is opened in
+   public). The whole figure is the button, so the target is the number itself. */
+.m-kpi--hero .m-kpi__reveal {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0;
+  background: none;
+  border: none;
+  box-shadow: none;
+  color: var(--primary-strong);
+  cursor: pointer;
+}
+/* The global button hover lifts and shadows; a phone keeps :hover stuck after a
+   tap, which would leave the revealed figure sitting in a shaded box. */
+.m-kpi--hero .m-kpi__reveal:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+}
+.m-kpi--hero .m-kpi__value--masked {
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+.m-kpi--hero .m-kpi__hint {
+  font-size: 12px;
+  color: var(--muted);
+}

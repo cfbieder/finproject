@@ -14,6 +14,8 @@ import NotFound from "./pages/NotFound.jsx";
 import ErrorBoundary from "./components/ErrorBoundary";
 import useIsMobile from "./mobile/useIsMobile";
 import MobileLayout from "./mobile/MobileLayout";
+import MobileDesktopPage from "./mobile/MobileDesktopPage";
+import { DESKTOP_PREFIX, desktopRouteFor } from "./mobile/desktopPages";
 import MobileHome from "./mobile/MobileHome";
 
 const CategoryLandingPage = lazy(() => import("./pages/CategoryLandingPage"));
@@ -51,6 +53,15 @@ const MOBILE_TO_DESKTOP = Object.fromEntries(
   Object.entries(DESKTOP_TO_MOBILE).map(([d, m]) => [m, d])
 );
 
+// A desktop page with no mobile twin opens INSIDE the mobile shell (/m/d/...)
+// rather than dropping the phone on home — so a link inside a desktop page
+// opened from the "All pages" menu keeps working. Unknown paths still go home.
+function mobileTargetFor(pathname) {
+  if (DESKTOP_TO_MOBILE[pathname]) return DESKTOP_TO_MOBILE[pathname];
+  const desktopPath = `${DESKTOP_PREFIX}${pathname}`;
+  return desktopRouteFor(desktopPath) ? desktopPath : "/m";
+}
+
 function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -59,13 +70,16 @@ function AppShell() {
 
   useEffect(() => {
     if (isMobile && !isMobilePath) {
-      const target = DESKTOP_TO_MOBILE[location.pathname] ?? "/m";
-      navigate(target, { replace: true });
+      const target = mobileTargetFor(location.pathname);
+      // Keep the query string when a desktop page is opened in the mobile shell.
+      navigate(target.startsWith(DESKTOP_PREFIX) ? target + location.search : target, { replace: true });
     } else if (!isMobile && isMobilePath) {
-      const target = MOBILE_TO_DESKTOP[location.pathname] ?? "/";
+      const target = location.pathname.startsWith(`${DESKTOP_PREFIX}/`)
+        ? location.pathname.slice(DESKTOP_PREFIX.length)
+        : MOBILE_TO_DESKTOP[location.pathname] ?? "/";
       navigate(target, { replace: true });
     }
-  }, [isMobile, isMobilePath, location.pathname, navigate]);
+  }, [isMobile, isMobilePath, location.pathname, location.search, navigate]);
 
   if (isMobilePath) {
     return (
@@ -86,6 +100,7 @@ function AppShell() {
             <Route path="/m/transactions" element={<MobileTransactions />} />
               <Route path="/m/refresh-feeds" element={<MobileRefreshFeeds />} />
               <Route path="/m/reconcile" element={<MobileReconcile />} />
+              <Route path="/m/d/*" element={<MobileDesktopPage />} />
               <Route path="*" element={<Navigate to="/m" replace />} />
           </Routes>
           </Suspense>

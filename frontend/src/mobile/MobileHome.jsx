@@ -12,6 +12,8 @@ import {
   Receipt,
   Scale,
   Loader2,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useState } from "react";
 import { useOverview, formatOverviewKpi } from "../hooks/useOverview.js";
@@ -35,6 +37,10 @@ const formatKpi = formatOverviewKpi;
 export default function MobileHome() {
   const { data, isLoading, failed } = useOverview();
   const [explaining, setExplaining] = useState(false);
+  // The headline is HIDDEN until asked for, every time Home opens (owner,
+  // 2026-10-01: the phone is opened in public). Deliberately not remembered —
+  // a remembered "shown" would make the next public opening show it again.
+  const [revealed, setRevealed] = useState(false);
 
   const handleSwitchToDesktop = () => {
     setForceDesktop(true);
@@ -58,22 +64,39 @@ export default function MobileHome() {
           <div className="m-kpis">
             <div className="m-kpi m-kpi--hero">
               <span className="m-kpi__label">Net Worth</span>
-              <span
-                className={
-                  "m-kpi__value" +
-                  (data.netWorth < 0 ? " m-kpi__value--negative" : "")
-                }
+              <button
+                type="button"
+                className="m-kpi__reveal"
+                onClick={() => setRevealed((v) => !v)}
+                aria-pressed={revealed}
+                aria-label={revealed ? "Hide net worth" : "Show net worth"}
               >
-                {formatKpi(data.netWorth)}
-              </span>
+                {revealed ? (
+                  <span
+                    className={
+                      "m-kpi__value" +
+                      (data.netWorth < 0 ? " m-kpi__value--negative" : "")
+                    }
+                  >
+                    {formatKpi(data.netWorth)}
+                  </span>
+                ) : (
+                  <span className="m-kpi__value m-kpi__value--masked">••••••</span>
+                )}
+                {revealed ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+              {!revealed && <span className="m-kpi__hint">Tap to show</span>}
+              {revealed && (
               <span className={"m-kpi__sub m-kpi__sub--" + (up ? "up" : "down")}>
                 {up ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
                 {formatKpi(Math.abs(data.delta))} vs last month
               </span>
+              )}
               {/* CR092. Mobile's delta is month-over-month, NOT the desktop
                   hero's 12 months — so it passes its own window rather than
                   reusing the hero's, or the phone would explain a change it is
                   not showing. */}
+              {revealed && (
               <button
                 type="button"
                 className="m-kpi__explain"
@@ -81,6 +104,7 @@ export default function MobileHome() {
               >
                 What changed?
               </button>
+              )}
             </div>
           </div>
 
