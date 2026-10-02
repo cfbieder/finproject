@@ -103,3 +103,21 @@ streams carry a multiplier that may have been chosen against it.
 **Counter-practice:** a field whose unit is not obvious states its unit *and* an example, and the
 example is checked against the formula. Neighbouring hazard: a value 13× outside every other row
 (`OCME` at −20) should be caught by a rule, not by a reader.
+
+## 8. A health signal that reads a clock which stays fresh while the thing it guards is broken
+
+**2026-10-01/02:** bank-feed's insert guard rolled back every sync for ~30 hours. fin's `staleFeeds`
+reads each bank's sync time *as Fintable reports it* — which kept moving — so Home read
+*"all clear"* over an empty review queue, and the owner found it by noticing an empty morning.
+The right clock was already published (`/v1/health/feeds`: per-connection `last_synced_at` moves only
+on a *successful* bank-feed sync, and `service.most_recent_error` named the cause); nothing read it.
+
+Same shape before: [CR060](../cr/cr-060-feed-connection-health.md)'s orphaned mapping, where fin's
+balance cache **froze** rather than going blank, so the reconcile page showed an ordinary drift row
+against a figure the bank had stopped reporting; and [CR091](../cr/cr-091-reconnect-that-works.md)'s
+red `unhealthy` pill on a reconnect that had just succeeded, read from yesterday's job row.
+
+**Counter-practice:** for each health signal, name the event that must happen for it to change, and
+check that *that* event is the thing you care about. "Fintable synced the bank" is not "fin received
+the transactions". A signal per layer, each reading its own layer's success, and a runbook that walks
+the layers top-down ([feed-stall-runbook.md](../guides/feed-stall-runbook.md)).

@@ -33,6 +33,12 @@ was sitting inside what looked like a −107,830.71 "MTM gap"; only $804.50 of i
 
 **Refresh Feeds** → *Refresh bank feed*, then work the review queue.
 
+⚠️ **An empty queue at month-end is suspicious, not quiet.** Month-end posting volume is what
+tripped bank-feed's insert guard on 2026-10-01 and blocked every sync for ~30 hours. If the queue is
+empty or Home shows *"bank-feed has not synced for Nh"*, work
+[feed-stall-runbook.md](feed-stall-runbook.md) before anything below — reconciling against balances
+whose transactions have not arrived bakes in false drift.
+
 Watch for the **`no offset`** badge. It means a securities-trade leg whose other half does
 not exist. **Neutralize it — do not Accept it.** Accepting leaves the account light by the
 full amount, and on a brokerage account that reads as a market move rather than a mistake.

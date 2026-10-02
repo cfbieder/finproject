@@ -27,7 +27,7 @@ Two things from it are worth carrying into every session:
   reads as absent.** Eleven instances; ten found by a person looking at the page, one by a gate. The
   engine half now has a gate; **the DISPLAY half still has none.** Rendering a change in both themes
   is not polish — it is the only instrument that has ever detected this class.
-- **[failure-patterns.md](failure-patterns.md) is the canonical list** of the seven recurring shapes.
+- **[failure-patterns.md](failure-patterns.md) is the canonical list** of the eight recurring shapes.
   Read it before writing a rule, a warning sentence, or any figure that asserts what the engine does.
 
 ## Known issues
@@ -110,7 +110,7 @@ scenarios are REGENERATED**. It changes far less often than this file does.
 
 ## Conventions & drills
 [Documentation standard](../documentation-standard.md) · rules auto-load from `.claude/rules/` ·
-`/close`, `/question`, `/brief` · Operator brief: https://claude.ai/code/artifact/a058677e-3138-43e7-a076-a5f67d6d02ef · [month-end reconcile](../guides/month-end-reconcile.md) ·
+`/close`, `/question`, `/brief` · **No new transactions? [feed-stall-runbook](../guides/feed-stall-runbook.md)** · Operator brief: https://claude.ai/code/artifact/a058677e-3138-43e7-a076-a5f67d6d02ef · [month-end reconcile](../guides/month-end-reconcile.md) ·
 [dev-workflow](../guides/dev-workflow.md) · [permissions](../guides/claude-code-permissions.md).
 Last restore drill **2026-07-13 — PASSED** ([runbook](../guides/restore.md)): a real prod dump
 restored in 3 s / 0 errors, balance sheet **and** regenerated forecast byte-identical to prod.
