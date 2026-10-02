@@ -17,7 +17,7 @@
 > and letting [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first) own the rest,
 > since it already does.
 
-**Last updated:** 2026-10-01 · **Live version:** **v3.69.0** (see `VERSION` / git tags) — **v3.69.0:** mobile Home masks the net worth until tapped; an **All pages** menu opens any desktop page inside the mobile shell. **v3.68.1:** the net-worth bridge names the top 3–5 items per driver ([CR092 §6a](../cr/cr-092-net-worth-bridge.md)). **v3.68.0: [CR096](../cr/cr-096-owner-fixes-le-walk-unpair-split-card.md).** Release notes: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
+**Last updated:** 2026-10-02 · **Live version:** **v3.70.0** (see `VERSION` / git tags) — **v3.70.0:** Home says when bank-feed's own sync is failing — it had rolled back every sync for ~30h (a month-end false positive of its insert guard; unblocked, floor raised, precise guard requested in bank-feed `HANDOFFS.md`). **v3.69.0:** mobile net worth masked until tapped; All pages menu. **v3.68.x:** [CR096](../cr/cr-096-owner-fixes-le-walk-unpair-split-card.md), bridge top 3–5. Release notes: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
 
 ## Current phase
 **Moved to [current-phase.md](current-phase.md)** — it changes on a regenerate, not on a release.
