@@ -69,6 +69,19 @@ export default function AttentionStrip() {
       tone: "alert",
     });
   }
+  // bank-feed's OWN sync is failing (2026-10-02). First of the feed items: when it
+  // is stalled nothing new arrives from ANY bank, while every per-bank signal
+  // below still reads fresh — 30 hours of "all clear" over an empty review queue.
+  if (summary.feedService?.stalled) {
+    items.push({
+      key: "feedService",
+      to: "/bank-feed-diagnostic",
+      icon: WifiOff,
+      label: `bank-feed has not synced for ${summary.feedService.hoursSinceSync}h — no new transactions are arriving`,
+      title: summary.feedService.lastError || undefined,
+      tone: "alert",
+    });
+  }
   // CR060 — a bank consent has expired. Placed BEFORE staleFeeds deliberately:
   // it is the same failure caught earlier and named correctly, and a reader who
   // meets "feed data stale" first will go looking for a sync problem instead of
@@ -145,6 +158,7 @@ export default function AttentionStrip() {
               key={item.key}
               to={item.to}
               className={`attention-pill attention-pill--${item.tone}`}
+              title={item.title}
             >
               <Icon size={14} />
               <span>{item.label}</span>

@@ -38,4 +38,39 @@ function applyBankSyncTimes(accounts, upstream) {
   return accounts;
 }
 
-module.exports = { applyBankSyncTimes };
+/**
+ * Is bank-feed's OWN sync stalled? (2026-10-02)
+ *
+ * `staleFeeds` reads each bank's sync time as Fintable reports it, which stays
+ * fresh while bank-feed itself refuses every batch — on 2026-10-01/02 its insert
+ * guard rolled back every sync for 30 hours (a month-end batch crossed the ratio
+ * by ONE row) and the Home strip read "all clear" throughout. The signal was
+ * already in /v1/health/feeds: each connection's `last_synced_at` moves only on
+ * a SUCCESSFUL bank-feed sync, judged against the service's own
+ * `stale_threshold_hours`, and `service.most_recent_error` names the cause.
+ *
+ * Pure. `health` null (bank-feed unreachable) answers `null` — could-not-ask is
+ * not "fine", and it is not "stalled" either.
+ */
+function feedServiceStatus(health, nowMs = Date.now()) {
+  if (!health || !Array.isArray(health.feeds)) return null;
+  const times = health.feeds
+    .map((f) => (f.last_synced_at ? new Date(f.last_synced_at).getTime() : NaN))
+    .filter(Number.isFinite);
+  if (!times.length) return null;
+  const lastSyncMs = Math.max(...times);
+  const hoursSinceSync = Math.floor((nowMs - lastSyncMs) / 3600000);
+  const threshold = Number(health.stale_threshold_hours) || 2;
+  const svc = health.service || {};
+  const errAt = svc.most_recent_error_at ? new Date(svc.most_recent_error_at).getTime() : NaN;
+  // The error only explains the stall if it came AFTER the last success.
+  const failingSince = Number.isFinite(errAt) && errAt > lastSyncMs;
+  return {
+    stalled: hoursSinceSync >= threshold,
+    hoursSinceSync,
+    lastSyncAt: new Date(lastSyncMs).toISOString(),
+    lastError: failingSince ? String(svc.most_recent_error || '').slice(0, 300) : null,
+  };
+}
+
+module.exports = { applyBankSyncTimes, feedServiceStatus };

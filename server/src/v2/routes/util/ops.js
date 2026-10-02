@@ -17,7 +17,7 @@ const { dataPaths } = require('../../../utils/dataPaths');
 const bankFeedRecon = require('../../repositories/bankFeedReconciliation');
 const manualRecon = require('../../repositories/manualReconciliation');
 const bankFeedClient = require('../../services/bankFeedClient');
-const { applyBankSyncTimes } = require('../../services/feedSyncHealth');
+const { applyBankSyncTimes, feedServiceStatus } = require('../../services/feedSyncHealth');
 
 const execFileAsync = promisify(execFile);
 
@@ -84,8 +84,10 @@ router.get('/attention-summary', async (req, res, next) => {
     // feed switched off on purpose.
     let needsReconnect = 0;
     let upstream = null;
+    let feedService = null;
     try {
       const health = await bankFeedClient.feedsHealth();
+      feedService = feedServiceStatus(health);
       upstream = (health && health.upstream) || null;
       const byAccount = (upstream && upstream.accounts_health) || null;
       if (byAccount) {
@@ -145,6 +147,8 @@ router.get('/attention-summary', async (req, res, next) => {
         worstDays: staleDays.length ? Math.max(...staleDays) : null,
       },
       needsReconnect: { count: needsReconnect },
+      // bank-feed's own sync — null when it could not be asked. See feedSyncHealth.
+      feedService,
       drift: {
         fed: fedAccounts.filter((a) => a.reconciled === false && a.reconcile_mode !== 'mtm').length,
         manual: (manRecon.accounts || []).filter((a) => a.reconciled === false).length,

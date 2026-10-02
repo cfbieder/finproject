@@ -54,3 +54,32 @@ describe('applyBankSyncTimes', () => {
     }
   });
 });
+
+// 2026-10-01/02: bank-feed's insert guard rolled back every sync for ~30h while
+// every bank's upstream sync stayed fresh, so `staleFeeds` read 0 throughout.
+const { feedServiceStatus } = require('../feedSyncHealth');
+
+describe('feedServiceStatus', () => {
+  const NOW = Date.parse('2026-10-02T11:10:00Z');
+  const health = (lastSyncs, err = null) => ({
+    stale_threshold_hours: 2,
+    feeds: lastSyncs.map((t) => ({ last_synced_at: t })),
+    service: err ? { most_recent_error: err, most_recent_error_at: '2026-10-02T11:02:04Z' } : {},
+  });
+
+  test('🔴 the live case: last success 30h ago, failing since → stalled, with the cause', () => {
+    const s = feedServiceStatus(health(['2026-10-01T04:28:41Z', '2026-09-30T06:00:00Z'], 'insert guard: 67 new …'), NOW);
+    expect(s).toMatchObject({ stalled: true, hoursSinceSync: 30, lastError: 'insert guard: 67 new …' });
+  });
+
+  test('a recent success is not stalled, and an OLDER error is not reported as the cause', () => {
+    const h = health(['2026-10-02T10:24:00Z'], 'old failure');
+    h.service.most_recent_error_at = '2026-10-01T12:00:00Z';
+    expect(feedServiceStatus(h, NOW)).toMatchObject({ stalled: false, hoursSinceSync: 0, lastError: null });
+  });
+
+  test('could-not-ask is null — neither fine nor stalled', () => {
+    expect(feedServiceStatus(null, NOW)).toBeNull();
+    expect(feedServiceStatus({ feeds: [] }, NOW)).toBeNull();
+  });
+});

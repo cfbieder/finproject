@@ -781,6 +781,7 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.2 Completed (chronological, latest first)
 
+- **Unreleased** (2026-10-02) — **no new transactions for ~30h: bank-feed's insert guard rolled back every sync from 2026-10-01 05:28Z** (a month-end incremental batch: 67+ new of 261 vs a 25% ceiling of 66; each retry re-fetched since the same high-water mark, so it could never clear). Verified a false positive by read-only replay — **79 new, 0 with a same-value twin already held** — then unblocked with one sync at a 50% ratio (job 3110: 79 inserted) and set bank-feed's `FINTABLE_API_MIN_INSERT_FLOOR=100` (its `.env`). **fin now shows "bank-feed has not synced for Nh"** on the Home strip (`attention-summary.feedService`). The precise guard (trip on value-twins, not a ratio) is requested in bank-feed's `HANDOFFS.md`.
 - **v3.69.0** (2026-10-01) — **minor, mobile:** net worth masked on Home until tapped (never remembered); an **All pages** menu opens any desktop page inside the mobile shell (`/m/d/<path>`).
 - **v3.68.1** (2026-10-01) — **patch: the net-worth bridge names the top 3–5 items per driver** ([CR092 §6a](../cr/cr-092-net-worth-bridge.md)), footed by an "Everything else" row so each list adds up to its driver; cancelling drivers unchanged.
 - **v3.68.0** (2026-10-01) — **minor: [CR096](../cr/cr-096-owner-fixes-le-walk-unpair-split-card.md), four owner fixes.** No migration.
