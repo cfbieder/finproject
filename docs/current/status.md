@@ -12,12 +12,11 @@
 > [current-phase.md](current-phase.md) — the cut this note had been naming): overrun = restatement
 > the CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
-> ⚠️ **Still over budget at 113.** The remaining overrun is the *Live version* paragraph, which is a
-> release log written in one line — the next cut is keeping only the current release's headline here
-> and letting [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first) own the rest,
-> since it already does.
+> ⚠️ **Still over budget at 123 lines.** The *Live version* paragraph now carries only the current
+> release (cut 2026-10-03; roadmap §1.2 owns the log). That paragraph is one line, so the line
+> overrun sits in *Known issues* and *Next*.
 
-**Last updated:** 2026-10-02 · **Live version:** **v3.70.0** (see `VERSION` / git tags) — **v3.70.0:** Home says when bank-feed's own sync is failing — it had rolled back every sync for ~30h (a month-end false positive of its insert guard; unblocked, floor raised, precise guard requested in bank-feed `HANDOFFS.md`). **v3.69.0:** mobile net worth masked until tapped; All pages menu. **v3.68.x:** [CR096](../cr/cr-096-owner-fixes-le-walk-unpair-split-card.md), bridge top 3–5. Release notes: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
+**Last updated:** 2026-10-03 · **Live version:** **v3.70.1** (see `VERSION` / git tags) — **v3.70.1:** the Latest Estimate grid no longer drops an unbudgeted category whose only spend falls after the cut (it vanished with its all-zero parent — `Car Purchase/Sale` on LE-10-26). Earlier releases: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
 
 ## Current phase
 **Moved to [current-phase.md](current-phase.md)** — it changes on a regenerate, not on a release.
