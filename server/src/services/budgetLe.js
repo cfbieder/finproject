@@ -167,7 +167,10 @@ async function getGrid(leId) {
       && totals.budgetFy === 0;
 
     // A category with nothing anywhere in its subtree is noise on a 90-row page.
-    if (empty && !hasOwn) {
+    // A kept child is not nothing: one held only by post-cut activity sums to
+    // zero, and pruning here took it with the parent (`Car Purchase/Sale`,
+    // LE-10-26: a 2026-10-01 charge, no budget, invisible under One-Off Items).
+    if (empty && !hasOwn && keptChildren === 0) {
       rows.splice(slot, rows.length - slot);
       return null;
     }

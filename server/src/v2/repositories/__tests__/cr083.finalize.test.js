@@ -260,4 +260,32 @@ dbDescribe('CR083 finalise, recut, drift and advisories (DB)', () => {
     expect(await repo.remove(d.id)).toEqual({ deleted: true, restored: null });
     expect((await repo.findById(ids.first)).status).toBe('superseded');
   });
+
+  test('a category held only by post-cut activity shows on the grid, and so does its empty parent', async () => {
+    const { rows: [parent] } = await db.query(
+      `INSERT INTO accounts (name, account_type, section, is_transfer, currency, is_active)
+       VALUES ($1, 'expense', 'profit_loss', FALSE, 'USD', TRUE) RETURNING id`,
+      [`${TAG} One-Off`]
+    );
+    const { rows: [child] } = await db.query(
+      `INSERT INTO accounts (name, account_type, section, is_transfer, currency, is_active, parent_id)
+       VALUES ($1, 'expense', 'profit_loss', FALSE, 'USD', TRUE, $2) RETURNING id`,
+      [`${TAG} Car`, parent.id]
+    );
+    // No budget, and the only transaction falls AFTER the cut.
+    await db.query(
+      `INSERT INTO transactions
+         (transaction_date, description1, amount, currency, base_amount, base_currency, category_id)
+       VALUES (make_date($1, 10, 1), $2, -1170.84, 'USD', -1170.84, 'USD', $3)`,
+      [YEAR, `${TAG} car`, child.id]
+    );
+
+    const x = await repo.create({ budgetYear: YEAR, actualThrough: `${YEAR}-03-31` });
+    const grid = await svc.getGrid(x.id);
+    expect(grid.rows.find((r) => r.categoryId === parent.id))
+      .toEqual(expect.objectContaining({ hasChildren: true, fyTotal: 0 }));
+    expect(grid.rows.find((r) => r.categoryId === child.id))
+      .toEqual(expect.objectContaining({ postCutActual: -1170.84, overspent: true, editable: true }));
+    await repo.remove(x.id);
+  });
 });
