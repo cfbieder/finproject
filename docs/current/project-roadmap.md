@@ -1,6 +1,6 @@
-# Development Plan (FC_NEXT_STEPS.md)
+# Project Roadmap — Fin
 
-Living plan for the Fin project — open Change Requests, known issues, ongoing improvement themes, and a chronological history. Companion to [FC_PROJECT_STRUCTURE.md](project-description.md), which describes the *current* state of the project.
+Living plan for the Fin project — open Change Requests, known issues, ongoing improvement themes, and a chronological history. Companion to [project-description.md](project-description.md), which describes the *current* state of the project.
 
 **Single-source rule (2026-06-12):** each CR's full spec, as-built detail, and decision log live **only in its CR file** under [CRs/](../cr/). This document carries status + sequencing + open items (a few lines per CR); [../cr/README.md](../cr/README.md) carries the one-line roll-up. Don't restate CR detail here. (The pre-restructure full text is archived at [Archive/FC_NEXT_STEPS_FULL_2026-06-12.md](../archive/FC_NEXT_STEPS_FULL_2026-06-12.md).)
 
@@ -1723,6 +1723,7 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
 
 ## 3. Known Issues
 
+- [ ] 🟡 **bank-feed's insert guard is a ratio — a large legitimate batch trips it** *(found 2026-10-01, v3.70.0)*. Every sync rolled back for ~30h at month-end (`67 new of 261 fetched exceeds 66`). Workaround: `FINTABLE_API_MIN_INSERT_FLOOR=100` (env). The real fix — a precise (value-twin) guard — is requested in bank-feed `HANDOFFS.md` 2026-10-02 and **not built** (bank-feed log checked 2026-10-07). Triage: [feed-stall-runbook](../guides/feed-stall-runbook.md).
 - [x] **FIXED 2026-09-28 — Deleting a scenario leaves its assumptions behind.** The delete route now prunes the four keys in the same transaction as the row (`forecast.delete-scenario.test.js`); the prod orphan "ZZ SRQ financed" was removed from all four keys the same day (owner-approved, with the CR087 data fix). (found 2026-09-28, CR close-out review; see [CR064 §15](../cr/cr-064-forecast-annual-close-and-assumptions.md#15-status)). `DELETE /scenarios/byname/:name` (`routes/forecast.js`) deletes the `forecast_scenarios` row only; the `forecast_assumptions` document is pruned by the browser (`FCScenarios.jsx`), the same split-brain CR048 §4b fixed for copy. Prod carries an orphan **"ZZ SRQ financed"** in `scenarios`, `inflation`, `FX` and `Tax Rate`. Fix: prune server-side in the delete's transaction with the existing `pruneAssumptionsForName` (`forecastScratch.js`), plus a one-off cleanup of the orphan.
 
 - [x] **FIXED UPSTREAM — verified 2026-09-28** at ocr-llm `f249397` (2026-09-27): the doc no longer quotes either number, `LLM_PROTOCOLS.md` §10 now states the client-abort rule, and their handoff board has no open threads. Original: 🟡 **ocr-llm's `API_DOCUMENTATION.md` documents a deadline they no longer run and an
@@ -2661,4 +2662,4 @@ Chronological log of substantive infrastructure / behavioural changes (one line 
 
 ---
 
-*Last updated: 2026-07-11 (three-lens review → CR042/CR043 opened + decisions settled, CR044 decided "stay personal"; §5.1 stale-marker; no-regret backlog items added)*
+*Last updated: 2026-10-07*

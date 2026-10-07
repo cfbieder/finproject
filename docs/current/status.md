@@ -12,11 +12,11 @@
 > [current-phase.md](current-phase.md) — the cut this note had been naming): overrun = restatement
 > the CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
-> ⚠️ **Still over budget at 123 lines.** The *Live version* paragraph now carries only the current
+> ⚠️ **Still over budget at 107 lines** (123 → 107 on 2026-10-07, by dropping two finished *Next* bullets). The *Live version* paragraph now carries only the current
 > release (cut 2026-10-03; roadmap §1.2 owns the log). That paragraph is one line, so the line
 > overrun sits in *Known issues* and *Next*.
 
-**Last updated:** 2026-10-03 · **Live version:** **v3.70.1** (see `VERSION` / git tags) — **v3.70.1:** the Latest Estimate grid no longer drops an unbudgeted category whose only spend falls after the cut (it vanished with its all-zero parent — `Car Purchase/Sale` on LE-10-26). Earlier releases: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
+**Last updated:** 2026-10-07 · **Live version:** **v3.70.1** (see `VERSION` / git tags) — release log: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
 
 ## Current phase
 **Moved to [current-phase.md](current-phase.md)** — it changes on a regenerate, not on a release.
@@ -74,22 +74,10 @@ scenarios are REGENERATED**. It changes far less often than this file does.
 ## Next
 > Finished headlines are archived, not repeated: twelve on 2026-09-05
 > ([log](../archive/status-log_2026-09-05.md)) and CR091 P1, CR086/CR087 P0–P1 and CR083 P0 on
-> 2026-09-14 ([log](../archive/status-log_2026-09-14.md)). Statuses are canonical in the
+> 2026-09-14 ([log](../archive/status-log_2026-09-14.md)); the 2026-09-28 CR close-out and CR096 on 2026-10-07 (recorded in roadmap §1.2, v3.67.0 / v3.68.0). Statuses are canonical in the
 > [CR index](../cr/README.md), versions in [the roadmap](project-roadmap.md).
 
-- ✅ **CR close-out review, 2026-09-28** — 21 non-closed CRs reviewed against code and prod: **20 closed**
-  (14 completed, 4 obsolete, 2 superseded — see the [CR index](../cr/README.md) roll-up), CR052's need
-  restated as DRAFT [CR095](../cr/cr-095-forecast-spend-currency-share.md), the v4 track (CR027)
-  retired. Fixes built on branch `cr-closeout`: variant sync in a transaction, scenario delete prunes
-  its assumptions, cross-currency transfer offsets, CR066's parent-mapped leaves, CR086's ConfirmModal
-  / 404, CR089 P1. Five wrong-currency prod rows (CR087, a few $k of net worth) were corrected on prod
-  the same day. CR066 closed after the owner's mapping pass. **Still open: CR064, scoped to P2, the annual
-  close — due before Jan 2027.**
-- **[CR096](../cr/cr-096-owner-fixes-le-walk-unpair-split-card.md), 2026-10-01** — LE-09-26 finalised and
-  LE-10-26 cut; the new LE-to-LE walk showed ~26k of typed estimates dropped by a seeding bug (fixed;
-  prod LE-10-26 repaired → −64,674.76). Also Unpair (undo neutralize/transfer), Transfer… on Ledger, and
-  WISE − EUR's −45.85: Wise part-funding a card payment from USD is booked on both accounts (repaired;
-  now flagged on the reconcile page). Released in **v3.68.0**.
+- **[CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) (forecast annual close — rolling to a new base year) is the only open CR**, scoped to P2, **due before Jan 2027**. [CR095](../cr/cr-095-forecast-spend-currency-share.md) (forecast spend that moves with the złoty) is a DRAFT awaiting review.
 - **Re-examine SRQ** — **−476,930**: funds itself 35 of 36 years, dry in the last. Marginal, not
   hopeless. Financing would be the untested lever (all cash, no rent, sells at 7%), and testing it
   is **DECLINED** (owner, 2026-08-23) — so this is a judgement to make, not an experiment to run.
@@ -97,11 +85,7 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   **double-counts** `Living Expenses` on top (~83,000) while escalating care at general inflation.
   The two errors nearly cancel — by luck, not design.
 - **Backlog from the close-out** (roadmap §2): idle-cash interest, loss carry-forward, CR083's P1
-  warnings and P2 seed. CR059 is **done** — cut over to the API 2026-08-10; its dated tails are
-  ⚠️ **OVERDUE**, see Known issues.
-  **Fintable re-keyed every GoCardless `ext_id` 2026-08-20 — we were unaffected, because we key on
-  `tx.id`** ([§22.12](../cr/cr-059-fintable-api-ingestion.md)); it makes the Sheet rollback a
-  repair-before-use path, not a revert.
+  warnings and P2 seed. CR059 is done; its only tail is the owner's Google Cloud cleanup (Known issues).
 - **With the owner, do not start unasked:** "2026 Downside" (being redone) · [CR058 §12.8–12.9](../cr/cr-058-quicken-valuation-anchors.md) ·
   [CR059](../cr/cr-059-fintable-api-ingestion.md)'s Chase date basis. **`House Morgage` is
   deliberately `setup_status='new'`** (owner, 2026-08-05) — parked, not broken.
