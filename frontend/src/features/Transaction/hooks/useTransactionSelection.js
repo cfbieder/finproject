@@ -26,19 +26,30 @@ export function useTransactionSelection(transactions) {
   //
   // Derived rather than pruned in an effect — no extra render pass, and no
   // set-state-in-effect debt.
-  const visibleRowIds = useMemo(
-    () => new Set(transactions.map((entry, index) => entry._id ?? `${entry.Date ?? ""}-${index}`)),
+  //
+  // Each kept row also resolves to its CURRENT entry, not the one captured at
+  // click time: a selection that outlives a reload (TransActual's marked set
+  // keeps it across an edit) must not pre-fill the edit form with pre-edit values.
+  const visibleRows = useMemo(
+    () => new Map(transactions.map((entry, index) => [entry._id ?? `${entry.Date ?? ""}-${index}`, entry])),
     [transactions]
   );
 
   const selectedRows = useMemo(() => {
     if (rawSelectedRows.size === 0) return rawSelectedRows;
     const live = new Map();
+    let changed = false;
     for (const [rowId, entry] of rawSelectedRows) {
-      if (visibleRowIds.has(rowId)) live.set(rowId, entry);
+      const current = visibleRows.get(rowId);
+      if (current === undefined) {
+        changed = true;
+        continue;
+      }
+      if (current !== entry) changed = true;
+      live.set(rowId, current);
     }
-    return live.size === rawSelectedRows.size ? rawSelectedRows : live;
-  }, [rawSelectedRows, visibleRowIds]);
+    return changed ? live : rawSelectedRows;
+  }, [rawSelectedRows, visibleRows]);
 
   const clearSelection = useCallback(() => {
     setSelectedRows(new Map());

@@ -426,17 +426,6 @@ export const routes = [
   },
 
   {
-    path: "/investment-returns",
-    component: InvestmentReturns,
-    label: "Investment Returns",
-    category: "Reports & Graphs",
-    subcategory: "Reports",
-    description:
-      "Realized income and price return per period for an account, absolute and as a Modified Dietz %",
-    icon: LineChart,
-  },
-
-  {
     path: "/net-worth-drivers",
     component: NetWorthDrivers,
     label: "Net Worth Drivers",
@@ -592,6 +581,26 @@ export const routes = [
     description:
       "Concentration by holding and issuer, and FDIC insurance headroom per bank",
     icon: PieChart,
+  },
+  {
+    // CR056 — what the portfolio EARNED per period, realized and unrealized, on
+    // average capital. Moved here from Reports & Graphs (owner, 2026-10-09).
+    path: "/investments/returns",
+    component: InvestmentReturns,
+    label: "Investment Returns",
+    category: "Investments",
+    description:
+      "Realized income and price return per period for an account, absolute and as a Modified Dietz %",
+    icon: LineChart,
+  },
+  {
+    // The pre-move path, kept reachable for bookmarks; out of the nav.
+    path: "/investment-returns",
+    component: InvestmentReturns,
+    label: "Investment Returns",
+    category: "Investments",
+    showInNav: false,
+    icon: LineChart,
   },
   {
     // A nav entry needs a STATIC path, so this one opens the first account; the

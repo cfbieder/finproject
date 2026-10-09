@@ -1,39 +1,33 @@
 /* InvestmentReturns (CR056 P1) — period-column report + two aligned charts.
-   The page opts out of `.page-main`'s two-column grid via
-   `balance-grid balance-grid--single` (see PageLayout.css) — the table is the
-   artifact and needs the full width. */
-
-.investment-returns__header {
-  margin-bottom: 1rem;
-}
-
-.investment-returns__title {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--ink);
-}
-
-.investment-returns__subtitle {
-  margin: 0.25rem 0 0;
-  color: var(--ink-secondary);
-  font-size: 0.875rem;
-}
+   Shares the Investments section's shell, header and summary strip
+   (`page-shell inv-page`, `page-accent__header`, `inv-summary` — Investments.css)
+   so it reads as one of that section's pages. */
 
 /* --- Toolbar ------------------------------------------------------------- */
 
+/* `.panel` carries no padding of its own; the sibling pages pad theirs with
+   --space-lg (.inv-account), and so does this one. */
+.investment-returns .page-accent__header {
+  margin-bottom: var(--space-lg);
+}
+
 .investment-returns__toolbar {
+  padding: var(--space-lg);
   margin-bottom: 1.25rem;
 }
 
+/* Two full rows — what to report on, then over when, with Generate at the end
+   of the period row it acts on. (Interval, Currency and Generate used to share
+   the account's column; it was too narrow, so Generate wrapped onto a line of
+   its own and the period side sat half empty.) */
 .investment-returns__toolbar-grid {
   display: grid;
-  grid-template-columns: minmax(320px, 2fr) minmax(0, 3fr);
+  grid-template-columns: minmax(320px, 1fr) auto auto;
   grid-template-areas:
-    "account period"
-    "controls period";
+    "account interval currency"
+    "period period action";
   gap: 1rem 1.5rem;
-  align-items: start;
+  align-items: end;
 }
 
 .investment-returns__field {
@@ -51,18 +45,23 @@
   grid-area: period;
 }
 
-/* Interval / Currency / Generate share one row under the account picker, so
-   the three small controls read as a group rather than as three orphans. */
-.investment-returns__controls {
-  grid-area: controls;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 1.25rem;
+.investment-returns__field--interval {
+  grid-area: interval;
+}
+
+.investment-returns__field--currency {
+  grid-area: currency;
 }
 
 .investment-returns__field--action {
+  grid-area: action;
+  justify-self: end;
+  align-items: flex-end;
   gap: 0.35rem;
+}
+
+.investment-returns__start {
+  margin: 0.75rem 0 0;
 }
 
 .investment-returns__label {
@@ -247,9 +246,12 @@
   color: var(--ink) !important;
 }
 
+/* Flagged rows (a ledger defect, not a return) get a ground, not red text:
+   red text means negative, and these are often positive. --warning-subtle is
+   opaque in both themes, so the sticky label cell stays solid on scroll. */
 .investment-returns__table tr.is-flag td,
 .investment-returns__table tr.is-flag .investment-returns__row-label {
-  color: var(--danger) !important;
+  background: var(--warning-subtle);
 }
 
 .investment-returns__table tr.is-muted td,
@@ -304,6 +306,7 @@
 /* --- Charts -------------------------------------------------------------- */
 
 .investment-returns__charts {
+  padding: var(--space-lg);
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -324,15 +327,23 @@
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       "account"
+      "interval"
+      "currency"
       "period"
-      "controls";
+      "action";
+  }
+
+  .investment-returns__field--action {
+    justify-self: start;
+    align-items: flex-start;
   }
 }
 
+/* Average capital is money every % below is divided by — ink, not greyed out
+   as if it were metadata. */
 .investment-returns__table tr.investment-returns__divider th,
 .investment-returns__table tr.investment-returns__divider td {
   border-top: 1px solid var(--border-strong);
-  color: var(--ink-tertiary) !important;
 }
 
 /* † — this column's figure is dated to the valuation, not to the calendar period. */
@@ -350,31 +361,7 @@
   background: var(--surface-muted);
 }
 
-/* --- IRR, below the table ------------------------------------------------- */
-
-.investment-returns__irr {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 0.5rem 0.75rem;
-  margin: 0;
-  padding: 0.75rem 0.875rem;
-  border-top: 1px solid var(--border-strong);
-  font-size: 0.8125rem;
-}
-
-.investment-returns__irr-label {
-  font-weight: 700;
-  color: var(--ink);
-}
-
-.investment-returns__irr-value {
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  font-size: 1rem;
-  color: var(--ink);
-}
-
+/* The IRR basis is a sentence, not a figure — keep it from stretching the strip. */
 .investment-returns__irr-note {
-  color: var(--ink-tertiary);
+  max-width: 32ch;
 }

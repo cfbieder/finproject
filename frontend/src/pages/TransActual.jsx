@@ -13,6 +13,8 @@ import {
   Ban,
   AlertTriangle,
   Loader2,
+  BookmarkPlus,
+  BookmarkMinus,
   ChevronDown as ChevronDownIcon,
 } from "lucide-react";
 import { ACTUAL_CONFIG } from "../features/Transaction/transactionConfig.js";
@@ -240,6 +242,18 @@ export default function TransActual() {
     });
   }, [locallyFilteredTransactions, searchText]);
 
+  // ─── Marked working set ───
+  // Page-scoped and never persisted: mark a filtered group, work through it in
+  // subgroups, unmark each subgroup when done. While anything is marked, only
+  // marked rows show. Keyed by `_id` (the DB id), so marks survive the reload an
+  // edit triggers; a marked row an edit moves out of the filters simply drops out.
+  const [markedIds, setMarkedIds] = useState(() => new Set());
+
+  const viewTransactions = useMemo(() => {
+    if (markedIds.size === 0) return searchFilteredTransactions;
+    return searchFilteredTransactions.filter((entry) => markedIds.has(entry._id));
+  }, [searchFilteredTransactions, markedIds]);
+
   // ─── Filtered totals ───
   useEffect(() => {
     const controller = new AbortController();
@@ -279,12 +293,32 @@ export default function TransActual() {
     toggleRowSelection,
     handleSort,
     handleSelectAllToggle,
-  } = useTransactionSelection(searchFilteredTransactions);
+  } = useTransactionSelection(viewTransactions);
 
+  // While working a marked set, the subgroup just changed STAYS selected, so
+  // unmarking it is one click (the selection hook re-resolves it to the reloaded
+  // rows, and drops any the change moved out of the filters).
   const handleSuccess = useCallback(async () => {
-    clearSelection();
+    if (markedIds.size === 0) clearSelection();
     await reload();
-  }, [clearSelection, reload]);
+  }, [markedIds, clearSelection, reload]);
+
+  const markSelected = useCallback(() => {
+    setMarkedIds(new Set(selectedRows.keys()));
+    clearSelection();
+  }, [selectedRows, clearSelection]);
+
+  // Also forgets marks on rows no longer in view (an edit moved them out of the
+  // filters), so unmarking the last visible subgroup returns to the full list
+  // rather than an empty "marked only" view.
+  const unmarkSelected = useCallback(() => {
+    const next = new Set();
+    for (const entry of searchFilteredTransactions) {
+      if (markedIds.has(entry._id) && !selectedRows.has(entry._id)) next.add(entry._id);
+    }
+    setMarkedIds(next);
+    clearSelection();
+  }, [searchFilteredTransactions, markedIds, selectedRows, clearSelection]);
 
   // A reload that already has rows on screen keeps the table MOUNTED. Swapping it
   // for the spinner collapses .txv2-table-scroll, the browser clamps its scroll
@@ -493,10 +527,21 @@ export default function TransActual() {
         removable: true,
       });
     }
+    if (markedIds.size > 0) {
+      chips.push({
+        key: "marked",
+        label: `Marked only: ${viewTransactions.length.toLocaleString()}`,
+        removable: true,
+      });
+    }
     return chips;
-  }, [filters]);
+  }, [filters, markedIds, viewTransactions]);
 
   const removeChip = useCallback((key) => {
+    if (key === "marked") {
+      setMarkedIds(new Set());
+      return;
+    }
     setFilters((prev) => {
       const next = { ...prev };
       if (key === "account") {
@@ -608,6 +653,7 @@ export default function TransActual() {
     setTransferMatched("");
     setActiveCategoryGroup("__all__");
     setSearchText("");
+    setMarkedIds(new Set());
     setPeriodValues({
       fromMonth: CURRENT_MONTH,
       toMonth: CURRENT_MONTH,
@@ -647,11 +693,11 @@ export default function TransActual() {
       totalIncome: totals.income,
       totalExpenses: totals.expense,
       net: totals.net,
-      count: searchFilteredTransactions.length,
+      count: viewTransactions.length,
       byCurrency: totals.byCurrency,
       truncated: totals.truncated,
     }),
-    [totals, searchFilteredTransactions]
+    [totals, viewTransactions]
   );
 
   // ────────────────────────────────────────────────────────────────
@@ -904,6 +950,27 @@ export default function TransActual() {
             <Pencil size={13} />
             Edit
           </button>
+          {markedIds.size === 0 ? (
+            <button
+              type="button"
+              className="btn btn--sm btn--outline"
+              onClick={markSelected}
+              title="Show only these rows until you unmark them or leave the page"
+            >
+              <BookmarkPlus size={13} />
+              Mark
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn--sm btn--outline"
+              onClick={unmarkSelected}
+              title="Done with these — drop them from the marked set"
+            >
+              <BookmarkMinus size={13} />
+              Unmark
+            </button>
+          )}
           {selectedRows.size === 1 && (
             <>
               <button

@@ -76,6 +76,19 @@ describe("useTransactionSelection — selections do not survive a reload", () =>
     expect(result.current.selectedRows.has("a")).toBe(true);
   });
 
+  it("resolves a surviving selection to the RELOADED entry, not the one clicked", () => {
+    // TransActual's marked set keeps a subgroup selected across an edit; the edit
+    // form pre-fills from these entries, so a stale one would re-send old values.
+    const { result, rerender } = renderHook(({ txns }) => useTransactionSelection(txns), {
+      initialProps: { txns: [A, B] },
+    });
+
+    act(() => result.current.toggleRowSelection("a", A));
+    const edited = { ...A, Category: "Y" };
+    rerender({ txns: [edited, B] });
+    expect(result.current.selectedRows.get("a")).toBe(edited);
+  });
+
   it("still marks rows selected and supports select-all / clear", () => {
     const { result } = renderHook(() => useTransactionSelection([A, B]));
 

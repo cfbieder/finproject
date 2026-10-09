@@ -33,6 +33,7 @@ import LoadingSpinner from "../components/LoadingSpinner.jsx";
 import { useChartTheme, ChartTooltip } from "../utils/chartTheme.jsx";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
+import "./Investments.css";
 import "./InvestmentReturns.css";
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -66,6 +67,9 @@ export default function InvestmentReturns() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [suggestInterval, setSuggestInterval] = useState("");
+  // The period was changed since the on-screen report ran. Interval and currency
+  // re-run at once; a period change waits for Generate, so this says so.
+  const [periodDirty, setPeriodDirty] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -91,16 +95,21 @@ export default function InvestmentReturns() {
     if (next.toMonth !== undefined) setToMonth(next.toMonth);
     if (next.actualYear !== undefined) setActualYear(Number(next.actualYear));
     if (next.toYear !== undefined) setToYear(Number(next.toYear));
+    setPeriodDirty(true);
   }, []);
 
+  // `dates` re-runs an exact window (the marked period, or the one on screen),
+  // which month-granular period state cannot always express.
   const runReport = useCallback(
-    async (withInterval, overrideDates) => {
+    async ({ interval: withInterval, currency: withCurrency, dates: overrideDates } = {}) => {
       if (!accountId) {
         setError("Pick an account first.");
         return;
       }
       const useInterval = withInterval || intervalKey;
+      const useCurrency = withCurrency || currency;
       setError("");
+      setPeriodDirty(false);
       setSuggestInterval("");
       setIsLoading(true);
       // A period that runs past today would render months that have not
@@ -117,17 +126,19 @@ export default function InvestmentReturns() {
           fromDate,
           toDate,
           interval: useInterval,
-          currency,
+          currency: useCurrency,
         });
         setReport(data);
         setMeta(m);
         setShown({
           account: data?.account,
           interval: useInterval,
-          currency,
+          currency: useCurrency,
           fromDate,
           toDate,
-          clippedToToday: !overrideDates && requestedEnd > today,
+          clippedToToday: overrideDates
+            ? Boolean(overrideDates.clippedToToday)
+            : requestedEnd > today,
         });
       } catch (err) {
         const message = err?.message ?? "Failed to build the investment returns report";
@@ -168,14 +179,18 @@ export default function InvestmentReturns() {
   const fmtPct = (v) =>
     v === null || v === undefined ? "—" : `${(Number(v) * 100).toFixed(2)}%`;
 
-  const isStale =
-    shown && (shown.interval !== intervalKey || shown.currency !== currency);
+  // With a report on screen, an interval or currency change applies at once —
+  // over the window on screen, unless the period has since been changed.
+  const rerunWith = (change) => {
+    if (!shown || isLoading) return;
+    runReport({ ...change, dates: periodDirty ? undefined : shown });
+  };
 
   return (
-    <main className="page-main balance-grid balance-grid--single investment-returns">
-      <header className="investment-returns__header">
-        <h1 className="investment-returns__title">Investment Returns</h1>
-        <p className="investment-returns__subtitle">
+    <div className="page-shell inv-page investment-returns">
+      <header className="page-accent__header">
+        <h1>Investment Returns</h1>
+        <p className="page-accent__sub">
           Realized income and unrealized gain/loss per period, each as a
           percentage of the average capital employed.
         </p>
@@ -207,8 +222,7 @@ export default function InvestmentReturns() {
             />
           </div>
 
-          <div className="investment-returns__controls">
-          <div className="investment-returns__field">
+          <div className="investment-returns__field investment-returns__field--interval">
             <span className="investment-returns__label">Interval</span>
             <div
               className="investment-returns__segmented"
@@ -223,7 +237,10 @@ export default function InvestmentReturns() {
                   className={`btn btn--sm ${
                     intervalKey === opt.key ? "btn--primary" : "btn--outline"
                   }`}
-                  onClick={() => setIntervalKey(opt.key)}
+                  onClick={() => {
+                    setIntervalKey(opt.key);
+                    rerunWith({ interval: opt.key });
+                  }}
                 >
                   {opt.label}
                 </button>
@@ -231,7 +248,7 @@ export default function InvestmentReturns() {
             </div>
           </div>
 
-          <div className="investment-returns__field">
+          <div className="investment-returns__field investment-returns__field--currency">
             <span className="investment-returns__label">Currency</span>
             <div
               className="investment-returns__segmented"
@@ -249,7 +266,10 @@ export default function InvestmentReturns() {
                   className={`btn btn--sm ${
                     currency === opt.key ? "btn--primary" : "btn--outline"
                   }`}
-                  onClick={() => setCurrency(opt.key)}
+                  onClick={() => {
+                    setCurrency(opt.key);
+                    rerunWith({ currency: opt.key });
+                  }}
                 >
                   {opt.label}
                 </button>
@@ -262,18 +282,22 @@ export default function InvestmentReturns() {
               type="button"
               className="btn btn--primary"
               onClick={() => runReport()}
-              disabled={isLoading || !accountId}
+              disabled={isLoading}
             >
               {isLoading ? "Generating…" : "Generate"}
             </button>
-            {isStale ? (
+            {shown && periodDirty ? (
               <span className="investment-returns__hint">
-                Interval/currency changed — Generate to apply.
+                Period changed — Generate to apply.
               </span>
             ) : null}
           </div>
-          </div>
         </div>
+        {!isLoading && !report && !error ? (
+          <p className="investment-returns__hint investment-returns__start">
+            Pick an account — a parent rolls up everything beneath it — then Generate.
+          </p>
+        ) : null}
       </section>
 
       {error ? (
@@ -285,7 +309,7 @@ export default function InvestmentReturns() {
               className="btn btn--sm btn--outline investment-returns__error-action"
               onClick={() => {
                 setIntervalKey(suggestInterval);
-                runReport(suggestInterval);
+                runReport({ interval: suggestInterval });
               }}
             >
               Switch to {suggestInterval === "quarter" ? "Quarterly" : "Yearly"}
@@ -295,13 +319,6 @@ export default function InvestmentReturns() {
       ) : null}
 
       {isLoading ? <LoadingSpinner /> : null}
-
-      {!isLoading && !report && !error ? (
-        <EmptyState
-          variant="finance"
-          message="Pick an account (a parent rolls up everything beneath it), choose a period and interval, then Generate."
-        />
-      ) : null}
 
       {!isLoading && report && report.intervals.length === 0 ? (
         <EmptyState
@@ -324,9 +341,10 @@ export default function InvestmentReturns() {
               setFromMonth(fm);
               setToYear(Number(ty));
               setToMonth(tm);
-              runReport(undefined, { fromDate: w.start, toDate: w.end });
+              runReport({ dates: { fromDate: w.start, toDate: w.end } });
             }}
           />
+          <Headline report={report} shown={shown} unit={unit} fmt={fmt} fmtPct={fmtPct} />
           <ReturnsTable
             report={report}
             meta={meta}
@@ -335,11 +353,68 @@ export default function InvestmentReturns() {
             fmt={fmt}
             fmtPct={fmtPct}
           />
-          <ReturnsCharts report={report} fmt={fmt} unit={unit} />
           <SuppressionNotes meta={meta} report={report} />
+          <ReturnsCharts report={report} fmt={fmt} unit={unit} />
         </>
       ) : null}
-    </main>
+    </div>
+  );
+}
+
+/**
+ * The whole-period answer, ahead of the grid — the same strip every Investments
+ * page leads with. Nothing here is computed: every figure is `report.total`.
+ *
+ * IRR sits here rather than in a table row on purpose: it is one whole-period
+ * figure solved on the actual dated cash flows, not a per-column one, and a row
+ * would invite reading it across. Not rendered for a mixed-currency selection —
+ * a headline total summed across currencies is not a real number (CR054).
+ */
+function Headline({ report, shown, unit, fmt, fmtPct }) {
+  const total = report.total;
+  if (!total || !unit) return null;
+  const neg = (v) => (v !== null && v !== undefined && Number(v) < 0 ? " inv-neg" : "");
+  const hasIrr = total.irr !== null && total.irr !== undefined;
+
+  return (
+    <section className="panel inv-summary investment-returns__headline">
+      <div className="inv-figure inv-figure--primary">
+        <span className="inv-figure__label">Total return — {unit}</span>
+        <span className={`inv-figure__value${neg(total.totalReturn)}`}>
+          {fmt(total.totalReturn)}
+        </span>
+      </div>
+      <div className="inv-figure">
+        <span className="inv-figure__label">Total return % (average capital)</span>
+        <span className={`inv-figure__value${neg(total.returnPct)}`}>
+          {fmtPct(total.returnPct)}
+        </span>
+        <span className="inv-figure__sub">
+          {total.returnPct === null || total.returnPct === undefined
+            ? "chain broken — see the notes below"
+            : total.annualizedPct !== null && total.annualizedPct !== undefined
+              ? `${fmtPct(total.annualizedPct)} p.a.`
+              : null}
+        </span>
+      </div>
+      <div className="inv-figure">
+        <span className="inv-figure__label">IRR (money-weighted, annualized)</span>
+        <span className={`inv-figure__value${neg(total.irr)}`}>
+          {hasIrr ? fmtPct(total.irr) : "—"}
+        </span>
+        <span className="inv-figure__sub investment-returns__irr-note">
+          {!hasIrr
+            ? "needs a valuation in the period or a closed-out position, plus money both in and out over 30+ days"
+            : total.irrBasis === "closed"
+              ? `position closed at zero — solved on every dated flow from ${shown?.fromDate} to ${shown?.toDate}`
+              : `solved on every dated flow from ${shown?.fromDate} to ${shown?.toDate}`}
+        </span>
+      </div>
+      <div className="inv-figure">
+        <span className="inv-figure__label">Ending market value</span>
+        <span className="inv-figure__value">{fmt(total.endingMV)}</span>
+      </div>
+    </section>
   );
 }
 
@@ -366,14 +441,14 @@ function Warnings({ meta, unit }) {
 
   if (Math.abs(Number(meta.unattributedTotal) || 0) >= 1) {
     notes.push(
-      `${Number(meta.unattributedTotal).toLocaleString("en-US")} of value is unattributed — transactions that moved the balance but carry no P&L category. That is a ledger defect worth fixing, not a return.`
+      `${Number(meta.unattributedTotal).toLocaleString("en-US", { maximumFractionDigits: 0 })} ${unit ?? "(mixed currencies)"} of value is unattributed — transactions that moved the balance but carry no P&L category. That is a ledger defect worth fixing, not a return.`
     );
   }
 
   if (!notes.length) return null;
   return (
     <section className="investment-returns__warnings">
-      {notes.slice(0, 2).map((text) => (
+      {notes.map((text) => (
         <p key={text} className="investment-returns__warning">
           {text}
         </p>
@@ -465,11 +540,13 @@ function SuppressionNotes({ meta, report }) {
     );
   }
 
+  // Only when something IS blank: an always-present generic note made the panel
+  // read "(1)" on reports where no cell showed —.
+  const anySuppressed = report.rows.returnPct.some((v) => v === null);
+  if (!notes.length && !anySuppressed) return null;
   notes.push(
     'Mark coverage is the share of each period\'s opening balance held in accounts that DO have a mark at both boundaries. 100% means every dollar is valued; 0% means none is, and the % is blank rather than guessed.'
   );
-
-  if (!notes.length) return null;
   return (
     <details className="investment-returns__notes">
       <summary>Why some cells show — ({notes.length})</summary>
@@ -806,27 +883,6 @@ function ReturnsTable({ report, meta, shown, unit, fmt, fmtPct }) {
         </table>
       </div>
 
-      {/* IRR sits outside the column grid on purpose: it is a single
-          whole-period figure solved on the actual dated cash flows, not a
-          per-column one, and putting it in a row would invite reading it
-          across. */}
-      <p className="investment-returns__irr">
-        <span className="investment-returns__irr-label">
-          IRR (money-weighted, annualized)
-        </span>
-        <span className="investment-returns__irr-value">
-          {total?.irr === null || total?.irr === undefined
-            ? "—"
-            : fmtPct(total.irr)}
-        </span>
-        <span className="investment-returns__irr-note">
-          {total?.irr === null || total?.irr === undefined
-            ? "needs either a valuation in the period or a closed-out position, plus money both in and out over a span of 30+ days"
-            : total?.irrBasis === "closed"
-              ? `position closed at zero — solved on every dated flow from ${shown?.fromDate} to ${shown?.toDate}, no valuation needed`
-              : `solved on every dated flow from ${shown?.fromDate} to ${shown?.toDate}`}
-        </span>
-      </p>
     </section>
   );
 }
