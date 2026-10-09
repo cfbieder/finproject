@@ -539,7 +539,7 @@ month → quarter behind the owner's back violates the request they made, and a
 
 - `frontend/src/pages/InvestmentReturns.jsx` + `.css` (new).
 - Route + nav in [`routes.jsx`](../../frontend/src/config/routes.jsx), **Reports & Graphs →
-  Reports**, path `/investment-returns`, icon `LineChart`.
+  Reports**, path `/investment-returns`, icon `LineChart`. *(Superseded v3.71.0 — see [Post-close](#post-close-moved-into-investments-v3710-2026-10-09).)*
 - [`PeriodSelector`](../../frontend/src/components/PeriodSelector/PeriodSelector.jsx) with
   `enableYearRange` (the "All" preset; multi-year is the main use); interval control
   matching [`CashFlowPeriods.jsx`](../../frontend/src/pages/CashFlowPeriods.jsx)'s
@@ -647,7 +647,7 @@ period is clipped to today so a "This Year" preset stops rendering six months of
 
 Owner-requested after living with the page.
 
-**IRR (money-weighted, annualized), one line below the table.** Solved on the **actual dated
+**IRR (money-weighted, annualized), one line below the table.** *(Superseded v3.71.0: it now sits in the headline strip above the table — see [Post-close](#post-close-moved-into-investments-v3710-2026-10-09).)* Solved on the **actual dated
 cash flows**, not the per-column aggregates: opening market value as the initial investment,
 every external-flow transaction at its own date on the investor's sign convention (a ledger
 contribution of +X is an outflow, −X), closing market value as proceeds. **Bisection** over
@@ -720,3 +720,14 @@ All of these are also registered as roadmap bullets under
 - **Per-security attribution / true realized-vs-unrealized split** needs CR019's
   investment-side promote plus a price source. Out of scope; recorded so it is not
   rediscovered.
+
+## Post-close: moved into Investments (v3.71.0, 2026-10-09)
+
+Owner request. The page now lives in the **Investments** section at `/investments/returns`;
+`/investment-returns` stays reachable as a hidden alias. Reworked on the UI reviewer's findings
+so it reads as one of that section's pages: the Investments page shell and header, a
+headline strip (total return · total return % · **IRR** · ending MV) **above** the table where
+IRR used to sit in a footer (hidden for a mixed-currency selection), a two-row toolbar, interval
+and currency re-running at once over the window on screen, flagged rows shown on an amber
+ground rather than in red text, and every warning shown (a third was being sliced off). No
+figure or API changed.

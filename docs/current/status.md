@@ -16,7 +16,7 @@
 > release (cut 2026-10-03; roadmap §1.2 owns the log). That paragraph is one line, so the line
 > overrun sits in *Known issues* and *Next*.
 
-**Last updated:** 2026-10-07 · **Live version:** **v3.70.1** (see `VERSION` / git tags) — release log: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
+**Last updated:** 2026-10-09 · **Live version:** **v3.71.0** (see `VERSION` / git tags) — release log: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
 
 ## Current phase
 **Moved to [current-phase.md](current-phase.md)** — it changes on a regenerate, not on a release.
