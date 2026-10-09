@@ -8,8 +8,8 @@
 # rewrites the same rows, and a missed night is caught up by the next one.
 #
 # Why this exists: `security_prices` was filled ONCE, by hand, on 2026-09-05,
-# and nothing refreshed it — CR061 §7.3 planned a nightly step that was never
-# built, and CR093 treated the history as a one-off backfill. Charts, MACD and
+# and nothing refreshed it — no scheduled close refresh was ever planned; CR061
+# P1 and CR093 both treated closes as one-off backfills. Charts, MACD and
 # any month-end price check silently ended at 2026-09-04 for five weeks.
 #
 # ⚠️ The backfill script defaults to the DEV database (localhost:5434) when no

@@ -65,7 +65,7 @@ pass-1 review produced evidence against the first answer):
 |---|---|---|
 | 1 | Track | **v3** — no flag gating, verified on dev `:3105` |
 | 2 | Basis | **Ledger-derived** |
-| 3 | Income rows | **Auto-derived** — any non-transfer P&L category posting to the account |
+| 3 | Income rows | **Auto-derived** — any non-transfer P&L category posting to the account *(superseded 2026-10-09: expense-type categories are flows; only `Bank Fees` / `Interest Expense` stay in income — see [post-close](#post-close-spending-paid-from-the-account-is-a-flow-2026-10-09))* |
 | 4 | External flows | **All** `is_transfer` categories, **including** `Transfer - Securities Trades` *(reversed in rev 2)* |
 | 4b | Residual | **`Unattributed` row**, always computed, drill-down enabled *(new in rev 2)* |
 | 5 | Return % | **Realized / Unrealized / Total, each on average capital `(open+close)/2`** *(revised 2026-07-27; was Modified Dietz)* |
@@ -281,7 +281,7 @@ row: `Chase Checking`, +$1,950.61) — falls into exactly one bucket:
 |---|---|
 | **Net external flows** `F` | category has `is_transfer = TRUE` (**including** 206) |
 | **Price return** | category is `Unrealized G/L` (matched by name, to survive a re-seed) |
-| **Realized income** | any other non-NULL P&L category — one row per category present |
+| **Realized income** | any other non-NULL P&L category — one row per category present *(superseded 2026-10-09: expense-type categories are flows; only `Bank Fees` / `Interest Expense` stay in income — see [post-close](#post-close-spending-paid-from-the-account-is-a-flow-2026-10-09))* |
 | **Unattributed** | `category_id IS NULL`, or a category outside the P&L section |
 
 The buckets are exhaustive by construction — that is the point. Prod has 76 NULL-category
