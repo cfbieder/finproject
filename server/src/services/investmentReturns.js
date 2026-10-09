@@ -433,7 +433,8 @@ async function fetchTransactions(accountIds, fromDate, toDate) {
            c.id          AS category_id,
            c.name        AS category_name,
            c.is_transfer AS is_transfer,
-           c.section     AS category_section
+           c.section     AS category_section,
+           c.account_type AS category_type
       FROM transactions t
       JOIN accounts a ON a.id = t.account_id
       LEFT JOIN accounts c ON c.id = t.category_id
@@ -456,6 +457,12 @@ async function fetchTransactions(accountIds, fromDate, toDate) {
   }));
 }
 
+// Expense categories that ARE a cost of investing, and so reduce the return.
+// Every other expense category paid from an investment account is spending —
+// money withdrawn — and is a flow. Extend by name; a category missing here is
+// treated as a withdrawal, which never manufactures a loss.
+const INVESTMENT_COST_CATEGORIES = new Set(['Bank Fees', 'Interest Expense']);
+
 function bucketOf(row) {
   if (!row.category_name) return 'unattributed';
   if (row.category_name === UNREALIZED_CATEGORY || row.category_id === UNREALIZED_CATEGORY_ID) {
@@ -463,6 +470,14 @@ function bucketOf(row) {
   }
   if (row.is_transfer) return 'flow';
   if (row.category_section !== 'profit_loss') return 'unattributed';
+  // Spending paid FROM the account is a withdrawal, not a negative return. Every
+  // P&L row used to count as realized income, so a US tax bill, school fees or a
+  // purchase paid out of Fidelity read as investment losses — 2023-on, Taxes US
+  // alone was −816,079 of "income" across the four Fidelity accounts (owner,
+  // 2026-10-09).
+  if (row.category_type === 'expense' && !INVESTMENT_COST_CATEGORIES.has(row.category_name)) {
+    return 'flow';
+  }
   return 'income';
 }
 

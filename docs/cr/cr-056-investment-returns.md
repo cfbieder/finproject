@@ -731,3 +731,14 @@ IRR used to sit in a footer (hidden for a mixed-currency selection), a two-row t
 and currency re-running at once over the window on screen, flagged rows shown on an amber
 ground rather than in red text, and every warning shown (a third was being sliced off). No
 figure or API changed.
+
+## Post-close: spending paid from the account is a flow (2026-10-09)
+
+Owner-found. `bucketOf` counted **every** P&L category as realized income, so spending paid
+out of an investment account — a US tax bill, school fees, a purchase — read as a negative
+return. 2023-on, across the four Fidelity accounts, that was ~1.0M of "income", −816,079 of it
+`Taxes US`. Expense-type categories are now **flows** (withdrawals), still itemised under *Net
+external flows*; the costs of investing — `Bank Fees`, `Interest Expense`
+(`INVESTMENT_COST_CATEGORIES`) — stay in income, where they reduce the return. Fidelity Fixed
+Income, Jan–Sep 2026 on dev: realized income −14,050 → +53,186, total return −24,190 → +43,046,
+IRR −1.78% → +3.25%; the FX plug stays exactly 0, so the identity still closes.

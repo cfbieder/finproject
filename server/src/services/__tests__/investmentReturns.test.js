@@ -245,6 +245,17 @@ describe('bucketOf — the buckets must be exhaustive', () => {
   it('routes a non-P&L category to unattributed', () => {
     expect(row({ category_section: 'balance_sheet' })).toBe('unattributed');
   });
+
+  it('treats spending paid from the account as a withdrawal, not a negative return', () => {
+    expect(row({ category_name: 'Taxes US', category_type: 'expense' })).toBe('flow');
+    expect(row({ category_name: 'Patrick - USF', category_type: 'expense' })).toBe('flow');
+    expect(row({ category_name: 'Interest Income', category_type: 'income' })).toBe('income');
+  });
+
+  it('keeps the costs of investing in income, where they reduce the return', () => {
+    expect(row({ category_name: 'Bank Fees', category_type: 'expense' })).toBe('income');
+    expect(row({ category_name: 'Interest Expense', category_type: 'expense' })).toBe('income');
+  });
 });
 
 describe('the reconciliation identity', () => {
