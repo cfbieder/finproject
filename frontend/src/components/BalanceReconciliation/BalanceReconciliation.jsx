@@ -224,7 +224,9 @@ export default function BalanceReconciliation() {
 
   const askReconcile = (a) => { runPreview(a); };
 
-  const doReconcile = async () => {
+  // `force` books a REFUSED mtm preview (the dialog's "Book anyway"); the
+  // approved figures still travel as `expect`, so a number that moved is a 409.
+  const doReconcile = async (force = false) => {
     const a = preview?.account;
     if (!a) return;
     setPreviewBusy(true);
@@ -252,7 +254,9 @@ export default function BalanceReconciliation() {
           : a.reconcile_mode === "accrue"
             ? null
             : { new_opening: preview.data.new_opening, feed_date: preview.data.feed_date };
-      const body = reconcileBody(a, preview.balanceDate, { dryRun: false, ...(expect ? { expect } : {}) });
+      const body = reconcileBody(a, preview.balanceDate, {
+        dryRun: false, ...(expect ? { expect } : {}), ...(force === true ? { force: true } : {}),
+      });
       const res = await Rest.post(`/bank-feed/reconcile/${a.account_id}`, body);
       setReconcileMsg(
         res.mode === "mtm"
@@ -836,7 +840,8 @@ export default function BalanceReconciliation() {
         balanceDate={preview?.balanceDate || ""}
         onBalanceDateChange={(d) => preview?.account && runPreview(preview.account, d)}
         onCancel={() => setPreview(null)}
-        onApply={doReconcile}
+        onApply={() => doReconcile()}
+        onForce={() => doReconcile(true)}
       />
 
       {uploadAccount && (

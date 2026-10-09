@@ -103,26 +103,36 @@ ROLLBACK;
 
 ## 3. Wait for the feed to settle — this is the step people skip
 
-**The feed labels a balance with the date it SYNCED, and it syncs in the small hours.** The
-row dated *D* was therefore taken **before *D* traded**, and marking against it marks to a day
-that had not happened yet.
+**A feed row's date is not the day its value describes.** Since September 2026 the upstream
+syncs **once a day, at about 18:04 UTC — 14:04 in New York, mid-session** — and bank-feed
+stamps each sync with the date it *fetched* it. Its 00:24 fetch copies the previous sync onto
+the new date, and the 18:24 fetch replaces it. So, for a weekday month-end *D*:
 
-Proof, from 2026-07-31 (a **Friday** — so with markets shut all weekend, Friday's close must
-equal Sunday's, and it does not):
-
-| balance_date | Fidelity Stocks | synced at |
+| row dated | holds the sync of | contains *D*'s close? |
 |---|---|---|
-| 2026-08-02 (Sun) | **1,165,523.25** ← Friday's real close | 00:05 on 08-02 |
-| 2026-08-01 (Sat) | 1,157,779.86 | 00:53 on 08-01 |
-| 2026-07-31 (Fri) | 1,141,170.68 | 01:48 on **07-31** |
+| *D* | *D*, 18:04 (before the close) | **no** — refused |
+| *D*+1 | *D*, 18:04 until 18:24, then *D*+1's | only after *D*+1's own sync |
+| *D*+2 | *D*+1, then *D*+2 | yes — but may also carry *D*+1's activity |
 
-Marking against the 07-31 row booked **−44,600.45** and left the account **24,352.57 below**
-the custodian. In practice the settling observation has been **two days after** month-end —
-but that is an observation, not a rule (see *Known Issue #14*), which is why fin refuses
-rather than guessing.
+How many closes behind the upstream *value* runs has itself drifted between 0 and 2 (Known
+Issue #14), so fin does not assume a lag; it refuses what is provably wrong — any row synced
+on or before *D* — and offers only rows synced after it.
 
-**How long to wait:** until an observation exists whose sync date is *after* month-end. Two
-days has been enough. There is no harm in marking later.
+Two older observations still hold, and are why §4's checks exist:
+
+- **2026-07-31** (syncs were then in the small hours): the row dated 07-31 was synced at 01:48
+  that morning; marking against it booked −44,600.45 and left Fidelity Stocks 24,352.57 below
+  the custodian.
+- **2026-09-30**: a bank-feed stall (10-01 05:28 → 10-02) meant no sync between 09-30 18:04 and
+  10-02 06:47, and the 06:47 sync returned the **same** 09-30 midday values. No row held 09-30's
+  close; the first that did (10-02 18:08) already carried 10-01's activity — Cash Mgt's
+  −21,425 tax payment. The marks were booked against the midday snapshot, deliberately (§4,
+  *Book anyway*), and Cash Mgt's was corrected for 1,190.74 of 09-30 interest the snapshot
+  predated.
+
+**How long to wait:** until a row exists that was **synced after month-end** — normally the
+day after. fin's daily ingest re-reads the last three days, so its copy of each row converges on
+bank-feed's final one; a row it revises is logged (`balance revised:` in the server log).
 
 ## 4. Book the MTM
 
@@ -135,12 +145,12 @@ Then **Reconcile** on each `brokerage (mtm)` row.
 
 **If it refuses**, that is the guard working, and the message names the alternatives:
 
-> *the balance dated 2026-07-31 was synced on 2026-07-31, so it was taken BEFORE 2026-07-31
-> ended and cannot contain that day's activity. … Later observations: 2026-08-01 =
-> 1,219,893.81 · 2026-08-02 = 1,219,402.92.*
+> *the balance dated 2026-09-30 was synced on 2026-09-29, so it was taken BEFORE 2026-09-30
+> ended and cannot contain that day's activity. … Observations synced after 2026-09-30: …*
 
-Pick the observation that contains the month-end and put it in **mark against balance dated**.
-The entry still carries the month-end date, so the unrealized move lands in the right period.
+The dialog lists **only** observations synced after month-end, and pre-fills the first. (Until
+2026-10-09 it listed every later-*dated* row, so it pre-filled one it would then refuse.) The
+entry still carries the month-end date, so the unrealized move lands in the right period.
 
 **Choosing between candidates** — do not guess, and do not assume "later is better". On
 2026-07-31 the 08-01 observation was synced *after* month-end and still lacked that day's
@@ -154,12 +164,19 @@ The entry still carries the month-end date, so the unrealized move lands in the 
 
 **Two guards can still stop you, and both are worth respecting:**
 
-- *stale feed* — no observation dated month-end, or three identical balances (a stalled
-  connection). Wait; do not `force`.
+- *stale feed* — no observation dated month-end, or the same balance from **three distinct
+  syncs** (a stalled connection; one sync copied onto several dates counts once). Wait first.
 - *implausible* — the mark exceeds 15% of the balance, which usually means the account's
   basis was never anchored.
 
-Neither fires on a healthy month. Note the implausibility threshold did **not** catch a 3.6%
+Neither fires on a healthy month. **When one fires and waiting cannot help** — as at 2026-09-30,
+where no row would ever hold the close — the refused dialog offers **Book anyway**: tick the
+acknowledgement and it books the figure shown, still refusing (409) if that figure moved. Check
+the number first against what the account holds, and against the ledger's flows dated the
+month-end: interest or dividends the ledger dates *D* but the snapshot predates show up as an
+unrealized loss of the same size (Cash Mgt, 09-30: 1,190.74). Fix those afterwards with
+`server/src/v2/scripts/restate-mtm.js` (dry-run by default; `--targets` CSV of
+`as_of_date,target`). Note the implausibility threshold did **not** catch a 3.6%
 phantom gain on a CD ladder held at par — size is a weak signal, so sanity-check the number
 against what the account actually holds.
 

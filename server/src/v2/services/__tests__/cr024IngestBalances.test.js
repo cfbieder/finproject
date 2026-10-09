@@ -39,7 +39,7 @@ describe('refreshBankFeedV2.ingestBalances', () => {
       accountExternalIdById: { '1': 'uuid-1', '2': 'uuid-2' }, // '9' intentionally absent
     });
 
-    expect(res).toEqual({ fetched: 3, upserted: 2, unresolved: 1 });
+    expect(res).toEqual({ fetched: 3, upserted: 2, unresolved: 1, revised: 0 });
     expect(db.query).toHaveBeenCalledTimes(2);
 
     const firstArgs = db.query.mock.calls[0];
@@ -67,14 +67,46 @@ describe('refreshBankFeedV2.ingestBalances', () => {
       { account_id: '1', balance: '5.0000', currency: 'USD', balance_date: '2026-06-02' }, // no source
     ]);
     const res = await orchestrator.ingestBalances({ accountExternalIdById: { '1': 'uuid-1' } });
-    expect(res).toEqual({ fetched: 1, upserted: 1, unresolved: 0 });
+    expect(res).toEqual({ fetched: 1, upserted: 1, unresolved: 0, revised: 0 });
     expect(db.query.mock.calls[0][1][4]).toBe('fintable');
   });
 
   test('empty/missing balances → no upserts', async () => {
     bankFeedClient.balances.mockResolvedValue({ balances: [] });
     const res = await orchestrator.ingestBalances({ accountExternalIdById: { '1': 'uuid-1' } });
-    expect(res).toEqual({ fetched: 0, upserted: 0, unresolved: 0 });
+    expect(res).toEqual({ fetched: 0, upserted: 0, unresolved: 0, revised: 0 });
     expect(db.query).not.toHaveBeenCalled();
+  });
+
+  // bank-feed overwrites a date's row as later syncs land, so fin's copy of a
+  // recent date is provisional. A revision must be counted and logged, never
+  // silent: on 2026-10-09 a Reconcile click rewrote the 09-30 row and the
+  // month-end guards changed their answer with nothing to say why.
+  test('a revised row is counted and logged with old and new values', async () => {
+    bankFeedClient.balances.mockResolvedValue({
+      balances: [
+        { account_id: '1', balance: '1208585.5300', currency: 'USD', balance_date: '2026-09-30', source_synced_at: '2026-09-30T18:04:00Z' },
+        { account_id: '2', balance: '5.0000', currency: 'USD', balance_date: '2026-09-30' },
+      ],
+    });
+    db.query
+      .mockResolvedValueOnce({ rows: [{ prev_balance: '1210971.3800', prev_synced_at: '2026-09-29T18:03:55Z' }] })
+      .mockResolvedValueOnce({ rows: [{ prev_balance: '5.0000', prev_synced_at: null }] }); // unchanged
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const res = await orchestrator.ingestBalances({ accountExternalIdById: { '1': 'uuid-1', '2': 'uuid-2' } });
+    expect(res.revised).toBe(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toMatch(/uuid-1 2026-09-30 1210971\.3800 .*-> 1208585\.5300/);
+    warn.mockRestore();
+  });
+
+  test('ingestRecentBalances re-reads each of the last N days as-of that day', async () => {
+    bankFeedClient.balances.mockResolvedValue({ balances: [] });
+    const out = await orchestrator.ingestRecentBalances({ accountExternalIdById: {}, days: 3 });
+    expect(bankFeedClient.balances).toHaveBeenCalledTimes(3);
+    const asOfs = bankFeedClient.balances.mock.calls.map((c) => c[0]);
+    expect(new Set(asOfs).size).toBe(3);
+    for (const d of asOfs) expect(d).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(out).toEqual({ days: 3, upserted: 0, revised: 0 });
   });
 });

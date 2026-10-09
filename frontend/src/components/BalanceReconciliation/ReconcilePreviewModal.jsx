@@ -29,6 +29,7 @@ export default function ReconcilePreviewModal({
   fmtNum,
   balanceDate = "",
   onBalanceDateChange,
+  onForce,
 }) {
   // CR089 P1 — which feed OBSERVATION this row marks against. It used to be a page-level box
   // that applied to every row reconciled while it was set; it is now this row's own question,
@@ -38,6 +39,10 @@ export default function ReconcilePreviewModal({
   const suggested = balanceDate || candidates[0]?.balance_date || "";
   const [draftDate, setDraftDate] = useState(suggested);
   useEffect(() => { setDraftDate(suggested); }, [suggested]);
+  // "Book anyway" is armed by an explicit acknowledgement, and disarmed whenever
+  // the figures change (a new observation is a new number to check).
+  const [forceAck, setForceAck] = useState(false);
+  useEffect(() => { setForceAck(false); }, [preview]);
 
   if (!open || !account) return null;
 
@@ -256,8 +261,36 @@ export default function ReconcilePreviewModal({
             <p className="rpm__muted">
               {balanceDate
                 ? `Figures above are measured against the balance dated ${balanceDate}.`
-                : "Figures above use the engine's own pick. The feed dates a balance by when it synced, in the small hours — see the month-end runbook §3 for choosing between candidates."}
+                : "Figures above use the engine's own pick. The feed syncs once a day, mid-session in New York, and dates each sync with the next day's date — see the month-end runbook §3 for choosing between candidates."}
             </p>
+          </div>
+        )}
+
+        {/* A refused MTM can still be booked, deliberately. The guards refuse what
+            they cannot prove right, and some months nothing provable exists — at
+            2026-09-30 a bank-feed stall left no observation holding that day's
+            close, and the only way to book was a script. Offered for mtm only:
+            calibrate and accrue refusals are not judgement calls about a market
+            value, and the engine's `force` means something different there. */}
+        {refused && mode === "mtm" && onForce && preview && (
+          <div className="rpm__override">
+            <label className="rpm__override-ack">
+              <input
+                type="checkbox"
+                checked={forceAck}
+                onChange={(e) => setForceAck(e.target.checked)}
+                disabled={busy}
+              />
+              I have checked this figure and want it booked despite the refusal.
+            </label>
+            <button
+              type="button"
+              className="btn btn--danger"
+              onClick={onForce}
+              disabled={busy || !forceAck}
+            >
+              Book anyway: {fmtNum(preview.mtm_amount)}{ccy} on {preview.month_end ?? "—"}
+            </button>
           </div>
         )}
 

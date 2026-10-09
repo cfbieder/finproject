@@ -48,8 +48,9 @@ export default function MtmDateControl({ value, onChange, balanceDate = "", onBa
             onChange={(e) => onBalanceDateChange(e.target.value)}
             title={
               "Optional. Which feed OBSERVATION to measure against, when it is not the one " +
-              "the engine would pick. The feed labels a balance with the date it synced, in " +
-              "the small hours — so the row dated D was taken before D traded. Leave blank " +
+              "the engine would pick. The feed syncs once a day, mid-session in New York, and " +
+              "dates each sync with the next day's date — so the row dated D may predate D's " +
+              "close. Leave blank " +
               "unless the reconcile refuses and names the alternatives. Applies to MTM and " +
               "ACCRUAL rows; on accrual rows it selects the observation only — the entry is " +
               "still dated by the day that observation can speak for."

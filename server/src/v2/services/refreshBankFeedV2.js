@@ -65,6 +65,16 @@ async function buildAccountIdToUuid() {
  * stable UUID (the key shared with account_source_mappings.external_name) so a
  * later re-auth that renumbers internal ids doesn't orphan the override.
  * Upserts one row per (UUID, balance_date, source); idempotent on re-run.
+ *
+ * ⚠️ A row for a recent date is PROVISIONAL. bank-feed dates a balance by the
+ * day it FETCHED it and overwrites that day's row as later syncs land, so its
+ * row for D first carries the previous day's sync (the 00:24 fetch) and only
+ * later D's own (~18:04 UTC). fin's 06:00 cron copied D in its provisional
+ * form and never came back, so its month-end rows were each the PREVIOUS day's
+ * sync — until a Reconcile click re-ingested one and the guards saw rows
+ * change underneath them (2026-09-30). `ingest()` now re-reads the last few
+ * days (RECENT_BALANCE_DAYS), and every revision of an existing row is logged
+ * with its old and new value and counted in the summary.
  */
 async function ingestBalances({ accountExternalIdById, asOf } = {}) {
   const idToUuid = accountExternalIdById || (await buildAccountIdToUuid());
@@ -76,10 +86,18 @@ async function ingestBalances({ accountExternalIdById, asOf } = {}) {
 
   let upserted = 0;
   let unresolved = 0;
+  let revised = 0;
   for (const b of list) {
     const uuid = idToUuid[String(b.account_id)];
     if (!uuid) { unresolved++; continue; }
-    await db.query(`
+    const source = b.source || 'fintable';
+    // `prev` is read in the same statement, so the logged old value is the one
+    // this upsert replaced.
+    const { rows } = await db.query(`
+      WITH prev AS (
+        SELECT balance, source_synced_at FROM bankfeed_balances
+         WHERE feed_account_external_id = $1 AND balance_date = $4 AND source = $5
+      )
       INSERT INTO bankfeed_balances
         (feed_account_external_id, balance, currency, balance_date, source, source_synced_at, raw)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -89,10 +107,36 @@ async function ingestBalances({ accountExternalIdById, asOf } = {}) {
                     source_synced_at = EXCLUDED.source_synced_at,
                     fetched_at = NOW(),
                     raw = EXCLUDED.raw
-    `, [uuid, b.balance, b.currency, b.balance_date, b.source || 'fintable', b.source_synced_at || null, b.raw || null]);
+      RETURNING (SELECT balance FROM prev) AS prev_balance,
+                (SELECT source_synced_at FROM prev) AS prev_synced_at
+    `, [uuid, b.balance, b.currency, b.balance_date, source, b.source_synced_at || null, b.raw || null]);
     upserted++;
+    const prev = rows[0];
+    if (prev && prev.prev_balance != null && Number(prev.prev_balance) !== Number(b.balance)) {
+      revised++;
+      const when = (t) => (t ? new Date(t).toISOString() : 'unknown');
+      console.warn(
+        `[refreshBankFeedV2] balance revised: ${uuid} ${b.balance_date} ` +
+        `${prev.prev_balance} (synced ${when(prev.prev_synced_at)}) -> ${b.balance} (synced ${when(b.source_synced_at)})`
+      );
+    }
   }
-  return { fetched: list.length, upserted, unresolved };
+  return { fetched: list.length, upserted, unresolved, revised };
+}
+
+// How many past days `ingest()` re-reads so fin's copies converge on bank-feed's
+// final row for each date (see ingestBalances). Three covers a weekend.
+const RECENT_BALANCE_DAYS = 3;
+
+/** Re-read the balance for each of the last `days` dates (as-of each day). */
+async function ingestRecentBalances({ accountExternalIdById, days = RECENT_BALANCE_DAYS } = {}) {
+  const out = { days, upserted: 0, revised: 0 };
+  for (let i = 1; i <= days; i++) {
+    const r = await ingestBalances({ accountExternalIdById, asOf: isoDaysAgo(i) });
+    out.upserted += r.upserted;
+    out.revised += r.revised;
+  }
+  return out;
 }
 
 /**
@@ -196,6 +240,7 @@ async function ingest({ sinceDays = DEFAULT_SINCE_DAYS, since, syncMaxAgeMin } =
   let balances = null;
   try {
     balances = await ingestBalances({ accountExternalIdById });
+    balances.recent = await ingestRecentBalances({ accountExternalIdById });
   } catch (err) {
     console.warn('[refreshBankFeedV2] balances ingest failed (non-fatal):', err.message);
     balances = { error: err.message };
@@ -686,6 +731,7 @@ module.exports = {
   refresh,
   ingest,
   ingestBalances,
+  ingestRecentBalances,
   syncUpstream,
   promote,
   buildAccountIdToUuid,

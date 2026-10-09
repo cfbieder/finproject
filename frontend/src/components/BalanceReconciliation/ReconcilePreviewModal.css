@@ -127,6 +127,24 @@
   gap: var(--space-sm);
 }
 
+/* A deliberate override of a refused MTM — set apart from the observation picker. */
+.rpm__override {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border);
+}
+
+.rpm__override-ack {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  font-size: 0.875rem;
+  color: var(--ink);
+}
+
 /* CR089 P1 — this row's observation: pre-filled, editable, re-previewed on change. */
 .rpm__observation {
   display: flex;

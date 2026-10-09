@@ -205,13 +205,15 @@ async function mtm(client, accountId, m, monthEnd, dryRun, force = false, markAg
   // a balance with the date it was synced, and it syncs in the small hours, so
   // the row dated D was taken before D traded.
   const observationDate = markAgainst || monthEnd;
+  // Up to 8 rows, so the flat-run test below can still find three DISTINCT syncs
+  // after collapsing rows that are copies of one sync (see `flatRun`).
   const feedRows = (await client.query(
     `SELECT balance, balance_date::text AS balance_date, fetched_at,
             source_synced_at,
             (source_synced_at AT TIME ZONE 'UTC')::date::text AS synced_on
        FROM bankfeed_balances
       WHERE feed_account_external_id = $1 AND balance_date <= $2::date
-      ORDER BY balance_date DESC LIMIT 3`,
+      ORDER BY balance_date DESC LIMIT 8`,
     [m.external_name, observationDate]
   )).rows;
   const feed = feedRows[0];
@@ -268,6 +270,12 @@ async function mtm(client, accountId, m, monthEnd, dryRun, force = false, markAg
   // guessing a lag. This is how the 2026-07-31 case was actually settled: 07-31
   // was a Friday, so its close had to equal the weekend's, and only one
   // candidate matched.
+  //
+  // ⚠️ Only observations this same guard would ACCEPT — synced after the day
+  // ended. The list used to be every row dated after month-end, and the page
+  // pre-fills its first entry: for 2026-09-30 that was the row dated 10-01,
+  // synced 09-30 (the feed labels a sync with the NEXT day's date), so the
+  // suggested fix was refused by the rule that asked for it.
   let laterObservations = [];
   if (syncedBeforeDayEnded) {
     laterObservations = (await client.query(
@@ -275,27 +283,41 @@ async function mtm(client, accountId, m, monthEnd, dryRun, force = false, markAg
               (source_synced_at AT TIME ZONE 'UTC')::date::text AS synced_on
          FROM bankfeed_balances
         WHERE feed_account_external_id = $1 AND balance_date > $2::date
+          AND source_synced_at IS NOT NULL
+          AND (source_synced_at AT TIME ZONE 'UTC')::date > $2::date
         ORDER BY balance_date ASC LIMIT 4`,
       [m.external_name, monthEnd]
     )).rows.map((r) => ({ ...r, balance: Number(r.balance) }));
   }
 
   const feedIsForMonthEnd = feed.balance_date === observationDate;
+  // Three DISTINCT syncs reporting one balance, not three rows. The feed writes
+  // a row per fetch DATE, so one sync is routinely copied onto two dates (its
+  // own, and the next day's first fetch) — and a bank-feed stall copies it onto
+  // more. Counting copies as observations refused all five Fidelity accounts at
+  // 2026-09-30, where 09-30 and 10-01 were one 09-30 18:04 sync. A row with no
+  // sync time cannot be placed, so it counts as its own observation.
+  const distinctSyncs = [];
+  for (const r of feedRows) {
+    const key = r.source_synced_at ? new Date(r.source_synced_at).toISOString() : `row:${r.balance_date}`;
+    if (!distinctSyncs.some((d) => d.key === key)) distinctSyncs.push({ key, balance: Number(r.balance), balance_date: r.balance_date });
+    if (distinctSyncs.length === 3) break;
+  }
   const flatRun =
-    feedRows.length === 3 &&
-    Number(feedRows[0].balance) === Number(feedRows[1].balance) &&
-    Number(feedRows[1].balance) === Number(feedRows[2].balance);
+    distinctSyncs.length === 3 &&
+    distinctSyncs[0].balance === distinctSyncs[1].balance &&
+    distinctSyncs[1].balance === distinctSyncs[2].balance;
   const stale = !feedIsForMonthEnd || flatRun || syncedBeforeDayEnded;
   const staleReason = !feedIsForMonthEnd
     ? `feed has no balance dated ${observationDate} — latest is ${feed.balance_date}`
     : flatRun
-      ? `feed balance unchanged across ${feedRows.map((r) => r.balance_date).reverse().join(', ')} — connection likely stalled`
+      ? `feed balance unchanged across three syncs (rows ${distinctSyncs.map((r) => r.balance_date).reverse().join(', ')}) — connection likely stalled`
       : syncedBeforeDayEnded
         ? `the balance dated ${feed.balance_date} was synced on ${feed.synced_on}, so it was taken ` +
-          `BEFORE ${monthEnd} ended and cannot contain that day's activity. Mark against a later ` +
-          `observation instead (balanceDate), or pass force to override.` +
+          `BEFORE ${monthEnd} ended and cannot contain that day's activity. Mark against an ` +
+          `observation synced after ${monthEnd} instead (balanceDate), or book anyway (force).` +
           (laterObservations.length
-            ? ` Later observations: ${laterObservations
+            ? ` Observations synced after ${monthEnd}: ${laterObservations
                 .map((o) => `${o.balance_date} = ${o.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
                 .join(' · ')}.`
             : '')
@@ -349,9 +371,13 @@ async function mtm(client, accountId, m, monthEnd, dryRun, force = false, markAg
   // amount meaningless, so reporting it as "implausible" would name the symptom
   // and hide the cause.
   if (stale && !force) {
+    // No lag figure here: the feed syncs once a day at ~18:00 UTC (mid-session
+    // in New York) and labels that sync with the NEXT day's date, but how many
+    // closes behind the upstream value runs has drifted between 0 and 2 (Known
+    // Issue #14). The runbook (§3) says how to choose; this says what is wrong.
     summary.note = `stale feed — ${staleReason}. Marking ${monthEnd} against it would pin the ` +
-      `account to a value the custodian never reported. Wait for the feed to settle (it has run ` +
-      `~2 days behind month-end), or pass force to override.`;
+      `account to a value the custodian never reported. Choose an observation synced after ` +
+      `${monthEnd} (month-end runbook §3), or book anyway if you have checked the figure.`;
     summary.refused = true;
     if (!dryRun) return summary; // refuse to write; surface the reason
   }

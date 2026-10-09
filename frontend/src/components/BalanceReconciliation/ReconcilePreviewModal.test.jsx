@@ -141,3 +141,54 @@ describe("ReconcilePreviewModal — the observation to mark against", () => {
     expect(screen.queryByLabelText(/Mark against balance dated/)).toBeNull();
   });
 });
+
+/**
+ * "Book anyway" — a refused MTM booked deliberately. At 2026-09-30 a bank-feed
+ * stall left no observation the guards would accept, and the only way to book
+ * the month was a script. Armed by an explicit acknowledgement; mtm only.
+ */
+describe("ReconcilePreviewModal — book a refused MTM anyway", () => {
+  const mtmAccount = { account_id: 3, name: "Fidelity Bond", currency: "USD", reconcile_mode: "mtm" };
+  const refusedMtm = {
+    mode: "mtm", feed_date: "2026-10-02", month_end: "2026-09-30", mtm_amount: -23110.86,
+    refused: true, applied: false, note: "feed balance unchanged across three syncs",
+    later_observations: [],
+  };
+  const renderWith = (props) =>
+    render(
+      <ReconcilePreviewModal
+        open account={mtmAccount} busy={false} error={null} stale={false}
+        onCancel={() => {}} onApply={() => {}} fmtNum={fmtNum} {...props}
+      />
+    );
+
+  it("is disarmed until the figure is acknowledged, then calls onForce", () => {
+    const onForce = vi.fn();
+    renderWith({ preview: refusedMtm, onForce });
+    const button = screen.getByRole("button", { name: /Book anyway: -23110\.86 USD on 2026-09-30/ });
+    expect(button.disabled).toBe(true);
+    fireEvent.click(screen.getByRole("checkbox"));
+    expect(button.disabled).toBe(false);
+    fireEvent.click(button);
+    expect(onForce).toHaveBeenCalledTimes(1);
+  });
+
+  it("is not offered on a refused accrue, nor without a handler", () => {
+    render(
+      <ReconcilePreviewModal
+        open account={account} preview={refusedPreview} busy={false} error={null} stale={false}
+        onCancel={() => {}} onApply={() => {}} fmtNum={fmtNum} onForce={() => {}}
+      />
+    );
+    expect(screen.queryByRole("button", { name: /Book anyway/ })).toBeNull();
+    cleanup();
+    renderWith({ preview: refusedMtm });
+    expect(screen.queryByRole("button", { name: /Book anyway/ })).toBeNull();
+  });
+
+  it("is not offered when the preview is not refused", () => {
+    renderWith({ preview: { ...refusedMtm, refused: false }, onForce: () => {} });
+    expect(screen.queryByRole("button", { name: /Book anyway/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Apply" })).toBeTruthy();
+  });
+});

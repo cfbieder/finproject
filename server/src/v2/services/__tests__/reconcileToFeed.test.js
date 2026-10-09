@@ -401,6 +401,43 @@ dbDescribe('reconcileToFeed (DB)', () => {
     expect(rows[0].d).toBe('2026-03-31');               // …but dated at month-end
   });
 
+  // 2026-09-30: the feed syncs ~18:04 UTC and labels the sync with the NEXT
+  // day's date, so the row dated 10-01 was synced 09-30. The page pre-fills the
+  // first suggested observation — which this guard then refused.
+  test('suggested observations are only ones this guard would accept (synced after the day)', async () => {
+    await freshAccount({ type: 'asset', currency: 'USD', opening: 1000, mode: 'mtm', bff: false });
+    await seedFeedSynced(10500, '2026-03-31', '2026-03-30T18:03:00Z');
+    await seedFeedSynced(10600, '2026-04-01', '2026-03-31T18:04:00Z'); // dated after, synced ON the day
+    await seedFeedSynced(10700, '2026-04-02', '2026-04-01T18:04:00Z'); // eligible
+
+    const out = await reconcileToFeed(acctId, { bookDate: '2026-03-31', dryRun: true });
+    expect(out.stale_feed).toBe(true);
+    expect(out.later_observations.map((o) => o.balance_date)).toEqual(['2026-04-02']);
+  });
+
+  // The same sync copied onto several dates (its own day, the next day's first
+  // fetch, a stall) is ONE observation. Counting copies refused all five
+  // Fidelity accounts at 2026-09-30 as a "stalled connection".
+  test('flat run counts distinct syncs: one sync copied across dates is not three observations', async () => {
+    await freshAccount({ type: 'asset', currency: 'USD', opening: 1000, mode: 'mtm', bff: false });
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, accepted)
+       VALUES ('2026-03-10', 9000, 'USD', $1, 'pocketsmith', TRUE)`, [acctId]);
+    await seedFeedSynced(10400, '2026-03-30', '2026-03-29T18:03:00Z');
+    await seedFeedSynced(10500, '2026-03-31', '2026-03-31T18:04:00Z');
+    await seedFeedSynced(10500, '2026-04-01', '2026-03-31T18:04:00Z'); // copy of the same sync
+    await seedFeedSynced(10500, '2026-04-02', '2026-04-02T06:47:00Z'); // a second sync, same value
+
+    const out = await reconcileToFeed(acctId, { bookDate: '2026-03-31', balanceDate: '2026-04-02', dryRun: true });
+    expect(out.stale_reason || '').not.toMatch(/stalled/);
+    expect(out.stale_feed).toBe(false);
+
+    // …while three DISTINCT syncs with one balance still trip it.
+    await seedFeedSynced(10500, '2026-04-03', '2026-04-03T18:04:00Z');
+    const flat = await reconcileToFeed(acctId, { bookDate: '2026-03-31', balanceDate: '2026-04-03', dryRun: true });
+    expect(flat.stale_reason).toMatch(/stalled/);
+  });
+
   test('mtm: bookDate overrides the month-end snap (books verbatim on the chosen date)', async () => {
     await freshAccount({ type: 'asset', currency: 'USD', opening: 1000, mode: 'mtm', bff: false });
     await db.query(
