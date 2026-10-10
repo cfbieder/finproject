@@ -392,3 +392,22 @@ export const normalizeStringOptions = (baseOptions, fallbackValue = "") => {
 
   return normalized;
 };
+
+/**
+ * The marked set after unmarking `unmarkIds` (Actuals' marked working set).
+ *
+ * Removes exactly the unmarked rows. A mark is otherwise forgotten only when its
+ * row is no longer LOADED at all (an edit moved it out of the server-side
+ * filters) — never because the search box or a client-side filter is hiding it.
+ * The first version pruned to the rows on screen, so unmarking 20 Netflix rows
+ * found by searching "netf" dropped the other 480 marks with them (owner-found,
+ * 2026-10-10).
+ */
+export const unmarkRows = (markedIds, unmarkIds, loadedRows) => {
+  const loaded = new Set(loadedRows.map((entry) => entry._id));
+  const next = new Set();
+  for (const id of markedIds) {
+    if (!unmarkIds.has(id) && loaded.has(id)) next.add(id);
+  }
+  return next;
+};

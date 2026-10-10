@@ -24,6 +24,7 @@ import {
   normalizeStringOptions,
   periodToFilterFields,
   summarizeActualTotals,
+  unmarkRows,
 } from "../features/Transaction/transactionUtils.js";
 import { useTransactions } from "../features/Transaction/hooks/useTransactions.js";
 import { useTransactionSelection } from "../features/Transaction/hooks/useTransactionSelection.js";
@@ -254,6 +255,13 @@ export default function TransActual() {
     return searchFilteredTransactions.filter((entry) => markedIds.has(entry._id));
   }, [searchFilteredTransactions, markedIds]);
 
+  // Every marked row still loaded — the chip's count, independent of the search
+  // box, so narrowing the search never reads as marks having been lost.
+  const markedCount = useMemo(
+    () => (markedIds.size === 0 ? 0 : transactions.filter((entry) => markedIds.has(entry._id)).length),
+    [transactions, markedIds]
+  );
+
   // ─── Filtered totals ───
   useEffect(() => {
     const controller = new AbortController();
@@ -308,17 +316,13 @@ export default function TransActual() {
     clearSelection();
   }, [selectedRows, clearSelection]);
 
-  // Also forgets marks on rows no longer in view (an edit moved them out of the
-  // filters), so unmarking the last visible subgroup returns to the full list
-  // rather than an empty "marked only" view.
+  // Removes exactly the selected rows; marks hidden by the search box stay
+  // (see unmarkRows). Marks on rows no longer loaded are forgotten, so unmarking
+  // the last subgroup returns to the full list rather than an empty view.
   const unmarkSelected = useCallback(() => {
-    const next = new Set();
-    for (const entry of searchFilteredTransactions) {
-      if (markedIds.has(entry._id) && !selectedRows.has(entry._id)) next.add(entry._id);
-    }
-    setMarkedIds(next);
+    setMarkedIds(unmarkRows(markedIds, new Set(selectedRows.keys()), transactions));
     clearSelection();
-  }, [searchFilteredTransactions, markedIds, selectedRows, clearSelection]);
+  }, [markedIds, selectedRows, transactions, clearSelection]);
 
   // A reload that already has rows on screen keeps the table MOUNTED. Swapping it
   // for the spinner collapses .txv2-table-scroll, the browser clamps its scroll
@@ -530,12 +534,12 @@ export default function TransActual() {
     if (markedIds.size > 0) {
       chips.push({
         key: "marked",
-        label: `Marked only: ${viewTransactions.length.toLocaleString()}`,
+        label: `Marked only: ${markedCount.toLocaleString()}`,
         removable: true,
       });
     }
     return chips;
-  }, [filters, markedIds, viewTransactions]);
+  }, [filters, markedIds, markedCount]);
 
   const removeChip = useCallback((key) => {
     if (key === "marked") {
