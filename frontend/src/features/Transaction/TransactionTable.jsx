@@ -137,6 +137,7 @@ export default function TransactionTable({
   showSelection = true,
   onDateClick,
   onDescriptionClick,
+  onDescriptionContextMenu,
   onCategoryClick,
   onAcceptClick,
   onSplitClick,
@@ -354,6 +355,14 @@ export default function TransactionTable({
                             ...column.style,
                           }}
                           onClick={handleCellClick}
+                          onContextMenu={
+                            column.key === "Description1" && onDescriptionContextMenu
+                              ? (event) => {
+                                  event.preventDefault();
+                                  onDescriptionContextMenu(rowId, entry);
+                                }
+                              : undefined
+                          }
                         >
                           {column.render(entry[column.key])}
                           {/* CR065: a securities-trade leg whose counter-leg does

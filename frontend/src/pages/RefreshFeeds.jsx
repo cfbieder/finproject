@@ -300,6 +300,8 @@ export default function RefreshFeeds() {
   const [editingDescription, setEditingDescription] = useState(null); // { rowId, entry }
   const [descriptionValue, setDescriptionValue] = useState("");
   const [isSavingDescription, setIsSavingDescription] = useState(false);
+  // Rename proposal from history (right-click on a description)
+  const [descriptionProposal, setDescriptionProposal] = useState(null); // { description, samples, total }
 
   // Inline edit state for Category
   const [editingCategory, setEditingCategory] = useState(null); // { rowId, entry }
@@ -373,13 +375,38 @@ export default function RefreshFeeds() {
   }, [editingDate, dateValue, loadReviewTransactions, showSuccess, showErrorToast]);
 
   const handleDescriptionClick = useCallback((rowId, entry) => {
+    setDescriptionProposal(null);
     setEditingDescription({ rowId, entry });
     setDescriptionValue(entry.Description1 ?? "");
   }, []);
 
+  // Right-click: propose a rename from how similar feed text was renamed before,
+  // opening the edit dialog prefilled so it can be accepted, rejected or modified.
+  const handleDescriptionContextMenu = useCallback(async (rowId, entry) => {
+    if (typeof entry?.id !== "number") return;
+    try {
+      const res = await Rest.fetchJson(`${reviewConfig.endpoint}/description-suggestions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [entry.id] }),
+      });
+      const hit = (res?.data ?? []).find((s) => s.description);
+      if (!hit) {
+        showErrorToast("No rename proposal — no consistent past renames for this merchant");
+        return;
+      }
+      setDescriptionProposal(hit);
+      setEditingDescription({ rowId, entry });
+      setDescriptionValue(hit.description);
+    } catch (err) {
+      showErrorToast(err?.message ?? "Failed to propose a rename");
+    }
+  }, [showErrorToast]);
+
   const handleDescriptionCancel = useCallback(() => {
     setEditingDescription(null);
     setDescriptionValue("");
+    setDescriptionProposal(null);
   }, []);
 
   const handleDescriptionSave = useCallback(async () => {
@@ -403,6 +430,7 @@ export default function RefreshFeeds() {
       }
       setEditingDescription(null);
       setDescriptionValue("");
+      setDescriptionProposal(null);
       showSuccess("Description updated");
       await loadReviewTransactions();
     } catch (err) {
@@ -1137,6 +1165,7 @@ export default function RefreshFeeds() {
               onRowToggle={toggleRowSelection}
               onDateClick={handleDateClick}
               onDescriptionClick={handleDescriptionClick}
+              onDescriptionContextMenu={handleDescriptionContextMenu}
               onCategoryClick={handleCategoryClick}
               onAcceptClick={handleAcceptClick}
               onSplitClick={handleSplitClick}
@@ -1202,7 +1231,7 @@ export default function RefreshFeeds() {
               <Modal
                 open
                 onClose={handleDescriptionCancel}
-                title="Edit Description"
+                title={descriptionProposal ? "Proposed Rename" : "Edit Description"}
                 dismissable={!isSavingDescription}
               >
                 <form
@@ -1212,6 +1241,14 @@ export default function RefreshFeeds() {
                     handleDescriptionSave();
                   }}
                 >
+                  {descriptionProposal && (
+                    <p className="rename-proposal__hint">
+                      Now: {editingDescription.entry.Description1}
+                      <br />
+                      Similar feed text was renamed to this {descriptionProposal.samples} of{" "}
+                      {descriptionProposal.total} times.
+                    </p>
+                  )}
                   <label className="trans-budget-edit-modal__field trans-budget-edit-modal__field--full-row">
                     <span>Description</span>
                     <input
@@ -1231,14 +1268,18 @@ export default function RefreshFeeds() {
                       onClick={handleDescriptionCancel}
                       disabled={isSavingDescription}
                     >
-                      Cancel
+                      {descriptionProposal ? "Reject" : "Cancel"}
                     </button>
                     <button
                       className="btn btn--primary"
                       type="submit"
                       disabled={isSavingDescription}
                     >
-                      {isSavingDescription ? "Saving\u2026" : "Save"}
+                      {isSavingDescription
+                        ? "Saving\u2026"
+                        : descriptionProposal && descriptionValue === descriptionProposal.description
+                          ? "Accept"
+                          : "Save"}
                     </button>
                   </div>
                 </form>

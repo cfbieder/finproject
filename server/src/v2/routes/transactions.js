@@ -11,6 +11,7 @@ const accountsRepo = require('../repositories').accounts;
 // Look up by name with `accountsRepo.findByName`; results have id/name/section.
 const transferMatchGroupsRepo = require('../repositories').transferMatchGroups;
 const categorySuggest = require('../services/categorySuggest');
+const descriptionSuggest = require('../services/descriptionSuggest');
 const incomeRestatement = require('../services/incomeRestatement');
 const db = require('../db');
 const { rateAsOf } = require('../services/fx');
@@ -551,6 +552,21 @@ router.post('/category-suggestions', async (req, res, next) => {
       ? req.body.ids.map(Number).filter(Number.isFinite)
       : [];
     const data = await categorySuggest.suggestForIds(ids);
+    res.json({ data });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/v2/transactions/description-suggestions
+// Propose a rename per transaction id from how similar feed text was renamed
+// before. Body: { ids: number[] }. description=null when nothing is confident.
+router.post('/description-suggestions', async (req, res, next) => {
+  try {
+    const ids = Array.isArray(req.body.ids)
+      ? req.body.ids.map(Number).filter(Number.isFinite)
+      : [];
+    const data = await descriptionSuggest.suggestForIds(ids);
     res.json({ data });
   } catch (error) {
     next(error);
