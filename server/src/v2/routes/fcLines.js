@@ -153,6 +153,18 @@ router.post('/:id/categories', async (req, res, next) => {
       return res.status(404).json({ error: 'FC Line not found' });
     }
 
+    // A parent on one line and its child on another counts the child on both lines.
+    const overlaps = await repo.findMappingOverlaps(Number(id), category_ids);
+    if (overlaps.length > 0) {
+      const list = overlaps
+        .map(o => `"${o.category_name}" overlaps "${o.conflict_name}" (on ${o.conflict_line})`)
+        .join('; ');
+      return res.status(409).json({
+        error: `A category and its parent/child cannot sit on different FC lines — it would be counted on both: ${list}`,
+        overlaps,
+      });
+    }
+
     const results = await repo.assignCategories(Number(id), category_ids);
     res.json({ data: results });
   } catch (error) {

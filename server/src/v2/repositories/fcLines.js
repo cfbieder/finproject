@@ -195,6 +195,46 @@ async function assignCategories(fcLineId, categoryIds) {
 }
 
 /**
+ * Mappings on OTHER lines that sit above or below any of `categoryIds` in the account tree.
+ *
+ * Every line total walks a mapped category down to its leaves, so a parent on one line and its
+ * child on another counts the child on both. The UNIQUE constraint only stops the same id twice:
+ * `Car Expense` on Living Expenses beside its four leaves on Car Expenses put 31,648 of the 2026
+ * budget on two rows, and the base-year NCF that seeds the sweep's opening cash carried it into
+ * every forecast year. The same id on another line is not an overlap — assigning moves it.
+ *
+ * @returns {Promise<Array<{category_name, conflict_name, conflict_line}>>}
+ */
+async function findMappingOverlaps(fcLineId, categoryIds) {
+  if (!categoryIds || categoryIds.length === 0) return [];
+  const result = await db.query(`
+    WITH RECURSIVE ancestors AS (
+      SELECT a.id AS origin, a.parent_id AS id FROM accounts a WHERE a.id = ANY($2::int[])
+      UNION ALL
+      SELECT an.origin, a.parent_id FROM ancestors an JOIN accounts a ON a.id = an.id
+    ),
+    descendants AS (
+      SELECT a.id AS origin, a.id FROM accounts a WHERE a.id = ANY($2::int[])
+      UNION ALL
+      SELECT d.origin, ch.id FROM descendants d JOIN accounts ch ON ch.parent_id = d.id
+    ),
+    related AS (
+      SELECT origin, id FROM ancestors WHERE id IS NOT NULL
+      UNION
+      SELECT origin, id FROM descendants WHERE id <> origin
+    )
+    SELECT DISTINCT o.name AS category_name, c.name AS conflict_name, l.name AS conflict_line
+    FROM related r
+    JOIN fc_line_categories flc ON flc.category_id = r.id AND flc.fc_line_id <> $1
+    JOIN fc_lines l ON l.id = flc.fc_line_id
+    JOIN accounts o ON o.id = r.origin
+    JOIN accounts c ON c.id = r.id
+    ORDER BY 1, 2
+  `, [fcLineId, categoryIds.map(Number)]);
+  return result.rows;
+}
+
+/**
  * Unassign a category from its FC Line
  */
 async function unassignCategory(fcLineId, categoryId) {
@@ -509,6 +549,7 @@ module.exports = {
   update,
   remove,
   assignCategories,
+  findMappingOverlaps,
   unassignCategory,
   findUnassignedCategories,
   getBudgetTotals,

@@ -18,6 +18,7 @@ const mockRepo = {
   update: jest.fn(),
   remove: jest.fn(),
   assignCategories: jest.fn(),
+  findMappingOverlaps: jest.fn().mockResolvedValue([]),
   unassignCategory: jest.fn(),
   findUnassignedCategories: jest.fn(),
   getBudgetTotals: jest.fn(),
@@ -156,6 +157,20 @@ describe('FC Lines API', () => {
     expect(res.status).toBe(200);
     expect(res.body.data).toHaveLength(2);
     expect(res.body.data[0].success).toBe(true);
+  });
+
+  // A parent on one line and its child on another double-counts the child (Car Expense, 31,648).
+  test('POST /:id/categories refuses a parent/child overlap with another line, writing nothing', async () => {
+    mockRepo.findById.mockResolvedValue({ id: 16, name: 'Living Expenses' });
+    mockRepo.findMappingOverlaps.mockResolvedValueOnce([
+      { category_name: 'Car Expense', conflict_name: 'Car - Lease', conflict_line: 'Car Expenses' },
+    ]);
+
+    const res = await request(app, 'POST', '/16/categories', { category_ids: [181] });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/"Car Expense" overlaps "Car - Lease" \(on Car Expenses\)/);
+    expect(mockRepo.assignCategories).not.toHaveBeenCalled();
   });
 
   // T1.5: Assign requires category_ids array
