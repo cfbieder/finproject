@@ -8,7 +8,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useState } from "react";
-import { TrendingUp, TrendingDown, HelpCircle } from "lucide-react";
+import { TrendingUp, TrendingDown, HelpCircle, Eye, EyeOff } from "lucide-react";
 import { useChartTheme, ChartTooltip } from "../../utils/chartTheme.jsx";
 import NetWorthBridgeModal from "./NetWorthBridgeModal.jsx";
 import "./NetWorthHero.css";
@@ -41,6 +41,11 @@ const monthLabel = (m) => {
 export default function NetWorthHero({ series, current, delta, isLoading }) {
   const chart = useChartTheme();
   const [explaining, setExplaining] = useState(false);
+  // Hidden until asked for, every visit — the mobile Home rule (owner,
+  // 2026-10-14: the browser is opened in public too). The chart hides with the
+  // figure because its y-axis gives the magnitude away. Deliberately not
+  // remembered, or the next public opening would show it again.
+  const [revealed, setRevealed] = useState(false);
   const hasData = Array.isArray(series) && series.length > 1;
   const up = (delta ?? 0) >= 0;
   const months = hasData ? series.length : 0;
@@ -56,10 +61,24 @@ export default function NetWorthHero({ series, current, delta, isLoading }) {
     <section className="nw-hero panel" aria-label="Net worth over time">
       <header className="nw-hero__head">
         <span className="nw-hero__label">Net Worth</span>
-        <span className="nw-hero__value">
-          {isLoading && current == null ? "…" : fullUSD.format(current ?? 0)}
-        </span>
-        {delta != null && !isLoading && (
+        <button
+          type="button"
+          className="nw-hero__reveal"
+          onClick={() => setRevealed((v) => !v)}
+          aria-pressed={revealed}
+          aria-label={revealed ? "Hide net worth" : "Show net worth"}
+        >
+          {revealed ? (
+            <span className="nw-hero__value">
+              {isLoading && current == null ? "…" : fullUSD.format(current ?? 0)}
+            </span>
+          ) : (
+            <span className="nw-hero__value nw-hero__value--masked">••••••</span>
+          )}
+          {revealed ? <EyeOff size={18} /> : <Eye size={18} />}
+        </button>
+        {!revealed && <span className="nw-hero__hint">Click to show</span>}
+        {revealed && delta != null && !isLoading && (
           <span className={"nw-hero__delta " + (up ? "is-up" : "is-down")}>
             {up ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
             {fullUSD.format(Math.abs(delta))}
@@ -80,6 +99,7 @@ export default function NetWorthHero({ series, current, delta, isLoading }) {
         )}
       </header>
 
+      {revealed && (
       <div className="nw-hero__chart">
         {hasData ? (
           <ResponsiveContainer width="100%" height={220}>
@@ -132,6 +152,7 @@ export default function NetWorthHero({ series, current, delta, isLoading }) {
           </div>
         )}
       </div>
+      )}
 
       {/* Mounted only while open: the bridge is a dozen balance builds, and the
           hero renders on every visit to Home. */}

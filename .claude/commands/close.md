@@ -6,7 +6,7 @@ allowed-tools: Bash(git *), Bash(./Scripts/*), Bash(Scripts/*), Bash(cat *), Bas
 ## Context
 - Current branch: !`git branch --show-current`
 - Status: !`git status --short`
-- Current VERSION: !`cat VERSION`
+- Current VERSION (from HEAD — repo-root path, works from any subdirectory): !`git show HEAD:VERSION`
 - Last tag: !`git describe --tags --abbrev=0 2>/dev/null || echo "none"`
 - Recent commits (find the last `release:`/tag entry to see what's new since): !`git log --oneline -30`
 
