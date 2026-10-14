@@ -36,7 +36,6 @@ import FCReviewTableGraphModal from "../features/Forecast/FCReviewTableGraphModa
 import FCCashSweepModal from "../features/Forecast/FCCashSweepModal.jsx";
 import FCGraphAdjustModal from "../features/Forecast/FCGraphAdjustModal.jsx";
 import FCGraphModuleAdjustModal from "../features/Forecast/FCGraphModuleAdjustModal.jsx";
-import { formatAmount } from "../features/Forecast/utils/fcReviewUtils.js";
 import { KpiCard, KpiCardRow } from "../components/KpiCards.jsx";
 import FCReviewWarnings from "../features/Forecast/FCReviewWarnings.jsx";
 import FCAutoAdjustModal from "../features/Forecast/FCAutoAdjustModal.jsx";
@@ -44,6 +43,7 @@ import { computeForecastWarnings } from "../features/Forecast/utils/fcWarnings.j
 import { buildDeflators, toRealTerms } from "../features/Forecast/utils/fcRealTerms.js";
 import { buildBreakdownSeries } from "../features/Forecast/utils/fcBreakdown.js";
 import { resolveCashValue } from "../features/Forecast/utils/fcCashValue.js";
+import { exportForecastReview } from "../features/Forecast/utils/fcReviewWorkbook.js";
 import { TrendingUp, TrendingDown, DollarSign, Landmark } from "lucide-react";
 import Rest from "../js/rest.js";
 import FCStepNav from "../features/Forecast/FCStepNav.jsx";
@@ -1081,183 +1081,26 @@ export default function FCReview() {
     ) {
       return;
     }
-
-    const thStyleBase =
-      "padding:8px 10px;border:1px solid #E8E6DF;background:#FAF9F5;font-weight:700;text-align:left;";
-    const tdStyleBase = "padding:6px 10px;border:1px solid #E8E6DF;";
-    const sectionBorder = "2px solid #4A5568";
-
-    const headerRow = sortedYears
-      .map((year) => {
-        const isBase = baseYears.has(Number(year));
-        const isLastActual = lastActualYears.has(Number(year));
-        const isPreForecast = isBase || isLastActual;
-        const preStyle = isPreForecast
-          ? "background:linear-gradient(180deg,#FAF9F5 0%,#F0EFE9 100%);font-weight:700;border-left:1px solid #D5D2C9;border-right:1px solid #D5D2C9;"
-          : "";
-        const columnLabel = isBase
-          ? '<div style="font-size:11px;color:#808E9B;">(Base Yr)</div>'
-          : isLastActual
-          ? '<div style="font-size:11px;color:#808E9B;">(Actual)</div>'
-          : "";
-        return `<th style="${thStyleBase}${preStyle};min-width:120px;text-align:center;">${year}${columnLabel}</th>`;
-      })
-      .join("");
-
-    const formatLabelCell = (label, level, extraStyle = "", sectionBorders = "") => {
-      const weight = level === 1 ? 700 : level === 2 ? 600 : 500;
-      const padding =
-        level === 3 ? "padding-left:40px;" : level === 2 ? "padding-left:28px;" : "padding-left:12px;";
-      return `<td style="${tdStyleBase}${padding}font-weight:${weight};${extraStyle}${sectionBorders}">${label}</td>`;
-    };
-
-    const cashRowsHtml = cashRowsWithNet
-      .map((row, index) => {
-        const isTransfers = row.label === "Transfers";
-        const isCashFlow = row.isCashFlow;
-        const isFirstCashRow = index === 0;
-        const isLastCashRow = index === cashRowsWithNet.length - 1;
-        const label = row.isNet ? "Net Cash Flow" : isCashFlow ? "Cash Flow" : row.label;
-        const labelBg = row.isNet
-          ? "background:#FAF9F5;font-weight:700;color:#2D3436;"
-          : isCashFlow
-          ? "background:#FAF9F5;"
-          : "";
-
-        const cashSectionBorders = `border-left:${sectionBorder};border-right:${sectionBorder};${
-          isFirstCashRow ? `border-top:${sectionBorder};` : ""
-        }${isLastCashRow ? `border-bottom:${sectionBorder};` : ""}`;
-
-        const cells = sortedYears
-          .map((year) => {
-            const value = getCellValue(row, year, true);
-            const isBase = baseYears.has(Number(year));
-            const numStyle = Number(value) < 0 ? "color:#C0504D;" : "";
-            const baseStyle = isBase
-              ? "background:#FAF9F5;border-left:1px solid #D5D2C9;border-right:1px solid #D5D2C9;"
-              : "";
-            const transferStyle =
-              isTransfers && !isBase
-                ? "border-top:2px solid #7FA37F;border-bottom:2px solid #7FA37F;"
-                : "";
-            const netStyle = row.isNet ? "background:#FAF9F5;font-weight:600;" : "";
-            const cashFlowStyle = isCashFlow ? "background:#FAF9F5;font-weight:600;" : "";
-            return `<td style="${tdStyleBase}${numStyle}${baseStyle}${transferStyle}${netStyle}${cashFlowStyle}text-align:right;${cashSectionBorders}">${formatAmount(
-              value
-            )}</td>`;
-          })
-          .join("");
-        return `<tr>${formatLabelCell(label, row.level || 1, labelBg, cashSectionBorders)}${cells}</tr>`;
-      })
-      .join("");
-
-    const balanceRowsHtml = balanceAccounts
-      .map((row, index) => {
-        const isBank = row.label === "Bank Accounts";
-        const isFirstBalanceRow = index === 0;
-        const isLastBalanceRow = index === balanceAccounts.length - 1;
-        const labelBg = isBank ? "background:#fff5f5;" : "";
-
-        const balanceSectionBorders = `border-left:${sectionBorder};border-right:${sectionBorder};${
-          isFirstBalanceRow ? `border-top:${sectionBorder};` : ""
-        }${isLastBalanceRow ? `border-bottom:${sectionBorder};` : ""}`;
-
-        const cells = sortedYears
-          .map((year, yearIndex) => {
-            const values =
-              row.label === "Assets"
-                ? totalAssetsByYear
-                : balanceDisplayValues.get(row.label);
-            const displayValue =
-              values?.[yearIndex] ?? getCellValue(row, year, false);
-            const isBase = baseYears.has(Number(year));
-            const baseStyle = isBase
-              ? "background:#fafafa;border-left:1px solid #cbd5e0;border-right:1px solid #cbd5e0;"
-              : "";
-            const bankStyle =
-              isBank && !isBase
-                ? "background:#fff5f5;border-top:2px solid #C0504D;border-bottom:2px solid #C0504D;"
-                : isBank
-                ? "background:#fff5f5;"
-                : "";
-            const dangerStyle = Number(displayValue) < 0 ? "color:#C0504D;" : "";
-            return `<td style="${tdStyleBase}${baseStyle}${bankStyle}${dangerStyle}text-align:right;${balanceSectionBorders}">${formatAmount(
-              displayValue
-            )}</td>`;
-          })
-          .join("");
-        return `<tr>${formatLabelCell(row.label, row.level, labelBg, balanceSectionBorders)}${cells}</tr>`;
-      })
-      .join("");
-
-    const dividerRow =
-      balanceAccounts.length > 0 && cashAccounts.length > 0
-        ? `<tr><td style="padding:0;border-top:2px solid #E8E6DF;height:12px;"></td>${sortedYears
-            .map((year) => {
-              const isBase = baseYears.has(Number(year));
-              const baseStyle = isBase
-                ? "background:#fafafa;border-left:1px solid #cbd5e0;border-right:1px solid #cbd5e0;"
-                : "";
-              return `<td style="padding:0;border-top:2px solid #E8E6DF;height:12px;${baseStyle}"></td>`;
-            })
-            .join("")}</tr>`
-        : "";
-
-    const tableHtml = `<table style="border-collapse:collapse;font-family:Inter,Helvetica,Arial,sans-serif;font-size:12px;color:#2D3436;width:100%;">
-      <thead>
-        <tr>
-          <th style="${thStyleBase}min-width:240px;">Account</th>
-          ${headerRow}
-        </tr>
-      </thead>
-      <tbody>
-        ${cashRowsHtml}
-        ${dividerRow}
-        ${balanceRowsHtml}
-      </tbody>
-    </table>`;
-
-    const documentStyles = `
-      body { margin: 16px; background: #ffffff; }
-      h2 { margin: 0 0 12px; font-size: 18px; color: #2D3436; }
-      p { margin: 4px 0 12px; color: #4A5568; font-size: 12px; }
-    `;
-
-    const html = `
-      <html>
-        <head>
-          <meta charset="UTF-8" />
-          <style>${documentStyles}</style>
-        </head>
-        <body>
-          <h2>Forecast Review - ${selectedScenario}</h2>
-          <p>Years: ${sortedYears[0]} - ${sortedYears[sortedYears.length - 1]}</p>
-          ${tableHtml}
-        </body>
-      </html>
-    `;
-
-    const blob = new Blob([html], {
-      type: "application/vnd.ms-excel;charset=utf-8;",
+    // Built from the same resolvers the table renders with (nominal — CR079), so the
+    // workbook carries every section on the page: the actual/budget overlay on the P&L,
+    // Net Assets, the Cash Flow Summary, the Change in Net Assets bridge and Cash Health.
+    exportForecastReview({
+      scenario: selectedScenario,
+      warnings: forecastWarnings,
+      sortedYears,
+      yearBasis,
+      birthYear,
+      cashRowsWithNet,
+      resolveCashValue: (row, year) => resolveCashValue(row, year, cashValueCtx),
+      balanceAccounts,
+      balanceDisplayValues,
+      totalAssetsByYear,
+      netAssetsByYear,
+      transferDetailRows,
+      balanceAccountMap,
+      bankAccountLabels,
+      getCellValue,
     });
-    const url = URL.createObjectURL(blob);
-    const safeScenario = String(selectedScenario || "export")
-      .replace(/[^a-z0-9\-._\s]/gi, "_")
-      .replace(/\s+/g, "_")
-      .replace(/_{2,}/g, "_")
-      .replace(/^_+|_+$/g, "")
-      .trim();
-    const filename =
-      safeScenario.length > 0
-        ? `ForecastReview-${safeScenario}.xls`
-        : "ForecastReview-export.xls";
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
   }, [
     selectedScenario,
     generateLoading,
@@ -1267,14 +1110,20 @@ export default function FCReview() {
     balanceLoading,
     baseActualLoading,
     baseBalanceLoading,
+    forecastWarnings,
     sortedYears,
-    baseYears,
+    yearBasis,
+    birthYear,
     cashRowsWithNet,
-    getCellValue,
+    cashValueCtx,
     balanceAccounts,
-    cashAccounts,
-    totalAssetsByYear,
     balanceDisplayValues,
+    totalAssetsByYear,
+    netAssetsByYear,
+    transferDetailRows,
+    balanceAccountMap,
+    bankAccountLabels,
+    getCellValue,
   ]);
 
   // =============================================================================

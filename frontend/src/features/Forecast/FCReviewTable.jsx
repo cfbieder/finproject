@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { formatAmount } from "./utils/fcReviewUtils.js";
 import { resolveCashValue as resolveCashValueFor } from "./utils/fcCashValue.js";
+import { computeEquityBridge, bridgeHasResidual } from "./utils/fcEquityBridge.js";
 import FCReviewTableControls from "./FCReviewTableControls.jsx";
 
 /**
@@ -44,71 +45,20 @@ function EquityBridgeRows({
   const [collapsed, setCollapsed] = useState(false);
   const [unrealOpen, setUnrealOpen] = useState(true);
 
-  const bridge = useMemo(() => {
-    const zeros = () => sortedYears.map(() => 0);
-
-    // (2) Operating Cash Flow = Income + Expense (excludes Transfers). Computed via
-    // resolveCashValue so it matches the Income / Expense rows shown in the section above.
-    const operating = sortedYears.map((y, yi) => {
-      if (yi === 0) return null; // LastActualYear has no prior year to bridge from
-      const inc = Number(resolveCashValue({ label: "Income", level: 1 }, y)) || 0;
-      const exp = Number(resolveCashValue({ label: "Expense", level: 1 }, y)) || 0;
-      return inc + exp;
-    });
-
-    // (1) Total Change in Net Assets = NA(year) − NA(year-1)
-    const totalChange = sortedYears.map((_, yi) =>
-      yi === 0 ? null : (netAssetsByYear?.[yi] || 0) - (netAssetsByYear?.[yi - 1] || 0)
-    );
-
-    // Roll the per-module transfer rows up to their level-2 balance-sheet line.
-    const transfersByLine = new Map();
-    for (const detail of (transferDetailRows || [])) {
-      const line = balanceAccountMap?.get(detail.module)?.level2 || detail.module;
-      if (bankAccountLabels?.has(line)) continue; // bank side is captured by Operating CF
-      const arr = transfersByLine.get(line) || zeros();
-      (detail.values || []).forEach((v, yi) => { arr[yi] += Number(v) || 0; });
-      transfersByLine.set(line, arr);
-    }
-
-    // (3) Per-line Unrealized G/L = Δ(signed balance) + line transfers, over every
-    // non-bank level-2 line (assets and liabilities).
-    const lineRows = [];
-    for (const row of (balanceAccounts || [])) {
-      if (row.level !== 2) continue;
-      const label = row.label;
-      if (bankAccountLabels?.has(label)) continue;
-      // CR064 P12 — the balance is ALREADY signed: liabilities are stored negative, so
-      // taking on debt is a negative Δ and reduces net assets on its own. Re-signing
-      // liabilities here made a new loan read as a GAIN, which reconciled only because
-      // `netAssetsByYear` was making the same mistake one level up. Both are the sum now.
-      const balances = balanceDisplayValues?.get(label);
-      if (!balances) continue;
-      const lineTransfers = transfersByLine.get(label) || zeros();
-      const values = sortedYears.map((_, yi) => {
-        if (yi === 0) return null;
-        const cur = Number(balances[yi]) || 0;
-        const prev = Number(balances[yi - 1]) || 0;
-        return (cur - prev) + (lineTransfers[yi] || 0);
-      });
-      if (values.some((v) => v != null && Math.abs(v) > 0.5)) {
-        lineRows.push({ label, values });
-      }
-    }
-
-    // Unrealized total is authoritative (derived from the net-asset change) so the
-    // headline always reconciles. The per-line rows explain it; "Other" absorbs any gap.
-    const unrealTotal = sortedYears.map((_, yi) =>
-      yi === 0 ? null : (totalChange[yi] || 0) - (operating[yi] || 0)
-    );
-    const residual = sortedYears.map((_, yi) => {
-      if (yi === 0) return null;
-      const lineSum = lineRows.reduce((s, r) => s + (r.values[yi] || 0), 0);
-      return (unrealTotal[yi] || 0) - lineSum;
-    });
-
-    return { operating, totalChange, unrealTotal, lineRows, residual };
-  }, [sortedYears, resolveCashValue, transferDetailRows, netAssetsByYear, balanceDisplayValues, balanceAccountMap, bankAccountLabels, balanceAccounts]);
+  // The computation lives in fcEquityBridge so the Excel export builds the same rows.
+  const bridge = useMemo(
+    () => computeEquityBridge({
+      sortedYears,
+      resolveCashValue,
+      transferDetailRows,
+      netAssetsByYear,
+      balanceDisplayValues,
+      balanceAccountMap,
+      bankAccountLabels,
+      balanceAccounts,
+    }),
+    [sortedYears, resolveCashValue, transferDetailRows, netAssetsByYear, balanceDisplayValues, balanceAccountMap, bankAccountLabels, balanceAccounts]
+  );
 
   // Renders one data row (label cell + per-year value cells).
   const dataRow = (key, label, values, opts = {}) => {
@@ -151,7 +101,7 @@ function EquityBridgeRows({
     );
   };
 
-  const hasResidual = bridge.residual.some((v) => v != null && Math.abs(v) > 0.5);
+  const hasResidual = bridgeHasResidual(bridge);
 
   return (
     <>
