@@ -24,9 +24,21 @@
  * @returns {Promise<number|null>}     rate, or null if the currency has no rows
  */
 async function rateAsOf(querier, currency, dateText) {
-  if (currency === 'USD') return 1;
+  const row = await rateRowAsOf(querier, currency, dateText);
+  return row ? row.rate : null;
+}
+
+/**
+ * rateAsOf, plus the date of the rate it chose. The lookup falls back to the
+ * NEAREST rate at any distance, so a caller that must not silently value on a
+ * stale rate (CR097) needs to see how far that was.
+ *
+ * @returns {Promise<{rate:number, rate_date:string}|null>} USD → { 1, dateText }
+ */
+async function rateRowAsOf(querier, currency, dateText) {
+  if (currency === 'USD') return { rate: 1, rate_date: dateText };
   const res = await querier.query(
-    `SELECT rate FROM exchange_rates
+    `SELECT rate, rate_date::text AS rate_date FROM exchange_rates
        WHERE from_currency = $1 AND to_currency = 'USD'
        ORDER BY (rate_date <= $2::date) DESC, ABS(rate_date - $2::date) ASC
        LIMIT 1`,
@@ -34,7 +46,7 @@ async function rateAsOf(querier, currency, dateText) {
   );
   if (!res.rows.length) return null;
   const rate = Number(res.rows[0].rate);
-  return Number.isFinite(rate) ? rate : null;
+  return Number.isFinite(rate) ? { rate, rate_date: res.rows[0].rate_date } : null;
 }
 
 /**
@@ -52,4 +64,4 @@ async function usdBaseAmount(querier, amount, currency, dateText) {
   return Math.round(amt * rate * 100) / 100;
 }
 
-module.exports = { usdBaseAmount, rateAsOf };
+module.exports = { usdBaseAmount, rateAsOf, rateRowAsOf };

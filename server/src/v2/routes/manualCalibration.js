@@ -12,7 +12,9 @@ const express = require('express');
 const router = express.Router();
 
 const manualReconciliation = require('../repositories/manualReconciliation');
-const { reconcileManual, setManualBalance, resetOpeningBalance } = require('../services/reconcileManual');
+const {
+  reconcileManual, setManualBalance, resetOpeningBalance, assertNotRegisterManaged,
+} = require('../services/reconcileManual');
 const db = require('../db');
 const validate = require('../utils/validate');
 
@@ -62,6 +64,7 @@ router.delete('/balance/:accountId', async (req, res, next) => {
   try {
     const accountId = Number(req.params.accountId);
     if (!Number.isInteger(accountId)) return res.status(400).json({ error: 'invalid accountId' });
+    await assertNotRegisterManaged(db, accountId);
     const r = await db.query(`DELETE FROM manual_balances WHERE account_id = $1 RETURNING id`, [accountId]);
     res.json({ data: { account_id: accountId, deleted: r.rowCount } });
   } catch (err) {
@@ -83,6 +86,9 @@ router.patch('/reconcile-mode/:accountId', async (req, res, next) => {
     if (!['calibrate', 'mtm'].includes(mode)) {
       return res.status(400).json({ error: "mode must be 'calibrate' or 'mtm'" });
     }
+    // CR097: calibrate would re-anchor opening_balance and absorb every mark the
+    // register booked — refuse while the register owns the account.
+    await assertNotRegisterManaged(db, accountId);
     const r = await db.query(
       `UPDATE accounts SET manual_reconcile_mode = $2
        WHERE id = $1 AND section = 'balance_sheet'

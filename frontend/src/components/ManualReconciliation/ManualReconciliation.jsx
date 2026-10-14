@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import Rest from "../../js/rest.js";
 import ConfirmModal from "../ConfirmModal/ConfirmModal.jsx";
 import ResetOpeningPreviewModal from "./ResetOpeningPreviewModal.jsx";
@@ -370,13 +371,26 @@ The <strong>Opening</strong> column is the plug the computed balance starts from
             const dateVal = edit.date != null ? edit.date : a.entered_date || bookDate;
             return (
               <tr key={a.account_id}>
-                <td>{a.name}</td>
+                <td>
+                  {a.name}
+                  {/* CR097 — a USD account can carry a holdings register; once it
+                      does, the register is the only writer of its balance. */}
+                  {(a.holdings_enabled || a.currency === "USD") && (
+                    <div className="bfd-row-link">
+                      <Link to={`/investments/holdings/${a.account_id}`}>
+                        {a.holdings_enabled ? "Holdings register" : "Holdings…"}
+                      </Link>
+                    </div>
+                  )}
+                </td>
                 <td className="bfd-muted">
                   <select
                     value={a.reconcile_mode || "calibrate"}
-                    disabled={savingMode === a.account_id}
+                    disabled={savingMode === a.account_id || a.holdings_enabled}
                     onChange={(e) => setMode(a.account_id, e.target.value)}
-                    title="How this account reconciles: bank (re-anchor opening_balance, shows DRIFT) vs brokerage (post Unrealized-G/L, shows MTM GAP)"
+                    title={a.holdings_enabled
+                      ? "Set by the holdings register (mtm) — disable the register to change it"
+                      : "How this account reconciles: bank (re-anchor opening_balance, shows DRIFT) vs brokerage (post Unrealized-G/L, shows MTM GAP)"}
                   >
                     <option value="calibrate">bank (calibrate)</option>
                     <option value="mtm">brokerage (mtm)</option>
@@ -403,6 +417,11 @@ The <strong>Opening</strong> column is the plug the computed balance starts from
                 </td>
                 <td className="num">{fmtNum(a.computed_balance)}</td>
                 <td className="num">
+                  {a.holdings_enabled ? (
+                    <span className="bfd-muted" title="This balance is set by each valuation saved on the holdings register">
+                      {fmtNum(a.entered_balance)} · from register
+                    </span>
+                  ) : (
                   <div
                     className="bfd-balance-cell"
                     onBlur={(e) => {
@@ -450,6 +469,7 @@ The <strong>Opening</strong> column is the plug the computed balance starts from
                       )}
                     </div>
                   </div>
+                  )}
                 </td>
                 <td className={`num ${driftCls}`}>{a.drift != null ? fmtNum(a.drift, 2) : "—"}</td>
                 <td>
@@ -466,10 +486,12 @@ The <strong>Opening</strong> column is the plug the computed balance starts from
                 <td>
                   <button
                     className="generate-report-button"
-                    disabled={reconcilingId === a.account_id || a.entered_balance == null}
+                    disabled={reconcilingId === a.account_id || a.entered_balance == null || a.holdings_enabled}
                     onClick={() => askReconcile(a)}
                     title={
-                      a.entered_balance == null
+                      a.holdings_enabled
+                        ? "Booked by each valuation on the holdings register"
+                        : a.entered_balance == null
                         ? "Enter a current balance first"
                         : isMtm
                           ? "Post a month-end Unrealized-G/L (MTM) entry"

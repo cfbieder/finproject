@@ -18,6 +18,7 @@ How testing is organised across the project, what's automated, and where to run 
 | `v2/scripts/__tests__/quicken-promote.test.js` | 16 | CR019 promote guards. |
 | `v2/services/__tests__/bankFeedImport.test.js` | 36 | CR021/22 feed import + converter. |
 | `v2/services/__tests__/cr024Categorizer.test.js` | 15 | Fidelity investment-activity categorizer. |
+| `v2/services/__tests__/manualHoldings.test.js` | 16 | CR097 holdings register (DB): preview writes nothing, split ties to the booked row, latest-only edits, cost-gap / stale-FX / 15% blocks, PREVIEW_STALE, register guard on every direct write; plus a static check that X-ray readers filter `source = 'bank-feed'`. |
 | `v2/services/__tests__/reconcileManual.test.js` | 14 | CR033 manual calibration engine (DB). |
 | `v2/services/__tests__/reconcileToFeed.test.js` | 12 | Feed reconcile engine (DB). |
 | `v2/services/__tests__/manualStatementImport.test.js` | 9 | CR036 statement upload preview/commit. |

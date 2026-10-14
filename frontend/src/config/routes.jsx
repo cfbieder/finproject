@@ -55,6 +55,7 @@ const InvestmentReturns = lazy(() => import("../pages/InvestmentReturns"));
 const NetWorthDrivers = lazy(() => import("../pages/NetWorthDrivers"));
 const Investments = lazy(() => import("../pages/Investments"));
 const InvestmentAccount = lazy(() => import("../pages/InvestmentAccount"));
+const ManualHoldings = lazy(() => import("../pages/ManualHoldings"));
 const InvestmentExposure = lazy(() => import("../pages/InvestmentExposure"));
 const InvestmentIncome = lazy(() => import("../pages/InvestmentIncome"));
 const InvestmentRisk = lazy(() => import("../pages/InvestmentRisk"));
@@ -620,6 +621,16 @@ export const routes = [
     path: "/investments/positions/:accountId",
     component: InvestmentAccount,
     label: "Investment Positions",
+    category: "Investments",
+    showInNav: false,
+    icon: Layers,
+  },
+  {
+    // CR097 — the holdings register of a manually valued account. Reached from
+    // Manual Calibration and the Ledger, per account, so it has no nav entry.
+    path: "/investments/holdings/:accountId",
+    component: ManualHoldings,
+    label: "Holdings Register",
     category: "Investments",
     showInNav: false,
     icon: Layers,

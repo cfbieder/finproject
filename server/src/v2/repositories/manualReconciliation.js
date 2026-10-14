@@ -38,7 +38,7 @@ async function manualBalanceReconcile({ asOf = null, tolerance = 0.01 } = {}) {
       -- final leaves only: a parent/container account (one that has children) is
       -- an aggregation node, not something you calibrate directly. Active only.
       SELECT a.id AS account_id, a.name, a.account_type, a.currency,
-             a.opening_balance, a.manual_reconcile_mode
+             a.opening_balance, a.manual_reconcile_mode, a.manual_holdings_enabled
       FROM accounts a
       WHERE a.section = 'balance_sheet'
         AND a.is_active = TRUE
@@ -69,6 +69,8 @@ async function manualBalanceReconcile({ asOf = null, tolerance = 0.01 } = {}) {
     SELECT
       e.account_id, e.name, e.account_type, e.currency,
       e.manual_reconcile_mode AS reconcile_mode,
+      -- CR097: valued by its holdings register — the row's direct writes are refused.
+      e.manual_holdings_enabled AS holdings_enabled,
       -- the plug half of computed_balance, so the UI can offer "Reset opening"
       -- only where there is something to reset.
       ROUND(e.opening_balance, 2) AS opening_balance,

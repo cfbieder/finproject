@@ -20,6 +20,7 @@ import {
   Wallet,
   ArrowLeftRight,
   Undo2,
+  Layers,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { LEDGER_CONFIG } from "../features/Transaction/transactionConfig.js";
@@ -210,6 +211,17 @@ export default function Ledger() {
 
   // ─── Data loading (only when account selected) ───
   const hasAccount = !!selectedAccount;
+
+  const openHoldings = useCallback(async () => {
+    try {
+      const accounts = await Rest.fetchAccountsV2({ activeOnly: true, leafOnly: true });
+      const acct = accounts.find((a) => a.name === selectedAccount);
+      if (acct) navigate(`/investments/holdings/${acct.id}`);
+      else showErrorToast(`Account not found: ${selectedAccount}`);
+    } catch (e) {
+      showErrorToast(e.message);
+    }
+  }, [selectedAccount, navigate, showErrorToast]);
   const {
     transactions,
     transactionLimit,
@@ -857,6 +869,20 @@ export default function Ledger() {
           >
             <Wallet size={14} />
             Opening balance
+          </button>
+        )}
+
+        {/* CR097 — what a manually valued account holds, and its valuations. The
+            page itself says whether this account can carry a register. */}
+        {hasAccount && (
+          <button
+            type="button"
+            className="btn btn--sm btn--outline"
+            onClick={openHoldings}
+            title="The account's holdings register: what it holds, in each holding's currency, and dated valuations that book Unrealized G/L"
+          >
+            <Layers size={14} />
+            Holdings
           </button>
         )}
       </div>

@@ -21,7 +21,9 @@
  * them, so an interrupted run is simply re-runnable.
  *
  * Rollback, since positions are re-derivable:
- *   DELETE FROM security_position_snapshots WHERE polled_on < '<today>';
+ *   DELETE FROM security_position_snapshots WHERE source = 'bank-feed' AND polled_on < '<today>';
+ *   (Never without the source filter: CR097 register snapshots, source = 'manual', are
+ *   typed by the owner and cannot be re-derived.)
  *
  * Usage: node Scripts/backfill-fin-positions.js --from 2026-07-04 [--apply]
  */

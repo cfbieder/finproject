@@ -69,6 +69,11 @@ function assertDateString(value, name, { optional = false } = {}) {
   if (typeof value !== 'string' || !DATE_RE.test(value)) {
     throw badRequest(`${name} must be a YYYY-MM-DD date string`);
   }
+  // The shape alone admits 2026-02-31, which Postgres then rejects with a 500.
+  const d = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== value) {
+    throw badRequest(`${name} is not a real date: ${value}`);
+  }
 }
 
 /** A non-blank string. Whitespace-only is blank — a scenario named "  " has no name. */

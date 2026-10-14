@@ -1,6 +1,6 @@
-# CR097 — A holdings register for manually valued accounts — PLANNED
+# CR097 — A holdings register for manually valued accounts — IN-PROGRESS
 
-**Status:** PLANNED rev 3 (2026-10-14) — pass 1 *revise* → rev 2; pass 2 *revise* → rev 3, GO on these edits with no third review (§10). Build after CR064 P2 · **Track:** v3 · **Migration:** one (number claimed at build time, not now)
+**Status:** IN-PROGRESS — **P1a built 2026-10-14** (migration 083, `services/manualHoldings.js`, `/api/v2/manual-holdings`, page `/investments/holdings/:accountId`; not yet deployed). Started ahead of CR064 by owner choice. Rev 3 design: pass 1 *revise* → rev 2; pass 2 *revise* → rev 3, GO (§10) · **Track:** v3 · **Migration:** one (number claimed at build time, not now)
 **Planned users:** Misc Investments only, for now; others possibly later (owner, 2026-10-14) — hence P1a restricts the **account** to USD. **Holdings** in EUR, GBP, USD and PLN are P1a from day one (owner requirement, 2026-10-14); the account-currency limit is the only thing deferred. **P1b candidates** (owner wants them, kept in P1b by owner choice 2026-10-14; non-fed on prod): PKO TFI (209, PLN), United Beverages (43), Barkeria (44), OCME (45), CVC - MIP (49) — PLN; CVC Fund VIII/IX (33/34) — EUR; PKO - Deposits (21, PLN, see §9). Fed accounts (PKO, PKO Savings, Santander, Revolut, Wise, Caixa) are ineligible.
 **Builds on:** [CR033](cr-033-manual-calibration.md) (manual MTM reconcile), [CR061](cr-061-holdings-and-prices.md) (position tables), [CR090](cr-090-investments-section.md) (the Investments page)
 **Roadmap anchor:** [project-roadmap.md#cr097](../current/project-roadmap.md#cr097)
@@ -210,6 +210,12 @@ its marks, so the guard cannot be bypassed by a route or a mobile screen:
 
 The guard lives in `setManualBalance`, the mode update, `resetOpeningBalance` and `reconcileManual`;
 the register writes through the client-accepting internals of §5.1, which bypass it by construction.
+
+⚠️ **Not guarded in P1a (code review, 2026-10-14):** the generic account edit can still change
+`opening_balance` / `opening_balance_date`, and a Ledger edit or delete can still touch the
+register's `source = 'mtm'` rows. Either makes the next valuation book the shift. A large opening
+change trips the cost-gap block; a removed mark surfaces as the preview's **"other"** line (booked −
+price − FX − cost change), which is 0 unless something outside the register moved the ledger.
 
 **Back-out.** Disabling the register stops register writes and lifts the guards, so the CR033 page
 works on the account again. Snapshots and booked MTM rows stay: they are valid ledger history, and

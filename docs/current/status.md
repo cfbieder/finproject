@@ -77,7 +77,7 @@ scenarios are REGENERATED**. It changes far less often than this file does.
 > 2026-09-14 ([log](../archive/status-log_2026-09-14.md)); the 2026-09-28 CR close-out and CR096 on 2026-10-07 (recorded in roadmap §1.2, v3.67.0 / v3.68.0). Statuses are canonical in the
 > [CR index](../cr/README.md), versions in [the roadmap](project-roadmap.md).
 
-- **[CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) (forecast annual close — rolling to a new base year) is the only open CR**, scoped to P2, **due before Jan 2027**. [CR095](../cr/cr-095-forecast-spend-currency-share.md) (forecast spend that moves with the złoty) is a DRAFT awaiting review. [CR097](../cr/cr-097-manual-holdings-register.md) (a holdings register for manually valued accounts, e.g. Misc Investments) is PLANNED, to build after CR064 P2.
+- **[CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) (forecast annual close — rolling to a new base year) is the only open CR**, scoped to P2, **due before Jan 2027**. [CR095](../cr/cr-095-forecast-spend-currency-share.md) (forecast spend that moves with the złoty) is a DRAFT awaiting review. [CR097](../cr/cr-097-manual-holdings-register.md) (a holdings register for manually valued accounts, e.g. Misc Investments) has **P1a built** (2026-10-14, migration 083 — not yet deployed); owner action after deploy: enable it on Misc Investments and enter the holdings.
 - **Re-examine SRQ** — **−476,930**: funds itself 35 of 36 years, dry in the last. Marginal, not
   hopeless. Financing would be the untested lever (all cash, no rent, sells at 7%), and testing it
   is **DECLINED** (owner, 2026-08-23) — so this is a judgement to make, not an experiment to run.

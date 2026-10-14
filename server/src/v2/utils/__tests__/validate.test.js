@@ -55,6 +55,13 @@ describe('validate helpers', () => {
     expect(() => v.assertDateString('', 'd', { optional: true })).not.toThrow();
   });
 
+  test('assertDateString: the right shape but no such day is refused (not a pg 500)', () => {
+    for (const bad of ['2026-02-31', '2026-13-01', '2026-00-10', '2025-02-29']) {
+      expect(() => v.assertDateString(bad, 'd')).toThrow(/not a real date/);
+    }
+    expect(() => v.assertDateString('2028-02-29', 'd')).not.toThrow();
+  });
+
   test('assertBoolean: strict booleans only', () => {
     expect(() => v.assertBoolean(true, 'b')).not.toThrow();
     expect(() => v.assertBoolean(false, 'b')).not.toThrow();

@@ -1,0 +1,215 @@
+/* CR097 — holdings register page. Tokens only: both themes come from :root. */
+
+/* `.panel` carries no padding of its own (see InvestmentReturns.css). */
+.mh-page .panel {
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+/* A working surface should not lift when the pointer crosses it. */
+.mh-page .panel:hover {
+  box-shadow: var(--shadow-soft);
+}
+
+.mh-page .page-accent__header {
+  margin-bottom: var(--space-md);
+}
+
+.mh-neg {
+  color: var(--danger-strong);
+}
+
+.mh-done {
+  color: var(--ink);
+  background: var(--success-subtle);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+}
+
+.mh-save {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* One column grid across the per-platform tables, so Qty/Cost/Value line up. */
+.mh-group table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.mh-group .data-table-scroll,
+.mh-inputs-wrap {
+  overflow-x: auto;
+}
+
+.mh-page h2 {
+  margin: 0 0 0.75rem;
+}
+
+.mh-page h3 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1rem;
+}
+
+.mh-note {
+  color: var(--muted);
+  margin: 0 0 0.75rem;
+}
+
+.mh-muted {
+  color: var(--muted);
+  font-size: 0.85em;
+}
+
+.mh-error {
+  color: var(--danger-strong);
+}
+
+.mh-warn {
+  background: var(--warning-subtle);
+  border-left: 3px solid var(--warning);
+  color: var(--ink);
+  padding: 0.5rem 0.75rem;
+  margin: 0.75rem 0;
+  border-radius: var(--radius-sm);
+}
+
+.mh-warn p {
+  margin: 0.25rem 0;
+}
+
+.mh-ack {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+  margin-left: 0.75rem;
+}
+
+.mh-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.mh-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--primary);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.mh-link:hover {
+  text-decoration: underline;
+}
+
+.mh-group {
+  margin-top: 1rem;
+}
+
+.mh-group__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--surface-muted);
+}
+
+.mh-group__name {
+  font-weight: 600;
+}
+
+.mh-group__sum {
+  color: var(--muted);
+  font-size: 0.9em;
+}
+
+.mh-vals {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.5rem;
+}
+
+.mh-vals li {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.2rem 0;
+}
+
+.mh-val-head {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.mh-inputs {
+  border-collapse: collapse;
+  margin-bottom: 0.25rem;
+  max-width: 100%;
+}
+
+.mh-inputs th,
+.mh-inputs td {
+  padding: 0.3rem 0.75rem 0.3rem 0;
+  text-align: left;
+}
+
+.mh-inputs th.num,
+.mh-inputs td.num {
+  text-align: right;
+}
+
+.mh-inputs input {
+  width: 9rem;
+  max-width: 100%;
+}
+
+.mh-preview {
+  margin-top: 1rem;
+  overflow-x: auto;
+}
+
+.mh-explain {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: baseline;
+  margin: 0.75rem 0 0.25rem;
+}
+
+.mh-explain__total {
+  font-weight: 600;
+}
+
+.mh-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.75rem 1rem;
+}
+
+.mh-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.mh-form input,
+.mh-form select {
+  color: var(--ink);
+}
+
+.mh-form__wide {
+  grid-column: 1 / -1;
+}

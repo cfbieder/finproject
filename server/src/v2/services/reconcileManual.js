@@ -27,6 +27,7 @@ const { sumWithinBalanceWindow, BALANCE_WINDOW_FLOOR_SQL } = require('./openingB
  */
 
 const db = require('../db');
+const AppError = require('../utils/AppError');
 const { usdBaseAmount } = require('./fx');
 
 const UNREALIZED_GL_CATEGORY_ID = 88; // accounts.id "Unrealized G/L" (expense)
@@ -47,25 +48,54 @@ const MTM_IMPLAUSIBLE_PCT = 0.15;
  * @param {string|null} [opts.note]
  * @returns {Promise<object>} the stored row
  */
-async function setManualBalance(accountId, { balance, balanceDate = null, note = null } = {}) {
+async function setManualBalance(accountId, opts = {}) {
+  await assertNotRegisterManaged(db, accountId);
+  return setManualBalanceTx(db, accountId, opts);
+}
+
+/**
+ * CR097 — refuse a direct write to an account whose balance the holdings register
+ * owns. The register is then the ONLY writer of its manual_balances and marks; a
+ * typed figure, a calibrate re-anchor or a reconcile at another date would make
+ * the ledger and the register disagree. The register itself writes through the
+ * client-accepting internals below, which skip this check by construction.
+ */
+async function assertNotRegisterManaged(querier, accountId) {
+  const r = (await querier.query(
+    `SELECT manual_holdings_enabled FROM accounts WHERE id = $1`, [accountId]
+  )).rows[0];
+  if (r && r.manual_holdings_enabled) {
+    throw AppError.badRequest(
+      `account ${accountId} is valued by its holdings register — save a valuation there, ` +
+      'or disable the register first'
+    );
+  }
+}
+
+/**
+ * setManualBalance on a caller's client (CR097 §5.1): the register writes the
+ * balance inside the same transaction as its snapshot and MTM row, which a write
+ * through the pool could not see. No register guard — callers own that.
+ */
+async function setManualBalanceTx(client, accountId, { balance, balanceDate = null, note = null } = {}) {
   if (balance == null || !Number.isFinite(Number(balance))) {
     throw new Error('balance must be a finite number');
   }
-  const acct = (await db.query(
+  const acct = (await client.query(
     `SELECT id, currency, section FROM accounts WHERE id = $1`, [accountId]
   )).rows[0];
   if (!acct) throw new Error(`account ${accountId} not found`);
   if (acct.section !== 'balance_sheet') {
     throw new Error(`account ${accountId} is not a balance-sheet account`);
   }
-  const fed = (await db.query(
+  const fed = (await client.query(
     `SELECT 1 FROM account_source_mappings
      WHERE source = 'bank-feed' AND account_id = $1 AND ignored IS NOT TRUE LIMIT 1`,
     [accountId]
   )).rows[0];
   if (fed) throw new Error(`account ${accountId} is on a bank feed — use Balance Calibration`);
 
-  const r = await db.query(
+  const r = await client.query(
     `INSERT INTO manual_balances (account_id, balance, balance_date, currency, note)
      VALUES ($1, $2, COALESCE($3::date, CURRENT_DATE), $4, $5)
      ON CONFLICT (account_id, balance_date)
@@ -91,6 +121,7 @@ async function setManualBalance(accountId, { balance, balanceDate = null, note =
  * @returns {Promise<object>} action summary
  */
 async function reconcileManual(accountId, { asOf = null, dryRun = false, force = false, bookDate = null } = {}) {
+  await assertNotRegisterManaged(db, accountId);
   const m = (await db.query(
     `SELECT a.name, a.account_type, a.currency, a.opening_balance,
             a.manual_reconcile_mode, a.section,
@@ -240,6 +271,7 @@ async function mtm(client, accountId, m, monthEnd, dryRun, force = false) {
  * @returns {Promise<object>} action summary
  */
 async function resetOpeningBalance(accountId, { dryRun = false, force = false, expect = null } = {}) {
+  await assertNotRegisterManaged(db, accountId);
   const m = (await db.query(
     `SELECT a.name, a.currency, a.section, a.opening_balance,
             EXISTS (
@@ -353,5 +385,7 @@ async function calibrate(client, accountId, m, asOfDate, dryRun) {
 
 module.exports = {
   reconcileManual, setManualBalance, resetOpeningBalance,
+  // CR097 internals — run on the caller's client, no register guard.
+  setManualBalanceTx, mtm, assertNotRegisterManaged,
   UNREALIZED_GL_CATEGORY_ID, MTM_SOURCE,
 };

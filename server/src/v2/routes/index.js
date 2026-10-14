@@ -24,6 +24,7 @@ const quickenImportRouter = require('./quickenImport');
 const bankFeedRouter = require('./bankFeed');
 const ingestBankFeedRouter = require('./ingestBankFeed');
 const manualCalibrationRouter = require('./manualCalibration');
+const manualHoldingsRouter = require('./manualHoldings');
 const taxRouter = require('./tax');
 const investmentsRouter = require('./investments');
 
@@ -46,6 +47,7 @@ router.use('/quicken-import', quickenImportRouter);
 router.use('/bank-feed', bankFeedRouter);
 router.use('/ingest-bank-feed', ingestBankFeedRouter);
 router.use('/manual-calibration', manualCalibrationRouter);
+router.use('/manual-holdings', manualHoldingsRouter);
 
 // API root info
 router.get('/', (req, res) => {
@@ -67,7 +69,8 @@ router.get('/', (req, res) => {
       '/api/v2/ai-review',
       '/api/v2/quicken-import',
       '/api/v2/bank-feed',
-      '/api/v2/manual-calibration'
+      '/api/v2/manual-calibration',
+      '/api/v2/manual-holdings'
     ]
   });
 });

@@ -319,3 +319,8 @@
 .bfd-diagnostics:not([open]) > summary {
   margin-bottom: 0;
 }
+
+/* CR097 — the "Holdings register" link under a Manual Calibration account name. */
+.bfd-row-link {
+  font-size: 0.75rem;
+}
