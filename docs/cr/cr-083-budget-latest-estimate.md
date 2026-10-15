@@ -1752,7 +1752,11 @@ no forecast numbers. It was part of the P2 row in §11; P2's seed-next-year stay
 
 - **What it shows.** On `/forecast-review`, right after the base-year (budget) column, a column
   headed with the LE's name (`LE-09-26`, "(reference)", muted, dashed borders, italic figures). It
-  holds one figure per FC line and the P&L total on the Cash Flow row. A note above the table reads
+  holds one figure per FC line and the P&L total on the Cash Flow row. **v3.76.1 (owner request):**
+  the level-1 rows (Income, Expense, …) now carry a subtotal of the LE's own lines in that group,
+  summed the way the budget column builds its subtotals; v3.76.0 left them blank. Net Cash Flow
+  stays blank, because the LE carries no transfers and borrowing the forecast's would mix two
+  sources in one cell. A note above the table reads
   *"Base year 2026: (137,527) (budget) · LE-09-26 says (74,550) (+62,977)"*, and adds what no FC
   line covers.
 - **Which LE.** The latest **final** LE for PeriodStart − 1: latest cut, then latest freeze. Never a

@@ -80,15 +80,15 @@ describe("CR083 §8.1 — LE reference column", () => {
     expect(headers[5]).toMatch(/^2027/);
   });
 
-  it("shows the server's per-line figures and its total — nothing computed on the page", () => {
+  it("shows the server's per-line figures, its total, and level-1 subtotals of the LE's own lines", () => {
     const { container } = renderTable(LE);
     const row = (label) =>
       [...container.querySelectorAll("tbody tr")].find((tr) => tr.children[1]?.textContent === label);
     expect(row("Salary").children[4].textContent).toBe("110,000");
     expect(row("Travel").children[4].textContent).toBe("(55,000)");
     expect(row("Cash Flow").children[4].textContent).toBe("55,000");
-    // A roll-up the server did not send is blank, not a page-side sum.
-    expect(row("Income").children[4].textContent).toBe("");
+    // Owner request 2026-10-15: subtotals sum the LE's lines in the group, like the budget column.
+    expect(row("Income").children[4].textContent).toBe("110,000");
   });
 
   it("moves no other number: every non-LE cell is identical with and without it", () => {

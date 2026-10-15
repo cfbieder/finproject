@@ -414,12 +414,25 @@ export default function FCReviewTable({
     );
     return [...cells.slice(0, leIndex + 1), cell, ...cells.slice(leIndex + 1)];
   };
-  // A cash row's LE cell: per FC line (level 2), and the P&L total on the Cash Flow row —
-  // that total is the server's sum of the per-line figures, the same one the page note quotes.
+  // A cash row's LE cell: per FC line (level 2), the level-1 subtotal summed from the LE's own
+  // lines under that group (as the budget column builds its subtotals), and the P&L total on
+  // the Cash Flow row — the server's sum of the per-line figures, the one the page note quotes.
+  // Net Cash Flow stays blank: the LE carries no transfers, and borrowing the forecast's would
+  // mix two sources in one cell.
   const leCashCell = (row) => {
     if (!leReference) return {};
     if (row.isCashFlow) return { show: true, value: leReference.total };
-    if (row.isNet || row.level !== 2) return {};
+    if (row.isNet) return {};
+    if (row.level === 1) {
+      let total = 0; let found = false;
+      for (const [ln, mp] of cashAccountMap?.entries() ?? []) {
+        if (mp.level1 === row.label && leReference.values?.[ln] != null) {
+          total += leReference.values[ln]; found = true;
+        }
+      }
+      return found ? { show: true, value: total } : {};
+    }
+    if (row.level !== 2) return {};
     return { show: true, value: leReference.values?.[row.label] };
   };
 
