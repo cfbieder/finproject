@@ -274,6 +274,13 @@ dbDescribe('transactions.neutralize (DB)', () => {
       `INSERT INTO accounts (name, account_type, section, currency, opening_balance)
        VALUES ($1,'asset','balance_sheet','EUR',0) RETURNING id`, [`${ACCT}Target`]
     )).rows[0].id;
+    // A fresh database holds no rates, so seed one. DO NOTHING keeps a real dev
+    // rate intact, and only a row this test inserted is removed afterwards.
+    const seededRate = (await db.query(
+      `INSERT INTO exchange_rates (from_currency, to_currency, rate, rate_date, source)
+       VALUES ('EUR', 'USD', 1.1, '2026-07-30', 'test')
+       ON CONFLICT (from_currency, to_currency, rate_date) DO NOTHING RETURNING id`
+    )).rows[0]?.id;
     try {
       const txId = await addTx(-1200, '2026-07-30', categoryId);    // USD, base -1200
       const rate = await require('../../services/fx').rateAsOf(db, 'EUR', '2026-07-30');
@@ -286,6 +293,7 @@ dbDescribe('transactions.neutralize (DB)', () => {
     } finally {
       await db.query(`DELETE FROM transactions WHERE account_id = $1`, [target]);
       await db.query(`DELETE FROM accounts WHERE id = $1`, [target]);
+      if (seededRate) await db.query(`DELETE FROM exchange_rates WHERE id = $1`, [seededRate]);
     }
   });
 
