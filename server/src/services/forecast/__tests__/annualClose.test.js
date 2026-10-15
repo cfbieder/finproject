@@ -50,13 +50,12 @@ dbDescribe('annual close (DB)', () => {
     await db.query('DELETE FROM forecast_scenarios WHERE name = ANY($1)', [NAMES]);
     await db.query('DELETE FROM accounts WHERE name = ANY($1)', [[STOCKS, HOUSE]]);
     const doc = await assumpRepo.getDoc();
-    const keep = (list, field) => (Array.isArray(list) ? list.filter((e) => !e || !NAMES.includes(e[field])) : list);
-    await assumpRepo.putDoc({
-      scenarios: keep(doc.scenarios, 'Name'),
-      inflation: keep(doc.inflation, 'Scenario'),
-      FX: keep(doc.FX, 'Scenario'),
-      'Tax Rate': keep(doc['Tax Rate'], 'Scenario'),
-    });
+    // Only keys that exist: on a fresh database a missing key would be written back as NULL.
+    const pruned = {};
+    for (const [key, field] of [['scenarios', 'Name'], ['inflation', 'Scenario'], ['FX', 'Scenario'], ['Tax Rate', 'Scenario']]) {
+      if (Array.isArray(doc[key])) pruned[key] = doc[key].filter((e) => !e || !NAMES.includes(e[field]));
+    }
+    await assumpRepo.putDoc(pruned);
   }
 
   beforeAll(async () => {
