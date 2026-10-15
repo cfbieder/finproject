@@ -1,6 +1,6 @@
 # CR064 — Forecast: the annual close, the assumptions key, and the module form — IN-PROGRESS (scoped to P2)
 
-**Status:** IN-PROGRESS — **P2 BUILT 2026-10-15, not yet released** (§3.4): *Annual close…* on Forecast Scenarios, `services/forecast/annualClose.js`, the stale-anchor badge; no migration. It closes once the January 2027 close has been run with it. §3.1's "a year behind" premise was superseded by CR075's rule (§3.4). Everything else is closed — see §15.
+**Status:** IN-PROGRESS — **P2 LIVE v3.76.0 (2026-10-15)** (§3.4): *Annual close…* on Forecast Scenarios, `services/forecast/annualClose.js`, the stale-anchor badge; no migration. It closes once the January 2027 close has been run with it. §3.1's "a year behind" premise was superseded by CR075's rule (§3.4). Everything else is closed — see §15.
 
 Three findings and four improvements that came out of one question — *"we customised the module
 form for Loan; should the other types get the same treatment?"* The answer to that question is
@@ -994,7 +994,7 @@ Reuse, not new machinery — but nothing is *wrong* without it, which is why it 
 - **P0, P1, P3** — built, **live as v3.11.3** (P1: migration 052).
 - **P6** — built (migration 055), **live as v3.11.8**. **P7–P9, P11** — built, v3.11.8 → v3.11.13. **P12** — v3.11.15. **P13** — v3.11.16.
 - **P8's deferred regenerate** — unchanged by this close-out.
-- **P2 — BUILT 2026-10-15, not yet released** (§3.4, with the §3.3 badge). Closes after the January 2027 close is run with it.
+- **P2 — LIVE v3.76.0 (2026-10-15)** (§3.4, with the §3.3 badge). Closes after the January 2027 close is run with it.
 - **P4 (plan vs actual) — CLOSED, obsolete** (owner, 2026-09-28): since [CR075](cr-075-base-year-is-the-budget.md) the forecast's current year *is* the budget, so `/budget-vs-actual` ([CR088](cr-088-budget-vs-actual-le-table.md)) and the Latest Estimate ([CR083](cr-083-budget-latest-estimate.md)) answer "is this year tracking to plan".
 - **P5 (sensitivity) — CLOSED, superseded** by [CR085](cr-085-forecast-sensitivity.md).
 - **P10 (base year from the budget) — CLOSED, delivered by CR075** (base-year P&L and the sweep's opening cash read `budget_entries`); the residual relabel of module amounts to the first forecast year has no defect behind it and is dropped.

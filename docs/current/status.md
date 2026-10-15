@@ -16,7 +16,7 @@
 > release (cut 2026-10-03; roadmap §1.2 owns the log). That paragraph is one line, so the line
 > overrun sits in *Known issues* and *Next*.
 
-**Last updated:** 2026-10-15 · **Live version:** **v3.75.2** (see `VERSION` / git tags) — release log: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
+**Last updated:** 2026-10-15 · **Live version:** **v3.76.0** (see `VERSION` / git tags) — release log: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
 
 ## Current phase
 **Moved to [current-phase.md](current-phase.md)** — it changes on a regenerate, not on a release.
@@ -77,7 +77,7 @@ scenarios are REGENERATED**. It changes far less often than this file does.
 > 2026-09-14 ([log](../archive/status-log_2026-09-14.md)); the 2026-09-28 CR close-out and CR096 on 2026-10-07 (recorded in roadmap §1.2, v3.67.0 / v3.68.0). Statuses are canonical in the
 > [CR index](../cr/README.md), versions in [the roadmap](project-roadmap.md).
 
-- **[CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) (forecast annual close — rolling to a new base year): P2 is built (2026-10-15), not yet released**; run it in January 2027 on `2026 Base` → `2027 Base`. [CR095](../cr/cr-095-forecast-spend-currency-share.md) (forecast spend that moves with the złoty) is a DRAFT awaiting review. [CR097](../cr/cr-097-manual-holdings-register.md) (a holdings register for manually valued accounts) is open for P1b/P2 — P1a is **live on Misc Investments since 2026-10-14** (first valuation entered). Next: the 2026-10-31 month-end valuation, CR097 §8's acceptance case. Statuses: [CR index](../cr/README.md).
+- **[CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) (forecast annual close — rolling to a new base year): P2 is live (v3.76.0)**; run *Annual close…* in January 2027 on `2026 Base` → `2027 Base`; the CR closes after that run. Forecast Review now shows the latest finalised LE beside the base year (LE-09-26: +62,977 vs the 2026 budget) — the input to deciding whether the base year should follow the LE. **Budget builder** (seed 2027 from the LE): design decided 2026-10-15, CR not yet drafted; needed by mid-December. [CR095](../cr/cr-095-forecast-spend-currency-share.md) (forecast spend that moves with the złoty) is a DRAFT awaiting review. [CR097](../cr/cr-097-manual-holdings-register.md) (a holdings register for manually valued accounts) is open for P1b/P2 — P1a is **live on Misc Investments since 2026-10-14** (first valuation entered). Next: the 2026-10-31 month-end valuation, CR097 §8's acceptance case. Statuses: [CR index](../cr/README.md).
 - **Re-examine SRQ** — **−476,930**: funds itself 35 of 36 years, dry in the last. Marginal, not
   hopeless. Financing would be the untested lever (all cash, no rent, sells at 7%), and testing it
   is **DECLINED** (owner, 2026-08-23) — so this is a judgement to make, not an experiment to run.
