@@ -268,6 +268,62 @@ dbDescribe('manualHoldings (DB)', () => {
       .rejects.toThrow(/dated 2026-06-30 already exists/);
   });
 
+  test('buy from cash moves the cash\'s own cost, and the next valuation books no phantom gain', async () => {
+    await freshAccount();
+    await svc.enableRegister(acctId);
+    // £1,000 deposited, $1,330 actually sent.
+    const cash = await svc.createHolding(acctId, {
+      name: `${SEC_PREFIX}Cash`, currency: 'XTT', asset_class: 'cash', kind: 'amount',
+      cost_local: 1000, cost_acct: 1330, acquired_on: '2026-01-10',
+    });
+    await contribute(1330);
+    await svc.saveValuation(acctId, { valuedOn: '2026-05-31', items: [] }); // 1000 × 1.30 = 1300, FX −30
+
+    // Spend £400 on shares; Jun-30's rate (1.40) must NOT price the move.
+    const out = await svc.buyFromCash(acctId, cash.id, {
+      amount_local: 400, name: `${SEC_PREFIX}Bought`, kind: 'units', quantity: 40, acquired_on: '2026-06-15',
+    });
+    expect(out.moved_cost_acct).toBeCloseTo(532, 2); // 1330 × 400/1000
+    expect(out.cash).toMatchObject({ cost_local: 600, cost_acct: 798 });
+    expect(out.bought).toMatchObject({ cost_local: 400, cost_acct: 532, cost_acct_source: 'entered', currency: 'XTT' });
+
+    // Nothing re-priced: the cash carries 600 (not the stale 1000), the shares stay at cost.
+    const v = await svc.previewValuation(acctId, { valuedOn: '2026-06-30', items: [] });
+    expect(v.lines.find((l) => l.holding_id === cash.id).value_local).toBeCloseTo(600, 2);
+    expect(v.total).toBeCloseTo(1400, 2); // (600 + 400) × 1.40
+    expect(v.explain.price_period).toBeCloseTo(0, 2);
+    expect(v.explain.fx_period).toBeCloseTo(100, 2); // 1000 × (1.40 − 1.30)
+    expect(v.explain.cost_change).toBeCloseTo(0, 2);
+    expect(v.mtm_amount).toBeCloseTo(100, 2);
+    expect(v.blocked).toEqual([]);
+  });
+
+  test('buy from cash refuses more than the cash holds, and a non-cash source', async () => {
+    const { a } = await example();
+    await expect(svc.buyFromCash(acctId, a.id, {
+      amount_local: 1, name: `${SEC_PREFIX}X`, kind: 'amount', acquired_on: '2026-06-15',
+    })).rejects.toThrow(/not a cash holding/);
+    const cash = await svc.createHolding(acctId, {
+      name: `${SEC_PREFIX}Cash`, currency: 'XTT', asset_class: 'cash', kind: 'amount',
+      cost_local: 100, cost_acct: 130, acquired_on: '2026-01-10',
+    });
+    await expect(svc.buyFromCash(acctId, cash.id, {
+      amount_local: 150, name: `${SEC_PREFIX}X`, kind: 'amount', acquired_on: '2026-06-15',
+    })).rejects.toThrow(/more than the 100/);
+  });
+
+  test('a top-up of an amount-only holding carries its value up by the cost added', async () => {
+    const { b } = await example();
+    await svc.saveValuation(acctId, { valuedOn: '2026-05-31', items: [] }); // B carried at 500
+    await svc.updateHolding(acctId, b.id, { cost_local: 700, cost_acct: 920 }); // +£200 for +$260
+    await contribute(260, '2026-06-15');
+    const v = await svc.previewValuation(acctId, { valuedOn: '2026-06-30', items: [] });
+    const lb = v.lines.find((l) => l.holding_id === b.id);
+    expect(lb.value_local).toBeCloseTo(700, 2);
+    expect(lb.price_period).toBeCloseTo(0, 2);
+    expect(v.explain.cost_change).toBeCloseTo(0, 2);
+  });
+
   test('negative exit proceeds are refused (they would quietly shift the cost check)', async () => {
     const { a } = await example();
     await expect(svc.updateHolding(acctId, a.id, { status: 'exited', proceeds_acct: -5 }))

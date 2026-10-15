@@ -147,6 +147,33 @@ router.patch('/:accountId/holdings/:holdingId', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Buy from cash: the spent share of a cash holding's cost moves into a new holding.
+const BUY_FIELDS = ['amount_local', 'name', 'asset_class', 'platform', 'kind', 'quantity', 'acquired_on', 'note'];
+router.post('/:accountId/holdings/:holdingId/buy', async (req, res, next) => {
+  try {
+    const accountId = accountIdOf(req);
+    const holdingId = Number(req.params.holdingId);
+    if (!Number.isInteger(holdingId)) throw validate.badRequest('invalid holdingId');
+    const b = req.body;
+    validate.assertPlainObject(b, 'buy');
+    validate.assertAllowedFields(b, BUY_FIELDS, 'buy');
+    validate.assertFiniteNumber(b.amount_local, 'amount_local');
+    validate.assertNonEmptyString(b.name, 'name');
+    validate.assertNonEmptyString(b.kind, 'kind');
+    validate.assertDateString(b.acquired_on, 'acquired_on');
+    validate.assertFiniteNumber(b.quantity, 'quantity', { optional: true });
+    for (const k of ['platform', 'note', 'asset_class']) {
+      if (b[k] != null && typeof b[k] !== 'string') throw validate.badRequest(`${k} must be a string`);
+    }
+    if (b.name.length > 200) throw validate.badRequest('name is at most 200 characters');
+    if (b.platform != null && b.platform.length > 100) throw validate.badRequest('platform is at most 100 characters');
+    for (const k of ['amount_local', 'quantity']) {
+      if (b[k] != null && Math.abs(Number(b[k])) >= MAX_AMOUNT) throw validate.badRequest(`${k} is out of range`);
+    }
+    res.status(201).json({ data: await svc.buyFromCash(accountId, holdingId, b) });
+  } catch (err) { next(err); }
+});
+
 router.delete('/:accountId/holdings/:holdingId', async (req, res, next) => {
   try {
     const accountId = accountIdOf(req);

@@ -43,6 +43,7 @@ export default function ManualHoldings() {
   const [reg, setReg] = useState(null);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(null); // holding being edited, or {} for new
+  const [buying, setBuying] = useState(null); // the cash holding paying for a purchase
   const [confirmEnable, setConfirmEnable] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -129,6 +130,7 @@ export default function ManualHoldings() {
             ccy={ccy}
             onAdd={() => setEditing({})}
             onEdit={(h) => setEditing(h)}
+            onBuy={(h) => setBuying(h)}
           />
           <ValuationPanel
             accountId={accountId}
@@ -138,6 +140,19 @@ export default function ManualHoldings() {
             onSaved={load}
           />
         </>
+      )}
+
+      {buying && (
+        <BuyModal
+          accountId={accountId}
+          cash={buying}
+          ccy={ccy}
+          onClose={() => setBuying(null)}
+          onSaved={async () => {
+            setBuying(null);
+            await load();
+          }}
+        />
       )}
 
       {editing && (
@@ -177,7 +192,7 @@ export default function ManualHoldings() {
 
 // ---- holdings --------------------------------------------------------------
 
-function HoldingsPanel({ holdings, ccy, onAdd, onEdit }) {
+function HoldingsPanel({ holdings, ccy, onAdd, onEdit, onBuy }) {
   const groups = useMemo(() => {
     const m = new Map();
     for (const h of holdings) {
@@ -229,6 +244,17 @@ function HoldingsPanel({ holdings, ccy, onAdd, onEdit }) {
       header: "Unrealized",
       numeric: true,
       render: (h) => (h.latest ? <Delta value={h.latest.value_acct - h.cost_acct} currency={ccy} /> : "—"),
+    },
+    {
+      key: "actions",
+      header: "",
+      render: (h) =>
+        h.asset_class === "cash" && h.status === "active" && h.cost_local > 0 ? (
+          <button type="button" className="btn btn--xs btn--outline" onClick={() => onBuy(h)}
+            title="Spend this cash on a new holding — its share of the cash's cost moves with it">
+            Buy…
+          </button>
+        ) : null,
     },
   ];
 
@@ -422,6 +448,85 @@ function HoldingModal({ accountId, holding, onClose, onSaved }) {
         )}
         <label className="mh-form__wide">Note<input value={f.note} onChange={set("note")} /></label>
       </div>
+      {err && <p className="mh-error" role="alert">{err}</p>}
+    </Modal>
+  );
+}
+
+/**
+ * Buy from cash. The new holding takes the spent share of the cash's cost in both
+ * currencies (server-side, in one transaction); the figure shown here is only the
+ * preview of that share.
+ */
+function BuyModal({ accountId, cash, ccy, onClose, onSaved }) {
+  const [f, setF] = useState({ amount: "", name: "", kind: "units", quantity: "", asset_class: "private", acquired_on: today() });
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }));
+  const amount = Number(f.amount);
+  const share = cash.cost_local > 0 && amount > 0 ? Math.min(1, amount / cash.cost_local) : 0;
+  const moved = share * cash.cost_acct;
+
+  const save = async () => {
+    setBusy(true);
+    setErr("");
+    try {
+      const body = {
+        amount_local: amount, name: f.name.trim(), kind: f.kind, asset_class: f.asset_class, acquired_on: f.acquired_on,
+      };
+      if (f.kind === "units") body.quantity = Number(f.quantity);
+      await Rest.post(`/manual-holdings/${accountId}/holdings/${cash.id}/buy`, body);
+      await onSaved();
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      open
+      onClose={busy ? undefined : onClose}
+      dismissable={!busy}
+      size="wide"
+      title={`Buy from ${cash.name}`}
+      description={`Spend ${cash.currency} cash on a new holding. Its share of the cash's cost moves with it, so the cost check is unchanged.`}
+      footer={
+        <>
+          <button type="button" className="btn btn--outline" disabled={busy} onClick={onClose}>Cancel</button>
+          <button type="button" className="btn btn--primary" disabled={busy || !(amount > 0) || !f.name.trim()} onClick={save}>
+            {busy ? "Buying…" : "Buy"}
+          </button>
+        </>
+      }
+    >
+      <div className="mh-form">
+        <label>Amount spent ({cash.currency})<input type="number" step="0.01" inputMode="decimal" value={f.amount} onChange={set("amount")} /></label>
+        <label>New holding<input value={f.name} onChange={set("name")} /></label>
+        <label>
+          Type
+          <select value={f.asset_class} onChange={set("asset_class")}>
+            {ASSET_CLASSES.filter((c) => c !== "cash").map((c) => <option key={c} value={c}>{c.replace("_", " ")}</option>)}
+          </select>
+        </label>
+        <label>
+          Valued by
+          <select value={f.kind} onChange={set("kind")}>
+            <option value="units">shares × price</option>
+            <option value="amount">amount only (no shares yet)</option>
+          </select>
+        </label>
+        {f.kind === "units" && (
+          <label>Shares<input type="number" step="any" value={f.quantity} onChange={set("quantity")} /></label>
+        )}
+        <label>Purchase date<input type="date" value={f.acquired_on} onChange={set("acquired_on")} /></label>
+      </div>
+      <p className="mh-muted">
+        Cash recorded: <Money value={cash.cost_local} currency={cash.currency} /> (cost <Money value={cash.cost_acct} currency={ccy} />).
+        {share > 0 && <> This purchase moves <Money value={moved} currency={ccy} /> of that cost to the new holding.</>}
+        {amount > cash.cost_local && <span className="mh-neg"> More than the cash recorded.</span>}
+      </p>
       {err && <p className="mh-error" role="alert">{err}</p>}
     </Modal>
   );

@@ -270,6 +270,65 @@ async function updateHolding(accountId, holdingId, patch) {
   });
 }
 
+/**
+ * Buy from cash: one platform's cash pays for a new holding. The spent share of
+ * the cash's cost moves to the new holding — local AND account currency — so the
+ * account's total cost is unchanged and the cost check stays where it was. Typing
+ * the new holding's cost at today's rate instead would drop (or invent) the FX the
+ * cash carried since it was deposited.
+ *
+ * The new holding is in the cash's currency: GBP cash buys a GBP holding.
+ */
+async function buyFromCash(accountId, cashHoldingId, input) {
+  return db.transaction(async (client) => {
+    await requireEnabled(client, accountId, { lock: true });
+    const cash = await getHolding(client, accountId, cashHoldingId);
+    if (cash.asset_class !== 'cash') throw AppError.badRequest(`"${cash.name}" is not a cash holding`);
+    if (cash.status !== 'active') throw AppError.badRequest(`"${cash.name}" is ${cash.status}`);
+    const amount = round2(Number(input.amount_local));
+    if (!(amount > 0)) throw AppError.badRequest('amount_local must be > 0');
+    if (amount > cash.cost_local + 0.004) {
+      throw AppError.badRequest(
+        `${amount} ${cash.currency} is more than the ${cash.cost_local} ${cash.currency} recorded in "${cash.name}"`
+      );
+    }
+    const assetClass = input.asset_class || 'private';
+    if (!ASSET_CLASSES.includes(assetClass) || assetClass === 'cash') {
+      throw AppError.badRequest('asset_class must name what was bought, not cash');
+    }
+    const kind = input.kind;
+    const quantity = kind === 'units' ? num(input.quantity) : null;
+    checkHoldingShape({ kind, status: 'active', quantity, cost_local: amount, cost_acct: 0, proceeds_acct: null });
+
+    // The spent share of the cash's cost; the last cent of an all-in spend goes too.
+    const moved = amount >= cash.cost_local ? cash.cost_acct : round2(cash.cost_acct * (amount / cash.cost_local));
+
+    await client.query(
+      `UPDATE manual_holdings SET cost_local = $3, cost_acct = $4, cost_acct_source = 'entered', updated_at = NOW()
+        WHERE id = $1 AND account_id = $2`,
+      [cashHoldingId, accountId, round2(cash.cost_local - amount), round2(cash.cost_acct - moved)]
+    );
+    const sec = (await client.query(
+      `INSERT INTO securities (ticker, name, asset_class, currency, price_basis, quantity_unit, classification_source)
+       VALUES (NULL, $1, $2, $3, NULL, $4, 'manual') RETURNING id`,
+      [input.name.trim(), assetClass, cash.currency, kind === 'units' ? 'shares' : null]
+    )).rows[0];
+    const row = (await client.query(
+      `INSERT INTO manual_holdings
+         (account_id, security_id, platform, kind, status, acquired_on, quantity,
+          cost_local, cost_acct, cost_acct_source, note)
+       VALUES ($1,$2,$3,$4,'active',$5,$6,$7,$8,'entered',$9) RETURNING id`,
+      [accountId, sec.id, input.platform || cash.platform, kind, input.acquired_on, quantity,
+        amount, moved, input.note || `bought from ${cash.name}`]
+    )).rows[0];
+    return {
+      cash: await getHolding(client, accountId, cashHoldingId),
+      bought: await getHolding(client, accountId, row.id),
+      moved_cost_acct: moved,
+    };
+  });
+}
+
 /** Only a holding no valuation has used can be deleted — otherwise mark it exited/failed. */
 async function deleteHolding(accountId, holdingId) {
   return db.transaction(async (client) => {
@@ -490,7 +549,15 @@ async function valuationOnClient(client, accountId, { valuedOn, items = [], forc
       valueLocal = round2(Number(it.value));
     } else {
       carried = true;
-      valueLocal = p && p.market_value_local != null ? p.market_value_local : h.cost_local;
+      // Carry the last value, moved by any cost added or removed since — cash spent
+      // on a purchase, or a top-up of an unconverted stake. Carrying it unchanged
+      // would book the spent cash a second time, as a gain.
+      if (p && p.market_value_local != null) {
+        const dCostLocal = p.cost_local != null ? h.cost_local - p.cost_local : 0;
+        valueLocal = round2(Math.max(0, p.market_value_local + dCostLocal));
+      } else {
+        valueLocal = h.cost_local;
+      }
     }
     const valueAcct = valueLocal === 0 ? 0 : round2(valueLocal * fx.rate);
 
@@ -694,7 +761,7 @@ async function deleteValuation(accountId, valuedOn) {
 
 module.exports = {
   enableRegister, disableRegister, getRegister, listRegisters,
-  createHolding, updateHolding, deleteHolding,
+  createHolding, updateHolding, deleteHolding, buyFromCash,
   previewValuation, saveValuation, deleteValuation,
   KINDS, STATUSES, ASSET_CLASSES, FX_STALE_DAYS,
 };

@@ -116,6 +116,11 @@ subscriptions; it drives labels and exposure buckets only.
 
 Cash held on a platform is a holding: a `securities` row with `asset_class = 'cash'` per
 platform × currency, `kind = 'amount'`. Without it, uninvested cash surfaces as "gain".
+**Buy from cash** (added after P1a, owner request 2026-10-15) spends it: the new holding takes the
+spent share of the cash's cost in BOTH currencies, so total cost — and the cost check — is unchanged.
+Pricing the new holding at the purchase-day rate instead would drop or invent the FX the cash
+carried since deposit. An amount-only holding left blank at the next valuation carries its last
+value **moved by any cost added or removed since**, so spent cash is not counted twice.
 
 A **buy into an existing holding** edits `quantity` and adds to both cost columns (average cost).
 A **failure** sets `status = 'failed'`; it is valued at 0 from then on. An **exit** sets
