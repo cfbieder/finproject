@@ -2,7 +2,7 @@
 
 Status legend: **COMPLETED** · **IN-PROGRESS** · **OPEN** · **PLANNED** (scoped, not yet started) · **DEFERRED** (scoped and reviewed, deliberately not scheduled) · **SUPERSEDED** / **OBSOLETE** (replaced or no longer relevant)
 
-Each CR file's first line carries its status and links back to the matching anchor in [NEXT_STEPS.md](../current/project-roadmap.md). New CRs get the next available number. **This index is a one-line roll-up — the CR file is the spec; keep descriptions to a single line.**
+Each CR file's first line carries its status and links back to the matching anchor in [project-roadmap.md](../current/project-roadmap.md). New CRs get the next available number. **This index is a one-line roll-up — the CR file is the spec; keep descriptions to a single line.**
 
 **Version track:** everything is **v3** / current. The **v4** multi-tenancy line (CR027) was retired 2026-09-28 — no code was ever built behind its flags.
 
@@ -28,7 +28,7 @@ although that CR's row reads DRAFT.*
 | DEFERRED | 0 | — |
 | SUPERSEDED | 3 | CR014, CR052 *(→ CR095)*, CR081 *(→ CR084)* |
 | OBSOLETE | 5 | CR015, CR020, CR027 *(v4)*, CR029, CR094 |
-| **Total** | **96** | |
+| **Total** | **97** | |
 
 ## All CRs
 
@@ -130,4 +130,4 @@ although that CR's row reads DRAFT.*
 | [CR094](cr-094-promote-divergence-gate.md) | **OBSOLETE** 2026-09-28 | v3 | The promote divergence gate: name the cause, not just the drift | Killed 2026-09-28 — 0 divergences since the 08-10 API cutover; the diagnostic query lives in the month-end reconcile runbook. |
 | [CR095](cr-095-forecast-spend-currency-share.md) | **DRAFT (2026-09-28) — not yet reviewed** | v3 | Forecast spend that moves with the złoty | Successor to CR052: an expense stream can carry a PLN/EUR share that floats with each year's FX. About half of discretionary spend (~$203K of ~$409K) is PLN while every expense module is USD, so the Downside FX stress moves assets but never costs. |
 | [CR096](cr-096-owner-fixes-le-walk-unpair-split-card.md) | **COMPLETED** 2026-10-01 | v3 | Four owner fixes: LE walk, Unpair, Ledger transfer, Wise split card payments | An LE-to-LE walk on `/budget-le` (reversing part of CR083 §11.1), which exposed a seeding bug that dropped ~26k of typed estimates from LE-10-26 (fixed + repaired); undo for neutralize/transfer (`POST /transactions/:id/unpair`); Transfer… on Ledger; and WISE − EUR's −45.85 drift — Wise part-funding a card payment from USD is booked on both accounts (repaired, now flagged on the reconcile page). |
-| [CR097](cr-097-manual-holdings-register.md) | **IN-PROGRESS** — P1a shipped v3.75.0 (2026-10-14); P1b, P2 open | v3 | A holdings register for manually valued accounts | A non-fed account (specimen: Misc Investments, $4,875 of crowdfunded private holdings, mostly GBP) can carry a list of holdings with typed valuations; each valuation sets the manual balance and the existing CR033 MTM books Unrealized G/L, shown split into price vs FX effect. |
+| [CR097](cr-097-manual-holdings-register.md) | **IN-PROGRESS** — P1a shipped v3.75.0 (2026-10-14; menu v3.75.1, buy from cash v3.75.2); P1b, P2 open | v3 | A holdings register for manually valued accounts | A non-fed account (specimen: Misc Investments, $4,875 of crowdfunded private holdings, mostly GBP) can carry a list of holdings with typed valuations; each valuation sets the manual balance and the existing CR033 MTM books Unrealized G/L, shown split into price vs FX effect. |

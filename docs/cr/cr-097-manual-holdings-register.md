@@ -1,6 +1,6 @@
 # CR097 — A holdings register for manually valued accounts — IN-PROGRESS
 
-**Status:** IN-PROGRESS — **P1a SHIPPED v3.75.0 (2026-10-14)** (migration 083, `services/manualHoldings.js`, `/api/v2/manual-holdings`, pages `/holdings` (nav: Accounts & Transactions → Holdings, since v3.75.1) and `/holdings/:accountId`). P1b (replay, non-USD accounts) and P2 (Investments page) open. Started ahead of CR064 by owner choice. Rev 3 design: pass 1 *revise* → rev 2; pass 2 *revise* → rev 3, GO (§10) · **Track:** v3 · **Migration:** one (number claimed at build time, not now)
+**Status:** IN-PROGRESS — **P1a SHIPPED v3.75.0 (2026-10-14)** (migration 083, `services/manualHoldings.js`, `/api/v2/manual-holdings`, pages `/holdings` (nav: Accounts & Transactions → Holdings, since v3.75.1) and `/holdings/:accountId`; buy from cash v3.75.2). P1b (replay, non-USD accounts) and P2 (Investments page) open. Started ahead of CR064 by owner choice. Rev 3 design: pass 1 *revise* → rev 2; pass 2 *revise* → rev 3, GO (§10) · **Track:** v3 · **Migration:** 083 (dev + prod 2026-10-14)
 **Planned users:** Misc Investments only, for now; others possibly later (owner, 2026-10-14) — hence P1a restricts the **account** to USD. **Holdings** in EUR, GBP, USD and PLN are P1a from day one (owner requirement, 2026-10-14); the account-currency limit is the only thing deferred. **P1b candidates** (owner wants them, kept in P1b by owner choice 2026-10-14; non-fed on prod): PKO TFI (209, PLN), United Beverages (43), Barkeria (44), OCME (45), CVC - MIP (49) — PLN; CVC Fund VIII/IX (33/34) — EUR; PKO - Deposits (21, PLN, see §9). Fed accounts (PKO, PKO Savings, Santander, Revolut, Wise, Caixa) are ineligible.
 **Builds on:** [CR033](cr-033-manual-calibration.md) (manual MTM reconcile), [CR061](cr-061-holdings-and-prices.md) (position tables), [CR090](cr-090-investments-section.md) (the Investments page)
 **Roadmap anchor:** [project-roadmap.md#cr097](../current/project-roadmap.md#cr097)
@@ -197,7 +197,7 @@ same amount; proceeds left on the platform add a cash holding whose cost offsets
 ### 4.5 Opt-in, and the guard that makes the register the only writer
 
 `accounts.manual_holdings_enabled BOOLEAN NOT NULL DEFAULT FALSE`. Enabling requires: balance
-sheet, no active feed mapping, account currency USD (P1a; lifted in P1b), `manual_reconcile_mode = 'mtm'` (the enable action offers to switch
+sheet, **an asset** (not a liability, since v3.75.1), no active feed mapping, account currency USD (P1a; lifted in P1b), `manual_reconcile_mode = 'mtm'` (the enable action offers to switch
 it — `calibrate` re-anchors `opening_balance` and silently absorbs every gain). Eligibility is
 re-checked on **every** save, not only at enable (a feed mapping added later makes
 `setManualBalance` throw, `reconcileManual.js:66`).
@@ -286,7 +286,7 @@ worktree (`git-concurrency.md`).
   `saveValuation` / `deleteValuation` per §5; the §4.5 guards in `reconcileManual.js`.
 - Routes: `{data}` envelope (`check-api-envelope.sh`); whitelisted fields; holding ids must belong to
   the account; non-finite numbers rejected, not coerced; dates via `validate.assertDateString`.
-- UI: a **Holdings** panel on the account (reachable from the Ledger account header), on the
+- UI (*as built: a page at `/holdings/:accountId` plus the `/holdings` index in the Accounts & Transactions menu*): a **Holdings** panel on the account (reachable from the Ledger account header), on the
   Modal/DataTable primitives — register grouped by platform with subtotals, a *New valuation* row
   pre-filled from the last one, the three-column explanation (period and cumulative), FX dates, the
   gap, and the preview before apply.

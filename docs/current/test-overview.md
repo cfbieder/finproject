@@ -27,7 +27,7 @@ How testing is organised across the project, what's automated, and where to run 
 | `v2/routes/__tests__/fc-lines.test.js` | 16 | FC Lines routes (mocked repo). |
 | `v2/routes/__tests__/ingestBankFeed.test.js` | 10 | Feed ingest route. |
 | `v2/repositories/__tests__/` (4 files) | 15 | createTransaction, ledger running balance, neutralize, split residual (CR037). |
-| `v2/utils/__tests__/validate.test.js` | 7 | CR037 field-whitelist validation. |
+| `v2/utils/__tests__/validate.test.js` | 8 | CR037 field-whitelist validation + strict real-date check (CR097). |
 
 Naming: Jest convention `*.test.js`. Test files are colocated with the modules under test in `__tests__/` subdirectories. (This table is a snapshot — `npx jest --listTests` is the live source of truth.)
 

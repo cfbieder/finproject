@@ -23,7 +23,7 @@ was sitting inside what looked like a −107,830.71 "MTM gap"; only $804.50 of i
 1. Promote the feed and clear the review queue.
 2. Neutralize any leg that has no counter-leg.
 3. Wait for the feed to settle.
-4. Book the MTM.
+4. Book the MTM — and revalue each holdings-register account (4a).
 5. Re-anchor any `calibrate` (cash) account still showing drift.
 6. Roll the Latest Estimate: finalise the open one, recalculate FX, cut the next.
 
@@ -179,6 +179,21 @@ unrealized loss of the same size (Cash Mgt, 09-30: 1,190.74). Fix those afterwar
 `as_of_date,target`). Note the implausibility threshold did **not** catch a 3.6%
 phantom gain on a CD ladder held at par — size is a weak signal, so sanity-check the number
 against what the account actually holds.
+
+### 4a. Holdings-register accounts — revalue, don't mark here
+
+An account with a holdings register ([CR097](../cr/cr-097-manual-holdings-register.md); Misc
+Investments since 2026-10-14) is **not** reconciled on Manual Calibration — that page refuses it.
+Its mark comes from a valuation:
+
+- **Accounts & Transactions → Holdings** → open the account → **New valuation**, dated the
+  month-end. Type any price that moved; a blank row carries its last value (marked *carried*).
+- **Preview**, read the split (price · FX · unreconciled cost — the last should be 0), then
+  **Save**. It books the Unrealized G/L on that date.
+- A valuation must be on or after the latest one (P1a) — revalue the month-end before any later date.
+
+A stale register is a believable wrong total: if nothing was re-priced, still save the month-end
+valuation so the FX move is booked.
 
 ## 5. Cash accounts — re-anchor, don't mark
 
