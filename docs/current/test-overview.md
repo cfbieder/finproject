@@ -6,7 +6,7 @@ How testing is organised across the project, what's automated, and where to run 
 
 ### Backend Jest tests — `cd server && npm test`
 
-**1,427 tests across 100 suites** (measured 2026-09-08 via `./Scripts/test-fresh-db.sh`, after CR093 P2). Frontend: **652 across 54 files**. ✅ **And the same 1,427 pass against dev's REAL database**, which was not true until 2026-09-08: `exposure.test.js` used to be green here and red there ([roadmap §3 #26](project-roadmap.md#3-known-issues), now closed). A count from this command could not see that class of failure; both are run now.
+**1,514 tests across 122 suites** (measured 2026-10-15 via `./Scripts/test-fresh-db.sh`, v3.76.0; 18 skipped). Frontend: **734 across 70 files** (same day). *Earlier:* 1,427 across 100 suites on 2026-09-08 — ✅ and those passed against dev's REAL database too, which was not true until then: `exposure.test.js` used to be green here and red there ([roadmap §3 #26](project-roadmap.md#3-known-issues), now closed).
 
 | File | Tests | Coverage |
 |------|-------|----------|
@@ -26,7 +26,8 @@ How testing is organised across the project, what's automated, and where to run 
 | `v2/services/__tests__/cr024FidelityBalances.test.js` + `cr024IngestBalances.test.js` + `syncUpstream.test.js` | 10 | Balance read-override, ingest, upstream sync. |
 | `v2/routes/__tests__/fc-lines.test.js` | 16 | FC Lines routes (mocked repo). |
 | `v2/routes/__tests__/ingestBankFeed.test.js` | 10 | Feed ingest route. |
-| `v2/repositories/__tests__/` (4 files) | 15 | createTransaction, ledger running balance, neutralize, split residual (CR037). |
+| `v2/repositories/__tests__/` (18 files) | 121 | createTransaction, ledger running balance, neutralize, split residual (CR037), and later repositories — incl. `cr083.baseYearLe.test.js` (7): the §8.1 LE reference column reads only finalised LEs, honours its exclusions, and never moves the base year. |
+| `services/forecast/__tests__/annualClose.test.js` | 8 | CR064 P2 annual close: per-column tick defaults, period + name move, variant carry incl. the loan link from the old variant's id space and a shifted period pin, rollback on a name clash, refusals. |
 | `v2/utils/__tests__/validate.test.js` | 8 | CR037 field-whitelist validation + strict real-date check (CR097). |
 
 Naming: Jest convention `*.test.js`. Test files are colocated with the modules under test in `__tests__/` subdirectories. (This table is a snapshot — `npx jest --listTests` is the live source of truth.)
@@ -39,7 +40,7 @@ Naming convention for new smoke scripts: `server/src/scripts/smoke-<topic>.js`. 
 
 ### Frontend Vitest tests — `cd frontend && npm test`
 
-**507 tests across 43 files** (measured 2026-08-12). Pure-function helpers plus component render tests (Modal/DataTable) in `jsdom`; no network, no real DB. Established under [CR016 — Frontend Test Framework](../cr/cr-016-frontend-test-framework.md) (closed 2026-05-20).
+**734 tests across 70 files** (measured 2026-10-15; incl. `features/Forecast/__tests__/fcReviewLeReference.test.jsx` (6) — the LE column renders and every other cell is unchanged). Pure-function helpers plus component render tests (Modal/DataTable) in `jsdom`; no network, no real DB. Established under [CR016 — Frontend Test Framework](../cr/cr-016-frontend-test-framework.md) (closed 2026-05-20).
 
 | File | Tests | Coverage |
 |------|-------|----------|

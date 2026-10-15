@@ -1,6 +1,6 @@
 # CR083 — Budget: the Latest Estimate (LE)
 
-**Status:** **COMPLETED** (2026-09-28, CR close-out review). Built and live: P0a/P0b (v3.31.0, migration 072); finalise, recut and delete-restore with the frozen full-year budget (v3.62.0, migration 082); warnings L1, L2 and L4; L10 asserted as a test; the FX-recalculate refusal; one open draft per year (v3.62.4). L6 was removed by owner decision. Prod holds a finalised August LE and a September draft. **Moved to the roadmap backlog (owner, 2026-09-28):** warnings L3/L5/L8, the `TRAIL_3` / `ZERO` override modes, the timing-vs-permanent variance split, and P2 (seed next year's budget from an LE), which §11.4 already called unschedulable as written. This explicit closure satisfies the CR085 P1 unblock condition "CR083 P1 or its explicit closure".
+**Status:** **COMPLETED** (2026-09-28, CR close-out review; post-close §8.1 LE column live v3.76.0, §18). Built and live: P0a/P0b (v3.31.0, migration 072); finalise, recut and delete-restore with the frozen full-year budget (v3.62.0, migration 082); warnings L1, L2 and L4; L10 asserted as a test; the FX-recalculate refusal; one open draft per year (v3.62.4). L6 was removed by owner decision. Prod holds a finalised August LE and a September draft. **Moved to the roadmap backlog (owner, 2026-09-28):** warnings L3/L5/L8, the `TRAIL_3` / `ZERO` override modes, the timing-vs-permanent variance split, and P2 (seed next year's budget from an LE), which §11.4 already called unschedulable as written. This explicit closure satisfies the CR085 P1 unblock condition "CR083 P1 or its explicit closure".
 
 > Previous status (was in the title): 🔨 IN-PROGRESS (P0a + P0b LIVE, v3.31.0)
 
@@ -1744,7 +1744,7 @@ cheap test CR081 skipped.
 - **P1** (the advisory's accept path, `TRAIL_3`/`ZERO`, drift **L2**) and **P2** (§11.4's seed-next-
   year, still not specified enough to schedule).
 
-## 18. Post-close addition, 2026-10-15 — §8.1's reference column is built
+## 18. Post-close addition, 2026-10-15 — §8.1's reference column is built (live v3.76.0)
 
 This CR stays **COMPLETED**; this is an addition after the close, not a reopening. Owner decision
 2026-10-15: build §8.1's read-only Latest Estimate column on Forecast Review first, and it must move
