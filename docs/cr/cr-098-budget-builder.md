@@ -1,7 +1,7 @@
 # CR098 — Budget builder: next year's budget from this year's Latest Estimate — DRAFT
 
-**Status:** DRAFT (2026-10-15) — not yet reviewed (pass 1 `cr-technical-reviewer`, pass 2 `cr-signoff-pm`).
-**Track:** v3 · **Migration:** one (number claimed at build, not here — `.claude/rules/git-concurrency.md` rule 7)
+**Status:** DRAFT (2026-10-15) — rev 2 after pass 1 (`cr-technical-reviewer`: *revise*, 2 blocking, both closed — §8); pass 2 (`cr-signoff-pm`) pending.
+**Track:** v3 · **Migration:** one — 084 if still free at build, claimed then with its registry row (`.claude/rules/git-concurrency.md` rule 7)
 **Depends on:** [CR083](cr-083-budget-latest-estimate.md) (the Latest Estimate, and its §11.4 list of
 what a seed must solve first) · [CR075](cr-075-base-year-is-the-budget.md) (the base year IS the
 budget) · [CR064](cr-064-forecast-annual-close-and-assumptions.md) P2 (the annual close, live v3.76.0)
@@ -60,6 +60,17 @@ Ten design questions were put to the owner one at a time before any drafting (20
   entry (2026: EUR 0.86, PLN 3.9 per USD); the engine carries the last entry forward
   (`fcbuilder-setup.js`, which reads `Rates.PLN ?? Rates.USDPLN`). LE-09-26's lines are
   604 `ACTUAL`, 135 `CARRY`, 67 `MANUAL`.
+- **All 67 `MANUAL` LE lines are typed in USD**, including for categories spent in PLN
+  (`Utilities - Gas`: PLN actuals plus a USD manual line) — so one category's year can sit on two
+  currency lines, and 8 of LE-09-26's 145 (category, currency) lines (−4,050 USD) have neither window
+  actuals nor 2026 budget rows. §3.3 gives them an even split.
+- **The budget has its own FX table.** `budget_fx_rates` holds a rate per currency per month (2026
+  PLN 3.55–3.79) and has **no 2027 rows**. `repositories/budget.js` `create()` prices every new
+  non-USD row from it, and *Recalculate* (`routes/budget.js:147` → `budgetFxRates.js`) rewrites
+  `base_amount` from it — so §3.4 must write the target year's rates, or one later edit puts the
+  base year on two FX rates.
+- **Readers, completed:** the view `v_budget_vs_actual` also reads `budget_entries`, and
+  `compareToActual` filters by version (CR083 §7); every other reader sums all versions.
 
 ## 3. Design
 
@@ -70,7 +81,9 @@ the current year; a draft is never offered) and a **scenario** (whose inflation 
 default: the base scenario whose base year is the LE's year, i.e. `2026 Base`). Each build line is
 one (category, currency) of the LE with its full-year local amount `le_fy = Σ amount` over the
 LE's twelve months. The LE's own `excluded_category_ids` are honoured (transfers, unrealised G/L —
-CR083 §2); a category the LE lacks is not invented.
+CR083 §2); a category the LE lacks is not invented. A line keyed on a **non-leaf** category
+(LE-09-26: `Car Expense`, `Children - Anna`) is shown in the preview as **"not in the base year"** —
+the base year's leaves CTE (`crud.js`) cannot see it — and is published only if the owner keeps it.
 
 ### 3.2 The annual figure — layers, each shown
 
@@ -78,12 +91,14 @@ CR083 §2); a category the LE lacks is not invented.
 |---|---|
 | LE FY | from 3.1 |
 | Policy | the category's remembered flag (§3.5); new categories default to **Recurring** |
-| Inflation % | Recurring only: the scenario's rate for the target year (resolved through the engine's own rate builder, so a carried-forward rate is the engine's), or the category's override |
+| Inflation % | Recurring only: the scenario's rate for the target year via the engine's own `rateAtYear` (`fcbuilder-setup.js`, exported for this — `loadScenarioConfig`'s `[0]` is the target year only when `PeriodStart` equals it), so a carried-forward rate is the engine's; or the category's override |
 | **Annual** | Recurring: `le_fy × (1 + r)` · One-off: `0` · Fixed: the typed amount |
 | vs LE · vs this year's budget | deltas, for reading only |
 
-Totals by currency and in USD at the scenario's FX for the target year. A Fixed amount is typed in
-the line's own currency.
+Totals by currency and in USD at the scenario's FX for the target year, resolved the same way. The
+engine knows PLN and EUR only; a line in any other currency is **refused by name**, never valued 1:1.
+A Fixed category gets **one typed amount per currency line** (the policy is per category, the amount
+per line).
 
 ### 3.3 Splitting the annual figure — accounts, then months, from one source
 
@@ -91,33 +106,53 @@ the line's own currency.
 Sep 2025 – Aug 2026). That date is the LE's own declaration of what is actual; the builder does not
 re-derive "closed" (CR083 §1.2 explains why it cannot).
 
-For each line, take actual transactions in that window on the category's leaves whose **account
-currency = the line's currency**, grouped by account × month:
+For each line, take actual transactions in that window with **`category_id` = the line's category**
+(not its leaves — the LE keys on the transaction's own category, `budgetLe.js`) and **`t.currency` =
+the line's currency** (the LE's definition; it equals the account currency on prod today), grouped
+by account × month:
 
-1. **Accounts:** each account's share of the window total. A share that is negative against the
-   line's sign, or a line with no actuals, falls back to the **current year's budget** split for that
-   (category, currency); with neither, one row with no account (as 32 of 2026's rows already are).
-2. **Months:** the window's monthly pattern per account, re-scaled to the account's share of the
-   annual. If one month holds ≥ 80% of the line's window total, the whole line goes in that month
-   (an annual payment). Override per line: **even** twelfths, or **one chosen month**.
-3. **Cents:** each (account, month) cell is rounded to cents; the rounding remainder goes to the
-   largest cell, so every line sums **exactly** to its annual figure.
+1. **Accounts:** each account's share of the window total. A line with no window actuals, or an
+   account share whose sign opposes the line's, falls back to the **current year's budget** split for
+   that (category, currency); with neither, one row with no account (as 32 of 2026's rows already
+   are).
+2. **Months:** the window's monthly pattern per account, re-scaled to that account's share of the
+   annual. **Even twelfths** instead when the line has no window actuals (the 8 lines in §2), or when
+   any of its months carries the opposite sign to the line (13 of 308 account-level lines on
+   LE-09-26 — re-scaling one of them amplified a month more than 3×). **Lump rule:** if one month
+   holds ≥ 80% of the line's **absolute** monthly amounts, the whole line goes in that month (an
+   annual payment), keeping its account split within that month. Measured on net totals instead, the
+   rule lumped 32 of 137 lines and two exceeded 100%; the threshold is measured again on absolutes at
+   build. Override per line: **even**, or **one chosen month**.
+3. **Cents:** each (account, month) cell is rounded to cents in local currency; the remainder goes
+   to the cell **largest by absolute value**, so every line sums **exactly** to its annual figure in
+   local currency. USD is converted per cell and is not forced to a total.
 
 The preview shows each line's 12-month row; nothing is written until Publish.
 
 ### 3.4 Publish and un-publish — replace the year, keep a way back
 
 **Publish**, in one transaction:
-1. Take the build's advisory lock; refuse if the target year's rows changed since the preview
-   (count + checksum shown in the preview).
+1. Take the build's advisory lock; refuse if the target year's rows changed since the preview.
+   The checksum is `md5(string_agg(row_to_json(be)::text, '|' ORDER BY be.id))` over the year's
+   `budget_entries` — every column, `updated_at` included, so a *Recalculate* counts as a change.
 2. Copy **every** `budget_entries` row of the target year, in full, into a snapshot owned by the build.
 3. Delete them all — every version, NULL versions included, so the year has one set of rows after.
 4. Insert the build's cells into the year's active version (create `«year» / Built` if the year has
-   none), `base_amount` at the scenario's FX for the target year.
+   none), with `base_amount = ROUND(amount / rate, 2)`, `rate` = units of the currency **per USD**
+   from the scenario for the target year (the engine's convention, `Rates.PLN = 3.9`).
+4a. **Write the year's `budget_fx_rates`** — 12 months × each non-USD currency at that same rate —
+   after snapshotting any rows already there. Without it, the next row added on the budget page, or a
+   *Recalculate*, prices at a different rate and the base year sits on two.
 5. Mark the build published; any earlier published build of the same year becomes superseded.
 
 **Un-publish**, in one transaction: refuse if the year's rows differ from what the publish wrote
-(edits since would be lost — say so); otherwise delete them and restore the snapshot exactly.
+(same checksum; edits since would be lost — say so); otherwise delete them and restore the snapshot
+exactly — re-inserted through `jsonb_populate_record(NULL::budget_entries, row)` with the original
+`id`, `created_at`, `updated_at` and `version_id` (NULLs included; nothing has a foreign key into
+`budget_entries`, so reusing ids is safe), delete a `«year» / Built` version the publish created, and
+restore the year's `budget_fx_rates` snapshot. ⚠️ **After the annual close has run on that year**,
+un-publishing moves a base scenario's base year: the confirm names the scenarios whose base year is
+the target year and says each needs a regenerate.
 
 The preview lists what will be deleted — by category, with counts — so the 12 instalments in 2027
 are visible before they go. Re-publishing a new build of the same year is publish again (it
@@ -129,21 +164,24 @@ snapshots what is there then). One open draft per target year, as the LE does.
   `inflation_override_pct` NULL, `split_override` (`auto` | `even` | `month`), `split_month` NULL,
   `updated_at`. This is what "remembered between years" means: the next build starts from it.
 - `budget_builds` — `id`, `target_year`, `source_le_id`, `scenario_name`, `status`
-  (`draft` | `published` | `superseded` | `unpublished`), `published_at`, `published_checksum`.
+  (`draft` | `published` | `superseded` | `unpublished` — `VARCHAR` + `CHECK`, not a Postgres enum,
+  per the migration-070 rule), `published_at`, `published_checksum`, `created_version_id` NULL.
 - `budget_build_lines` — `build_id`, `category_id`, `currency`, `le_fy`, `policy`,
   `fixed_amount`, `inflation_pct`, `annual_amount`, `split_method`, `split_month`; unique on
   (`build_id`, `category_id`, `currency`).
-- `budget_build_snapshot` — the replaced rows of a publish, verbatim (`build_id`, the row as `jsonb`).
+- `budget_build_snapshot` — the replaced rows of a publish, verbatim (`build_id`, `kind`
+  (`entry` | `fx_rate`), the row as `jsonb`).
 
 Cells are computed, not stored, until Publish writes them to `budget_entries`.
 
 ### 3.6 Prerequisites (P0, before any row is published)
 
-1. **`fcLines.findAll`'s year-blind sum** — find the live consumer CR083 §11.4 asked for, and pass
-   a year (or drop the per-category `budget_total` there if nothing reads it). Test with two years of
-   rows.
-2. **A guard that a year has one version after publish**, asserted by test, since every reader sums
-   all versions.
+1. **`fcLines.findAll`'s year-blind sum** — its callers are `routes/fcLines.js:17` and `:211`;
+   `:211` (`review-structure`) reads names only, and `FCModulesEdit.jsx` takes its totals from the
+   year-scoped call. Pass a year (or drop the per-category `budget_total` there), with a test over two
+   years of rows. Cheap.
+2. **A test that a year holds one version after publish**, since all readers but `compareToActual`
+   sum every version.
 
 ### 3.7 The screen
 
@@ -165,12 +203,15 @@ confirm. Colour means sign; both themes rendered before shipping.
 
 On a prod dump in a throwaway database (the CR064 P2 method):
 1. Build 2027 from the latest finalised LE with `2026 Base`; every line's 12 cells sum to its annual
-   figure to the cent; Σ annual per currency equals the published `budget_entries` total per currency.
+   figure to the cent **in local currency**; Σ annual per currency equals the published
+   `budget_entries` total per currency; the year's `budget_fx_rates` hold the scenario rate in all 12
+   months, and adding one PLN row on the budget page prices at it.
 2. Recurring = `le_fy × (1 + r)` with `r` read back from the engine's rate builder for 2027.
 3. Publish: the year holds only the build's rows, in one version; `fcLines` totals and
    `getBaseYearValues(2027)` read the new total.
-4. Un-publish: the 12 instalment rows return byte-identical; a publish after an edit to the year is
-   refused, and so is an un-publish after an edit.
+4. Un-publish: the 12 instalment rows return byte-identical (`id`, version 3, timestamps) and the
+   year's FX rows are as before; a publish after an edit to the year is refused, and so is an
+   un-publish after an edit or a *Recalculate*.
 5. A scenario with `PeriodStart` 2028 (a forward annual close, clock set to January 2027 as in
    CR064 P2's check) generates from the published 2027 budget.
 6. Rendered in both themes.
@@ -187,7 +228,21 @@ On a prod dump in a throwaway database (the CR064 P2 method):
 
 - **Which scenario by default** — the base whose base year is the LE's year (`2026 Base`) is
   proposed; a variant's inflation would also be valid.
-- **An LE line whose sign flips across the window** (a refund-heavy category) — §3.3 falls back to
-  the budget split; is that right, or should such a line be split evenly?
-- **The 80% threshold** — tunable at build; measure how many 2026 categories it would place in one
-  month before fixing it.
+- **The 80% threshold** — tunable at build; re-measured on absolute amounts (§3.3) before fixing it.
+- **The 67 USD `MANUAL` LE lines** — they give some categories a second, USD line beside their local
+  one. Keep them as typed (proposed), or offer to fold them into the category's main currency at the
+  scenario rate?
+
+## 8. Review log
+
+- **Pass 1 — `cr-technical-reviewer`, 2026-10-15: *revise*, 2 blocking.** Every §2 figure re-checked
+  on prod and confirmed. **B1** the budget's own `budget_fx_rates` would re-price later edits and
+  *Recalculate* at a different rate than the publish → §3.4 step 4a writes and snapshots the year's
+  rates, FX direction stated. **B2** no month split for lines without actuals (8 lines, from USD
+  `MANUAL` LE lines) → even twelfths, fact recorded in §2. Non-blocking, all taken: match the
+  transaction's own category and `t.currency`; parent-category lines flagged "not in the base year";
+  the 80% rule on absolutes and opposite-sign months split evenly (answers the sign-flip question);
+  the checksum defined; restore fidelity (`jsonb_populate_record`, ids, NULL versions, the created
+  version, FX rows); the reader list completed and P0's consumers named; `rateAtYear` exported, PLN
+  and EUR only; rounding by absolute size, USD not forced; lump keeps its account split; Fixed is
+  typed per currency line; un-publish after the close warns of a regenerate; `VARCHAR` + `CHECK`.
