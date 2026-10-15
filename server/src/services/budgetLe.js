@@ -21,6 +21,8 @@ const AppError = require('../v2/utils/AppError');
 // CR088 P2 — for `extractTransferCategories` only. `budget.js` does not require
 // this module, so there is no cycle.
 const budgetService = require('./budget');
+// CR083 §8.1 — the base year's FC-line mapping, so the LE reference column uses the same one.
+const forecastCrud = require('./forecast/crud');
 
 /** The last complete calendar month, from the database's own clock (§1.2). */
 async function defaultCut(budgetYear) {
@@ -1161,7 +1163,64 @@ async function getWalk(toId, fromId = null) {
   return { leId: to.id, to: header(to), from: header(from), rows: out, totals };
 }
 
+// ---------------------------------------------------------------------------
+// The forecast base year's LE reference column — CR083 §8.1
+// ---------------------------------------------------------------------------
+
+const round2 = (n) => Math.round(Number(n) * 100) / 100;
+const sumValues = (values) => Object.values(values).reduce((s, v) => s + v, 0);
+
+/**
+ * What the latest FINALISED LE says about the forecast's base year, per FC line, beside
+ * what the budget says. §8.1: *displayed and never summed* — this is a read for the
+ * Review page only; the generation engine never calls it and nothing here is stored.
+ *
+ * `null` when there is no base year or no final LE for it (a draft is still being revised,
+ * so it is never shown as "what the LE says").
+ *
+ * `total` and `budgetTotal` are both summed over FC lines through the same mapping, so the
+ * gap is like-for-like. `outsideLines` is the part of the LE's own NET that no FC line
+ * covers (an unmapped category, or a posting to a non-leaf) — stated, not dropped.
+ */
+async function getForecastBaseYearReference(baseYear) {
+  if (baseYear == null) return null;
+  const le = await repo.findLatestFinal(baseYear);
+  if (!le) return null;
+
+  const [values, budget, { rows }] = await Promise.all([
+    forecastCrud.getBaseYearLeValues(le),
+    forecastCrud.getBaseYearValues(null, baseYear),
+    db.query(
+      `SELECT COALESCE(SUM(base_amount), 0) AS net
+       FROM budget_le_lines
+       WHERE le_id = $1 AND category_id IS NOT NULL
+         AND NOT (category_id = ANY($2::int[]))`,
+      [le.id, le.excluded_category_ids || []]
+    ),
+  ]);
+
+  const total = round2(sumValues(values));
+  const budgetTotal = round2(sumValues(budget));
+  const leNet = round2(rows[0].net);
+  return {
+    le: {
+      id: le.id, name: le.name, label: le.label, status: le.status,
+      budgetYear: le.budget_year,
+      actualThrough: String(le.actual_through).slice(0, 10),
+      finalizedAt: le.finalized_at || null,
+    },
+    baseYear,
+    values,
+    total,
+    budgetTotal,
+    gap: round2(total - budgetTotal),
+    leNet,
+    outsideLines: round2(leNet - total),
+  };
+}
+
 module.exports = {
+  getForecastBaseYearReference,
   defaultCut, getGrid, list, create, remove, budgetFyByCategory,
   getCategoryWorksheet, saveCategoryEstimates, getDeviations,
   getCashFlow, finalize, recut, getDrift, getAdvisories, getWalk,

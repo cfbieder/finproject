@@ -30,6 +30,7 @@ import { useForecastData } from "../features/Forecast/hooks/useForecastData.js";
 import { useBaseYearActuals } from "../features/Forecast/hooks/useBaseYearActuals.js";
 import { useBaseYearBalanceSheet } from "../features/Forecast/hooks/useBaseYearBalanceSheet.js";
 import FCReviewTable from "../features/Forecast/FCReviewTable.jsx";
+import FCReviewLeNote from "../features/Forecast/FCReviewLeNote.jsx"; // CR083 §8.1
 import FCReviewBreakdownModal from "../features/Forecast/FCReviewBreakdownModal.jsx";
 import FCCashTransferModal from "../features/Forecast/FCCashTransferModal.jsx";
 import FCReviewTableGraphModal from "../features/Forecast/FCReviewTableGraphModal.jsx";
@@ -297,6 +298,18 @@ export default function FCReview() {
     Rest.get(`/forecast/base-year-values?scenario=${encodeURIComponent(selectedScenario)}`)
       .then((res) => setBaseYearValues(res.data || {}))
       .catch(() => {});
+  }, [selectedScenario]);
+
+  // CR083 §8.1 — the latest FINALISED Latest Estimate for the base year, as a read-only
+  // reference column + note. Display only: it is passed to the table and the note and nowhere
+  // else, so it cannot reach a total, a KPI, the graph or the sweep. null ⇒ nothing is shown.
+  const [baseYearLe, setBaseYearLe] = useState(null);
+  useEffect(() => {
+    setBaseYearLe(null);
+    if (!selectedScenario) return;
+    Rest.get(`/forecast/base-year-le?scenario=${encodeURIComponent(selectedScenario)}`)
+      .then((res) => setBaseYearLe(res.data || null))
+      .catch(() => setBaseYearLe(null));
   }, [selectedScenario]);
 
   // =============================================================================
@@ -1744,7 +1757,9 @@ export default function FCReview() {
             scenario={selectedScenario}
           />
         )}
+        <FCReviewLeNote leReference={baseYearLe} />
         <FCReviewTable
+          leReference={baseYearLe}
           sortedYears={sortedYears}
           baseYear={baseYear}
           baseYears={baseYears}

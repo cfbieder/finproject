@@ -1,4 +1,18 @@
 
+/* ── CR083 §8.1 — the Latest Estimate reference note ──────────────────────────
+   Muted on purpose: it is a reference beside the plan, not a figure of it. */
+.fc-review__le-note {
+  margin: 0 0 var(--space-sm);
+  padding: 0.3rem 0.6rem;
+  border-left: 2px dashed var(--border-strong);
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.fc-review__le-note-aside {
+  font-size: 0.75rem;
+}
+
 /* ── CR079 — the real-terms control and its banner ────────────────────────────
    The banner sits WITH the numbers rather than only on the control, because a
    screenshot crops to the figures and a state that changes what money means has

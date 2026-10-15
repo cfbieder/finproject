@@ -372,6 +372,26 @@ async function buildAddFromActualsTree(scenarioId, baseYear) {
   };
 }
 
+// FC line → leaf category, each leaf counted once per fc_line. The same CTE
+// `fcLines.getBudgetTotals` uses, so the base-year column and the stream cards' budget
+// reference cannot disagree about which accounts a line covers. One string, shared by the
+// base year and its CR083 §8.1 LE reference column, so those two cannot disagree either.
+const FC_LINE_LEAVES_CTE = `
+    WITH RECURSIVE cat_tree AS (
+      SELECT flc.fc_line_id, c.id
+      FROM fc_line_categories flc
+      JOIN accounts c ON flc.category_id = c.id
+      UNION ALL
+      SELECT ct.fc_line_id, ch.id
+      FROM cat_tree ct
+      JOIN accounts ch ON ch.parent_id = ct.id
+    ),
+    distinct_leaves AS (
+      SELECT DISTINCT fc_line_id, id
+      FROM cat_tree ct
+      WHERE NOT EXISTS (SELECT 1 FROM accounts ch WHERE ch.parent_id = ct.id)
+    )`;
+
 /**
  * Base-year P&L values from completed modules (by FC Line name) and
  * income/expense items, keyed by label. Non-zero contributions only.
@@ -432,23 +452,7 @@ async function getBaseYearValues(scenarioId, baseYear = null, client = db) {
   if (baseYear == null) return {};
 
   const result = await client.query(`
-    WITH RECURSIVE cat_tree AS (
-      SELECT flc.fc_line_id, c.id
-      FROM fc_line_categories flc
-      JOIN accounts c ON flc.category_id = c.id
-      UNION ALL
-      SELECT ct.fc_line_id, ch.id
-      FROM cat_tree ct
-      JOIN accounts ch ON ch.parent_id = ct.id
-    ),
-    -- Each leaf counted once per fc_line. The same CTE \fcLines.getBudgetTotals\ uses, so the
-    -- base-year column and the stream cards' budget reference cannot disagree about which
-    -- accounts a line covers.
-    distinct_leaves AS (
-      SELECT DISTINCT fc_line_id, id
-      FROM cat_tree ct
-      WHERE NOT EXISTS (SELECT 1 FROM accounts ch WHERE ch.parent_id = ct.id)
-    )
+    ${FC_LINE_LEAVES_CTE}
     SELECT l.name AS label, COALESCE(SUM(be.base_amount), 0) AS amount
     FROM fc_lines l
     JOIN distinct_leaves dl ON dl.fc_line_id = l.id
@@ -456,14 +460,49 @@ async function getBaseYearValues(scenarioId, baseYear = null, client = db) {
     GROUP BY l.name
   `, [baseYear]);
 
+  return labelValues(result.rows);
+}
+
+/** `{label, amount}` rows → `{ label: number }`, zero lines dropped (absent, not a zero row). */
+function labelValues(rows) {
   const values = {};
-  for (const row of result.rows) {
+  for (const row of rows) {
     const amt = parseFloat(row.amount) || 0;
     if (amt === 0) continue;   // an unbudgeted line is absent, not a zero row
     values[row.label] = (values[row.label] || 0) + amt;
   }
   return values;
 }
+
+/**
+ * CR083 §8.1 — what a Latest Estimate says about the base year, per FC line. A READ-ONLY
+ * reference for the Review's "LE" column: nothing calls this on the generation path, and its
+ * result is never added to the base year, the sweep's opening cash or any stored figure.
+ *
+ * It goes through FC_LINE_LEAVES_CTE — the base-year column's own mapping — so the two
+ * columns cannot disagree about which categories a line covers. An LE line on a non-leaf
+ * category (`Car Expense`, `Children - Anna`) or on a category no FC line maps (`Other Inc`)
+ * is outside it, exactly as a budget row there would be; the caller reports that remainder.
+ *
+ * Honours the LE's OWN exclusion snapshot (`excluded_category_ids`, §2/§7.1), not the live
+ * `is_transfer` flag. `base_amount` is the LE's USD figure on its §5 mixed basis (actual months
+ * at transaction rates, estimate months at the rate each budget row carried) — summed as is,
+ * with no conversion, exactly as the grid sums it.
+ */
+async function getBaseYearLeValues(le, client = db) {
+  if (!le) return {};
+  const result = await client.query(`
+    ${FC_LINE_LEAVES_CTE}
+    SELECT l.name AS label, COALESCE(SUM(bl.base_amount), 0) AS amount
+    FROM fc_lines l
+    JOIN distinct_leaves dl ON dl.fc_line_id = l.id
+    JOIN budget_le_lines bl ON bl.category_id = dl.id AND bl.le_id = $1
+    WHERE NOT (bl.category_id = ANY($2::int[]))
+    GROUP BY l.name
+  `, [le.id, le.excluded_category_ids || []]);
+  return labelValues(result.rows);
+}
+
 /**
  * The sweep's OPENING CASH: every account in the `Bank Accounts` tree, valued the canonical way
  * and converted to USD at the rate nearest `asOfDate`.
@@ -531,6 +570,7 @@ module.exports = {
   clearForLoanRetype,
   buildAddFromActualsTree,
   getBaseYearValues,
+  getBaseYearLeValues,
 };
 
 /**

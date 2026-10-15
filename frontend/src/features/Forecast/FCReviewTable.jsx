@@ -41,6 +41,7 @@ function EquityBridgeRows({
   lastActualYears,
   selectCellBaseStyle,
   accountCellBaseStyle,
+  withLe = (cells) => cells,
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [unrealOpen, setUnrealOpen] = useState(true);
@@ -79,7 +80,7 @@ function EquityBridgeRows({
         >
           {prefix ? `${prefix} ` : ""}{label}
         </td>
-        {sortedYears.map((year, yi) => {
+        {withLe(sortedYears.map((year, yi) => {
           const val = values[yi];
           const num = Number(val);
           const show = val != null && Math.abs(num) > 0.5;
@@ -96,7 +97,7 @@ function EquityBridgeRows({
               {show ? formatAmount(num) : "—"}
             </td>
           );
-        })}
+        }), { borderTop: topBorder ? "2px solid var(--border)" : undefined })}
       </tr>
     );
   };
@@ -116,9 +117,9 @@ function EquityBridgeRows({
             {collapsed ? "+" : "-"} Change in Net Assets
           </span>
         </td>
-        {sortedYears.map((y) => (
+        {withLe(sortedYears.map((y) => (
           <td key={`bridge-hdr-${y}`} style={{ borderTop: "2px solid var(--primary, #567856)" }} />
-        ))}
+        )), { borderTop: "2px solid var(--primary, #567856)" })}
       </tr>
       {!collapsed && (
         <>
@@ -126,7 +127,7 @@ function EquityBridgeRows({
           <tr>
             <SelectSpacer style={selectCellBaseStyle} />
             <td style={{ ...accountCellBaseStyle, fontWeight: 600 }}>Account</td>
-            {sortedYears.map((year) => {
+            {withLe(sortedYears.map((year) => {
               const isBaseYear = baseYears?.has(Number(year));
               const isLastActualYear = lastActualYears?.has(Number(year));
               const isPreForecast = isBaseYear || isLastActualYear;
@@ -153,7 +154,7 @@ function EquityBridgeRows({
                   )}
                 </td>
               );
-            })}
+            }), { header: true })}
           </tr>
           {dataRow("bridge-operating", "Operating Cash Flow", bridge.operating)}
           {dataRow("bridge-unreal", "Unrealized Gains / (Losses)", bridge.unrealTotal, {
@@ -188,6 +189,7 @@ function CashFlowSummaryRows({
   lastActualYears,
   selectCellBaseStyle,
   accountCellBaseStyle,
+  withLe = (cells) => cells,
 }) {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -200,7 +202,7 @@ function CashFlowSummaryRows({
     baseYears?.has(Number(year)) || lastActualYears?.has(Number(year)) ? "var(--surface-muted)" : undefined;
 
   const valueCells = (values, { bold } = {}) =>
-    sortedYears.map((year, yi) => {
+    withLe(sortedYears.map((year, yi) => {
       const v = values[yi];
       const num = Number(v);
       return (
@@ -216,7 +218,7 @@ function CashFlowSummaryRows({
           {formatAmount(v)}
         </td>
       );
-    });
+    }));
 
   const labelCell = (label, { level = 1, bold = false, color } = {}) => (
     <td
@@ -245,9 +247,9 @@ function CashFlowSummaryRows({
             {collapsed ? "+" : "-"} Cash Flow Summary
           </span>
         </td>
-        {sortedYears.map((y) => (
+        {withLe(sortedYears.map((y) => (
           <td key={`cfs-hdr-${y}`} style={{ borderTop: "2px solid var(--primary, #567856)" }} />
-        ))}
+        )), { borderTop: "2px solid var(--primary, #567856)" })}
       </tr>
 
       {!collapsed && (
@@ -257,7 +259,7 @@ function CashFlowSummaryRows({
           <tr>
             <SelectSpacer style={selectCellBaseStyle} />
             <td style={{ ...accountCellBaseStyle, fontWeight: 600 }}>Account</td>
-            {sortedYears.map((year) => {
+            {withLe(sortedYears.map((year) => {
               const isBaseYear = baseYears?.has(Number(year));
               const isLastActualYear = lastActualYears?.has(Number(year));
               const isPreForecast = isBaseYear || isLastActualYear;
@@ -292,7 +294,7 @@ function CashFlowSummaryRows({
                   )}
                 </td>
               );
-            })}
+            }), { header: true })}
           </tr>
           <tr><SelectSpacer style={selectCellBaseStyle} />{labelCell("Income")}{valueCells(incomeVals)}</tr>
           <tr><SelectSpacer style={selectCellBaseStyle} />{labelCell("Expense")}{valueCells(expenseVals)}</tr>
@@ -360,7 +362,67 @@ export default function FCReviewTable({
   zoomLevel,
   onZoomIn,
   onZoomOut,
+  leReference,
 }) {
+  // CR083 §8.1 — the Latest Estimate as a REFERENCE column right after the base-year (budget)
+  // column. Display only: its figures come straight from the server per FC line and are never
+  // added into any total, KPI, graph series or the sweep. `withLe` splices one extra cell into a
+  // row's per-year cells so every row keeps its alignment; with no final LE it is the identity.
+  const leIndex = leReference
+    ? sortedYears.findIndex(
+        (y) => Number(y) === Number(leReference.baseYear) && baseYears?.has(Number(y))
+      )
+    : -1;
+  const leRefBorders = {
+    borderLeft: "1px dashed var(--border-strong)",
+    borderRight: "1px dashed var(--border-strong)",
+  };
+  const leTitle = leReference
+    ? `${leReference.le.name} — the latest finalised Latest Estimate for ${leReference.baseYear} `
+      + `(actuals through ${leReference.le.actualThrough}). Reference only: not part of the plan, `
+      + "never summed into any figure."
+    : undefined;
+  const withLe = (cells, { header = false, tag = "td", value, show = false, borderTop } = {}) => {
+    if (leIndex < 0) return cells;
+    const Tag = tag;
+    const cell = header ? (
+      <Tag
+        key="le-ref"
+        className="trans-budget-table__value"
+        title={leTitle}
+        style={{ minWidth: "110px", fontWeight: 500, color: "var(--muted)", background: "var(--surface)", ...leRefBorders }}
+      >
+        {leReference.le.name}
+        <span style={{ display: "block", fontSize: "0.72rem", fontWeight: 500, color: "var(--muted)", marginTop: "0.25rem" }}>
+          (reference)
+        </span>
+      </Tag>
+    ) : (
+      <td
+        key="le-ref"
+        className="trans-budget-table__value--numeric"
+        title={show ? leTitle : undefined}
+        style={{
+          fontStyle: "italic",
+          color: show && Number(value) < 0 ? "var(--danger)" : "var(--ink)",
+          ...leRefBorders,
+          borderTop,
+        }}
+      >
+        {show ? formatAmount(value) : null}
+      </td>
+    );
+    return [...cells.slice(0, leIndex + 1), cell, ...cells.slice(leIndex + 1)];
+  };
+  // A cash row's LE cell: per FC line (level 2), and the P&L total on the Cash Flow row —
+  // that total is the server's sum of the per-line figures, the same one the page note quotes.
+  const leCashCell = (row) => {
+    if (!leReference) return {};
+    if (row.isCashFlow) return { show: true, value: leReference.total };
+    if (row.isNet || row.level !== 2) return {};
+    return { show: true, value: leReference.values?.[row.label] };
+  };
+
   // Resolves the display value for a cash P&L row, including base/actual year overlays.
   // The overlay itself lives in fcCashValue so the graph's stacked breakdown resolves a
   // cell the same way this table does — it used to read getCellValue directly, which
@@ -495,7 +557,7 @@ export default function FCReviewTable({
     borderRight: `1px solid var(--border)`,
   };
 
-  const totalColSpan = tableColSpan + 1;
+  const totalColSpan = tableColSpan + 1 + (leIndex >= 0 ? 1 : 0);
 
   return (
     <section className="section-table">
@@ -601,7 +663,7 @@ export default function FCReviewTable({
                 <th style={selectColumnStickyStyle} aria-label="Selection" />
                 <th style={accountHeaderStyle}>Account</th>
                 {sortedYears.length ? (
-                  sortedYears.map((year) => {
+                  withLe(sortedYears.map((year) => {
                     const isBaseYear = baseYears?.has(Number(year));
                     const isLastActualYear = lastActualYears?.has(Number(year));
                     const isPreForecast = isBaseYear || isLastActualYear;
@@ -637,7 +699,7 @@ export default function FCReviewTable({
                         )}
                       </th>
                     );
-                  })
+                  }), { header: true, tag: "th" })
                 ) : (
                   <th>Year</th>
                 )}
@@ -646,11 +708,11 @@ export default function FCReviewTable({
                 <tr>
                   <td style={selectColumnStickyStyle} />
                   <td style={{ ...accountHeaderStyle, fontSize: "0.7rem", color: "var(--muted-light)", fontWeight: 500, padding: "0.15rem 0.5rem" }}>Age</td>
-                  {sortedYears.map((year) => (
+                  {withLe(sortedYears.map((year) => (
                     <td key={`age-${year}`} className="trans-budget-table__value" style={{ fontSize: "0.7rem", color: "var(--muted-light)", fontWeight: 500, padding: "0.15rem 0.5rem" }}>
                       {Number(year) - birthYear}
                     </td>
-                  ))}
+                  )))}
                 </tr>
               )}
             </thead>
@@ -797,7 +859,7 @@ export default function FCReviewTable({
                             ? "Cash Flow"
                             : row.label}
                         </td>
-                        {sortedYears.map((year) => {
+                        {withLe(sortedYears.map((year) => {
                           const value = resolveCashValue(row, year);
                           const isBaseYear = baseYears?.has(Number(year));
                           const isLastActualYear = lastActualYears?.has(Number(year));
@@ -837,6 +899,9 @@ export default function FCReviewTable({
                               {formatAmount(value)}
                             </td>
                           );
+                        }), {
+                          ...leCashCell(row),
+                          borderTop: isFirstCashRow ? sectionBorder : undefined,
                         })}
                       </tr>
                     );
@@ -860,7 +925,7 @@ export default function FCReviewTable({
                           height: "1rem",
                         }}
                       />
-                      {sortedYears.map((year) => {
+                      {withLe(sortedYears.map((year) => {
                         const isPreForecast = baseYears?.has(Number(year)) || lastActualYears?.has(Number(year));
                         return (
                           <td
@@ -881,7 +946,7 @@ export default function FCReviewTable({
                             }}
                           />
                         );
-                      })}
+                      }), { borderTop: "2px solid var(--border)" })}
                     </tr>
                   )}
 
@@ -915,7 +980,7 @@ export default function FCReviewTable({
                       >
                         Net Assets
                       </td>
-                      {sortedYears.map((year) => {
+                      {withLe(sortedYears.map((year) => {
                         const yearIndex = sortedYears.indexOf(year);
                         const displayValue = netAssetsByYear[yearIndex] ?? 0;
                         const isPreForecast = baseYears?.has(Number(year)) || lastActualYears?.has(Number(year));
@@ -937,7 +1002,7 @@ export default function FCReviewTable({
                             {formatAmount(displayValue)}
                           </td>
                         );
-                      })}
+                      }), { borderTop: "2px solid var(--border)" })}
                     </tr>
                   )}
 
@@ -946,7 +1011,7 @@ export default function FCReviewTable({
                     <tr>
                       <td style={{ ...selectCellBaseStyle, background: "var(--surface-muted)", borderBottom: "2px solid var(--border)" }} />
                       <td style={{ ...accountCellBaseStyle, background: "var(--surface-muted)", fontWeight: 700, fontSize: "0.72rem", color: "var(--muted)", letterSpacing: "0.04em", textTransform: "uppercase", padding: "0.35rem 0.5rem", borderBottom: "2px solid var(--border)" }}>Balance Sheet</td>
-                      {sortedYears.map((year) => {
+                      {withLe(sortedYears.map((year) => {
                         const isPreForecast = baseYears?.has(Number(year)) || lastActualYears?.has(Number(year));
                         return (
                           <td key={`bs-yr-${year}`} style={{
@@ -957,7 +1022,7 @@ export default function FCReviewTable({
                             {year}
                           </td>
                         );
-                      })}
+                      }))}
                     </tr>
                   )}
 
@@ -1038,7 +1103,7 @@ export default function FCReviewTable({
                         >
                           {row.label}
                         </td>
-                        {sortedYears.map((year, yearIndex) => {
+                        {withLe(sortedYears.map((year, yearIndex) => {
                           const values =
                             row.label === "Assets"
                               ? totalAssetsByYear
@@ -1086,7 +1151,7 @@ export default function FCReviewTable({
                               {formatAmount(displayValue)}
                             </td>
                           );
-                        })}
+                        }), { borderTop: isFirstBalanceRow ? sectionBorder : undefined })}
                       </tr>
                     );
                   })}
@@ -1102,6 +1167,7 @@ export default function FCReviewTable({
                   lastActualYears={lastActualYears}
                   selectCellBaseStyle={selectCellBaseStyle}
                   accountCellBaseStyle={accountCellBaseStyle}
+                  withLe={withLe}
                 />
               )}
               {/* Equity Bridge rows inside the same table */}
@@ -1119,6 +1185,7 @@ export default function FCReviewTable({
                   lastActualYears={lastActualYears}
                   selectCellBaseStyle={selectCellBaseStyle}
                   accountCellBaseStyle={accountCellBaseStyle}
+                  withLe={withLe}
                 />
               )}
             </tbody>

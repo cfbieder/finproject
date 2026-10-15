@@ -14,6 +14,7 @@ const accountsRepo = require('../repositories').accounts;
 const validate = require('../utils/validate');
 const crud = require('../../services/forecast/crud');
 const annualClose = require('../../services/forecast/annualClose'); // CR064 P2
+const budgetLeService = require('../../services/budgetLe'); // CR083 §8.1 — base-year LE reference
 const equity = require('../../services/forecast/equity'); // CR062 P2
 const variants = require('../services/forecastVariants'); // CR050
 const { moduleBodyToColumns, assertSweepEligible, isLoanBody } = require('../services/moduleWrite'); // CR084
@@ -1461,23 +1462,46 @@ router.get('/base-year-values', async (req, res, next) => {
     const scenario = await repo.findScenarioByName(scenarioName);
     if (!scenario) return res.status(404).json({ error: 'Scenario not found' });
 
-    // The base year is PeriodStart - 1, and PeriodStart lives in the assumptions doc, not
-    // on the scenarios table. It is needed so a stream whose CR046 window has not opened
-    // yet is left out of the base-year column (rent starting in 2028 is not 2026 income).
-    let baseYear = null;
-    try {
-      const doc = await assumpRepo.getDoc();
-      const entry = (doc?.scenarios || []).find((sc) => sc.Name === scenarioName);
-      const periodStart = Number(entry?.PeriodStart);
-      if (Number.isFinite(periodStart)) baseYear = periodStart - 1;
-    } catch {
-      // Fall back to no window filter rather than failing the whole request.
-    }
-
+    const baseYear = await resolveBaseYear(scenarioName);
     const values = await crud.getBaseYearValues(scenario.id, baseYear);
     res.json({ data: values });
   } catch (error) {
     console.error('[forecast/base-year-values] Failed:', error);
+    next(error);
+  }
+});
+
+// The base year is PeriodStart - 1, and PeriodStart lives in the assumptions doc, not on the
+// scenarios table. `null` when it cannot be resolved — callers then read nothing rather than
+// guess a year.
+async function resolveBaseYear(scenarioName) {
+  try {
+    const doc = await assumpRepo.getDoc();
+    const entry = (doc?.scenarios || []).find((sc) => sc.Name === scenarioName);
+    const periodStart = Number(entry?.PeriodStart);
+    return Number.isFinite(periodStart) ? periodStart - 1 : null;
+  } catch {
+    return null;
+  }
+}
+
+// GET /api/v2/forecast/base-year-le?scenario=
+// CR083 §8.1 — the latest FINALISED Latest Estimate for the scenario's base year, per FC line,
+// as a READ-ONLY reference beside the base-year (budget) column. Displayed, never summed: the
+// generation engine does not read it and nothing is stored. `{ data: null }` when no final LE
+// exists for that year.
+router.get('/base-year-le', async (req, res, next) => {
+  try {
+    const scenarioName = req.query.scenario?.trim();
+    if (!scenarioName) return res.status(400).json({ error: 'scenario is required' });
+
+    const scenario = await repo.findScenarioByName(scenarioName);
+    if (!scenario) return res.status(404).json({ error: 'Scenario not found' });
+
+    const baseYear = await resolveBaseYear(scenarioName);
+    res.json({ data: await budgetLeService.getForecastBaseYearReference(baseYear) });
+  } catch (error) {
+    console.error('[forecast/base-year-le] Failed:', error);
     next(error);
   }
 });

@@ -70,6 +70,21 @@ async function findById(id, client = db) {
   return rows[0] || null;
 }
 
+/**
+ * The most recent FINALISED LE for a year — latest cut, then latest freeze. Never a draft
+ * (still being revised) and never a superseded one (replaced by its recut). CR083 §8.1.
+ */
+async function findLatestFinal(budgetYear, client = db) {
+  const { rows } = await client.query(
+    `SELECT * FROM budget_le
+     WHERE budget_year = $1 AND status = 'final'
+     ORDER BY actual_through DESC, finalized_at DESC NULLS LAST, id DESC
+     LIMIT 1`,
+    [budgetYear]
+  );
+  return rows[0] || null;
+}
+
 async function lockById(client, id) {
   const { rows } = await client.query(`SELECT * FROM budget_le WHERE id = $1 FOR UPDATE`, [id]);
   return rows[0] || null;
@@ -450,6 +465,7 @@ module.exports = {
   leName,
   findAll,
   findById,
+  findLatestFinal,
   findLines,
   findBudgetFy,
   materialise,
