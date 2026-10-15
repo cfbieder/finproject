@@ -24,11 +24,11 @@ although that CR's row reads DRAFT.*
 | IN-PROGRESS | 2 | CR064 *(P2, the annual close — live v3.76.0; closes after the January 2027 run)*, CR097 *(P1a shipped v3.75.0)* |
 | OPEN | 0 | — |
 | PLANNED | 0 | — |
-| DRAFT | 1 | CR095 *(not yet reviewed)* |
+| DRAFT | 2 | CR095 *(not yet reviewed)*, CR098 *(not yet reviewed; needed by mid-December 2026)* |
 | DEFERRED | 0 | — |
 | SUPERSEDED | 3 | CR014, CR052 *(→ CR095)*, CR081 *(→ CR084)* |
 | OBSOLETE | 5 | CR015, CR020, CR027 *(v4)*, CR029, CR094 |
-| **Total** | **97** | |
+| **Total** | **98** | |
 
 ## All CRs
 
@@ -131,3 +131,4 @@ although that CR's row reads DRAFT.*
 | [CR095](cr-095-forecast-spend-currency-share.md) | **DRAFT (2026-09-28) — not yet reviewed** | v3 | Forecast spend that moves with the złoty | Successor to CR052: an expense stream can carry a PLN/EUR share that floats with each year's FX. About half of discretionary spend (~$203K of ~$409K) is PLN while every expense module is USD, so the Downside FX stress moves assets but never costs. |
 | [CR096](cr-096-owner-fixes-le-walk-unpair-split-card.md) | **COMPLETED** 2026-10-01 | v3 | Four owner fixes: LE walk, Unpair, Ledger transfer, Wise split card payments | An LE-to-LE walk on `/budget-le` (reversing part of CR083 §11.1), which exposed a seeding bug that dropped ~26k of typed estimates from LE-10-26 (fixed + repaired); undo for neutralize/transfer (`POST /transactions/:id/unpair`); Transfer… on Ledger; and WISE − EUR's −45.85 drift — Wise part-funding a card payment from USD is booked on both accounts (repaired, now flagged on the reconcile page). |
 | [CR097](cr-097-manual-holdings-register.md) | **IN-PROGRESS** — P1a shipped v3.75.0 (2026-10-14; menu v3.75.1, buy from cash v3.75.2); P1b, P2 open | v3 | A holdings register for manually valued accounts | A non-fed account (specimen: Misc Investments, $4,875 of crowdfunded private holdings, mostly GBP) can carry a list of holdings with typed valuations; each valuation sets the manual balance and the existing CR033 MTM books Unrealized G/L, shown split into price vs FX effect. |
+| [CR098](cr-098-budget-builder.md) | **DRAFT (2026-10-15) — not yet reviewed** | v3 | Budget builder | Next year's budget from this year's latest finalised LE: per-category Recurring / One-off / Fixed policy (remembered), the forecast's inflation and FX, accounts and months split from the last 12 actual months, then a previewed Publish that replaces the year and can be undone. Specifies CR083 P2. Needed by mid-December 2026 — the 2027 budget is `2027 Base`'s base year at the January close. |

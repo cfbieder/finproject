@@ -10,6 +10,9 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.1 Open / In-Progress
 
+<a id="cr098"></a>
+- **CR098 — Budget builder. 📋 *DRAFT 2026-10-15 — not yet reviewed*; ⏰ needed by mid-December 2026.** Builds next year's budget from the current year's latest finalised LE (per-category policy, the forecast's inflation and FX, account and month split from the last 12 actual months, previewed Publish / Un-publish replacing the year). The ten design decisions were taken with the owner one at a time on 2026-10-15. Spec: [cr-098-budget-builder.md](../cr/cr-098-budget-builder.md).
+
 <a id="cr095"></a>
 - **CR095 — Forecast spend that moves with the złoty. 📋 *DRAFT 2026-09-28 — not yet reviewed*.** Successor to CR052 (superseded the same day): about half of discretionary spend is PLN but every forecast expense module is USD, so FX stress moves assets and never costs. Spec: [cr-095-forecast-spend-currency-share.md](../cr/cr-095-forecast-spend-currency-share.md).
 
