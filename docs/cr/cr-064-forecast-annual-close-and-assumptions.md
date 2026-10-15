@@ -1,6 +1,6 @@
 # CR064 — Forecast: the annual close, the assumptions key, and the module form — IN-PROGRESS (scoped to P2)
 
-**Status:** IN-PROGRESS — **scoped down 2026-09-28 (CR close-out review) to P2, the annual close, plus the §3.3 anchor-staleness badge. Due before the January 2027 roll-forward.** Prod still has 18 modules per scenario anchored at 2025-12-31 (16 at 2026-12-31) with every scenario on `PeriodStart = 2027`; the copy route (`routes/forecast.js` scenario copy) calls `refreshModulesFromActuals` outside the copy's transaction, moves no `PeriodStart` and previews nothing. Everything else is closed — see §15.
+**Status:** IN-PROGRESS — **P2 BUILT 2026-10-15, not yet released** (§3.4): *Annual close…* on Forecast Scenarios, `services/forecast/annualClose.js`, the stale-anchor badge; no migration. It closes once the January 2027 close has been run with it. §3.1's "a year behind" premise was superseded by CR075's rule (§3.4). Everything else is closed — see §15.
 
 Three findings and four improvements that came out of one question — *"we customised the module
 form for Loan; should the other types get the same treatment?"* The answer to that question is
@@ -216,7 +216,7 @@ So the annual close is not missing. What it does not do is:
 | **In-place is unavailable** | It refuses on a variant (correct — re-basing is the base's job) and is only wired to *copy*, so rolling the year means minting a new scenario every time, and the four variants must then be re-created or re-synced. |
 | **Nothing reports staleness** | Neither the 19-month-old anchor nor the two-base-years-in-one-scenario state is surfaced anywhere. |
 
-### 3.2 Decision (owner, 2026-08-02): **keep copying, close the gaps** — not yet built
+### 3.2 Decision (owner, 2026-08-02): **keep copying, close the gaps** — built 2026-10-15 (§3.4)
 
 The first draft proposed rolling a scenario **in place**. The owner chose the other answer, and
 it is the right one for this model: minting a copy each year keeps *what I thought in 2026* as a
@@ -259,6 +259,60 @@ A badge on Forecast Review and on the Scenarios row: *"modules anchored 2025-12-
 behind this scenario's base year (2026)"*, plus a warning when one scenario carries **more than
 one** module base year, which is true of all five today. This part does not depend on the decision
 and is worth shipping either way.
+
+### 3.4 As built (2026-10-15)
+
+**A correction first.** §3.1 read "modules anchored 2025-12-31 while `PeriodStart = 2027`" as a
+defect. CR075 (2026-08-07, after this section) recorded the owner's rule: *forecast year −2 =
+ACTUAL, −1 = BUDGET, 0 = start forecast.* Under it a 2025-12-31 anchor IS correct for a
+forecast starting 2027 — the anchor is the last closed year, the base year is the budget year.
+So the close sets **`PeriodStart` = year-end + 2** and names the copy for its budget year
+(`2026 Base` closing 2026-12-31 → `2027 Base`, forecast from 2028), and the §3.3 badge fires
+only when an account-matched valued module sits before 31 Dec `PeriodStart − 2`, or when those
+modules disagree. On today's prod it fires on nothing.
+
+**The old re-base was worse than blind** (measured on prod against `2026 Base`):
+`refreshModulesFromActuals` summed only transactions posted directly on the module's account and
+skipped the opening balance, so every module on a parent account — both Fidelity modules, both
+credit-card groups, Tax Liabilities — found nothing and was silently left behind; it wrote the
+ledger value into `base_value`, the **cost basis**, so Fidelity Stocks would have gone from
+1,019,072 to 1,369,072 and every later sale's tax with it; and it valued USD as Σ historical
+`base_amount` while the engine reads a module's FX from `base_value_usd / base_value`. It is
+removed, and the copy route's `baseYear` now returns 400.
+
+**What replaced it** — `services/forecast/annualClose.js`, *Annual close…* on Forecast Scenarios:
+
+1. **Ledger values from the Balance Sheet report** (the module form's *PY Actual*): parents
+   roll up, opening balances count, Fidelity reads its feed balance, FX is the year-end rate.
+   On prod it matches 14 of the 22 valued modules of `2026 Base` to the unit.
+2. **Cost basis and market value ticked separately per module**, pre-ticked only where that
+   column matched the ledger (±1) at the module's current anchor. A hand-set figure — UB's
+   4,000,000 PLN cost, the CVC funds, Panorama Mar 4's 390,000 — stays unless ticked. A loan
+   follows its ledger in both. Every matched module moves to the close date; flow and unmatched
+   (planned) modules move their date with the period and nothing else — Sarasota House no
+   longer picks up the 1.26M balance of `US - Properties`.
+3. **`PeriodStart` moves in the same transaction**; the source scenario is untouched; an
+   existing name, a variant and a year-end that has not happened are refused.
+4. **Variants carried** (owner, 2026-10-15): each is re-created against the copy with its
+   overrides re-pointed through the copy's id map (`secured_asset_module_id` from either id
+   space). Overrides carry as they are; the preview flags the ones that pin a value (Upside's
+   20M PLN UB). Synced after commit — `syncAssumptions` writes the assumptions document on its
+   own connection and would wait on the transaction's lock. A variant with variant-only modules
+   is not carried and says so (none on prod). A variant's own pinned `PeriodStart` or
+   `base_date` shifts with the period rather than carrying as-is.
+5. **Refusals:** a variant, a scenario with no `PeriodStart`, a year-end that is not yet past,
+   and an existing name (base or variant) — the last checked before anything is written.
+
+**Verified** on a prod dump in a throwaway database: a same-year close regenerates to within $1
+of its source at 2027, 2040 and 2062, for `2026 Base` and for the carried `2026 Upside`; a
+forward close (clock set to 2027-01-15) gives `2027 Base` with `PeriodStart` 2028 and the four
+`2027 …` variants, and a second run is refused. `annualClose.test.js` (8 — incl. the loan link
+from the old variant's id space, the shifted period pin, and a rollback on a variant-name clash)
+on a fresh database; full backend suite 121/121; both themes rendered. Reviewed by the code and
+UI reviewers; their must/should-fix items are in.
+
+**Known limit:** a kept (unticked) value keeps its `*_usd` at the old rate while its date moves,
+so that module's implied FX for the base year is the previous year-end's. Unchanged from before.
 
 ---
 
@@ -940,7 +994,7 @@ Reuse, not new machinery — but nothing is *wrong* without it, which is why it 
 - **P0, P1, P3** — built, **live as v3.11.3** (P1: migration 052).
 - **P6** — built (migration 055), **live as v3.11.8**. **P7–P9, P11** — built, v3.11.8 → v3.11.13. **P12** — v3.11.15. **P13** — v3.11.16.
 - **P8's deferred regenerate** — unchanged by this close-out.
-- **P2 — OPEN, the only remaining scope** (with the §3.3 staleness badge). Due before the January 2027 close.
+- **P2 — BUILT 2026-10-15, not yet released** (§3.4, with the §3.3 badge). Closes after the January 2027 close is run with it.
 - **P4 (plan vs actual) — CLOSED, obsolete** (owner, 2026-09-28): since [CR075](cr-075-base-year-is-the-budget.md) the forecast's current year *is* the budget, so `/budget-vs-actual` ([CR088](cr-088-budget-vs-actual-le-table.md)) and the Latest Estimate ([CR083](cr-083-budget-latest-estimate.md)) answer "is this year tracking to plan".
 - **P5 (sensitivity) — CLOSED, superseded** by [CR085](cr-085-forecast-sensitivity.md).
 - **P10 (base year from the budget) — CLOSED, delivered by CR075** (base-year P&L and the sweep's opening cash read `budget_entries`); the residual relabel of module amounts to the first forecast year has no defect behind it and is dropped.
