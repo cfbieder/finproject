@@ -10,7 +10,7 @@
  *
  * Routed through the ocr-llm gateway (POST /task, task=finance_networth_narration).
  * The chain is LOCAL-ONLY by construction on their side — `ollama_heavy` →
- * `ollama_mid`, with no cloud provider declared, so there is no cloud step to
+ * `ollama_extra_heavy`, with no cloud provider declared, so there is no cloud step to
  * reach even if a caller asked for one. That fence is the reason this task
  * exists rather than reusing an existing narration task: the prompt is the
  * owner's balance sheet by named account, which is strictly more revealing than

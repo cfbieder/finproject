@@ -8,31 +8,16 @@
  * section subtotals. A model's rows are believed no more readily than a regex's.
  *
  * ⚠️ LOCAL-ONLY BY CONSTRUCTION. The task's route is
- * `ollama_heavy → ollama_mid` with no cloud step, so a holdings table — every
- * position, quantity and cost basis in a real portfolio — cannot leave the
- * Tailnet. ocr-llm verified this rather than asserting it: naming `claude` or
- * `openai` in the request's `routing` block returns 409 `routing_unsatisfiable`.
+ * `ollama_heavy` (qwen3.6) → `ollama_extra_heavy` (gemma4) with no cloud step,
+ * so a holdings table — every position, quantity and cost basis in a real
+ * portfolio — cannot leave the Tailnet. ocr-llm verified this rather than
+ * asserting it: naming `claude` or `openai` in the request's `routing` block
+ * returns 409 `routing_unsatisfiable`.
  *
- * ⚠️ `--pin-mid` is now a BULK-RUN-ONLY escape hatch, and there is no bulk run.
- * ocr-llm asked for the pin when this was 56 documents — 21 tasks lead with
- * `ollama_heavy`, Ollama serialises per model, and a 50-row statement can hold
- * that tier ~180s, long enough to blow the 85s chain deadline on health's
- * `year_in_review_narration` (whose Claude fallback is then skipped as
- * unaffordable, so it fails rather than degrades). At the real volume — ~4
- * documents a quarter — four calls queue nobody, and they RETRACTED the pin on
- * 2026-09-04 after measuring it on identical input:
+ * The request names no tier. The old `--pin-mid` bulk-run flag was removed
+ * 2026-10-15: ocr-llm's CR-028 retired the `ollama_mid` tier it pinned to.
  *
- *     ollama_heavy (default)   17.0s   37.9 tok/s   subtotals tie 3/3
- *     ollama_mid   (--pin-mid) 28.4s   20.2 tok/s   subtotals tie 3/3
- *
- * Heavy is 1.7× faster, the gap widens with prompt length (93.9s on a 9.7k-char
- * prompt), and heavy is the path they validated before shipping. Quality was
- * never the difference. So: TAKE THE DEFAULT. Put the pin back only for a
- * genuine bulk run, and remember their throughput canary cannot see contention —
- * it computes tok/s from Ollama's `eval_duration`, which excludes queue wait, so
- * a saturated tier still reports healthy.
- *
- * `--sample N` remains the way to compare tiers on a few statements first.
+ * `--sample N` runs the first N statements only.
  *
  * Requests are sequential on purpose — parallel calls queue inside Ollama
  * anyway, so concurrency buys nothing and only widens the window.
@@ -43,7 +28,6 @@
  * Usage:
  *   node Scripts/extract-statements-llm.js --sample 3
  *   node Scripts/extract-statements-llm.js                      # all failing
- *   node Scripts/extract-statements-llm.js --pin-mid            # bulk run only
  */
 
 const path = require('node:path');
@@ -59,7 +43,6 @@ const { extractText, parseFile } = require('../server/src/v2/scripts/parse-fidel
 const BASE = (process.env.LLM_GATEWAY_URL || 'https://llm-api.tail413695.ts.net').replace(/\/+$/, '');
 const KEY = process.env.OCR_LLM_CLIENT_KEY;
 const args = process.argv.slice(2);
-const PIN_MID = args.includes('--pin-mid');
 const SAMPLE = (() => { const i = args.indexOf('--sample'); return i >= 0 ? parseInt(args[i + 1], 10) : 0; })();
 const files = args.filter((a) => !a.startsWith('--') && a.endsWith('.pdf'));
 const EMIT = (() => { const i = args.indexOf('--emit'); return i >= 0 ? args[i + 1] : null; })();
@@ -130,8 +113,6 @@ async function extractOne(text, checks, timeoutMs = 720000) {
     task: 'finance_statement_extract',
     prompt: `${instructionFor(checks)}\n\n${text}`,
   };
-  // BACKFILL ONLY — see the header. Omitted for any normal call.
-  if (PIN_MID) body.routing = { provider: 'ollama_mid' };
 
   // An explicit timeout, because node's fetch has none: the first run reported
   // a bare `fetch failed` after ~300s with nothing to act on.
@@ -175,17 +156,6 @@ async function extractOne(text, checks, timeoutMs = 720000) {
   if (!res.ok) throw new Error(`gateway ${res.status}: ${(await res.text()).slice(0, 160)}`);
 
   const { response, routing } = await res.json();
-  // LLM_PROTOCOLS §5: an unsatisfiable `routing` preference is NOT an error by
-  // default — the normal chain serves it and `preference.applied` is false, so a
-  // caller that assumes it got the tier it named is the one failure the gateway
-  // cannot catch for us. Only --pin-mid sends a preference, and it exists to keep
-  // a bulk run off the tier a live extraction wants; being served by ollama_heavy
-  // instead is slower, not wrong (both tie 3/3 — see the header), so this warns
-  // rather than throws. The emitted record's `extractor.provider` is read from the
-  // attempt either way, so stored provenance is truthful regardless.
-  if (routing?.preference && routing.preference.applied === false) {
-    console.log(`      ⚠️  routing pin NOT applied (${routing.preference.reason || 'no reason given'}) — served by the task's default chain`);
-  }
   // ocr-llm: a violation still returns 200 with the best-effort body, flagged.
   // Treating it as a refusal is the whole reason this is safe to run at all.
   const violated = (routing?.degradations || []).some((d) => String(d).startsWith('schema_violation'));
@@ -279,7 +249,7 @@ async function main() {
   }
   if (SAMPLE) targets = targets.slice(0, SAMPLE);
 
-  console.log(`${targets.length} statement(s) · tier: ${PIN_MID ? 'ollama_mid (PINNED — bulk run)' : 'task default (ollama_heavy first)'}\n`);
+  console.log(`${targets.length} statement(s) · tier: task default (ollama_heavy first)\n`);
 
   const emitted = [];
   let tiedSections = 0;

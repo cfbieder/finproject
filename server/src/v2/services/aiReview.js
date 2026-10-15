@@ -10,7 +10,7 @@
  * 6. Base year actuals
  *
  * Routes through the ocr-llm gateway (POST /task, task=finance_plan_review).
- * Local-only fallback chain: ollama_heavy:qwen3.6:35b → ollama_mid:qwen3:32b.
+ * Local-only fallback chain: ollama_heavy:qwen3.6:35b → ollama_extra_heavy:gemma4:26b.
  * No public-cloud LLM in the path — financial detail stays on LAN/Tailnet.
  */
 
@@ -474,8 +474,8 @@ async function callGateway({ systemPrompt, messages, forecastContext }) {
     // exceeded 300s — 14 calls, max 147.9s, from their `api_log` — so it never
     // fired; it was latent, not active.
     // ⚠️ The second reason to raise it is worth more than the first: with heavy
-    // alone at 147.9s worst, a heavy→mid chain plausibly runs past 300s, so the
-    // `ollama_mid` fallback this task declares was close to unreachable — we
+    // alone at 147.9s worst, a two-step chain plausibly runs past 300s, so the
+    // second-step fallback this task declares was close to unreachable — we
     // would have stopped listening before the second step could finish. A
     // fallback step you cannot wait for is not a fallback.
     signal: AbortSignal.timeout(660_000),

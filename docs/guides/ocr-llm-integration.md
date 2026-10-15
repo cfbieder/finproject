@@ -72,15 +72,15 @@ you asked for (send `"on_unsatisfiable": "error"` for a `409`).
 
 > 🔴 **This page carried that rule for a day while the only caller that sends a preference ignored
 > it** (fixed 2026-09-06). `Scripts/extract-statements-llm.js` sent `routing` under `--pin-mid` and
-> read nothing back; it now warns, naming `preference.reason`. **A doc you have acked is not a doc
+> read nothing back; it then warned, naming `preference.reason`. **A doc you have acked is not a doc
 > you have applied** — when a rule here says *check field X*, grep for X before believing it holds.
-> The guard cannot fire today (`ollama_mid` is a declared step, so `applied` is always `true`); it is
-> there for a route change we do not control. Shape verified live instead — `quick_narration` steered
+> ✅ **Since 2026-10-15 no Fin caller sends a preference:** `--pin-mid` and its guard were removed when
+> ocr-llm's CR-028 retired `ollama_mid`. A new preference must bring the check back with it. Shape verified live — `quick_narration` steered
 > to `ollama_heavy`, which it does not declare, returns `200` on the default chain with
 > `{"applied": false, "reason": "not_in_route"}`. Frontier models (`deepseek`,
 `openai`, `kimi`) need four keys plus a per-client grant, **and zero grants are issued** —
 irrelevant to Fin, because **none of Fin's three tasks declares a frontier step at all** — each is
-`ollama_heavy → ollama_mid` and nothing else. (Was "neither Fin task" until 2026-09-23: written when
+`ollama_heavy → ollama_extra_heavy` and nothing else (verified live 2026-10-15; `ollama_mid` until ocr-llm's CR-028). (Was "neither Fin task" until 2026-09-23: written when
 we had two, stale from the day `finance_networth_narration` was registered on 2026-09-05.
 Re-verified 2026-09-23 against the **corrected** `TASK_CATALOG.md`, which until 2026-09-20 rendered
 opt-in-only steps as ordinary chain members — so a route printed as ending in DeepSeek was never a
@@ -108,7 +108,7 @@ you get a **413, not a fall-through**, and our chains are two local steps with n
 
 | task | caller | route | schema | `max_tokens` |
 |---|---|---|---|---|
-| `finance_plan_review` | `server/src/v2/services/aiReview.js` (AI Review + the CR040 compare narrative) | `ollama_heavy` (`qwen3.6:35b-a3b-q4_K_M`) → `ollama_mid` (`qwen3:32b`) | none — free text with embedded ` ```action ` blocks, so `schema_level` is `null` | 4096 |
+| `finance_plan_review` | `server/src/v2/services/aiReview.js` (AI Review + the CR040 compare narrative) | `ollama_heavy` (`qwen3.6:35b-a3b-q4_K_M`) → `ollama_extra_heavy` (`gemma4:26b-a4b-it-q4_K_M`) | none — free text with embedded ` ```action ` blocks, so `schema_level` is `null` | 4096 |
 | `finance_statement_extract` | `Scripts/extract-statements-llm.js` ([CR061](../cr/cr-061-holdings-and-prices.md) P2) | same | JSON `{positions:[…]}`, server-side system prefix | 8192 |
 | `finance_networth_narration` | `server/src/services/netWorthNarration.js` (`POST /v2/reports/net-worth-bridge/narration`, [CR092](../cr/cr-092-net-worth-bridge.md) P1) | same | JSON `{headline, why[{driver,note}], watch_outs[]}` — obtained `CONSTRAINED_DECODE`; five guardrails server-side | 768 (temp 0.3) |
 
@@ -119,11 +119,9 @@ strictly more revealing than the holdings table. None can leave the Tailnet. ocr
 than asserting it — naming `claude` or `openai` returns `409 routing_unsatisfiable`. The chain
 hard-fails rather than degrading to the cloud.
 
-⚠️ **Do not pin `ollama_mid`.** ocr-llm asked for the pin once, for a 56-document bulk run that no
-longer exists, then measured it away (2026-09-04, identical input): heavy **17.0s / 37.9 tok/s**
-vs mid **28.4s / 20.2 tok/s**, subtotals tie 3/3 on both — heavy is 1.7× faster and the path they
-validated, and the gap widens with prompt length. `--pin-mid` survives in the script for a future
-bulk run only.
+**No Fin caller pins a tier.** The one pin, `--pin-mid` in `extract-statements-llm.js`, was
+removed 2026-10-15: ocr-llm's CR-028 retired `ollama_mid`, so the flag would have failed. It had
+already been measured away (2026-09-04): heavy was 1.7× faster than mid with equal accuracy.
 
 ⚠️ **The gateway takes no per-request schema.** Schemas are declared per task in its catalog, so a
 new response shape needs a handoff, not a call we can make ourselves.
