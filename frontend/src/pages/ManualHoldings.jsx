@@ -85,8 +85,8 @@ export default function ManualHoldings() {
 
   return (
     <div className="page-shell mh-page">
-      <Link className="inv-back" to="/manual-calibration">
-        <ArrowLeft size={14} aria-hidden="true" /> Manual Calibration
+      <Link className="inv-back" to="/holdings">
+        <ArrowLeft size={14} aria-hidden="true" /> Holdings
       </Link>
       <header className="page-accent__header">
         <h1>{account.name}</h1>

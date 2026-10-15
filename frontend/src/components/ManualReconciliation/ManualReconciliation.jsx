@@ -377,7 +377,7 @@ The <strong>Opening</strong> column is the plug the computed balance starts from
                       does, the register is the only writer of its balance. */}
                   {(a.holdings_enabled || a.currency === "USD") && (
                     <div className="bfd-row-link">
-                      <Link to={`/investments/holdings/${a.account_id}`}>
+                      <Link to={`/holdings/${a.account_id}`}>
                         {a.holdings_enabled ? "Holdings register" : "Holdings…"}
                       </Link>
                     </div>

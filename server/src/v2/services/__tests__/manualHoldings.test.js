@@ -189,6 +189,17 @@ dbDescribe('manualHoldings (DB)', () => {
     const reg = await svc.getRegister(acctId);
     expect(reg.valuations.map((v) => [v.valued_on, v.total, v.mtm_amount]))
       .toEqual([['2026-06-30', 2240, 160], ['2026-05-31', 2080, 120]]);
+
+    // The Holdings index lists it as a register, with its latest valuation.
+    const mine = (await svc.listRegisters()).find((r) => r.id === acctId);
+    expect(mine).toMatchObject({ enabled: true, holdings: 2, last_valued_on: '2026-06-30', last_total: 2240 });
+  });
+
+  test('the Holdings index offers a non-fed USD account, and not a non-USD one', async () => {
+    await freshAccount();
+    expect((await svc.listRegisters()).find((r) => r.id === acctId)).toMatchObject({ enabled: false, holdings: 0 });
+    await freshAccount({ currency: 'PLN' });
+    expect((await svc.listRegisters()).find((r) => r.id === acctId)).toBeUndefined();
   });
 
   test('a top-up is a cost movement, not a price move', async () => {

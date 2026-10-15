@@ -104,6 +104,13 @@ function valuationError(err, res, next) {
   return next(err);
 }
 
+// The Holdings index (nav entry): registers first, then accounts that could carry one.
+router.get('/', async (req, res, next) => {
+  try {
+    res.json({ data: await svc.listRegisters() });
+  } catch (err) { next(err); }
+});
+
 router.get('/:accountId', async (req, res, next) => {
   try {
     res.json({ data: await svc.getRegister(accountIdOf(req)) });

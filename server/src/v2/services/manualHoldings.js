@@ -75,6 +75,7 @@ async function loadAccount(q, accountId, { lock = false } = {}) {
 /** Why this account cannot carry a register, or null. Re-checked on every save. */
 function ineligibility(a) {
   if (a.section !== 'balance_sheet') return 'not a balance-sheet account';
+  if (a.account_type !== 'asset') return 'a liability — a register lists what an account holds';
   if (a.is_fed) return 'on a bank feed — its positions come from the feed';
   if (a.currency !== 'USD') return `account currency is ${a.currency}; P1a registers USD accounts only`;
   return null;
@@ -289,6 +290,35 @@ async function deleteHolding(accountId, holdingId) {
     await client.query(`DELETE FROM securities WHERE id = $1`, [cur.security_id]);
     return { id: holdingId, deleted: true };
   });
+}
+
+/**
+ * The Holdings index: every non-fed balance-sheet leaf account, with whether it
+ * carries a register (and its last valuation) or could carry one in P1a.
+ * Ineligible accounts are left out — the list is for what can be opened.
+ */
+async function listRegisters() {
+  const rows = (await db.query(
+    `SELECT a.id, a.name, a.currency, a.manual_holdings_enabled AS enabled,
+            (SELECT COUNT(*)::int FROM manual_holdings h WHERE h.account_id = a.id) AS holdings,
+            v.polled_on::text AS last_valued_on, v.sum_market_value AS last_total
+       FROM accounts a
+       LEFT JOIN LATERAL (
+         SELECT polled_on, sum_market_value FROM security_position_snapshots s
+          WHERE s.account_id = a.id AND s.source = $1
+          ORDER BY polled_on DESC LIMIT 1
+       ) v ON TRUE
+      WHERE a.section = 'balance_sheet' AND a.account_type = 'asset'
+        AND COALESCE(a.is_active, TRUE)
+        AND NOT EXISTS (SELECT 1 FROM accounts ch WHERE ch.parent_id = a.id)
+        AND NOT EXISTS (
+          SELECT 1 FROM account_source_mappings asm
+           WHERE asm.source = 'bank-feed' AND asm.account_id = a.id AND asm.ignored IS NOT TRUE)
+        AND (a.manual_holdings_enabled OR a.currency = 'USD')
+      ORDER BY a.manual_holdings_enabled DESC, a.name`,
+    [SNAPSHOT_SOURCE]
+  )).rows;
+  return rows.map((r) => ({ ...r, last_total: num(r.last_total) }));
 }
 
 /** The register page: account, holdings with their latest valued figures, valuation list. */
@@ -663,7 +693,7 @@ async function deleteValuation(accountId, valuedOn) {
 }
 
 module.exports = {
-  enableRegister, disableRegister, getRegister,
+  enableRegister, disableRegister, getRegister, listRegisters,
   createHolding, updateHolding, deleteHolding,
   previewValuation, saveValuation, deleteValuation,
   KINDS, STATUSES, ASSET_CLASSES, FX_STALE_DAYS,

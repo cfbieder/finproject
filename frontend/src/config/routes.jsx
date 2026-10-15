@@ -56,6 +56,7 @@ const NetWorthDrivers = lazy(() => import("../pages/NetWorthDrivers"));
 const Investments = lazy(() => import("../pages/Investments"));
 const InvestmentAccount = lazy(() => import("../pages/InvestmentAccount"));
 const ManualHoldings = lazy(() => import("../pages/ManualHoldings"));
+const HoldingsIndex = lazy(() => import("../pages/HoldingsIndex"));
 const InvestmentExposure = lazy(() => import("../pages/InvestmentExposure"));
 const InvestmentIncome = lazy(() => import("../pages/InvestmentIncome"));
 const InvestmentRisk = lazy(() => import("../pages/InvestmentRisk"));
@@ -205,6 +206,24 @@ export const routes = [
     category: "Transactions",
     description: "Calibrate non-fed account balances by entering the current balance by hand",
     icon: Wallet,
+  },
+  {
+    // CR097 — accounts valued by a list of what they hold. The nav entry lists
+    // them; each register is deep-linkable below, out of the nav.
+    path: "/holdings",
+    component: HoldingsIndex,
+    label: "Holdings",
+    category: "Transactions",
+    description: "Holdings registers: what a manually valued account holds, revalued by date",
+    icon: Layers,
+  },
+  {
+    path: "/holdings/:accountId",
+    component: ManualHoldings,
+    label: "Holdings Register",
+    category: "Transactions",
+    showInNav: false,
+    icon: Layers,
   },
   {
     path: "/manual-entry",
@@ -621,16 +640,6 @@ export const routes = [
     path: "/investments/positions/:accountId",
     component: InvestmentAccount,
     label: "Investment Positions",
-    category: "Investments",
-    showInNav: false,
-    icon: Layers,
-  },
-  {
-    // CR097 — the holdings register of a manually valued account. Reached from
-    // Manual Calibration and the Ledger, per account, so it has no nav entry.
-    path: "/investments/holdings/:accountId",
-    component: ManualHoldings,
-    label: "Holdings Register",
     category: "Investments",
     showInNav: false,
     icon: Layers,

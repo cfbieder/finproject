@@ -216,7 +216,7 @@ export default function Ledger() {
     try {
       const accounts = await Rest.fetchAccountsV2({ activeOnly: true, leafOnly: true });
       const acct = accounts.find((a) => a.name === selectedAccount);
-      if (acct) navigate(`/investments/holdings/${acct.id}`);
+      if (acct) navigate(`/holdings/${acct.id}`);
       else showErrorToast(`Account not found: ${selectedAccount}`);
     } catch (e) {
       showErrorToast(e.message);
