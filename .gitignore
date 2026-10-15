@@ -3,6 +3,12 @@ mongo_data/
 mongo_backups/
 .env
 .env-cmdrc
+# Backups / variants of either (e.g. .env.pre-cr027-…, .env-cmdrc.pre-…) — they hold real
+# secrets, and an untracked one under server/ blocks deploy-to-production.sh's dirty-tree check.
+.env.*
+.env-cmdrc.*
+!.env.example
+!.env-cmdrc.example
 .DS_Store
 old/
 components/data/.temp/

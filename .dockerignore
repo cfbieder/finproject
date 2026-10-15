@@ -16,3 +16,8 @@ mongo_data
 .env
 .env.local
 .env.*.local
+# The build context is the repo root, so server/.dockerignore is never read: without these,
+# `COPY server ./server` shipped server/.env-cmdrc (dev env-cmd config, a DATABASE_URL) into the
+# prod image. Prod reads env from compose; nothing in the image loads these files.
+# frontend/.env is deliberately NOT excluded — the Vite build reads VITE_APP_VERSION from it.
+server/.env*
