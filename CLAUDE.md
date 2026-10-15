@@ -28,7 +28,7 @@ Update only what the change touches (rules: `docs/documentation-standard.md`):
 
 ## Integration with ocr-llm
 AI Review uses the local LLM gateway (pinned contract **v1**, base URL
-`http://100.66.213.40:8080` via Tailscale). Before non-trivial gateway API work, follow
+`https://llm-api.tail413695.ts.net` — `llm0`, Tailscale service; moved off `llm1` 2026-10-14, fleet CR-027). Before non-trivial gateway API work, follow
 `docs/guides/ocr-llm-integration.md` (pull ocr-llm, fetch live spec). **A `SessionStart` hook asks
 their server what we owe** (`.claude/hooks/handoff-inbox.sh`, installed 2026-09-08) — read what it
 printed before starting; silence means the inbox was empty *and* their checkout was current, and

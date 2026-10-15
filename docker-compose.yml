@@ -46,7 +46,7 @@ services:
       ACCOUNT_NAMES_PATH: ../../components/data/account_names.json
       CATEGORY_NAMES_PATH: ../../components/data/category_names.json
       COA_PATH: ../../components/data/coa.json
-      LLM_GATEWAY_URL: ${LLM_GATEWAY_URL:-http://192.168.1.61:8080}
+      LLM_GATEWAY_URL: ${LLM_GATEWAY_URL:-https://llm-api.tail413695.ts.net}
       # CR-020 (ocr-llm): client identity. Mapped explicitly — this service uses
       # an `environment:` block, so a value sitting in .env alone never reaches
       # the container. The empty default no longer means "unchanged behaviour":

@@ -242,7 +242,7 @@ async function narrateNetWorthBridge(data, { meta: bridgeMeta } = {}) {
     return { narration: null, meta: { available: false, reason: 'tie-failed' } };
   }
 
-  const gatewayUrl = process.env.LLM_GATEWAY_URL || 'http://192.168.1.61:8080';
+  const gatewayUrl = process.env.LLM_GATEWAY_URL || 'https://llm-api.tail413695.ts.net';
 
   // The pair or nothing — an id sent without a matching key is discarded, and
   // `CLIENT_AUTH_MODE=enforce` has been live since 2026-08-31. Fail on the

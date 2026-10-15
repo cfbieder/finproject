@@ -21,8 +21,10 @@
 | First-time wiring of an AI feature | `Documentation/Guides/AI_IMPLEMENTATION_GUIDE.md` |
 | How ocr-llm talks to us | `HANDOFFS.md` (+ `handoffs/handoffs.json`, its structured twin) |
 
-- **Base URL:** `http://100.66.213.40:8080` (Tailscale) · `http://192.168.1.61:8080` (LAN — the
-  compose default for `LLM_GATEWAY_URL`, since both stacks run on 192.168.1.87).
+- **Base URL:** `https://llm-api.tail413695.ts.net` (Tailscale service on `llm0`; the compose and code default for
+  `LLM_GATEWAY_URL` since 2026-10-15). ⚠️ The gateway left `llm1` (`192.168.1.61` / `100.66.213.40`) on
+  2026-10-14 (fleet CR-027); that address is a temporary forwarder being removed. `OCR_LLM_BASE_URL` in
+  `.env` must also name it — the client-kit `handoff` hook defaults to the old address.
 - **Pinned contract version:** **v1** (`contracts/v1/`; additive changes logged in its
   `CHANGELOG.md`, breaking ones get a new `v{N+1}`). All six client repos pin v1.
 
@@ -275,7 +277,7 @@ and CI both enforce the pair).
 2. **Read what the SessionStart hook printed** (above) — it replaces the old "read the tail of
    `HANDOFFS.md` by hand" step rather than sitting beside it, so the manual habit cannot quietly
    stay the real one. Re-run the CLI if the session is long.
-3. Fetch the live spec: `curl -s http://100.66.213.40:8080/contracts/v1/gateway`
+3. Fetch the live spec: `curl -s https://llm-api.tail413695.ts.net/contracts/v1/gateway`
    — ⚠️ `/contracts` is **no longer exempt from auth** (2026-08-29): send both headers.
    `GET /task/routes` is still public and reports each task's `route[]`, `context_types` and
    `opt_in_only` steps.

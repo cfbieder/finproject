@@ -418,7 +418,7 @@ function fmt(v) {
  * User:/Assistant: transcript and end with an "Assistant:" cue.
  */
 async function callGateway({ systemPrompt, messages, forecastContext }) {
-  const gatewayUrl = process.env.LLM_GATEWAY_URL || "http://192.168.1.61:8080";
+  const gatewayUrl = process.env.LLM_GATEWAY_URL || "https://llm-api.tail413695.ts.net";
 
   const lines = ["--- FORECAST DATA ---", forecastContext, "", "--- CONVERSATION ---"];
   for (const m of messages) {

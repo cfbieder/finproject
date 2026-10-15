@@ -56,7 +56,7 @@ for (const line of fs.readFileSync(path.join(__dirname, '..', '.env'), 'utf8').s
 
 const { extractText, parseFile } = require('../server/src/v2/scripts/parse-fidelity-holdings');
 
-const BASE = (process.env.LLM_GATEWAY_URL || 'http://192.168.1.61:8080').replace(/\/+$/, '');
+const BASE = (process.env.LLM_GATEWAY_URL || 'https://llm-api.tail413695.ts.net').replace(/\/+$/, '');
 const KEY = process.env.OCR_LLM_CLIENT_KEY;
 const args = process.argv.slice(2);
 const PIN_MID = args.includes('--pin-mid');
