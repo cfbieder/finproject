@@ -47,6 +47,7 @@ import { exportForecastReview } from "../features/Forecast/utils/fcReviewWorkboo
 import { TrendingUp, TrendingDown, DollarSign, Landmark } from "lucide-react";
 import Rest from "../js/rest.js";
 import FCStepNav from "../features/Forecast/FCStepNav.jsx";
+import FCAnchorBadge from "../features/Forecast/FCAnchorBadge.jsx"; // CR064 §3.3
 import "./PageLayout.css";
 import "./FCReview.css";   // CR079 — the real-terms control and banner
 
@@ -1664,6 +1665,7 @@ export default function FCReview() {
           onCashSweepClick={handleCashSweepClick}
           cashSweepDisabled={!selectedScenario}
         />
+        <FCAnchorBadge scenarioName={selectedScenario} />
         {/* CR079 — the real-terms control, and the banner that stops the state being misread.
             A toggle that can be left on is a toggle that gets screenshotted in the wrong state,
             so the BASIS is declared where the numbers are, not only where it is set — the same

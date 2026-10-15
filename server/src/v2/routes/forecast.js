@@ -13,6 +13,7 @@ const repo = require('../repositories').forecast;
 const accountsRepo = require('../repositories').accounts;
 const validate = require('../utils/validate');
 const crud = require('../../services/forecast/crud');
+const annualClose = require('../../services/forecast/annualClose'); // CR064 P2
 const equity = require('../../services/forecast/equity'); // CR062 P2
 const variants = require('../services/forecastVariants'); // CR050
 const { moduleBodyToColumns, assertSweepEligible, isLoanBody } = require('../services/moduleWrite'); // CR084
@@ -503,19 +504,61 @@ router.post('/scenarios/byname/:name/copy', async (req, res, next) => {
       return res.status(404).json({ error: 'Source scenario not found' });
     }
 
-    const newScenario = await repo.copyScenario(sourceScenario.id, newName);
-
-    // If refreshFromActuals is set, update module base values from latest actuals
-    const baseYear = req.body.baseYear || null;
-    if (baseYear) {
-      const asOfDate = `${baseYear}-12-31`;
-      const rowCount = await crud.refreshModulesFromActuals(newScenario.id, asOfDate);
-      console.log(`[copy] Updated ${rowCount} modules with ${baseYear} actuals`);
+    // CR064 P2 — re-basing from actuals moved to the annual close below, which previews first.
+    // The `baseYear` this route used to take re-based blindly; refuse it rather than ignore it.
+    if (req.body.baseYear) {
+      return res.status(400).json({ error: 'Re-basing from actuals is the annual close: POST /scenarios/:id/annual-close' });
     }
+
+    const newScenario = await repo.copyScenario(sourceScenario.id, newName);
 
     res.status(201).json({ success: true, data: newScenario });
   } catch (error) {
     console.error('[forecast/scenarios/byname/copy] Failed:', error);
+    next(error);
+  }
+});
+
+// ============================================================================
+// The annual close (CR064 P2) — copy a base into next year's, re-anchored, with its variants
+// ============================================================================
+
+// GET /api/v2/forecast/scenarios/anchors — §3.3: each scenario's module anchors vs its base year
+router.get('/scenarios/anchors', async (req, res, next) => {
+  try {
+    res.json({ data: await annualClose.anchorStatus() });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/v2/forecast/scenarios/:id/annual-close?asOfDate=YYYY-12-31 — read-only preview
+router.get('/scenarios/:id/annual-close', async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ error: 'Invalid scenario id' });
+    res.json({ data: await annualClose.previewAnnualClose(id, req.query.asOfDate) });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    next(error);
+  }
+});
+
+// POST /api/v2/forecast/scenarios/:id/annual-close — { newName, asOfDate, rollBase[], rollMarket[], variantNames{} }
+router.post('/scenarios/:id/annual-close', async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ error: 'Invalid scenario id' });
+    const { newName, asOfDate, rollBase, rollMarket, variantNames } = req.body || {};
+    const data = await annualClose.runAnnualClose(id, {
+      newName, asOfDate,
+      rollBase: Array.isArray(rollBase) ? rollBase : [],
+      rollMarket: Array.isArray(rollMarket) ? rollMarket : [],
+      variantNames: variantNames && typeof variantNames === 'object' ? variantNames : {},
+    });
+    res.status(201).json({ data });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
     next(error);
   }
 });

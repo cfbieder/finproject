@@ -40,6 +40,7 @@ export default function FCScenariosSelect({
   setSweepHigh,
   makeDefaultScenario,
   onCopyScenario,
+  onAnnualClose,
   hasPendingChanges,
 }) {
   // Disable controls when loading, no data, or errors
@@ -252,6 +253,19 @@ export default function FCScenariosSelect({
             >
               <span className="fc-scenarios-button-icon">📋</span>
               Copy
+            </button>
+            {/* CR064 P2 — the annual close: a copy re-anchored at a year-end, previewed first. */}
+            <button
+              type="button"
+              className="fc-scenarios-action-button"
+              onClick={onAnnualClose}
+              disabled={!canDeleteScenario || isLoading || hasPendingChanges}
+              title={hasPendingChanges
+                ? "Commit or reload your changes first — the close copies what is saved"
+                : "Roll this base into next year's: re-anchor at the year-end, carry its variants"}
+            >
+              <span className="fc-scenarios-button-icon">📅</span>
+              Annual close…
             </button>
             <button
               type="button"

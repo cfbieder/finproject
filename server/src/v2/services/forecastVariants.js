@@ -646,7 +646,7 @@ function resolveSweepFlags(resolved) {
     //
     // The route refuses an ineligible rank on the way in, but that guard is bypassed by every
     // non-form writer — sync writes raw SQL, `copyScenario` derives its columns from
-    // `information_schema`, `refreshModulesFromActuals` is one set-based UPDATE. A variant can
+    // `information_schema`, the annual close (CR064 P2) re-anchors in raw SQL. A variant can
     // therefore override `has_valuation` or `market_value` and produce a rank that is invalid
     // only AFTER the merge. Deriving is deliberate and is this file's existing choice: a
     // constraint would throw mid-build, and `syncIfStale` runs at the top of every variant's
@@ -906,8 +906,8 @@ async function syncAssumptions(c, { variant, baseId, overrides }) {
 // Interception lives at the REPOSITORY, not the route, because `PATCH /modules/bulk-update` and
 // any future caller reach the same `repo.updateModule`. The two paths that bypass the repository
 // entirely — `crud.replaceModuleSchedules` / `replaceIncExpChanges` (schedules) and
-// `crud.refreshModulesFromActuals` (a set-based UPDATE across the whole scenario) — are handled
-// by `interceptSchedules` and by an outright refusal, respectively.
+// the annual close (`services/forecast/annualClose.js`, CR064 P2) — are handled by
+// `interceptSchedules` and by an outright refusal (the close runs on a base only), respectively.
 // ---------------------------------------------------------------------------
 
 /** True when this row is a variant's INHERITED row (so a write to it means "override"). */

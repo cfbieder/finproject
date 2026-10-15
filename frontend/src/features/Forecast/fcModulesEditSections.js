@@ -487,8 +487,8 @@ export const RESIDUE_EXEMPT = new Set([
   // form: it supplies Type and Currency defaults at creation and marks the account as taken in the
   // add-from-actuals picker. The residue rule is about a value the form hides and something still
   // READS as this module's own; this one is a pointer used elsewhere, not a hidden assumption.
-  // (`refreshModulesFromActuals` also joins on it to write base_value/base_date onto flow modules,
-  //  which is the annual-close hazard recorded in §4 — tracked there, not papered over here.)
+  // (The old `refreshModulesFromActuals` joined on it and wrote ledger sums onto flow modules;
+  //  its replacement, CR064 P2's annual close, moves only a flow module's date.)
   "Account",
 ]);
 

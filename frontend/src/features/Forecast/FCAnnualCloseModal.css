@@ -1,0 +1,74 @@
+/* CR064 P2 — the annual close preview. Tokens only; colour means sign (negative red, else ink). */
+.fc-annual-close { font-size: 0.9rem; color: var(--ink); }
+
+.fc-annual-close__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+.fc-annual-close__controls label,
+.fc-annual-close__variant label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.fc-annual-close__variant label { flex-direction: row; align-items: center; gap: 0.5rem; }
+.fc-annual-close__controls input,
+.fc-annual-close__controls select,
+.fc-annual-close__variant input {
+  font-size: 0.9rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.fc-annual-close__period { margin: 0; color: var(--ink); }
+
+.fc-annual-close__heading { margin: var(--space-md) 0 var(--space-sm); font-size: 0.95rem; }
+
+.fc-annual-close__table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.fc-annual-close__table th,
+.fc-annual-close__table td {
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+  white-space: nowrap;
+}
+.fc-annual-close__table th:first-child,
+.fc-annual-close__table td:first-child,
+.fc-annual-close__table td:last-child,
+.fc-annual-close__table th:last-child { text-align: left; }
+.fc-annual-close__table td:last-child { white-space: normal; }
+.fc-annual-close__table th { color: var(--muted); font-weight: 600; }
+.fc-annual-close__table tbody tr:nth-child(even) { background: var(--surface-muted); }
+
+.fc-annual-close__neg { color: var(--danger); }
+.fc-annual-close__muted { color: var(--muted); font-size: 0.8rem; }
+/* Warning TEXT stays ink for contrast in light mode; the ⚠ marker carries the colour. */
+.fc-annual-close__warn { color: var(--ink); }
+.fc-annual-close__marker { color: var(--warning); }
+.fc-annual-close__footer-error { margin-right: auto; align-self: center; }
+.fc-annual-close__error { color: var(--danger); }
+
+.fc-annual-close__details { margin: var(--space-sm) 0; }
+.fc-annual-close__details summary { cursor: pointer; color: var(--muted); }
+
+.fc-annual-close__variant { margin-bottom: var(--space-sm); }
+.fc-annual-close__variant ul { margin: 0.25rem 0 0 1rem; padding: 0; font-size: 0.8rem; }
+
+/* CR064 §3.3 — the stale-anchor badge (Scenarios and Review). Renders nothing when current. */
+.fc-anchor-badge {
+  margin: var(--space-sm) 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--warning);
+  border-radius: 6px;
+  background: var(--surface-muted);
+  color: var(--ink);
+  font-size: 0.85rem;
+}
+.fc-anchor-badge__dates { color: var(--muted); }

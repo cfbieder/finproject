@@ -27,54 +27,6 @@ async function lookupAccountByName(name) {
 }
 
 /**
- * Refresh every module's base value (book) from year-end actuals in ONE
- * set-based statement (used by scenario copy with refreshFromActuals). Returns
- * the number of modules updated.
- *
- * base_amount is always in USD (base_currency); local-currency balance is the
- * sum of t.amount filtered to txs in the account's currency. market_value is
- * left as carried over from the source — broker-reported MV cannot be derived
- * from the ledger. Modules whose account has no transactions keep their copied
- * values.
- */
-async function refreshModulesFromActuals(scenarioId, asOfDate) {
-  // CR050: this is a set-based UPDATE across every module in the scenario — it bypasses
-  // repo.updateModule entirely, so on a variant it would write rows the next sync silently
-  // erases. Re-basing from ledger actuals is the BASE scenario's job; a variant inherits the
-  // result. Refuse rather than lose the write.
-  await variants.assertNotVariant(scenarioId, 'Refresh from actuals');
-
-  // CR062 — a LOAN opts IN to the market-value refresh, and it is the one module
-  // type that should. The exclusion above exists because broker-reported MV cannot
-  // be derived from a cash ledger; a loan's outstanding balance is the exact
-  // opposite — the mortgage account's ledger balance IS what is owed. Leaving it
-  // out would re-base `base_value` around a stale outstanding, which is the number
-  // every projected year starts from.
-  const result = await db.query(`
-    UPDATE forecast_modules m
-    SET base_value = COALESCE(b.balance_lc, 0),
-        base_value_usd = COALESCE(b.balance_usd, 0),
-        market_value = CASE WHEN m.loan_interest_rate IS NOT NULL
-                            THEN COALESCE(b.balance_lc, 0) ELSE m.market_value END,
-        market_value_usd = CASE WHEN m.loan_interest_rate IS NOT NULL
-                                THEN COALESCE(b.balance_usd, 0) ELSE m.market_value_usd END,
-        base_date = $2,
-        updated_at = NOW()
-    FROM (
-      SELECT a.id AS account_id,
-        SUM(CASE WHEN t.currency = a.currency THEN t.amount ELSE 0 END) AS balance_lc,
-        SUM(t.base_amount) AS balance_usd
-      FROM transactions t
-      JOIN accounts a ON t.account_id = a.id
-      WHERE t.transaction_date <= $2
-      GROUP BY a.id
-    ) b
-    WHERE m.scenario_id = $1 AND m.account_id = b.account_id
-  `, [scenarioId, asOfDate]);
-  return result.rowCount;
-}
-
-/**
  * All modules across every scenario, joined with account + scenario names
  * (the GET /modules branch with no scenario filter).
  */
@@ -569,7 +521,6 @@ async function getOpeningBankCash(client, asOfDate) {
 module.exports = {
   getOpeningBankCash,
   lookupAccountByName,
-  refreshModulesFromActuals,
   listAllModulesRaw,
   findCashSweepPriorityClash,
   clearOtherCashSweepTargets,

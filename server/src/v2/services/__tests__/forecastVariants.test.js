@@ -15,6 +15,7 @@
 const variants = require('../forecastVariants');
 const repo = require('../../repositories/forecast');
 const crud = require('../../../services/forecast/crud');
+const annualClose = require('../../../services/forecast/annualClose'); // CR064 P2
 const assumpRepo = require('../../repositories/forecastAssumptions');
 const db = require('../../db');
 
@@ -455,11 +456,9 @@ dbDescribe('forecastVariants (DB)', () => {
     await variants.clearOverride(variantId, 'module', baseModA);
   });
 
-  test('refresh-from-actuals is refused on a variant rather than silently erased', async () => {
-    // A set-based UPDATE across the scenario: it bypasses repo.updateModule entirely, so the next
-    // sync would wipe it. Re-basing from the ledger is the BASE's job.
-    await expect(crud.refreshModulesFromActuals(variantId, '2025-12-31')).rejects.toThrow(/not available on a variant/i);
-    await expect(crud.refreshModulesFromActuals(baseId, '2025-12-31')).resolves.toBeDefined();
+  test('the annual close is refused on a variant — re-basing is the BASE\'s job', async () => {
+    // CR064 P2 replaced refresh-from-actuals; a variant comes across WITH its base's close.
+    await expect(annualClose.previewAnnualClose(variantId, '2025-12-31')).rejects.toThrow(/runs on a base scenario/i);
   });
 
   // -------------------------------------------------------------------------
@@ -851,7 +850,7 @@ describe('CR064 — rowInheritance carries the base id', () => {
 //
 // The route refuses an ineligible rank on the way in, but every non-form writer bypasses that:
 // sync writes raw SQL, copyScenario derives its columns from information_schema,
-// refreshModulesFromActuals is one set-based UPDATE. A variant can therefore override
+// the annual close re-anchors in raw SQL. A variant can therefore override
 // has_valuation or market_value and produce a rank that is invalid only AFTER the merge.
 //
 // DERIVED, not thrown: syncIfStale runs at the top of every variant's build, so a constraint

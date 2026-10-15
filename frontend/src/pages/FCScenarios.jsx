@@ -29,6 +29,8 @@ import FCScenariosTable from "../features/Forecast/FCScenariosTable.jsx";
 import FCVariantPanel from "../features/Forecast/FCVariantPanel.jsx";
 import FCScenariosModal from "../features/Forecast/FCScenariosModal.jsx";
 import FCConfirmDeleteModal from "../features/Forecast/FCConfirmDeleteModal.jsx";
+import FCAnnualCloseModal from "../features/Forecast/FCAnnualCloseModal.jsx"; // CR064 P2
+import FCAnchorBadge from "../features/Forecast/FCAnchorBadge.jsx"; // CR064 §3.3
 import { useToast } from "../contexts";
 import Rest from "../js/rest.js";
 import FCStepNav from "../features/Forecast/FCStepNav.jsx";
@@ -79,6 +81,10 @@ export default function FCScenarios() {
 
   /** Modal state for various dialogs (edit, delete, commit) */
   const [modalState, setModalState] = useState({ type: null, payload: null });
+
+  /** CR064 P2 — the annual close dialog: { id, name } of the base being closed, or null */
+  const [annualClose, setAnnualClose] = useState(null);
+  const [anchorRefresh, setAnchorRefresh] = useState(0);
 
   /** Current calendar year for date calculations */
   const currentYear = new Date().getFullYear();
@@ -857,13 +863,12 @@ export default function FCScenarios() {
       // through the API alone produced a scenario with 0% inflation and no period, and the
       // engine would build it anyway. One copy path, server-side, inside one transaction.
 
-      // Copy modules and inc/exp entries via the v2 backend API
-      // If refreshBaseYear is set, update module base values from actuals
+      // Copy modules and inc/exp entries via the v2 backend API. Re-basing from actuals is the
+      // annual close's job now (CR064 P2), which previews before it writes.
       const encoded = encodeURIComponent(sourceScenario);
-      const refreshBaseYear = modalState.payload?.refreshBaseYear || null;
       await Rest.fetchJson(`/api/v2/forecast/scenarios/byname/${encoded}/copy`, {
         method: "POST",
-        body: JSON.stringify({ newScenarioName, baseYear: refreshBaseYear }),
+        body: JSON.stringify({ newScenarioName }),
         headers: { "Content-Type": "application/json" },
       });
 
@@ -889,6 +894,35 @@ export default function FCScenarios() {
       showErrorToast(error.message || "Failed to copy scenario");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  /** CR064 P2 — open the annual close for the selected base (the dialog needs its id). */
+  const openAnnualClose = async () => {
+    try {
+      const list = await Rest.get("/forecast/scenarios?activeOnly=false");
+      const row = (list.data || []).find((s) => s.name === selectedScenario);
+      if (!row) throw new Error(`Scenario "${selectedScenario}" not found`);
+      setAnnualClose({ id: row.id, name: row.name });
+    } catch (error) {
+      showErrorToast(error.message || "Could not open the annual close");
+    }
+  };
+
+  const onAnnualCloseDone = async (result) => {
+    setAnnualClose(null);
+    await reloadDefaults();
+    setSelectedScenario(result.scenario.name);
+    setAnchorRefresh((n) => n + 1);
+    const carried = result.carried.map((v) => v.name).join(", ");
+    showSuccess(
+      `Created "${result.scenario.name}" (forecast from ${result.periodStart})` +
+      (carried ? ` with ${carried}` : "") +
+      (result.notCarried.length ? ` — not carried: ${result.notCarried.map((v) => v.name).join(", ")}` : "")
+    );
+    const failed = result.carried.filter((v) => v.syncError);
+    if (failed.length) {
+      showErrorToast(`Sync failed for ${failed.map((v) => v.name).join(", ")} — it retries when the variant is opened or built`);
     }
   };
 
@@ -933,8 +967,19 @@ export default function FCScenarios() {
           setSweepHigh={updateSweepHigh}
           makeDefaultScenario={makeDefaultScenario}
           onCopyScenario={openCopyScenarioModal}
+          onAnnualClose={openAnnualClose}
           hasPendingChanges={hasPendingChanges}
         />
+        <FCAnchorBadge scenarioName={isNewScenario ? "" : selectedScenario} refreshKey={anchorRefresh} />
+        {annualClose && (
+          <FCAnnualCloseModal
+            scenarioId={annualClose.id}
+            scenarioName={annualClose.name}
+            existingNames={scenarios.map((s) => s.Name)}
+            onClose={() => setAnnualClose(null)}
+            onDone={onAnnualCloseDone}
+          />
+        )}
 
         {/* CR050 — lineage and the override set. On a plain scenario it offers "create a variant";
             on a variant it IS the scenario's definition ("Base, except these three things"), with

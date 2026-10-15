@@ -239,9 +239,11 @@ async function copyChildColumns(client = db) {
  *   hidden from every scenario list and swept once stale. Set by the callers that create a copy
  *   to build against and delete: CR084's preview harness and CR053's auto-adjust solver. A copy
  *   the OWNER asked for is never scratch, which is why this defaults to false.
+ * @param {object} [opts.client]  run inside the caller's transaction (CR064 P2's annual close)
+ * @param {Map} [opts.idMapOut]  filled with source module id → copy module id
  */
-async function copyScenario(sourceId, newName, { isScratch = false } = {}) {
-  return await db.transaction(async (client) => {
+async function copyScenario(sourceId, newName, { isScratch = false, client: outer = null, idMapOut = null } = {}) {
+  const run = async (client) => {
     // Create new scenario
     const source = await client.query('SELECT * FROM forecast_scenarios WHERE id = $1', [sourceId]);
     if (source.rows.length === 0) throw new Error('Source scenario not found');
@@ -430,10 +432,13 @@ async function copyScenario(sourceId, newName, { isScratch = false } = {}) {
       );
     }
 
+    if (idMapOut) for (const [from, to] of idMap) idMapOut.set(from, to);
+
     // Return the target scenario
     const result = await client.query('SELECT * FROM forecast_scenarios WHERE id = $1', [newId]);
     return result.rows[0];
-  });
+  };
+  return outer ? run(outer) : db.transaction(run);
 }
 
 // ============================================================================
