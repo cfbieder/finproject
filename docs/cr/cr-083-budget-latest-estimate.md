@@ -1743,3 +1743,38 @@ cheap test CR081 skipped.
     The repository is unchanged, so the lifecycle suites still build multi-draft fixtures.
 - **P1** (the advisory's accept path, `TRAIL_3`/`ZERO`, drift **L2**) and **P2** (§11.4's seed-next-
   year, still not specified enough to schedule).
+
+## 18. Post-close addition, 2026-10-15 — §8.1's reference column is built
+
+This CR stays **COMPLETED**; this is an addition after the close, not a reopening. Owner decision
+2026-10-15: build §8.1's read-only Latest Estimate column on Forecast Review first, and it must move
+no forecast numbers. It was part of the P2 row in §11; P2's seed-next-year stays in the backlog.
+
+- **What it shows.** On `/forecast-review`, right after the base-year (budget) column, a column
+  headed with the LE's name (`LE-09-26`, "(reference)", muted, dashed borders, italic figures). It
+  holds one figure per FC line and the P&L total on the Cash Flow row. A note above the table reads
+  *"Base year 2026: (137,527) (budget) · LE-09-26 says (74,550) (+62,977)"*, and adds what no FC
+  line covers.
+- **Which LE.** The latest **final** LE for PeriodStart − 1: latest cut, then latest freeze. Never a
+  draft and never a superseded one. With none, there is no column and no note.
+- **How it is summed.** Through the base year's own FC-line CTE. That CTE is now one string,
+  `FC_LINE_LEAVES_CTE` in `services/forecast/crud.js`, shared by `getBaseYearValues` and the new
+  `getBaseYearLeValues`, so the two columns cannot disagree about which categories a line covers.
+  It honours the LE's own `excluded_category_ids` snapshot (§2, §7.1), not the live
+  `is_transfer` flag. It sums `base_amount` as stored, which is the §5 mixed basis the grid
+  already uses; there is no conversion.
+- **Endpoint.** `GET /api/v2/forecast/base-year-le?scenario=` returns `{ data }`, or
+  `{ data: null }` when there is no final LE. The payload is the LE header, `values` per FC line,
+  `total`, `budgetTotal`, `gap`, `leNet` and `outsideLines`. No migration.
+- **Display only.** Nothing in the generation engine reads it, and nothing is stored. A DB test
+  checks that every engine module other than `crud.js` never names `budget_le` or the reader. The
+  table splices the cell in per row, so totals, KPIs, graph series and the Excel export are
+  untouched. A vitest renders the table with and without the column and asserts that every other
+  cell is identical.
+- **Measured on a prod copy (2026-10-15).** Base year (budget) **−137,526.81**. LE-09-26 over FC
+  lines **−74,549.57**, so the gap is **+62,977.24**. LE-09-26's own net is **−73,771.08**. The
+  **+778.49** difference sits outside every FC line: `Other Inc` (+838.85, mapped to no line) and
+  postings to two non-leaf categories, `Car Expense` (−50.00) and `Children - Anna` (−10.36).
+  These are the §2.1a ones, and the base year's CTE drops a budget row there too. §8.1's quoted
+  figures (−137,555, −102,999, +34,556) were LE-08-26 against the August budget. They are
+  history, not the current gap.
