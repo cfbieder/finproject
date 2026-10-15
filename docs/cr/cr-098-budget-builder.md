@@ -1,6 +1,6 @@
-# CR098 — Budget builder: next year's budget from this year's Latest Estimate — DRAFT
+# CR098 — Budget builder: next year's budget from this year's Latest Estimate — PLANNED
 
-**Status:** DRAFT (2026-10-15) — rev 2 after pass 1 (`cr-technical-reviewer`: *revise*, 2 blocking, both closed — §8); pass 2 (`cr-signoff-pm`) pending.
+**Status:** PLANNED (2026-10-15) — two-pass reviewed: pass 1 *revise* → rev 2; pass 2 **GO** with four conditions, all written in (§8). Build next, ahead of CR097 P1b. ⚠️ Do not build [CR095](cr-095-forecast-spend-currency-share.md) (same FX area) at the same time.
 **Track:** v3 · **Migration:** one — 084 if still free at build, claimed then with its registry row (`.claude/rules/git-concurrency.md` rule 7)
 **Depends on:** [CR083](cr-083-budget-latest-estimate.md) (the Latest Estimate, and its §11.4 list of
 what a seed must solve first) · [CR075](cr-075-base-year-is-the-budget.md) (the base year IS the
@@ -82,8 +82,9 @@ default: the base scenario whose base year is the LE's year, i.e. `2026 Base`). 
 one (category, currency) of the LE with its full-year local amount `le_fy = Σ amount` over the
 LE's twelve months. The LE's own `excluded_category_ids` are honoured (transfers, unrealised G/L —
 CR083 §2); a category the LE lacks is not invented. A line keyed on a **non-leaf** category
-(LE-09-26: `Car Expense`, `Children - Anna`) is shown in the preview as **"not in the base year"** —
-the base year's leaves CTE (`crud.js`) cannot see it — and is published only if the owner keeps it.
+(LE-09-26: `Car Expense`, `Children - Anna`) cannot be published as it is — the base year's leaves CTE
+(`crud.js`) cannot see it, so it would be budget the forecast silently leaves out. The preview marks
+it **"not in the base year"** and Publish is refused until the owner moves it to a leaf or drops it.
 
 ### 3.2 The annual figure — layers, each shown
 
@@ -95,7 +96,11 @@ the base year's leaves CTE (`crud.js`) cannot see it — and is published only i
 | **Annual** | Recurring: `le_fy × (1 + r)` · One-off: `0` · Fixed: the typed amount |
 | vs LE · vs this year's budget | deltas, for reading only |
 
-Totals by currency and in USD at the scenario's FX for the target year, resolved the same way. The
+Totals by currency and in USD at the scenario's FX for the target year, resolved the same way.
+**Each rate shows where it came from** — e.g. *"2.5% · carried forward from 2026"*, *"PLN 3.90 ·
+carried forward from 2026"* (`2026 Base` holds only 2026 entries; the budget's own 2026 PLN rates ran
+3.55–3.79, so 3.9 reads PLN spend ~5% smaller in USD) — with a prompt to set the target year's
+assumptions on Forecast Scenarios before building. Decision 4 stands; this only makes it visible. The
 engine knows PLN and EUR only; a line in any other currency is **refused by name**, never valued 1:1.
 A Fixed category gets **one typed amount per currency line** (the policy is per category, the amount
 per line).
@@ -207,8 +212,10 @@ On a prod dump in a throwaway database (the CR064 P2 method):
    `budget_entries` total per currency; the year's `budget_fx_rates` hold the scenario rate in all 12
    months, and adding one PLN row on the budget page prices at it.
 2. Recurring = `le_fy × (1 + r)` with `r` read back from the engine's rate builder for 2027.
-3. Publish: the year holds only the build's rows, in one version; `fcLines` totals and
-   `getBaseYearValues(2027)` read the new total.
+3. Publish: the year holds only the build's rows, in one version. Then, after a regenerate on the
+   copy, **every FC line's base-year value equals the builder's published USD for that line, to the
+   cent** (CR075's standard: per line, 0 mismatches), with any difference reported by name —
+   excluded and parent categories included. A matching total can hide money on the wrong line.
 4. Un-publish: the 12 instalment rows return byte-identical (`id`, version 3, timestamps) and the
    year's FX rows are as before; a publish after an edit to the year is refused, and so is an
    un-publish after an edit or a *Recalculate*.
@@ -224,14 +231,22 @@ On a prod dump in a throwaway database (the CR064 P2 method):
 | **P1** | Draft, policy, inflation, FX, annual grid — preview only, nothing published | Usable early: the annual totals are the decision |
 | **P2** | Account and month split, Publish / Un-publish | Done by mid-December 2026 |
 
-## 7. Open questions for review
+**Prod path.** Migration 084 is applied to prod **before** the code deploys
+(`deploy-to-production.sh` Step 2b). The **first real Publish** happens only after a manual prod backup
+taken that day — publishing may come weeks after the deploy, so the deploy-time backup does not cover
+it.
 
-- **Which scenario by default** — the base whose base year is the LE's year (`2026 Base`) is
-  proposed; a variant's inflation would also be valid.
-- **The 80% threshold** — tunable at build; re-measured on absolute amounts (§3.3) before fixing it.
-- **The 67 USD `MANUAL` LE lines** — they give some categories a second, USD line beside their local
-  one. Keep them as typed (proposed), or offer to fold them into the category's main currency at the
-  scenario rate?
+**Fallback.** If P2 is not on prod by **2026-12-10**, the owner types P1's annual figures onto the
+existing budget pages for 2027, and P2 ships after the close. Within P2, the lump rule and per-line
+month overrides are the parts to cut first (even twelfths is acceptable: the forecast reads annual
+figures by FC line); Un-publish is not cut — it is the undo for an 800-row replace.
+
+## 7. Decided at review, not left open
+
+- **Default scenario** = the base whose base year is the LE's year (`2026 Base`); it is a dropdown.
+- **The 80% threshold** is re-measured on absolute amounts at build and the measured count recorded here.
+- **The 67 USD `MANUAL` LE lines** are kept as typed (decision 4); folding them into a category's main
+  currency is a backlog idea, not this CR.
 
 ## 8. Review log
 
@@ -246,3 +261,9 @@ On a prod dump in a throwaway database (the CR064 P2 method):
   version, FX rows); the reader list completed and P0's consumers named; `rateAtYear` exported, PLN
   and EUR only; rounding by absolute size, USD not forced; lump keeps its account split; Fixed is
   typed per currency line; un-publish after the close warns of a regenerate; `VARCHAR` + `CHECK`.
+- **Pass 2 — `cr-signoff-pm`, 2026-10-15: GO**, on the critical path to a correct January close; P1
+  delivers value even if P2 slips. Conditions, all written in: (1) a parent-category line cannot be
+  published as-is (§3.1); (2) verification per FC line to the cent, not one total (§5.3); (3) the prod
+  path — migration first, a manual backup before the first real Publish (§6); (4) a fallback date,
+  2026-12-10 (§6). Suggestions taken: rate provenance shown in the grid (§3.2); §7's questions decided
+  rather than left open; CR095 not built concurrently.
