@@ -163,6 +163,23 @@ The preview lists what will be deleted — by category, with counts — so the 1
 are visible before they go. Re-publishing a new build of the same year is publish again (it
 snapshots what is there then). One open draft per target year, as the LE does.
 
+### 3.4a Iterations — numbered builds, start from one, restore one (owner, 2026-10-16)
+
+Every build of a year is kept and numbered — **2027 v1, v2, v3 …** — with an optional note
+("after Anna's school fees"), and its status (draft · published · superseded · unpublished). Only
+one is ever live (§4: a second live version would be summed with the first).
+
+- **Start from build…** — a new draft copies an earlier build's choices: per-line policy, Fixed
+  amounts, inflation overrides and split overrides. Its LE figures come from the LE the new draft
+  names (default: the copied build's own LE, or a newer finalised one). A copied line whose
+  (category, currency) the new LE lacks is listed as **"not in this LE"** — kept if Fixed, dropped
+  otherwise, never silently.
+- **Restore build…** — re-publishes an earlier build **exactly as it was published**, from its stored
+  cells (§3.5), through the same preview, checksum and snapshot as any publish (§3.4). Restoring is
+  a publish, so it can itself be un-published.
+
+Un-publish still undoes only the most recent publish; *Restore* is how you go further back.
+
 ### 3.5 Storage (one migration)
 
 - `budget_category_policy` — `category_id` PK, `policy` (`recurring` | `one_off` | `fixed`),
@@ -170,14 +187,20 @@ snapshots what is there then). One open draft per target year, as the LE does.
   `updated_at`. This is what "remembered between years" means: the next build starts from it.
 - `budget_builds` — `id`, `target_year`, `source_le_id`, `scenario_name`, `status`
   (`draft` | `published` | `superseded` | `unpublished` — `VARCHAR` + `CHECK`, not a Postgres enum,
-  per the migration-070 rule), `published_at`, `published_checksum`, `created_version_id` NULL.
+  per the migration-070 rule), `published_at`, `published_checksum`, `created_version_id` NULL,
+  `build_no` (1, 2, 3 … per `target_year`, unique with it), `parent_build_id` NULL (the build it
+  started from), `note` NULL.
 - `budget_build_lines` — `build_id`, `category_id`, `currency`, `le_fy`, `policy`,
   `fixed_amount`, `inflation_pct`, `annual_amount`, `split_method`, `split_month`; unique on
   (`build_id`, `category_id`, `currency`).
 - `budget_build_snapshot` — the replaced rows of a publish, verbatim (`build_id`, `kind`
   (`entry` | `fx_rate`), the row as `jsonb`).
+- `budget_build_cells` — what a publish wrote: `build_id`, `category_id`, `account_id` NULL,
+  `currency`, `month`, `amount`, `base_amount`, `fx_rate`. Written in the publish transaction; this is
+  what *Restore* re-publishes. Recomputing instead would not be exact — the actuals window can change
+  under a late recategorisation.
 
-Cells are computed, not stored, until Publish writes them to `budget_entries`.
+In a draft, cells are computed for the preview and not stored.
 
 ### 3.6 Prerequisites (P0, before any row is published)
 
@@ -219,6 +242,9 @@ On a prod dump in a throwaway database (the CR064 P2 method):
 4. Un-publish: the 12 instalment rows return byte-identical (`id`, version 3, timestamps) and the
    year's FX rows are as before; a publish after an edit to the year is refused, and so is an
    un-publish after an edit or a *Recalculate*.
+4a. Iterations: publish v1, then v2 from *Start from build* (one Fixed amount changed) — v1 is
+   superseded and v2 differs from it in that line only; *Restore* v1 puts back v1's cells byte-for-byte
+   (amount, base_amount, account, month); un-publishing that restore returns v2.
 5. A scenario with `PeriodStart` 2028 (a forward annual close, clock set to January 2027 as in
    CR064 P2's check) generates from the published 2027 budget.
 6. Rendered in both themes.
@@ -229,7 +255,7 @@ On a prod dump in a throwaway database (the CR064 P2 method):
 |---|---|---|
 | **P0** | §3.6 prerequisites | Before anything publishes ~800 rows into a year |
 | **P1** | Draft, policy, inflation, FX, annual grid — preview only, nothing published | Usable early: the annual totals are the decision |
-| **P2** | Account and month split, Publish / Un-publish | Done by mid-December 2026 |
+| **P2** | Account and month split, Publish / Un-publish, numbered builds with *Start from* and *Restore* (§3.4a) | Done by mid-December 2026 |
 
 **Prod path.** Migration 084 is applied to prod **before** the code deploys
 (`deploy-to-production.sh` Step 2b). The **first real Publish** happens only after a manual prod backup
@@ -239,7 +265,10 @@ it.
 **Fallback.** If P2 is not on prod by **2026-12-10**, the owner types P1's annual figures onto the
 existing budget pages for 2027, and P2 ships after the close. Within P2, the lump rule and per-line
 month overrides are the parts to cut first (even twelfths is acceptable: the forecast reads annual
-figures by FC line); Un-publish is not cut — it is the undo for an 800-row replace.
+figures by FC line). *Start from* and *Restore* (§3.4a) are cut before those — January needs one
+good publish, not its history — but `budget_build_cells` and `build_no` ship regardless, so the
+history exists from the first publish and the two actions can follow later. Un-publish is not cut —
+it is the undo for an 800-row replace.
 
 ## 7. Decided at review, not left open
 
@@ -267,3 +296,7 @@ figures by FC line); Un-publish is not cut — it is the undo for an 800-row rep
   path — migration first, a manual backup before the first real Publish (§6); (4) a fallback date,
   2026-12-10 (§6). Suggestions taken: rate provenance shown in the grid (§3.2); §7's questions decided
   rather than left open; CR095 not built concurrently.
+- **Owner addition, 2026-10-16 (after pass 2):** numbered builds per year, *Start from build* and
+  *Restore build* (§3.4a), with `budget_build_cells` storing what each publish wrote so a restore is
+  exact. Not re-reviewed: it reuses §3.4's publish path unchanged and adds UI over stored rows; the
+  one-live-version non-goal stands. In the P2 cut order these go first (§6).
