@@ -9,7 +9,10 @@
 const db = require('../db');
 
 /**
- * Get all FC Lines with their assigned categories
+ * Get all FC Lines with their assigned categories.
+ *
+ * Each category's `budget_total` is that ONE year's budget, or `null` when no year is given —
+ * never a sum across years (CR098 P0).
  */
 async function findAll(budgetYear) {
   const linesResult = await db.query(`
@@ -41,13 +44,16 @@ async function findAll(budgetYear) {
       SELECT dl.fc_line_id, dl.root_id,
              COALESCE(SUM(be.base_amount), 0) as budget_total
       FROM distinct_leaves dl
+      -- CR098 P0 — ONE year or none. With no year this used to sum every year's budget into one
+      -- figure; harmless while 2027 held 12 rows, a wrong number once a year is built in full.
       LEFT JOIN budget_entries be ON be.category_id = dl.id
-        AND ($1::int IS NULL OR be.budget_year = $1)
+        AND be.budget_year = $1
       GROUP BY dl.fc_line_id, dl.root_id
     )
     SELECT flc.fc_line_id, flc.category_id, c.name as category_name,
            c.parent_id, pc.name as parent_name,
-           COALESCE(lb.budget_total, 0) as budget_total
+           CASE WHEN $1::int IS NULL THEN NULL
+                ELSE COALESCE(lb.budget_total, 0) END as budget_total
     FROM fc_line_categories flc
     JOIN accounts c ON flc.category_id = c.id
     LEFT JOIN accounts pc ON c.parent_id = pc.id
