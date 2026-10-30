@@ -209,4 +209,5 @@ async function baseYearFxRate(scenarioName, currency) {
 module.exports = {
   loadScenarioConfig,
   baseYearFxRate,
+  rateAtYear, // CR098 — the budget builder resolves a year's rate the way the engine does
 };

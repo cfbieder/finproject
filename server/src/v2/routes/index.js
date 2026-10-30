@@ -25,6 +25,7 @@ const bankFeedRouter = require('./bankFeed');
 const ingestBankFeedRouter = require('./ingestBankFeed');
 const manualCalibrationRouter = require('./manualCalibration');
 const manualHoldingsRouter = require('./manualHoldings');
+const budgetBuilderRouter = require('./budgetBuilder'); // CR098
 const taxRouter = require('./tax');
 const investmentsRouter = require('./investments');
 
@@ -48,6 +49,7 @@ router.use('/bank-feed', bankFeedRouter);
 router.use('/ingest-bank-feed', ingestBankFeedRouter);
 router.use('/manual-calibration', manualCalibrationRouter);
 router.use('/manual-holdings', manualHoldingsRouter);
+router.use('/budget-builder', budgetBuilderRouter);
 
 // API root info
 router.get('/', (req, res) => {
