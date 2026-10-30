@@ -21,6 +21,7 @@ import {
   DollarSign,
   BookOpen,
   Target,
+  Hammer,
   PlusCircle,
   Calculator,
   Eye,
@@ -49,6 +50,7 @@ const BudgetInput = lazy(() => import("../pages/BudgetWorksheetV2"));
 const BudgetVsActual = lazy(() => import("../pages/BudgetVsActual"));
 // CR083 P0b: the Latest Estimate. One screen, no tab strip (§11.1).
 const BudgetLE = lazy(() => import("../pages/BudgetLE"));
+const BudgetBuilder = lazy(() => import("../pages/BudgetBuilder")); // CR098
 // CR042 U5: the two cash-flow pages are now tabs inside CashFlowTabs.
 const CashFlowTabs = lazy(() => import("../pages/CashFlowTabs"));
 const InvestmentReturns = lazy(() => import("../pages/InvestmentReturns"));
@@ -251,6 +253,15 @@ export const routes = [
     description:
       "Where the year lands — actual months to the cut, plus an estimate for the rest",
     icon: Target,
+  },
+  {
+    // CR098 — next year's budget from this year's finalised Latest Estimate.
+    path: "/budget-builder",
+    component: BudgetBuilder,
+    label: "Budget Builder",
+    category: "Budgeting",
+    description: "Build next year's budget from this year's latest estimate, then publish it",
+    icon: Hammer,
   },
   {
     // CR088 P5: renamed "Budget vs Actual" -> "Budget Analysis". The page now

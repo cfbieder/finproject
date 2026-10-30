@@ -1,0 +1,84 @@
+/* CR098 — the budget builder. Tokens only; colour means sign (negative red, else ink); rows are
+   told apart by background, never by text colour. */
+
+.bb-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.bb-field { display: flex; flex-direction: column; gap: 0.25rem; }
+.bb-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.bb-field select,
+.bb-field input,
+.bb-table select,
+.bb-num-input {
+  padding: 0.3rem 0.45rem;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+.bb-actions { display: flex; gap: 0.5rem; margin-left: auto; }
+
+.bb-rates {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.25rem;
+  margin: 0.75rem 0;
+  font-size: 0.85rem;
+  color: var(--ink);
+}
+.bb-push-right { margin-left: auto; }
+
+.bb-table-wrap { overflow-x: auto; }
+.bb-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; font-variant-numeric: tabular-nums; color: var(--ink); }
+.bb-table th,
+.bb-table td { padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
+.bb-table th { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.bb-table .num { text-align: right; white-space: nowrap; }
+.bb-table tbody tr:nth-child(even) { background: var(--surface-muted); }
+.bb-table tfoot td { font-weight: 600; border-top: 2px solid var(--border); }
+.bb-table--compact { margin: 0.5rem 0; }
+.bb-num-input { width: 6.5rem; text-align: right; }
+.bb-split { display: inline-flex; gap: 0.35rem; }
+
+.bb-row--blocked td:first-child { box-shadow: inset 3px 0 0 var(--warning); }
+.bb-months-row td { background: var(--surface); }
+.bb-months { border-collapse: collapse; margin-bottom: 0.35rem; }
+.bb-months th,
+.bb-months td { padding: 0.2rem 0.45rem; text-align: right; font-size: 0.8rem; }
+
+.bb-linkish {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.bb-linkish:hover { text-decoration: underline; }
+.bb-linkish:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.bb-neg { color: var(--danger); }
+.bb-strong { font-weight: 600; }
+.bb-muted { color: var(--muted); font-size: 0.8rem; }
+.bb-flag { color: var(--ink); font-size: 0.8rem; }
+.bb-error { color: var(--danger); }
+.bb-notice { color: var(--ink); }
+.bb-blockers { margin: 0 0 0.75rem; padding-left: 1.1rem; color: var(--ink); }
+.bb-dialog { color: var(--ink); font-size: 0.9rem; }
