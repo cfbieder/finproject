@@ -1,7 +1,7 @@
-# CR098 — Budget builder: next year's budget from this year's Latest Estimate — PLANNED
+# CR098 — Budget builder: next year's budget from this year's Latest Estimate — BUILT
 
-**Status:** PLANNED (2026-10-15) — two-pass reviewed: pass 1 *revise* → rev 2; pass 2 **GO** with four conditions, all written in (§8). Build next, ahead of CR097 P1b. ⚠️ Do not build [CR095](cr-095-forecast-spend-currency-share.md) (same FX area) at the same time.
-**Track:** v3 · **Migration:** one — 084 if still free at build, claimed then with its registry row (`.claude/rules/git-concurrency.md` rule 7)
+**Status:** BUILT 2026-10-30, P0 + P1 + P2 (§9), on dev, **not yet released** — prod needs migration 084 and the code (`/close`), then a manual prod backup before the first real Publish (§6). Planned 2026-10-15, two-pass reviewed: pass 1 *revise* → rev 2; pass 2 **GO** with four conditions, all written in (§8). ⚠️ Do not build [CR095](cr-095-forecast-spend-currency-share.md) (same FX area) at the same time.
+**Track:** v3 · **Migration:** 084 (`084_budget_builder.sql`, six tables)
 **Depends on:** [CR083](cr-083-budget-latest-estimate.md) (the Latest Estimate, and its §11.4 list of
 what a seed must solve first) · [CR075](cr-075-base-year-is-the-budget.md) (the base year IS the
 budget) · [CR064](cr-064-forecast-annual-close-and-assumptions.md) P2 (the annual close, live v3.76.0)
@@ -137,10 +137,14 @@ The preview shows each line's 12-month row; nothing is written until Publish.
 ### 3.4 Publish and un-publish — replace the year, keep a way back
 
 **Publish**, in one transaction:
-1. Take the build's advisory lock; refuse if the target year's rows changed since the preview.
-   The checksum is `md5(string_agg(row_to_json(be)::text, '|' ORDER BY be.id))` over the year's
-   `budget_entries` — every column, `updated_at` included, so a *Recalculate* counts as a change.
-2. Copy **every** `budget_entries` row of the target year, in full, into a snapshot owned by the build.
+1. Take the builder's advisory lock **and** `LOCK TABLE budget_entries, budget_fx_rates IN SHARE ROW
+   EXCLUSIVE MODE` (the Budget page does not take the advisory lock); refuse if anything changed
+   since the preview. The token is two checksums: `md5(string_agg(row_to_json(be)::text, '|' ORDER
+   BY be.id))` over the year's `budget_entries` — every column, `updated_at` included, so a
+   *Recalculate* counts — **and** an md5 of the cells the preview showed, so a line edit or a
+   scenario-rate change between preview and confirm is refused, not silently published.
+2. Record a **publish event** and copy **every** `budget_entries` row of the target year, in full,
+   into a snapshot owned by that event (not by the build — see below).
 3. Delete them all — every version, NULL versions included, so the year has one set of rows after.
 4. Insert the build's cells into the year's active version (create `«year» / Built` if the year has
    none), with `base_amount = ROUND(amount / rate, 2)`, `rate` = units of the currency **per USD**
@@ -150,18 +154,22 @@ The preview shows each line's 12-month row; nothing is written until Publish.
    *Recalculate*, prices at a different rate and the base year sits on two.
 5. Mark the build published; any earlier published build of the same year becomes superseded.
 
-**Un-publish**, in one transaction: refuse if the year's rows differ from what the publish wrote
-(same checksum; edits since would be lost — say so); otherwise delete them and restore the snapshot
+**Un-publish**, in one transaction, undoes the year's **newest publish event** (only the live build
+offers it): refuse if the year's rows differ from what that publish wrote (same checksum; edits since
+would be lost — say so); otherwise delete them and restore the event's snapshot
 exactly — re-inserted through `jsonb_populate_record(NULL::budget_entries, row)` with the original
 `id`, `created_at`, `updated_at` and `version_id` (NULLs included; nothing has a foreign key into
 `budget_entries`, so reusing ids is safe), delete a `«year» / Built` version the publish created, and
-restore the year's `budget_fx_rates` snapshot. ⚠️ **After the annual close has run on that year**,
+restore the year's `budget_fx_rates` snapshot. The build the previous event put live is live again,
+so repeated un-publishes walk back through every publish to the pre-builder budget. ⚠️ **After the annual close has run on that year**,
 un-publishing moves a base scenario's base year: the confirm names the scenarios whose base year is
 the target year and says each needs a regenerate.
 
 The preview lists what will be deleted — by category, with counts — so the 12 instalments in 2027
 are visible before they go. Re-publishing a new build of the same year is publish again (it
-snapshots what is there then). One open draft per target year, as the LE does.
+snapshots what is there then). **Publishes stack**, which is why the snapshot belongs to the event:
+keyed by build, *publish v1 → publish v2 → restore v1* overwrote v1's only copy of the pre-builder
+budget (found at code review, §9). One open draft per target year, as the LE does.
 
 ### 3.4a Iterations — numbered builds, start from one, restore one (owner, 2026-10-16)
 
@@ -178,7 +186,7 @@ one is ever live (§4: a second live version would be summed with the first).
   cells (§3.5), through the same preview, checksum and snapshot as any publish (§3.4). Restoring is
   a publish, so it can itself be un-published.
 
-Un-publish still undoes only the most recent publish; *Restore* is how you go further back.
+Un-publish undoes the most recent publish and hands *live* back to the build before it; repeating it walks further back. *Restore* jumps to any build directly.
 
 ### 3.5 Storage (one migration)
 
@@ -187,13 +195,16 @@ Un-publish still undoes only the most recent publish; *Restore* is how you go fu
   `updated_at`. This is what "remembered between years" means: the next build starts from it.
 - `budget_builds` — `id`, `target_year`, `source_le_id`, `scenario_name`, `status`
   (`draft` | `published` | `superseded` | `unpublished` — `VARCHAR` + `CHECK`, not a Postgres enum,
-  per the migration-070 rule), `published_at`, `published_checksum`, `created_version_id` NULL,
-  `build_no` (1, 2, 3 … per `target_year`, unique with it), `parent_build_id` NULL (the build it
+  per the migration-070 rule), `published_at`, `build_no` (1, 2, 3 … per `target_year`, unique with it), `parent_build_id` NULL (the build it
   started from), `note` NULL.
 - `budget_build_lines` — `build_id`, `category_id`, `currency`, `le_fy`, `policy`,
   `fixed_amount`, `inflation_pct`, `annual_amount`, `split_method`, `split_month`; unique on
   (`build_id`, `category_id`, `currency`).
-- `budget_build_snapshot` — the replaced rows of a publish, verbatim (`build_id`, `kind`
+- `budget_build_publishes` — one row per publish or restore, never deleted: `build_id`,
+  `target_year`, `created_version_id` NULL (the `Built` version this publish made, deleted by its
+  un-publish), `checksum_after`, `published_at`, `undone_at` NULL. The newest row with `undone_at`
+  NULL is the one Un-publish reverses.
+- `budget_build_snapshot` — the replaced rows of a publish, verbatim (`publish_id`, `kind`
   (`entry` | `fx_rate`), the row as `jsonb`).
 - `budget_build_cells` — what a publish wrote: `build_id`, `category_id`, `account_id` NULL,
   `currency`, `month`, `amount`, `base_amount`, `fx_rate`. Written in the publish transaction; this is
@@ -273,7 +284,7 @@ it is the undo for an 800-row replace.
 ## 7. Decided at review, not left open
 
 - **Default scenario** = the base whose base year is the LE's year (`2026 Base`); it is a dropdown.
-- **The 80% threshold** is re-measured on absolute amounts at build and the measured count recorded here.
+- **The 80% threshold** is re-measured on absolute amounts at build: on the prod dump (2026-10-30), 29 of the 132 lines split from actuals take the lump (§9).
 - **The 67 USD `MANUAL` LE lines** are kept as typed (decision 4); folding them into a category's main
   currency is a backlog idea, not this CR.
 
@@ -300,3 +311,41 @@ it is the undo for an 800-row replace.
   *Restore build* (§3.4a), with `budget_build_cells` storing what each publish wrote so a restore is
   exact. Not re-reviewed: it reuses §3.4's publish path unchanged and adds UI over stored rows; the
   one-live-version non-goal stands. In the P2 cut order these go first (§6).
+
+## 9. As built (2026-10-30)
+
+**Code.** Migration `084_budget_builder.sql` (six tables, §3.5); `services/budgetBuilder.js` (build,
+split, publish, un-publish, restore); `/api/v2/budget-builder` (`v2/routes/budgetBuilder.js`); page
+`/budget-builder` under Budgeting (`BudgetBuilder.jsx`). P0: `fcLines.findAll(year)` sums one year and
+returns no `budget_total` without one (test over two years). Tests: `budgetBuilder.test.js` (split
+arithmetic + the full DB cycle, including the stack walk-back and an edit between preview and
+confirm), green on dev and on a fresh database.
+
+**Verified on a prod dump (2026-10-30)**, §5:
+- The 2027 draft from LE-09-26 / `2026 Base`: 145 lines; inflation 2.5%, PLN 3.9, EUR 0.86, all
+  *carried forward from 2026* (the scenario sets no 2027 rates — the grid says so); every line's
+  months sum to its annual figure exactly.
+- Split sources: 132 lines from actuals (29 lumped into one month), 2 from the 2026 budget, 9 even.
+- Publish: 1,499 rows in one version; per-currency totals equal the build's; **per FC line 16/16
+  match to the cent, 0 mismatches**. `Other Inc` (EUR + USD, USD 860) is on no forecast line — the
+  publish dialog now names it.
+- The stack: v1 → v2 (one Fixed line) → restore v1 (exact) → un-publish ×3 returns v2, then v1, then
+  the original 12 instalments **byte-for-byte** (entries, FX rates, versions).
+- An edit to the year after a publish makes un-publish refuse; a change between preview and confirm
+  makes publish refuse. UI: full publish / un-publish / restore flow in both themes, no page errors.
+
+**Found and fixed at code review, before release.** (1) Snapshots were keyed by build, so a restore
+overwrote the only copy of the pre-builder budget → `budget_build_publishes`, snapshots per event.
+(2) Un-publish left the previous build marked superseded → it is made live again. (3) A restore
+nulled the build's record of the version it had created (a leak) → per event. (4) The preview token
+covered only the year's rows → it also hashes the cells. (5) A Budget-page write could land between
+snapshot and delete → table lock. Since 084 had reached only dev (applied there by mistake through
+`migrate.js --dry`, which is not the dry-run flag — that is `--dry-run`), the file was amended and dev
+rolled back and re-applied, rather than adding an 085. UI review: errors now show inside the open
+dialog, blockers are de-duplicated, Enter saves and the wheel no longer changes an amount, a refused
+edit reverts, a Fixed amount opposite in sign to the estimate is flagged.
+
+**Known limits, not fixed.** One account whose actuals run against the category's sign makes that
+line fall back to an even split with no account (the whole grid fails validation, not just that
+account). A restore writes stored cells even if a category or account was deactivated since. The
+radius values on the page's own inputs (4px / 6px) are below the smallest `--radius-*` token (10px).
