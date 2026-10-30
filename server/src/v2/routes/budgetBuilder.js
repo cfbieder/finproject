@@ -18,11 +18,12 @@ const handle = (fn) => async (req, res, next) => {
     next(error);
   }
 };
-const id = (req) => {
-  const n = parseInt(req.params.id, 10);
-  if (!n) throw Object.assign(new Error('Invalid build id'), { status: 400 });
+const positiveInt = (raw, what) => {
+  const n = parseInt(raw, 10);
+  if (!(n > 0)) throw Object.assign(new Error(`Invalid ${what} id`), { status: 400 });
   return n;
 };
+const id = (req) => positiveInt(req.params.id, 'build');
 
 // GET / — finalised LEs, base scenarios, and every build (newest first)
 router.get('/', handle(async (req, res) => res.json({ data: await svc.listSources() })));
@@ -50,7 +51,7 @@ router.delete('/:id', handle(async (req, res) => {
 
 // PATCH /:id/lines/:lineId — { policy?, fixedAmount?, inflationPct?, splitMethod?, splitMonth? }
 router.patch('/:id/lines/:lineId', handle(async (req, res) => {
-  await svc.updateLine(id(req), parseInt(req.params.lineId, 10), req.body || {});
+  await svc.updateLine(id(req), positiveInt(req.params.lineId, 'line'), req.body || {});
   res.json({ data: await svc.getBuild(id(req)) });
 }));
 
@@ -62,7 +63,7 @@ router.post('/:id/publish', handle(async (req, res) => {
   res.json({ data: await svc.publish(id(req), { checksum: req.body?.checksum }) });
 }));
 
-// POST /:id/unpublish — puts back what this build's most recent publish replaced
+// POST /:id/unpublish — undoes the year's newest publish (this build's); the build before it goes live again
 router.post('/:id/unpublish', handle(async (req, res) => res.json({ data: await svc.unpublish(id(req)) })));
 
 module.exports = router;

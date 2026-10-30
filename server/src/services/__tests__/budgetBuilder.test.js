@@ -50,6 +50,7 @@ dbDescribe('budget builder — the cycle (DB)', () => {
   const ids = {};
 
   async function cleanup() {
+    await db.query(`DELETE FROM budget_build_publishes WHERE target_year = $1`, [TARGET]);
     await db.query(`DELETE FROM budget_builds WHERE target_year = $1`, [TARGET]);
     await db.query(`DELETE FROM budget_entries WHERE budget_year IN ($1, $2)`, [YEAR, TARGET]);
     await db.query(`DELETE FROM budget_fx_rates WHERE year = $1`, [TARGET]);
@@ -213,10 +214,47 @@ dbDescribe('budget builder — the cycle (DB)', () => {
       `SELECT build_no, status FROM budget_builds WHERE target_year = $1 ORDER BY build_no`, [TARGET]
     )).rows;
     expect(statuses).toEqual([{ build_no: 1, status: 'published' }, { build_no: 2, status: 'superseded' }]);
+    ids.v2 = b2.id;
+    ids.v1Rows = v1;
+  });
+
+  test('un-publish walks the stack back: v2 live again, then v1, then the pre-builder budget', async () => {
+    const status = async () => Object.fromEntries((await db.query(
+      `SELECT build_no, status FROM budget_builds WHERE target_year = $1`, [TARGET]
+    )).rows.map((r) => [r.build_no, r.status]));
+    const foodSum = async () => (await rows()).filter((r) => r.category_id === ids.food)
+      .reduce((s, r) => s + Number(r.amount), 0);
+
+    await expect(svc.unpublish(ids.v2)).rejects.toThrow(/Only the live build/);
+    expect((await svc.unpublish(ids.v1)).live).toBe(2);           // undoes the restore
+    expect(await status()).toEqual({ 1: 'unpublished', 2: 'published' });
+    expect(await foodSum()).toBeCloseTo(-600, 2);
+
+    expect((await svc.unpublish(ids.v2)).live).toBe(1);           // undoes v2
+    expect(await status()).toEqual({ 1: 'published', 2: 'unpublished' });
+    expect((await rows()).map((r) => `${r.category_id}|${r.account_id}|${r.entry_date}|${r.amount}`).sort())
+      .toEqual(ids.v1Rows);
+
+    expect((await svc.unpublish(ids.v1)).live).toBeNull();        // undoes v1's first publish
+    const back = await rows();
+    expect(back).toHaveLength(1);
+    expect(back[0].description).toBe('instalment');
+    expect((await db.query(`SELECT 1 FROM budget_versions WHERE budget_year = $1`, [TARGET])).rows).toHaveLength(0);
+  });
+
+  test('a line edit between preview and confirm is refused, not published', async () => {
+    const { build: b3 } = await svc.createBuild({ sourceLeId: ids.le, scenarioName: SCEN, parentBuildId: ids.v1 });
+    ids.v3 = b3.id;
+    let p = await svc.previewPublish(b3.id);
+    const food = p.lines.find((l) => l.categoryId === ids.food);
+    await svc.updateLine(b3.id, food.id, { policy: 'fixed', fixedAmount: -700 });
+    await expect(svc.publish(b3.id, { checksum: p.checksum })).rejects.toThrow(/changed since the preview/);
+    p = await svc.previewPublish(b3.id);
+    await svc.publish(b3.id, { checksum: p.checksum });
   });
 
   test('an edit after publish makes un-publish refuse', async () => {
     await db.query(`UPDATE budget_entries SET note = 'hand edit' WHERE id = (SELECT MIN(id) FROM budget_entries WHERE budget_year = $1)`, [TARGET]);
-    await expect(svc.unpublish(ids.v1)).rejects.toThrow(/edited after this publish/);
+    await expect(svc.unpublish(ids.v3)).rejects.toThrow(/edited after this publish/);
   });
 });

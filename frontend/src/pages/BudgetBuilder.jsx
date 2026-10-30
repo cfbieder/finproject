@@ -27,6 +27,9 @@ const fmt = (v, digits = 0) =>
   v == null || !Number.isFinite(Number(v))
     ? "—"
     : Number(v).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+const commitOnEnter = (e) => { if (e.key === "Enter") e.currentTarget.blur(); };
+// A focused number field changes under the mouse wheel — drop focus instead of the amount.
+const blurOnWheel = (e) => e.currentTarget.blur();
 const neg = (v) => (Number(v) < 0 ? "bb-neg" : undefined);
 const STATUS = { draft: "draft", published: "live", superseded: "superseded", unpublished: "un-published" };
 const buildLabel = (b) =>
@@ -57,6 +60,7 @@ function BudgetBuilder() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [rev, setRev] = useState(0);              // remounts the number inputs after every save, kept or refused
 
   const loadSources = useCallback(async () => {
     const data = Rest.unwrap(await Rest.get("/budget-builder"));
@@ -125,9 +129,13 @@ function BudgetBuilder() {
   });
 
   const patchLine = (lineId, patch) => run(async () => {
-    const data = Rest.unwrap(await Rest.patch(`/budget-builder/${selectedId}/lines/${lineId}`, patch));
-    setView(data);
-    setSplit(null);
+    try {
+      const data = Rest.unwrap(await Rest.patch(`/budget-builder/${selectedId}/lines/${lineId}`, patch));
+      setView(data);
+      setSplit(null);
+    } finally {
+      setRev((r) => r + 1);
+    }
   });
 
   const loadSplit = () => run(async () => {
@@ -146,7 +154,8 @@ function BudgetBuilder() {
       setNotice(`Published ${r.year} v${r.buildNo}: ${fmt(r.written)} budget rows written.`);
     } else if (kind === "unpublish") {
       const r = Rest.unwrap(await Rest.post(`/budget-builder/${selectedId}/unpublish`, {}));
-      setNotice(`Un-published: the ${r.year} budget is back as it was (${fmt(r.restored)} rows).`);
+      setNotice(`Un-published: the ${r.year} budget is back as it was (${fmt(r.restored)} rows)` +
+        (r.live ? ` — ${r.year} v${r.live} is live again.` : " — before any build."));
     } else if (kind === "delete") {
       await Rest.del(`/budget-builder/${selectedId}`);
       setSelectedId(null);
@@ -244,7 +253,7 @@ function BudgetBuilder() {
         </div>
       </section>
 
-      {error && <p className="bb-error" role="alert">{error}</p>}
+      {error && !dialog && <p className="bb-error" role="alert">{error}</p>}
       {notice && <p className="bb-notice" role="status">{notice}</p>}
 
       {!sources.builds.length && !error && (
@@ -284,7 +293,7 @@ function BudgetBuilder() {
                   <th className="num">{shown.build.le.name}</th>
                   <th>Policy</th>
                   <th className="num">Inflation %</th>
-                  <th className="num">Fixed</th>
+                  <th className="num">Fixed (local, signed)</th>
                   <th className="num">Budget {targetYear}</th>
                   <th className="num">vs estimate</th>
                   <th className="num">Budget {shown.build.le.year}</th>
@@ -292,11 +301,15 @@ function BudgetBuilder() {
                 </tr>
               </thead>
               <tbody>
-                {shown.lines.map((l) => {
+                {shown.lines.map((l, i) => {
                   const s = splitById.get(l.id);
+                  const signFlipped = l.policy === "fixed" && l.fixedAmount && Number(l.leFy) &&
+                    Math.sign(l.fixedAmount) !== Math.sign(Number(l.leFy));
+                  const rowClass = [i % 2 ? "bb-row--alt" : "", l.isParent && l.annual ? "bb-row--blocked" : ""]
+                    .filter(Boolean).join(" ") || undefined;
                   return (
                     <Fragment key={l.id}>
-                      <tr className={l.isParent && l.annual ? "bb-row--blocked" : undefined}>
+                      <tr className={rowClass}>
                         <td>
                           <button type="button" className="bb-linkish" onClick={() => setOpenLine(openLine === l.id ? null : l.id)}
                             aria-expanded={openLine === l.id}>
@@ -317,9 +330,10 @@ function BudgetBuilder() {
                         </td>
                         <td className="num">
                           {l.policy === "recurring" && isDraft ? (
-                            <input key={`i${l.id}-${l.inflationPct}`} type="number" step="0.1" className="bb-num-input"
+                            <input key={`i${l.id}-${l.inflationPct}-${rev}`} type="number" step="0.1" className="bb-num-input"
                               aria-label={`${l.category} inflation override`} defaultValue={l.inflationPct ?? ""}
                               placeholder={fmt(shown.rates.inflation.rate, 1)} disabled={busy}
+                              onKeyDown={commitOnEnter} onWheel={blurOnWheel}
                               onBlur={(e) => {
                                 const v = e.target.value === "" ? null : Number(e.target.value);
                                 if (v !== l.inflationPct) patchLine(l.id, { inflationPct: v });
@@ -328,13 +342,15 @@ function BudgetBuilder() {
                         </td>
                         <td className="num">
                           {l.policy === "fixed" && isDraft ? (
-                            <input key={`f${l.id}-${l.fixedAmount}`} type="number" step="1" className="bb-num-input"
-                              aria-label={`${l.category} fixed amount`} defaultValue={l.fixedAmount ?? ""} disabled={busy}
+                            <input key={`f${l.id}-${l.fixedAmount}-${rev}`} type="number" step="1" className="bb-num-input"
+                              aria-label={`${l.category} fixed amount, ${l.currency}, signed`} defaultValue={l.fixedAmount ?? ""}
+                              disabled={busy} onKeyDown={commitOnEnter} onWheel={blurOnWheel}
                               onBlur={(e) => {
                                 const v = e.target.value === "" ? null : Number(e.target.value);
                                 if (v !== l.fixedAmount) patchLine(l.id, { fixedAmount: v });
                               }} />
                           ) : l.policy === "fixed" ? fmt(l.fixedAmount) : ""}
+                          {signFlipped && <div className="bb-flag">⚠ opposite sign to the estimate</div>}
                         </td>
                         <td className={`num bb-strong ${neg(l.annual) || ""}`}>{fmt(l.annual)}</td>
                         <td className={`num ${neg(l.vsLe) || ""}`}>{fmt(l.vsLe)}</td>
@@ -425,6 +441,7 @@ function BudgetBuilder() {
           </>
         )}
       >
+        {dialog && error && <p className="bb-error" role="alert">{error}</p>}
         {dialog?.kind === "publish" && dialog.preview && (
           <div className="bb-dialog">
             {dialog.preview.blockers.length > 0 && (
@@ -438,6 +455,12 @@ function BudgetBuilder() {
               (USD {fmt(dialog.preview.willWrite.usd)}). The {targetYear} budget exchange rates are set to the rates
               above. Un-publish puts everything back while nobody has edited the year.
             </p>
+            {dialog.preview.offForecast?.count > 0 && (
+              <p className="bb-flag">
+                ⚠ USD {fmt(dialog.preview.offForecast.usd)} on {dialog.preview.offForecast.count} line(s) is published
+                but on no forecast line, so the forecast will not see it: {dialog.preview.offForecast.categories.join(", ")}.
+              </p>
+            )}
             {dialog.preview.current.rows.length > 0 && (
               <table className="bb-table bb-table--compact">
                 <thead><tr><th>Removed</th><th>Cur</th><th className="num">Rows</th><th className="num">Amount</th></tr></thead>
@@ -456,8 +479,9 @@ function BudgetBuilder() {
         )}
         {dialog?.kind === "unpublish" && (
           <p className="bb-dialog">
-            The {targetYear} budget goes back to exactly what was there before this build was published. If the year
-            was edited since, this is refused rather than losing those edits.
+            The {targetYear} budget goes back to exactly what was there before this build was published, and
+            the build that was live before it (if any) is live again. If the year was edited since, this is
+            refused rather than losing those edits.
           </p>
         )}
         {dialog?.kind === "delete" && <p className="bb-dialog">The draft and its lines are deleted. Published builds are not affected.</p>}

@@ -50,9 +50,11 @@
 .bb-table td { padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
 .bb-table th { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
 .bb-table .num { text-align: right; white-space: nowrap; }
-.bb-table tbody tr:nth-child(even) { background: var(--surface-muted); }
+/* By line index, not nth-child — an opened month row would flip every stripe below it. */
+.bb-table tbody tr.bb-row--alt { background: var(--surface-muted); }
 .bb-table tfoot td { font-weight: 600; border-top: 2px solid var(--border); }
 .bb-table--compact { margin: 0.5rem 0; }
+.bb-table--compact tbody tr:nth-child(even) { background: var(--surface-muted); }
 .bb-num-input { width: 6.5rem; text-align: right; }
 .bb-split { display: inline-flex; gap: 0.35rem; }
 

@@ -18,6 +18,7 @@
  * Owner decisions (2026-10-15/16) and the two review passes are in docs/cr/cr-098-budget-builder.md.
  */
 
+const crypto = require('crypto');
 const db = require('../v2/db');
 const assumpRepo = require('../v2/repositories/forecastAssumptions');
 const { SCOPE_SQL } = require('../v2/repositories/budgetLe');
@@ -272,10 +273,10 @@ async function updateLine(buildId, lineId, patch) {
 }
 
 /** The draft or build with every line's annual figure, its deltas and its flags. */
-async function getBuild(id) {
-  const build = await getBuildRow(db, id);
+async function getBuild(id, client = db) {
+  const build = await getBuildRow(client, id);
   const rates = await scenarioRates(build.scenario_name, build.target_year);
-  const lines = (await db.query(
+  const lines = (await client.query(
     `SELECT l.*, c.name AS category_name, c.section,
             p.name AS parent_name,
             EXISTS (SELECT 1 FROM accounts ch WHERE ch.parent_id = c.id) AS is_parent,
@@ -441,6 +442,7 @@ async function computeCells(client, build, view) {
     const rawLine = { split_method: l.splitMethod, split_month: l.splitMonth };
     const { cells: lc, source, method } = splitLine(l.annual, rawLine, actual.get(key), budget.get(key));
     const fx = view.rates.fx[l.currency];
+    if (!fx?.rate) throw err(400, `No ${l.currency} rate in scenario '${view.build.scenario}'`);
     for (const c of lc) {
       cells.push({
         category_id: l.categoryId, account_id: c.account_id, currency: l.currency, month: c.month,
@@ -464,6 +466,34 @@ async function yearChecksum(client, year) {
     `SELECT md5(COALESCE(string_agg(row_to_json(be)::text, '|' ORDER BY be.id), '')) AS c
        FROM budget_entries be WHERE be.budget_year = $1`, [year]
   )).rows[0].c;
+}
+
+/** md5 over what a publish would write — so an edit or rate change after the preview is caught. */
+function cellsHash(cells) {
+  const key = cells.map((c) => [c.category_id, c.account_id, c.currency, Number(c.month),
+    Number(c.amount), Number(c.base_amount), Number(c.fx_rate)]);
+  return crypto.createHash('md5').update(JSON.stringify(key)).digest('hex');
+}
+
+/** The cells a publish of this build writes: computed for a draft, stored for a restore. */
+async function cellsFor(client, build, view) {
+  if (build.status === 'draft') return computeCells(client, build, view);
+  const cells = (await client.query('SELECT * FROM budget_build_cells WHERE build_id = $1 ORDER BY id', [build.id])).rows;
+  return { cells, lines: [], window: null };
+}
+
+/** The newest publish of the year that has not been undone — the one Un-publish reverses. */
+async function liveEvent(client, year) {
+  return (await client.query(
+    `SELECT * FROM budget_build_publishes WHERE target_year = $1 AND undone_at IS NULL
+      ORDER BY id DESC LIMIT 1 FOR UPDATE`, [year]
+  )).rows[0] || null;
+}
+
+/** The builder against itself (advisory lock), and against the Budget page writing the year meanwhile. */
+async function lockYear(client) {
+  await client.query('SELECT pg_advisory_xact_lock($1, $2)', [LOCK_NS, 0]);
+  await client.query('LOCK TABLE budget_entries, budget_fx_rates IN SHARE ROW EXCLUSIVE MODE');
 }
 
 async function yearSummary(client, year) {
@@ -493,25 +523,39 @@ async function scenariosReading(year) {
 async function previewPublish(id) {
   const view = await getBuild(id);
   const build = await getBuildRow(db, id);
-  const blockers = [];
+  const isDraft = build.status === 'draft';
+  const blockers = new Set();
+  const offForecast = { count: 0, usd: 0, categories: [] };
+  let missingRate = false;
   for (const l of view.lines) {
+    // Published but invisible to the forecast — not a blocker, but the dialog says how much.
+    if (!l.isParent && !l.onForecastLine && l.annual) {
+      offForecast.count += 1;
+      offForecast.usd += l.annualUsd ?? 0;
+      offForecast.categories.push(`${l.category} (${l.currency})`);
+    }
+    // A restore re-writes stored cells, which were checked when they were first published.
+    if (!isDraft) continue;
     if (l.isParent && l.annual) {
-      blockers.push(`${l.category} (${l.currency}) is a parent category — the forecast's base year cannot see it. ` +
+      blockers.add(`${l.category} (${l.currency}) is a parent category — the forecast's base year cannot see it. ` +
         'Set it to One-off and put its amount on a sub-category.');
     }
-    if (!view.rates.fx[l.currency]) blockers.push(`No ${l.currency} rate in scenario '${view.build.scenario}'`);
+    if (!view.rates.fx[l.currency]) {
+      missingRate = true;
+      blockers.add(`No ${l.currency} rate in scenario '${view.build.scenario}'`);
+    }
   }
-  const computed = build.status === 'draft'
-    ? await computeCells(db, build, view)
-    : { cells: (await db.query('SELECT * FROM budget_build_cells WHERE build_id = $1', [id])).rows, lines: [], window: null };
+  offForecast.usd = round2(offForecast.usd);
+  // A missing rate is listed as a blocker above; computing cells would throw on it.
+  const computed = missingRate ? { cells: [], lines: [], window: null } : await cellsFor(db, build, view);
   const willWrite = {
     count: computed.cells.length,
     usd: round2(computed.cells.reduce((s, c) => s + Number(c.base_amount), 0)),
   };
   return {
-    ...view, split: computed.lines, window: computed.window, blockers,
+    ...view, split: computed.lines, window: computed.window, blockers: [...blockers], offForecast,
     current: await yearSummary(db, view.build.targetYear),
-    checksum: await yearChecksum(db, view.build.targetYear),
+    checksum: `${await yearChecksum(db, view.build.targetYear)}.${cellsHash(computed.cells)}`,
     willWrite,
     readers: await scenariosReading(view.build.targetYear),
   };
@@ -520,44 +564,25 @@ async function previewPublish(id) {
 /** Publish a draft (computed cells) or restore a published-before build (its stored cells). */
 async function publish(id, { checksum }) {
   return db.transaction(async (client) => {
-    await client.query('SELECT pg_advisory_xact_lock($1, $2)', [LOCK_NS, 0]);
+    await lockYear(client);
     const build = await getBuildRow(client, id, { lock: true });
     const year = build.target_year;
+    const isDraft = build.status === 'draft';
     if (build.status === 'published') throw err(409, `${year} v${build.build_no} is already the live budget`);
-    if (build.status === 'unpublished' || build.status === 'superseded') {
-      const n = (await client.query('SELECT COUNT(*)::int AS n FROM budget_build_cells WHERE build_id = $1', [id])).rows[0].n;
-      if (!n) throw err(409, 'This build was never published, so it has nothing to restore');
-    }
-    if (!checksum || checksum !== await yearChecksum(client, year)) {
-      throw err(409, `The ${year} budget changed since the preview — open the preview again`);
-    }
 
-    let cells;
-    let lineAnnual = null;
-    if (build.status === 'draft') {
-      const view = await getBuild(id);
-      if (view.lines.some((l) => l.isParent && l.annual)) {
-        throw err(400, 'A parent-category line has an amount — the forecast cannot see it (see the preview)');
-      }
-      const computed = await computeCells(client, build, view);
-      cells = computed.cells;
-      lineAnnual = view.lines;
-    } else {
-      cells = (await client.query('SELECT * FROM budget_build_cells WHERE build_id = $1', [id])).rows;
+    const view = await getBuild(id, client);
+    if (isDraft && view.lines.some((l) => l.isParent && l.annual)) {
+      throw err(400, 'A parent-category line has an amount — the forecast cannot see it (see the preview)');
+    }
+    const { cells } = await cellsFor(client, build, view);
+    if (!isDraft && !cells.length) throw err(409, 'This build was never published, so it has nothing to restore');
+    // The token covers the year as previewed AND what was previewed for writing — a line edit or
+    // a scenario-rate change between preview and confirm is refused, not silently published.
+    if (!checksum || checksum !== `${await yearChecksum(client, year)}.${cellsHash(cells)}`) {
+      throw err(409, `The ${year} budget or this build changed since the preview — open the preview again`);
     }
 
-    // 1. Snapshot every row of the year, and the year's budget FX rates, verbatim.
-    await client.query('DELETE FROM budget_build_snapshot WHERE build_id = $1', [id]);
-    await client.query(
-      `INSERT INTO budget_build_snapshot (build_id, kind, row_data)
-       SELECT $1, 'entry', to_jsonb(be) FROM budget_entries be WHERE be.budget_year = $2`, [id, year]
-    );
-    await client.query(
-      `INSERT INTO budget_build_snapshot (build_id, kind, row_data)
-       SELECT $1, 'fx_rate', to_jsonb(r) FROM budget_fx_rates r WHERE r.year = $2`, [id, year]
-    );
-
-    // 2. One version for the year: the active one, else a new "Built".
+    // 1. One version for the year: the active one, else a new "Built" this publish owns.
     let version = (await client.query(
       `SELECT id FROM budget_versions WHERE budget_year = $1 AND is_active ORDER BY id LIMIT 1`, [year]
     )).rows[0];
@@ -569,6 +594,20 @@ async function publish(id, { checksum }) {
       )).rows[0];
       createdVersionId = version.id;
     }
+
+    // 2. The publish event, and its snapshot of every row of the year and the year's FX rates, verbatim.
+    const event = (await client.query(
+      `INSERT INTO budget_build_publishes (build_id, target_year, created_version_id)
+       VALUES ($1, $2, $3) RETURNING id`, [id, year, createdVersionId]
+    )).rows[0];
+    await client.query(
+      `INSERT INTO budget_build_snapshot (publish_id, kind, row_data)
+       SELECT $1, 'entry', to_jsonb(be) FROM budget_entries be WHERE be.budget_year = $2`, [event.id, year]
+    );
+    await client.query(
+      `INSERT INTO budget_build_snapshot (publish_id, kind, row_data)
+       SELECT $1, 'fx_rate', to_jsonb(r) FROM budget_fx_rates r WHERE r.year = $2`, [event.id, year]
+    );
 
     // 3. Replace the year — every version, NULL versions included.
     await client.query('DELETE FROM budget_entries WHERE budget_year = $1', [year]);
@@ -596,7 +635,7 @@ async function publish(id, { checksum }) {
     }
 
     // 5. Store what was written (a draft's first publish), and the state.
-    if (build.status === 'draft') {
+    if (isDraft) {
       for (const c of cells) {
         await client.query(
           `INSERT INTO budget_build_cells (build_id, category_id, account_id, currency, month, amount, base_amount, fx_rate)
@@ -604,58 +643,70 @@ async function publish(id, { checksum }) {
           [id, c.category_id, c.account_id, c.currency, c.month, c.amount, c.base_amount, c.fx_rate]
         );
       }
-      for (const l of lineAnnual) {
+      for (const l of view.lines) {
         await client.query('UPDATE budget_build_lines SET annual_amount = $2 WHERE id = $1', [l.id, l.annual]);
       }
     }
     await client.query(
+      'UPDATE budget_build_publishes SET checksum_after = $2 WHERE id = $1', [event.id, await yearChecksum(client, year)]
+    );
+    await client.query(
       `UPDATE budget_builds SET status = 'superseded', updated_at = NOW()
         WHERE target_year = $1 AND status = 'published' AND id <> $2`, [year, id]
     );
-    const after = await yearChecksum(client, year);
     await client.query(
-      `UPDATE budget_builds SET status = 'published', published_at = NOW(), published_checksum = $2,
-              created_version_id = $3, updated_at = NOW() WHERE id = $1`, [id, after, createdVersionId]
+      `UPDATE budget_builds SET status = 'published', published_at = NOW(), updated_at = NOW() WHERE id = $1`, [id]
     );
-    const versions = (await client.query(
-      'SELECT COUNT(DISTINCT version_id)::int AS n FROM budget_entries WHERE budget_year = $1', [year]
-    )).rows[0].n;
-    if (versions > 1) throw err(500, `Publish left ${versions} versions in ${year} — rolled back`);
     return { written: cells.length, year, buildNo: build.build_no };
   });
 }
 
-/** Restore what the most recent publish of this build replaced — exactly, or not at all. */
+/**
+ * Undo the year's newest publish — exactly, or not at all — and hand "live" back to the build
+ * the publish before it put there (none, if this undoes the year's first publish). Publishes stack,
+ * so repeated un-publishes walk back to the pre-builder budget.
+ */
 async function unpublish(id) {
   return db.transaction(async (client) => {
-    await client.query('SELECT pg_advisory_xact_lock($1, $2)', [LOCK_NS, 0]);
+    await lockYear(client);
     const build = await getBuildRow(client, id, { lock: true });
     const year = build.target_year;
-    if (build.status !== 'published') throw err(409, 'Only the live build can be un-published');
-    if (build.published_checksum !== await yearChecksum(client, year)) {
+    const event = await liveEvent(client, year);
+    if (build.status !== 'published' || !event || event.build_id !== id) {
+      throw err(409, 'Only the live build can be un-published');
+    }
+    if (event.checksum_after !== await yearChecksum(client, year)) {
       throw err(409, `The ${year} budget was edited after this publish — un-publishing would lose those edits`);
     }
     await client.query('DELETE FROM budget_entries WHERE budget_year = $1', [year]);
     const restored = (await client.query(
       `INSERT INTO budget_entries
        SELECT (jsonb_populate_record(NULL::budget_entries, s.row_data)).*
-         FROM budget_build_snapshot s WHERE s.build_id = $1 AND s.kind = 'entry'`, [id]
+         FROM budget_build_snapshot s WHERE s.publish_id = $1 AND s.kind = 'entry'`, [event.id]
     )).rowCount;
     await client.query('DELETE FROM budget_fx_rates WHERE year = $1', [year]);
     await client.query(
       `INSERT INTO budget_fx_rates
        SELECT (jsonb_populate_record(NULL::budget_fx_rates, s.row_data)).*
-         FROM budget_build_snapshot s WHERE s.build_id = $1 AND s.kind = 'fx_rate'`, [id]
+         FROM budget_build_snapshot s WHERE s.publish_id = $1 AND s.kind = 'fx_rate'`, [event.id]
     );
-    // Release the build's reference first — the version row is still pointed at until then.
+    // Release the event's reference first — the version row is still pointed at until then.
     await client.query(
-      `UPDATE budget_builds SET status = 'unpublished', created_version_id = NULL, updated_at = NOW()
-        WHERE id = $1`, [id]
+      'UPDATE budget_build_publishes SET undone_at = NOW(), created_version_id = NULL WHERE id = $1', [event.id]
     );
-    if (build.created_version_id) {
-      await client.query('DELETE FROM budget_versions WHERE id = $1', [build.created_version_id]);
+    if (event.created_version_id) {
+      await client.query('DELETE FROM budget_versions WHERE id = $1', [event.created_version_id]);
     }
-    return { restored, year };
+    await client.query(`UPDATE budget_builds SET status = 'unpublished', updated_at = NOW() WHERE id = $1`, [id]);
+    const before = await liveEvent(client, year);
+    let live = null;
+    if (before) {
+      live = (await client.query(
+        `UPDATE budget_builds SET status = 'published', updated_at = NOW() WHERE id = $1 RETURNING build_no`,
+        [before.build_id]
+      )).rows[0].build_no;
+    }
+    return { restored, year, live };
   });
 }
 
