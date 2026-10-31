@@ -1,6 +1,6 @@
 # CR098 — Budget builder: next year's budget from this year's Latest Estimate — LIVE (v3.77.0)
 
-**Status:** P0 + P1 + P2 **LIVE v3.77.0** (2026-10-30, §9). The CR closes after the first real 2027 publish — take a manual prod backup that day (§6). Planned 2026-10-15, two-pass reviewed: pass 1 *revise* → rev 2; pass 2 **GO** with four conditions, all written in (§8). ⚠️ Do not build [CR095](cr-095-forecast-spend-currency-share.md) (same FX area) at the same time.
+**Status:** IN-PROGRESS — P0 + P1 + P2 **LIVE v3.77.0** (2026-10-30, §9). The CR closes after the first real 2027 publish — take a manual prod backup that day (§6). Planned 2026-10-15, two-pass reviewed: pass 1 *revise* → rev 2; pass 2 **GO** with four conditions, all written in (§8). ⚠️ Do not build [CR095](cr-095-forecast-spend-currency-share.md) (same FX area) at the same time.
 **Track:** v3 · **Migration:** 084 (`084_budget_builder.sql`, six tables)
 **Depends on:** [CR083](cr-083-budget-latest-estimate.md) (the Latest Estimate, and its §11.4 list of
 what a seed must solve first) · [CR075](cr-075-base-year-is-the-budget.md) (the base year IS the

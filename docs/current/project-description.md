@@ -92,15 +92,15 @@ psproject/                          # ~/Programs/fin symlinks here
 │       │                           #  Charts, COAManagement, Database, Forecast,
 │       │                           #  Investments, NetWorthBridge, Transaction
 │       ├── mobile/                 # Dedicated /m/* shell (see §5)
-│       └── pages/                  # 52 page components
+│       └── pages/                  # 57 page components
 ├── server/                         # Express API
-│   ├── db/migrations/              # 001..080 SQL (79 files; 068 withdrawn)
+│   ├── db/migrations/              # 001..084 SQL (83 files; 068 withdrawn)
 │                                   #  — registry in docs/current/migrations.md
 │   ├── db/ci-seed.sql              # CI baseline COA rows (NOT a migration)
 │   └── src/
 │       ├── server.js  app.js
-│       ├── services/               # budget.js, budgetLe.js, reports.js, exposure.js,
-│                                   #  investments.js, investmentReturns.js, income.js,
+│       ├── services/               # budget.js, budgetLe.js, budgetBuilder.js, reports.js,
+│                                   #  exposure.js, investments.js, investmentReturns.js, income.js, risk.js,
 │                                   #  securityChart.js, netWorthBridge.js +
 │                                   #  netWorthNarration.js (route-facing);
 │                                   #  forecast/ and retrieval/ below
@@ -470,4 +470,4 @@ cd frontend && npm test && npm run build             # frontend tests + build
 
 ---
 
-*Last updated: 2026-10-07*
+*Last updated: 2026-10-31*
