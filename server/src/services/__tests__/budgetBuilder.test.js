@@ -40,6 +40,41 @@ describe('budget builder — split arithmetic', () => {
   });
 });
 
+describe('budget builder — grid rows in Chart of Accounts order', () => {
+  const tree = [
+    { id: 1, name: 'Income', children: [{ id: 2, name: 'Salary', children: [] }] },
+    { id: 3, name: 'Expense', children: [
+      { id: 4, name: 'Car', children: [{ id: 5, name: 'Lease', children: [] }, { id: 6, name: 'Fuel', children: [] }] },
+      { id: 7, name: 'Empty', children: [{ id: 8, name: 'Nothing', children: [] }] },
+    ] },
+  ];
+  const line = (id, categoryId, annualUsd) => ({ id, categoryId, annualUsd });
+  const shape = (rows) => rows.map((r) => (r.kind === 'group' ? `${r.depth}:${r.name}:${r.usd}` : `${r.depth}:#${r.lineId}`));
+
+  test('follows the tree, not the order lines arrive in; subtotals roll up; empty groups go', () => {
+    const rows = svc.groupLines(tree, [line(10, 6, -5), line(11, 5, -10), line(12, 2, 100), line(13, 5, -1)]);
+    expect(shape(rows)).toEqual([
+      '0:Income:100', '1:#12',
+      '0:Expense:-16', '1:Car:-16', '2:#11', '2:#13', '2:#10',
+    ]);
+  });
+
+  test('a parent holding its own line lists it under its header, inside its subtotal', () => {
+    const rows = svc.groupLines(tree, [line(10, 4, -2), line(11, 5, -10)]);
+    expect(shape(rows)).toEqual(['0:Expense:-12', '1:Car:-12', '2:#10', '2:#11']);
+  });
+
+  test('a line with no USD figure makes its subtotals unknown, not partial', () => {
+    const rows = svc.groupLines(tree, [line(10, 5, null), line(11, 6, -10), line(12, 2, 100)]);
+    expect(shape(rows)).toEqual(['0:Income:100', '1:#12', '0:Expense:null', '1:Car:null', '2:#10', '2:#11']);
+  });
+
+  test('a line on a category the tree lacks is listed at the end, never dropped', () => {
+    const rows = svc.groupLines(tree, [line(10, 99, -3), line(11, 2, 100)]);
+    expect(shape(rows)).toEqual(['0:Income:100', '1:#11', '0:Not in the Chart of Accounts:-3', '1:#10']);
+  });
+});
+
 const dbDescribe = process.env.SKIP_DB_TESTS ? describe.skip : describe;
 const P = 'CR098T';
 const SCEN = `${P} Base`;

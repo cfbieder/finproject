@@ -50,8 +50,12 @@
 .bb-table td { padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
 .bb-table th { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
 .bb-table .num { text-align: right; white-space: nowrap; }
-/* By line index, not nth-child — an opened month row would flip every stripe below it. */
+/* By row index, not nth-child — an opened month row would flip every stripe below it. */
 .bb-table tbody tr.bb-row--alt { background: var(--surface-muted); }
+/* Chart of Accounts groups: weight and background say it is a header; the sign alone colours the figure. */
+.bb-table tbody tr.bb-row--group td { font-weight: 600; background: var(--surface-muted); }
+.bb-table tbody tr.bb-row--group-d0 td { border-top: 2px solid var(--border); text-transform: uppercase; letter-spacing: 0.04em; }
+.bb-table tbody tr.bb-row--group-d2 td { font-weight: 500; background: none; }
 .bb-table tfoot td { font-weight: 600; border-top: 2px solid var(--border); }
 .bb-table--compact { margin: 0.5rem 0; }
 .bb-table--compact tbody tr:nth-child(even) { background: var(--surface-muted); }

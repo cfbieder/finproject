@@ -21,6 +21,7 @@
 const crypto = require('crypto');
 const db = require('../v2/db');
 const assumpRepo = require('../v2/repositories/forecastAssumptions');
+const accountsRepo = require('../v2/repositories/accounts');
 const { SCOPE_SQL } = require('../v2/repositories/budgetLe');
 const { rateAtYear } = require('./forecast/fcbuilder-setup');
 
@@ -272,6 +273,59 @@ async function updateLine(buildId, lineId, patch) {
   });
 }
 
+/**
+ * The grid's rows, in Chart of Accounts order with the hierarchy intact, as every report reads
+ * (`getNestedTree`: siblings by `display_order`). A group's subtotal is USD, because its lines mix
+ * currencies, and is null if any line under it has no USD figure, so a partial sum never reads as
+ * complete. A parent that holds lines of its own (`Car Expense`) lists them under its header. A
+ * line on a category the tree lacks (deactivated since the LE) is listed at the end, never dropped.
+ */
+function groupLines(tree, lines) {
+  const byCategory = new Map();
+  for (const l of lines) {
+    if (!byCategory.has(l.categoryId)) byCategory.set(l.categoryId, []);
+    byCategory.get(l.categoryId).push(l);
+  }
+  const rows = [];
+  const sumUsd = (group) => {
+    const usds = lines.filter((l) => group.has(l.id)).map((l) => l.annualUsd);
+    return usds.some((u) => u == null) ? null : round2(usds.reduce((a, b) => a + b, 0));
+  };
+  const pushLines = (categoryId, depth, under) => {
+    for (const l of byCategory.get(categoryId) || []) {
+      rows.push({ kind: 'line', lineId: l.id, depth });
+      under.add(l.id);
+    }
+    byCategory.delete(categoryId);
+  };
+  const walk = (node, depth) => {
+    const under = new Set();
+    if (!node.children?.length) {
+      pushLines(node.id, depth, under);
+      return under;
+    }
+    const slot = rows.length;
+    rows.push(null); // the header prints above its lines, once they are known
+    pushLines(node.id, depth + 1, under);
+    for (const child of node.children) {
+      for (const id of walk(child, depth + 1)) under.add(id);
+    }
+    if (under.size) rows[slot] = { kind: 'group', categoryId: node.id, name: node.name, depth, usd: sumUsd(under) };
+    else rows.splice(slot, 1);
+    return under;
+  };
+  for (const root of tree) walk(root, 0);
+
+  if (byCategory.size) {
+    const under = new Set();
+    const slot = rows.length;
+    rows.push(null);
+    for (const categoryId of [...byCategory.keys()]) pushLines(categoryId, 1, under);
+    rows[slot] = { kind: 'group', categoryId: null, name: 'Not in the Chart of Accounts', depth: 0, usd: sumUsd(under) };
+  }
+  return rows;
+}
+
 /** The draft or build with every line's annual figure, its deltas and its flags. */
 async function getBuild(id, client = db) {
   const build = await getBuildRow(client, id);
@@ -295,6 +349,7 @@ async function getBuild(id, client = db) {
       ORDER BY p.name NULLS FIRST, c.name, l.currency`, [id, build.le_year]
   )).rows;
 
+  const tree = await accountsRepo.getNestedTree({ section: 'profit_loss' });
   const totals = {};
   let usdTotal = 0;
   const out = lines.map((l) => {
@@ -321,7 +376,7 @@ async function getBuild(id, client = db) {
         year: build.le_year, actualThrough: build.actual_through }, parentBuildId: build.parent_build_id,
       publishedAt: build.published_at,
     },
-    rates, lines: out, totals, usdTotal: round2(usdTotal),
+    rates, lines: out, rows: groupLines(tree, out), totals, usdTotal: round2(usdTotal),
   };
 }
 
@@ -714,5 +769,5 @@ module.exports = {
   listSources, createBuild, deleteDraft, setNote, updateLine, getBuild, previewPublish,
   publish, unpublish, scenariosReading,
   // exported for tests
-  splitLine, allocate, sourceYear, LUMP_SHARE,
+  splitLine, allocate, groupLines, sourceYear, LUMP_SHARE,
 };

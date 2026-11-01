@@ -168,6 +168,7 @@ function BudgetBuilder() {
   });
 
   const splitById = useMemo(() => new Map((split?.split || []).map((s) => [s.id, s])), [split]);
+  const linesById = useMemo(() => new Map((view?.lines || []).map((l) => [l.id, l])), [view]);
   const hasPublished = (b) => b.status === "superseded" || b.status === "unpublished";
   const canPublish = shown && (isDraft || hasPublished(shown.build));
   const readersNote = (readers) =>
@@ -295,13 +296,24 @@ function BudgetBuilder() {
                   <th className="num">Inflation %</th>
                   <th className="num">Fixed (local, signed)</th>
                   <th className="num">Budget {targetYear}</th>
+                  <th className="num">In USD</th>
                   <th className="num">vs estimate</th>
                   <th className="num">Budget {shown.build.le.year}</th>
                   <th>Months</th>
                 </tr>
               </thead>
               <tbody>
-                {shown.lines.map((l, i) => {
+                {shown.rows.map((row, i) => {
+                  if (row.kind === "group") {
+                    return (
+                      <tr key={`group-${row.categoryId ?? "other"}`} className={`bb-row--group bb-row--group-d${Math.min(row.depth, 2)}`}>
+                        <td colSpan={7} style={{ paddingLeft: `${0.5 + row.depth * 1.1}rem` }}>{row.name}</td>
+                        <td className={`num ${neg(row.usd) || ""}`}>{fmt(row.usd)}</td>
+                        <td colSpan={3} />
+                      </tr>
+                    );
+                  }
+                  const l = linesById.get(row.lineId);
                   const s = splitById.get(l.id);
                   const signFlipped = l.policy === "fixed" && l.fixedAmount && Number(l.leFy) &&
                     Math.sign(l.fixedAmount) !== Math.sign(Number(l.leFy));
@@ -310,10 +322,10 @@ function BudgetBuilder() {
                   return (
                     <Fragment key={l.id}>
                       <tr className={rowClass}>
-                        <td>
+                        <td style={{ paddingLeft: `${0.5 + row.depth * 1.1}rem` }}>
                           <button type="button" className="bb-linkish" onClick={() => setOpenLine(openLine === l.id ? null : l.id)}
                             aria-expanded={openLine === l.id}>
-                            {l.parent ? <span className="bb-muted">{l.parent} › </span> : null}{l.category}
+                            {l.category}
                           </button>
                           {l.isParent && <span className="bb-flag"> ⚠ parent — not in the forecast&apos;s base year</span>}
                           {!l.isParent && !l.onForecastLine && <span className="bb-muted"> · on no forecast line</span>}
@@ -353,6 +365,7 @@ function BudgetBuilder() {
                           {signFlipped && <div className="bb-flag">⚠ opposite sign to the estimate</div>}
                         </td>
                         <td className={`num bb-strong ${neg(l.annual) || ""}`}>{fmt(l.annual)}</td>
+                        <td className={`num ${neg(l.annualUsd) || ""}`}>{fmt(l.annualUsd)}</td>
                         <td className={`num ${neg(l.vsLe) || ""}`}>{fmt(l.vsLe)}</td>
                         <td className={`num ${neg(l.thisYearBudget) || ""}`}>{fmt(l.thisYearBudget)}</td>
                         <td>
@@ -377,7 +390,7 @@ function BudgetBuilder() {
                       </tr>
                       {openLine === l.id && (
                         <tr className="bb-months-row">
-                          <td colSpan={10}>
+                          <td colSpan={11}>
                             {s ? (
                               <>
                                 <table className="bb-months">
@@ -407,11 +420,11 @@ function BudgetBuilder() {
                   <tr key={cur}>
                     <td colSpan={6}>Total {cur}</td>
                     <td className={`num bb-strong ${neg(total) || ""}`}>{fmt(total)}</td>
-                    <td colSpan={3} />
+                    <td colSpan={4} />
                   </tr>
                 ))}
                 <tr>
-                  <td colSpan={6}>Total in USD, at the rates above</td>
+                  <td colSpan={7}>Total in USD, at the rates above</td>
                   <td className={`num bb-strong ${neg(shown.usdTotal) || ""}`}>{fmt(shown.usdTotal)}</td>
                   <td colSpan={3} />
                 </tr>
