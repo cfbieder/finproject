@@ -1,6 +1,6 @@
 # CR098 — Budget builder: next year's budget from this year's Latest Estimate — IN-PROGRESS (P0–P2 live)
 
-**Status:** IN-PROGRESS — P0 + P1 + P2 **LIVE v3.77.0** (2026-10-30, §9). The CR closes after the first real 2027 publish — take a manual prod backup that day (§6). Planned 2026-10-15, two-pass reviewed: pass 1 *revise* → rev 2; pass 2 **GO** with four conditions, all written in (§8). ⚠️ Do not build [CR095](cr-095-forecast-spend-currency-share.md) (same FX area) at the same time.
+**Status:** IN-PROGRESS — P0 + P1 + P2 **LIVE v3.77.0** (2026-10-30, §9). **Rev 3 (§10, budget variants) is PLANNED and two-pass reviewed (GO), not built.** The CR closes when the first real 2027 publish is done **and** V1–V5 have shipped, with anything cut listed on the roadmap (§10.7). Take a manual prod backup the day of that publish (§6). Planned 2026-10-15, two-pass reviewed: pass 1 *revise* → rev 2; pass 2 **GO** with four conditions, all written in (§8). ⚠️ Do not build [CR095](cr-095-forecast-spend-currency-share.md) (same FX area) at the same time.
 **Track:** v3 · **Migration:** 084 (`084_budget_builder.sql`, six tables)
 **Depends on:** [CR083](cr-083-budget-latest-estimate.md) (the Latest Estimate, and its §11.4 list of
 what a seed must solve first) · [CR075](cr-075-base-year-is-the-budget.md) (the base year IS the
@@ -169,7 +169,7 @@ The preview lists what will be deleted — by category, with counts — so the 1
 are visible before they go. Re-publishing a new build of the same year is publish again (it
 snapshots what is there then). **Publishes stack**, which is why the snapshot belongs to the event:
 keyed by build, *publish v1 → publish v2 → restore v1* overwrote v1's only copy of the pre-builder
-budget (found at code review, §9). One open draft per target year, as the LE does.
+budget (found at code review, §9). One open draft per target year, as the LE does (rev 3, §10, plans to lift this).
 
 ### 3.4a Iterations — numbered builds, start from one, restore one (owner, 2026-10-16)
 
@@ -237,6 +237,8 @@ confirm. Colour means sign; both themes rendered before shipping.
 - Keeping pre-existing rows as commitments (decision 7 chose replace).
 - More than one budget version per year, mobile, and editing published cells from the builder —
   published rows are ordinary budget rows, edited on the existing budget pages.
+  Rev 3's variants (§10) do not change the first of these: they stay in the builder's tables, and the
+  year still holds one version's rows.
 
 ## 5. Verification
 
@@ -280,6 +282,14 @@ figures by FC line). *Start from* and *Restore* (§3.4a) are cut before those �
 good publish, not its history — but `budget_build_cells` and `build_no` ship regardless, so the
 history exists from the first publish and the two actions can follow later. Un-publish is not cut —
 it is the undo for an 800-row replace.
+
+**Rev 3.** P2 is live, so this fallback's cut order is history; §10.7 governs what slips now.
+
+| phase | scope | gate |
+|---|---|---|
+| **P3a** | V1–V3 + V7 (migration 085), V4 | Live on prod by about 2026-11-20 |
+| **P3b** | V5 (a) totals, then (b) any two | By the 2026-12-03 freeze, else after the publish |
+| **P3c** | V6 | Before the first swap over a hand edit |
 
 ## 7. Decided at review, not left open
 
@@ -345,7 +355,218 @@ rolled back and re-applied, rather than adding an 085. UI review: errors now sho
 dialog, blockers are de-duplicated, Enter saves and the wheel no longer changes an amount, a refused
 edit reverts, a Fixed amount opposite in sign to the estimate is flagged.
 
+**Grid order (owner, v3.77.1, 2026-11-01).** The grid reads in Chart of Accounts order with group headers
+(`groupLines`, over `getNestedTree`, the same order as the LE and the reports), and an *In USD* column
+carries the group subtotals, because a group mixes currencies.
+
 **Known limits, not fixed.** One account whose actuals run against the category's sign makes that
 line fall back to an even split with no account (the whole grid fails validation, not just that
 account). A restore writes stored cells even if a category or account was deactivated since. The
 radius values on the page's own inputs (4px / 6px) are below the smallest `--radius-*` token (10px).
+
+## 10. Rev 3 — budget variants (PLANNED 2026-11-01, not built)
+
+### 10.1 The ask and the decisions
+
+Owner, 2026-11-01: develop several variants of a year's budget, copy one to make another, choose which
+is official, keep the earlier ones, and be able to swap the official budget for another existing
+variant or a new draft later. Decided one question at a time, the same day:
+
+| # | question | decision |
+|---|---|---|
+| 1 | Scope before the first real publish | All of V1–V7 below |
+| 2 | Swapping over hand edits to the official budget | **Warn only**; never block, and no "save as variant" |
+| 3 | The other drafts once one is published | **Stay open drafts** — editable and publishable; no freeze |
+| 4 | Removing a variant | **Delete, with a clear confirmation**; no archive |
+| 5 | The comparison | **Totals for every variant, plus any two line by line** with a difference column |
+
+**A variant is a build.** §3.4a already numbers builds, copies with *Start from* and swaps with
+*Publish* / *Restore*; only the one-draft rule stops them being used side by side. Reports need no
+change and gain no selector: they read `budget_entries`, which holds only what was published. The
+§4 non-goal stands — §2 measured why a second `budget_versions` row is unsafe (ten version-blind
+reader files; 131 of the 793 rows for 2026 have `version_id` NULL).
+
+### 10.2 What is true today (read from the code, 2026-11-01; prod has 0 builds)
+
+- A second draft is refused twice: `createBuild` (409) and the partial unique index
+  `bb_one_draft_per_year`. `budgetBuilder.test.js:144` asserts the refusal.
+- `budget_builds.parent_build_id` has no `ON DELETE` action and `deleteDraft` is a plain delete. A
+  same-year parent is never a draft today, so this is nearly unreachable (`createBuild` does not compare
+  the parent's year, so a 2027 draft can parent a 2028 one); with V1 it fails on a draft that has copies.
+- `updateLine` writes `budget_category_policy` on **every line edit**, so a discarded experiment
+  changes what the next from-scratch draft starts from. The table's key is `category_id` while a
+  line is (category, currency); 42 categories in LE-10-26 carry more than one currency (149 lines),
+  so the last edit wins.
+- `getBuild` calls `scenarioRates` for **every** build, including stored ones, and `publish` calls
+  `getBuild`. `budget_builds.scenario_name` is plain text and `renameScenario` does not update it. So
+  after a rename or delete, `scenarioRates` throws and the build cannot be opened, previewed or
+  restored, although a restore needs none of those rates. **Not forced by the annual close:**
+  `annualClose.js` mints a copy and `2026 Base` survives. A manual rename or delete reaches it, and so
+  does a `PUT` of the assumptions document that empties a live scenario's inflation rows, so V7 keys on
+  **rates unavailable**, not on the scenario being gone.
+- `getBuild` values a stored build's USD at **today's** scenario rate (`annual / fx.rate`), not the
+  stored `base_amount`, so a published build's displayed USD can move after publish.
+- `setNote` and `PATCH /:id` exist for every status; the page can set a note only on a new draft.
+
+### 10.3 Changes
+
+- **V1 — many drafts.** Drop the `createBuild` check and the index; change the test to expect two
+  drafts. `bb_one_published_per_year` stays. The page opens on the newest year's live build, else
+  that year's newest, on load and after a delete. **Choosing a same-year build in *Start from* prefills
+  its LE and its scenario** (if that scenario still has rates; `listSources` adds `source_le_id`), so a
+  copy is a copy: today the form keeps the newest LE, and once LE-11-26 is finalised a "copy" of a build
+  on LE-10-26 would silently change every line. Cross-year *Start from* stays. `build_no` stays `MAX + 1` under `bb_year_no_uniq`: a concurrent
+  create fails rather than duplicates (one owner, button disabled while busy).
+- **V2 — safe delete.** `parent_build_id` → `ON DELETE SET NULL`. The confirm names the build and says
+  it is permanent. **Any build ever published stays undeletable** — superseded and un-published ones
+  included, because the publish history and its walk-back point at them — so those stay in the list for
+  good. A copy holds its own line settings, so it loses only the link. A deleted draft's `build_no` can
+  be reused; a published number never is.
+- **V3 — remembered settings on publish.** `updateLine` no longer writes `budget_category_policy`;
+  `publish` writes it from the build's lines, for a draft and a restore alike, in the same
+  transaction. A category with several currency lines takes the line with the largest **`|le_fy|` in
+  USD**, ties broken by currency. Ranking the estimate, not the result, matters: a One-off's annual is
+  always 0, so ranking by annual would almost never remember One-off (LE-10-26: `Financial Income -
+  Barkeria` PLN 128,084.62 ≈ USD 35,131 beside USD 21,000), and next year's draft would seed the large
+  line as Recurring at full value. USD comes from `view.rates` for a draft and `published_rates.fx` for
+  a restore; a build with NULL `published_rates` uses its cells' `fx_rate`. Un-publish does not rewind
+  the table: it seeds future drafts only. Consequence: once V3 is live and before the first publish, a
+  from-scratch draft starts all Recurring, unless draft edits on v3.77.0 already wrote policy rows (the
+  table is empty on prod today) — *Start from* is how choices carry between variants.
+- **V4 — naming.** The page's note becomes an editable **Name** on any build, over the existing PATCH.
+- **V5 — comparison.** Read-only, on the builder page. (a) Every build of the year: name, status, LE,
+  scenario, USD total. (b) Any two: annual per (category, currency), merged in JS from the `getBuild` shape — never a SQL
+  join on `annual_amount`, which is 0 for every draft — with local amounts and USD for each and a USD
+  difference. A line in one build only shows as absent, and counts as 0 in the difference, so the column
+  adds up to the totals' difference. A draft's USD is rounded per line and a stored build's per cell, so
+  identical variants can differ by cents: round to display precision before applying the sign colour,
+  so no red "-0".
+  Each side uses its own scenario's rates, and the rates are shown because two variants can differ on
+  them. The official build is a side **as published**; when V6's check fires, it is labelled as edited
+  since. Annual only — the month split stays on each line. A draft whose rates are unavailable (V7)
+  shows no USD figure rather than failing the page; each build is loaded under its own error handling,
+  so one bad build cannot fail the list. `GET /compare` is declared before `/:id`. The comparison is its
+  own component under `frontend/src/features/`, with the arithmetic a pure tested function, not more
+  of the 493-line page. Colour means sign; both themes rendered.
+- **V6 — hand-edit warning.** `previewPublish` compares the live event's `checksum_after` with the
+  year's current checksum. When they differ, the dialog says the official budget was edited after
+  its last publish and that those edits are replaced; Un-publish can return them only while the year
+  is not edited again. It never blocks. With no live event the existing "rows to delete" list already
+  covers it. Row counts use the **event's** transaction timestamp: rows the event wrote have `created_at
+  = event.published_at`; updated = `updated_at > event.published_at`; missing = the build's cells minus
+  rows the event wrote. Not the `note` marker (owner-editable) and not `budget_builds.published_at`
+  (overwritten and left stale). `budget_fx_rates` with `updated_at` after the event also triggers the
+  warning, since the checksum covers entries only. A direct-SQL edit fires the checksum and gets the
+  sentence without a count. The preview reads `liveEvent` without `FOR UPDATE` (a read path takes no lock).
+  **The un-publish dialog gains the same check and `readers`**: it shows the "edited since" refusal up
+  front and names the scenarios needing a regenerate, which §3.4 promised and the page does not do.
+- **V7 — builds outlive their scenario.** Stored builds stop reading live rates: a new column
+  `budget_builds.published_rates JSONB`, written at a build's first publish, holds what the view
+  displays (inflation and FX with provenance); USD comes from `budget_build_cells.base_amount`. This
+  also fixes the moving-USD fact in §10.2. It is written only at a draft's first publish, never on a
+  restore: the cells are frozen, so rewriting would show today's rates beside old cells. A NULL value
+  (a build published before 085) derives `fx` from `budget_build_cells.fx_rate` with inflation and
+  provenance null, keeping the `rates.fx` object the page dereferences. `effectiveInflationPct` reads the
+  stored rates; the "set them on Forecast Scenarios" banner is draft-only; `thisYearBudget` stays live
+  by design. Stored cells are grouped into the preview's `lines`, so *Show month split* works on a stored
+  build (today it returns none and the page keeps asking). A restore needs only stored cells.
+  `renameScenario` updates `budget_builds.scenario_name` in its transaction. Scenario delete is not
+  blocked by builds.
+  **A draft whose rates are unavailable:** `scenarioRates` returns `{ inflation: null, fx: { USD: {rate:
+  1}, PLN: null, EUR: null } }` instead of throwing. Fixed and overridden lines still compute; a Recurring
+  line with no override has `annual`, `annualUsd`, `vsLe` and `vsThisYear` **null, not 0**, and `totals`
+  and `usdTotal` are null if any contributing line is null, so no partial total reads as complete.
+  **`publish()` itself refuses any null annual** — a server check, not only a preview blocker, because
+  `splitLine(null)` writes no cells and the line would vanish, and the existing rate blocker tests only
+  `fx[currency]`, which USD always passes. The blocker names the scenario and the missing rates. Lines stay
+  editable, since `updateLine` reads no rates; *Start from* into a new draft with another scenario, or
+  restoring the rates, is the way out. The page does not dereference `rates.inflation.rate` unguarded.
+
+### 10.4 Storage (migration 085, number to be claimed at build)
+
+Fresh-DB-safe, 084 untouched: `DROP INDEX IF EXISTS bb_one_draft_per_year`; `DROP CONSTRAINT IF EXISTS
+budget_builds_parent_build_id_fkey` and re-add it with `ON DELETE SET NULL`; `ADD COLUMN IF NOT EXISTS
+published_rates JSONB`. The rollback note says the index cannot return while a year has more than one
+draft. v3.77.0 runs on the new schema (its own 409 check remains), so applying it to prod before the code
+deploys, as §6, is safe. A build published before 085 takes V7's NULL path; prod has none today, but the
+§10.7 fallback can create one. The CR097 worktree could also claim 085: check at commit time.
+
+### 10.5 Accepted limits
+
+- **A draft is not a frozen record** (decision 3). Its LE figure, policy, Fixed amount and scenario
+  persist; its figures move with scenario rates and recategorised transactions, and the preview always
+  shows current numbers. Only published builds hold exact figures.
+- **A swap after the year starts rewrites budget-vs-actual for elapsed months.** Finalised LEs keep the
+  budget they froze (migration 082); draft LEs and reports move; base scenarios need a regenerate, which
+  the dialogs name (V6 adds this to Un-publish).
+- **Reports do not name the variant.** The builder's **live** marker is the one place that says.
+- **Restore ignores hand edits** (decision 2); nothing saves them as a build, because cells cannot hold
+  row descriptions, day-of-month or category-less rows.
+- **Published variants cannot be removed** (V2): decision 4's Delete applies to never-published drafts.
+
+### 10.6 Verification
+
+As §5, on a prod dump in a throwaway database, adding:
+1. Three drafts of 2027, the third started from the second; editing the copy leaves the original's
+   lines unchanged; deleting the second leaves the third's lines intact and its parent NULL.
+2. Publish the first: the other two stay drafts and the year holds only its rows. Publish the third:
+   the first is superseded with cells unchanged. Restore the first: byte-for-byte as §5.4a; the §5
+   per-FC-line check still 0 mismatches after a publish that replaced another variant.
+3. Line edits leave `budget_category_policy` untouched; publish writes it; a multi-currency category
+   takes the deterministic line.
+4. Rename and separately delete the scenario: superseded builds open, show stored USD and restore
+   exactly; a rename updates `scenario_name`; a draft on a deleted scenario opens and refuses to publish.
+5. After a scenario rate change, a superseded build's USD is unchanged and a draft's moves.
+6. Hand-edit one budget row, delete another, *Recalculate*: the preview warns each time and does not
+   block; with no edit there is no warning.
+7. Comparison totals equal each build's own total; the line view shows one-sided lines as absent.
+8. Rendered in both themes.
+
+**Automated, in `budgetBuilder.test.js`:** two drafts of a year; deleting a parent (V2 FK); V3's ranking
+including a large One-off; an all-USD draft with no rates refusing to publish and writing nothing; V6's
+counts after a publish, a restore and an un-publish hand-back; a pure test of the comparison arithmetic.
+In `forecast.renameScenario.test.js`, the rename of `scenario_name` (its fake throws on unknown SQL, so it
+must be extended). The test at `:144` deletes its second draft, or the `:216` assertions break. Item 6's
+*Recalculate* needs a seeded 2027 `exchange_rates` row, because 2027 has none and it returns 400.
+
+### 10.7 Sequencing and dates
+
+Not on the critical path: January needs one good publish, which the live code already does. Each stage
+ships and is tagged on its own (§6). Order: V1–V3 + V7 → V4 + V5(a) → V5(b) → V6. V6 and V5's "edited since"
+label must be live before the first swap over a hand edit, not before the first publish.
+
+- **About 2026-11-20:** P3a on prod, leaving about three weeks of real use.
+- **2026-12-03:** builder code freeze. No builder deploy between this and the first publish, so the publish
+  is not the first use of fresh code. A comparison not live by then ships after it.
+- **2026-12-10:** the first real publish, firm, from whatever is live. A later variant can replace it
+  through the same path. The owner holds the first publish until then at the latest.
+
+**Slips first:** V7's draft-without-rates paragraph falls back to a clear refusal naming the scenario,
+while stored builds still stop reading live rates (raised with the owner if taken, and check first that
+delete or *Start from* gets out of such a draft). **Slips second:** V5(b), which is deferred, not cut.
+
+**Before the publish.** `2026 Base` now carries 2027 rates, set by the owner on 2026-11-01. LE-10-26 and
+LE-11-26 are finalised, and a from-scratch draft treats the −65,000 `Car Purchase/Sale` as Recurring until
+it is flagged. A later LE is a deliberate change in the form, since *Start from* now keeps the parent's.
+The owner's first draft (2027 v1, LE-11-26) has parent-category lines on `Car Expense` and `Children -
+Anna` that block Publish until set to One-off. After the freeze, re-run §5.3's
+per-FC-line check on a fresh prod dump with the chosen draft: the 16/16 result was on LE-09-26 and
+pre-rev-3 code. [CR095](cr-095-forecast-spend-currency-share.md) waits until rev 3 and the first publish
+are done, because V7 changes `scenarioRates`.
+
+### 10.8 Review log
+
+- **Pass 1 — `cr-technical-reviewer`, 2026-11-01: *revise*, 2 blocking.** **B1** ranking the remembered
+  policy by annual made One-off nearly unwinnable → rank by `|le_fy|` in USD (V3). **B2** the no-rates draft
+  produced partial totals and could drop a line from a publish → nulls propagate and `publish()` refuses
+  (V7). Non-blocking, all taken: *Start from* prefills the parent's LE and scenario (V1); un-publish dialog
+  gets `readers` and the edited-since check, FX-only edits warn, counts use the event timestamp (V6);
+  stored builds get their month split, NULL `published_rates` is a real path, restore does not rewrite it
+  (V7); comparison merged in JS, one-sided difference defined (V5); ever-published builds undeletable (V2);
+  named automated tests (§10.6). Clean: FK name, migration safety, un-publish hand-back, `getBuild` per build
+  (14 ms on prod, emulated on LE-10-26). No builder code was executed in the review.
+- **Pass 2 — `cr-signoff-pm`, 2026-11-01: GO**, four conditions, all written in: (1) *Restore* on the live
+  build to discard hand edits, proposed from pass 1, is outside the owner's decisions and has an exact
+  workaround, so it moved to a roadmap bullet; (2) dates for §10.7; (3) the closing condition (header);
+  (4) status, roadmap and index synced with the hold. Taken from its recommendations: V5 ahead of V6, staged
+  phases (§6), the named slip order and the pre-publish steps.
