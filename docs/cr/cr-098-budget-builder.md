@@ -1,7 +1,7 @@
 # CR098 — Budget builder: next year's budget from this year's Latest Estimate — IN-PROGRESS (P0–P2 live)
 
-**Status:** IN-PROGRESS — P0 + P1 + P2 **LIVE v3.77.0** (2026-10-30, §9). **Rev 3 (§10, budget variants) is PLANNED and two-pass reviewed (GO), not built.** The CR closes when the first real 2027 publish is done **and** V1–V5 have shipped, with anything cut listed on the roadmap (§10.7). Take a manual prod backup the day of that publish (§6). Planned 2026-10-15, two-pass reviewed: pass 1 *revise* → rev 2; pass 2 **GO** with four conditions, all written in (§8). ⚠️ Do not build [CR095](cr-095-forecast-spend-currency-share.md) (same FX area) at the same time.
-**Track:** v3 · **Migration:** 084 (`084_budget_builder.sql`, six tables)
+**Status:** IN-PROGRESS — P0 + P1 + P2 **LIVE v3.77.0** (2026-10-30, §9). **Rev 3 (§10, budget variants): P3a (V1–V4, V7, V8; migration 085) is BUILT and verified on `main`, not deployed (§10.9); P3b (V5) and P3c (V6) are not built.** The CR closes when the first real 2027 publish is done **and** V1–V5 have shipped, with anything cut listed on the roadmap (§10.7). Take a manual prod backup the day of that publish (§6). Planned 2026-10-15, two-pass reviewed: pass 1 *revise* → rev 2; pass 2 **GO** with four conditions, all written in (§8). ⚠️ Do not build [CR095](cr-095-forecast-spend-currency-share.md) (same FX area) at the same time.
+**Track:** v3 · **Migrations:** 084 (`084_budget_builder.sql`, six tables) · 085 (`085_budget_build_variants.sql`, rev 3)
 **Depends on:** [CR083](cr-083-budget-latest-estimate.md) (the Latest Estimate, and its §11.4 list of
 what a seed must solve first) · [CR075](cr-075-base-year-is-the-budget.md) (the base year IS the
 budget) · [CR064](cr-064-forecast-annual-close-and-assumptions.md) P2 (the annual close, live v3.76.0)
@@ -287,7 +287,7 @@ it is the undo for an 800-row replace.
 
 | phase | scope | gate |
 |---|---|---|
-| **P3a** | V1–V3 + V7 (migration 085), V4 | Live on prod by about 2026-11-20 |
+| **P3a** | V1–V3 + V7 (migration 085, including V8's columns), V4, V8 | Live on prod by about 2026-11-20 |
 | **P3b** | V5 (a) totals, then (b) any two | By the 2026-12-03 freeze, else after the publish |
 | **P3c** | V6 | Before the first swap over a hand edit |
 
@@ -379,6 +379,7 @@ variant or a new draft later. Decided one question at a time, the same day:
 | 3 | The other drafts once one is published | **Stay open drafts** — editable and publishable; no freeze |
 | 4 | Removing a variant | **Delete, with a clear confirmation**; no archive |
 | 5 | The comparison | **Totals for every variant, plus any two line by line** with a difference column |
+| 6 | Spreading a line over several chosen months (asked 2026-11-02) | **Month weights** (V8): proportions, not picked months or typed amounts |
 
 **A variant is a build.** §3.4a already numbers builds, copies with *Start from* and swaps with
 *Publish* / *Restore*; only the one-draft rule stops them being used side by side. Reports need no
@@ -482,11 +483,27 @@ reader files; 131 of the 793 rows for 2026 have `version_id` NULL).
   editable, since `updateLine` reads no rates; *Start from* into a new draft with another scenario, or
   restoring the rates, is the way out. The page does not dereference `rates.inflation.rate` unguarded.
 
+- **V8 — month weights.** A fourth month split, **custom**, beside *from actuals*, *even* and *one month*.
+  Opening a line shows 12 boxes above its money row: blank means nothing in that month, and any
+  non-negative numbers set the proportions (Mar 3, Aug 2 on 500,000 → 300,000 and 200,000; a 1 in four
+  months → four equal payments). Weights, not amounts, because the annual still comes from the policy: a
+  typed 300,000 / 200,000 lands exactly while the annual is 500,000 and rescales when it changes, so no
+  total can disagree. The line's sign is applied by the split, so an expense also takes positive weights.
+  At least one weight must be above zero, or the edit is refused. `splitLine` feeds them to the existing
+  `allocate(accAmounts[i], weights)`, so each account keeps its share and the line sums exactly to its
+  annual figure. **A single month's total can differ by cents when the line spans several accounts**,
+  because each account rounds on its own. The lump rule does not apply to a custom line. *Start from*
+  copies the weights. They are remembered per category under V3's rule, from the same winning line. Stored
+  cells make a restore independent of them. The preview token already hashes the cells, so a weight edit
+  after the preview is refused like any other.
+
 ### 10.4 Storage (migration 085, number to be claimed at build)
 
 Fresh-DB-safe, 084 untouched: `DROP INDEX IF EXISTS bb_one_draft_per_year`; `DROP CONSTRAINT IF EXISTS
 budget_builds_parent_build_id_fkey` and re-add it with `ON DELETE SET NULL`; `ADD COLUMN IF NOT EXISTS
-published_rates JSONB`. The rollback note says the index cannot return while a year has more than one
+published_rates JSONB`; V8's `split_weights NUMERIC(15,2)[]` on `budget_build_lines` and
+`budget_category_policy` (length 12 when set), with `bbl_split_chk` and `bcp_split_chk` replaced to admit
+`custom`, and a check that a custom split has weights. The rollback note says the index cannot return while a year has more than one
 draft. v3.77.0 runs on the new schema (its own 409 check remains), so applying it to prod before the code
 deploys, as §6, is safe. A build published before 085 takes V7's NULL path; prod has none today, but the
 §10.7 fallback can create one. The CR097 worktree could also claim 085: check at commit time.
@@ -520,11 +537,15 @@ As §5, on a prod dump in a throwaway database, adding:
 6. Hand-edit one budget row, delete another, *Recalculate*: the preview warns each time and does not
    block; with no edit there is no warning.
 7. Comparison totals equal each build's own total; the line view shows one-sided lines as absent.
-8. Rendered in both themes.
+8. Custom weights on a line spanning two accounts: Mar 3, Aug 2 writes only those months at 3:2, each
+   account keeps its share, and the line sums to its annual figure to the cent; changing a Fixed amount
+   rescales them; *Start from* copies them; a restore after a weight edit in a later draft is unchanged.
+9. Rendered in both themes.
 
 **Automated, in `budgetBuilder.test.js`:** two drafts of a year; deleting a parent (V2 FK); V3's ranking
 including a large One-off; an all-USD draft with no rates refusing to publish and writing nothing; V6's
-counts after a publish, a restore and an un-publish hand-back; a pure test of the comparison arithmetic.
+counts after a publish, a restore and an un-publish hand-back; a pure test of the comparison arithmetic; `splitLine` with custom weights, including an expense and
+an all-zero refusal.
 In `forecast.renameScenario.test.js`, the rename of `scenario_name` (its fake throws on unknown SQL, so it
 must be extended). The test at `:144` deletes its second draft, or the `:216` assertions break. Item 6's
 *Recalculate* needs a seeded 2027 `exchange_rates` row, because 2027 has none and it returns 400.
@@ -532,7 +553,7 @@ must be extended). The test at `:144` deletes its second draft, or the `:216` as
 ### 10.7 Sequencing and dates
 
 Not on the critical path: January needs one good publish, which the live code already does. Each stage
-ships and is tagged on its own (§6). Order: V1–V3 + V7 → V4 + V5(a) → V5(b) → V6. V6 and V5's "edited since"
+ships and is tagged on its own (§6). Order: V1–V3 + V7 → V8 + V4 + V5(a) → V5(b) → V6. V6 and V5's "edited since"
 label must be live before the first swap over a hand edit, not before the first publish.
 
 - **About 2026-11-20:** P3a on prod, leaving about three weeks of real use.
@@ -544,18 +565,50 @@ label must be live before the first swap over a hand edit, not before the first 
 **Slips first:** V7's draft-without-rates paragraph falls back to a clear refusal naming the scenario,
 while stored builds still stop reading live rates (raised with the owner if taken, and check first that
 delete or *Start from* gets out of such a draft). **Slips second:** V5(b), which is deferred, not cut.
+**Slips third:** V8's page and split; its columns still ship in 085, so no second migration follows.
 
 **Before the publish.** `2026 Base` now carries 2027 rates, set by the owner on 2026-11-01. LE-10-26 and
 LE-11-26 are finalised, and a from-scratch draft treats the −65,000 `Car Purchase/Sale` as Recurring until
 it is flagged. A later LE is a deliberate change in the form, since *Start from* now keeps the parent's.
-The owner's first draft (2027 v1, LE-11-26) has parent-category lines on `Car Expense` and `Children -
-Anna` that block Publish until set to One-off. After the freeze, re-run §5.3's
+The owner's first draft (2027 v1, LE-11-26) had parent-category lines on `Car Expense` and `Children -
+Anna` that blocked Publish; both were set to One-off on 2026-11-02, and the preview shows no blockers. After the freeze, re-run §5.3's
 per-FC-line check on a fresh prod dump with the chosen draft: the 16/16 result was on LE-09-26 and
 pre-rev-3 code. [CR095](cr-095-forecast-spend-currency-share.md) waits until rev 3 and the first publish
 are done, because V7 changes `scenarioRates`.
 
+### 10.9 As built — P3a (2026-11-02)
+
+**Code.** Migration 085 (§10.4; its CHECK also refuses an empty, all-zero, negative or NULL-holding
+weights array, tightened from "length 12" at `migration-reviewer`). `budgetBuilder.js`: many drafts, stored
+builds read `published_rates` or their cells, null figures propagate, `policyLines` + `rememberPolicies`
+at publish, `checkWeights`, custom in `splitLine`. `renameScenario` carries `scenario_name`. The page gains
+*Name* on any build, a weights row on an opened draft line, *Start from* prefill and the named delete.
+Choosing *month weights* in the dropdown seeds a 1 in all twelve months, which equals even, so nothing moves
+until a weight is changed; boxes save when focus leaves the row. Leaving custom clears the weights.
+
+**Verified on a fresh prod dump in a throwaway database (§10.6 items 1–5, 8, 9).** Three drafts, copy
+independent, delete leaves the copy with NULL parent. Publish, replace, restore: restore byte-for-byte on
+amount, base amount, account and date, and **per FC line 16/16 at each of the three steps**, read through
+`crud.getBaseYearValues`, the engine's own query, so no clock change was needed. Line edits leave the policy
+table alone; publish writes it. A 20% PLN move leaves a superseded build's USD unchanged and moves a draft's.
+Rename and delete of the scenario: superseded builds open and restore exactly, a draft shows no figure and
+refuses to publish, writing nothing. Weights on `Car - Gas And Fuel` (PLN, two accounts): Mar 3, Aug 2 wrote
+−6,682.37 / −4,454.92, summing to −11,137.29, both accounts keeping a share. Page walked in both themes on
+that database (rename, prefill, new draft, weights, month split, publish, stored split, delete dialog), no
+page errors. Fresh-database suite 124 suites, 1,546 passed; frontend 734 passed; ratchets at baseline.
+
+**Not verified:** §10.6 item 6 and 7 belong to V6 and V5, which are not built. §10.6 item 3's multi-currency
+ranking is proved by pure tests and one DB test, not on a named prod category.
+
+**For the prod deploy.** Prod's `budget_category_policy` already holds 25 rows written by draft edits on
+v3.77 (the table was empty when §10.3 was written), so a from-scratch draft starts from those until the first
+publish overwrites the categories it covers. Drafts already open are unaffected by 085.
+
 ### 10.8 Review log
 
+- **Owner addition, 2026-11-02 (after both passes):** V8, month weights. Not re-reviewed as design: it is a
+  new input to the existing split and leaves publish unchanged. Its schema goes through `migration-reviewer`
+  with the rest of 085 at build.
 - **Pass 1 — `cr-technical-reviewer`, 2026-11-01: *revise*, 2 blocking.** **B1** ranking the remembered
   policy by annual made One-off nearly unwinnable → rank by `|le_fy|` in USD (V3). **B2** the no-rates draft
   produced partial totals and could drop a line from a publish → nulls propagate and `publish()` refuses

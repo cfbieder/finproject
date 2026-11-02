@@ -189,6 +189,9 @@ async function renameScenario(id, newName) {
       );
     }
 
+    // A budget build names its scenario in plain text (CR098).
+    await client.query('UPDATE budget_builds SET scenario_name = $1 WHERE scenario_name = $2', [name, oldName]);
+
     return updated.rows[0];
   });
 }

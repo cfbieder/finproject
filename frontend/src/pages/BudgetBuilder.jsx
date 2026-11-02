@@ -11,8 +11,9 @@ import "./BudgetBuilder.css";
  * (category, currency) of the LE; a remembered policy — Recurring (× inflation), One-off (0) or
  * Fixed (typed) — sets its annual figure, and the last twelve actual months split it across
  * accounts and months. Nothing touches the real budget until Publish, which previews what it
- * deletes and writes, replaces the year in one go, and can be undone. Every build is kept and
- * numbered (2027 v1, v2 …): a new draft can start from any of them, and any can be restored.
+ * deletes and writes, replaces the year in one go, and can be undone. Every build is numbered
+ * (2027 v1, v2 …) and can carry a name: a year can hold several drafts side by side, a new draft can
+ * start from any build, and any published-before build can be restored.
  */
 
 const POLICIES = [
@@ -20,7 +21,7 @@ const POLICIES = [
   { value: "one_off", label: "One-off" },
   { value: "fixed", label: "Fixed" },
 ];
-const SPLIT_LABEL = { auto: "from actuals", even: "even", month: "one month" };
+const SPLIT_LABEL = { auto: "from actuals", even: "even", month: "one month", custom: "month weights" };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 const fmt = (v, digits = 0) =>
@@ -35,6 +36,9 @@ const STATUS = { draft: "draft", published: "live", superseded: "superseded", un
 const buildLabel = (b) =>
   `${b.target_year ?? b.targetYear} v${b.build_no ?? b.buildNo} · ${STATUS[b.status] || b.status}` +
   `${b.note ? ` — ${b.note}` : ""}`;
+// Where the page opens: the newest year's live build, else that year's newest (builds arrive newest first).
+const defaultBuild = (builds) =>
+  builds.find((b) => b.target_year === builds[0].target_year && b.status === "published") || builds[0];
 
 function RateLine({ label, rate, targetYear, digits = 2, suffix = "" }) {
   if (!rate) return <span className="bb-rate">{label}: <strong>no rate</strong></span>;
@@ -46,6 +50,35 @@ function RateLine({ label, rate, targetYear, digits = 2, suffix = "" }) {
         <span className="bb-muted"> · {carried ? `carried forward from ${rate.fromYear}` : `set for ${rate.fromYear}`}</span>
       )}
     </span>
+  );
+}
+
+/**
+ * A line's month weights: blank means nothing that month, any other numbers set the proportions, and
+ * the annual figure stays the policy's. Saved when focus leaves the row, not box by box.
+ */
+function MonthWeights({ line, rev, busy, onSave }) {
+  const current = line.splitWeights || [];
+  const shown = (i) => (current[i] ? String(current[i]) : "");
+  return (
+    <table className="bb-months bb-weights">
+      <thead><tr>{MONTHS.map((m) => <th key={m} className="num">{m}</th>)}</tr></thead>
+      <tbody>
+        <tr onBlur={(e) => {
+          if (e.currentTarget.contains(e.relatedTarget)) return;
+          const values = [...e.currentTarget.querySelectorAll("input")].map((el) => el.value.trim());
+          if (values.some((v, i) => v !== shown(i))) onSave(values);
+        }}>
+          {MONTHS.map((m, i) => (
+            <td key={m} className="num">
+              <input key={`w${line.id}-${i}-${current[i] ?? ""}-${rev}`} type="number" min="0" step="any" className="bb-num-input"
+                aria-label={`${line.category} weight for ${m}`} defaultValue={shown(i)} disabled={busy}
+                onKeyDown={commitOnEnter} onWheel={blurOnWheel} />
+            </td>
+          ))}
+        </tr>
+      </tbody>
+    </table>
   );
 }
 
@@ -81,8 +114,7 @@ function BudgetBuilder() {
       .then((data) => {
         if (cancelled) return;
         setForm((f) => ({ ...f, leId: f.leId || data.les[0]?.id || "", scenario: f.scenario || data.scenarios[0] || "" }));
-        const first = data.builds.find((b) => b.status === "draft") || data.builds[0];
-        if (first) setSelectedId(first.id);
+        if (data.builds.length) setSelectedId(defaultBuild(data.builds).id);
       })
       .catch((e) => !cancelled && setError(e.message || "Could not load the builder"));
     return () => { cancelled = true; };
@@ -128,6 +160,31 @@ function BudgetBuilder() {
     }
   });
 
+  // A copy of a build of the same year is a copy: it takes that build's estimate and scenario, so a
+  // newer estimate in the form cannot silently change every line. A scenario that can no longer
+  // price it stays as chosen; a build of another year seeds settings only.
+  const chooseStartFrom = (value) => {
+    const parent = sources.builds.find((b) => b.id === Number(value));
+    const le = sources.les.find((l) => l.id === Number(form.leId));
+    const sameYear = parent && le && parent.target_year === le.budget_year + 1;
+    setForm({
+      ...form,
+      parentId: value,
+      leId: sameYear && sources.les.some((l) => l.id === parent.source_le_id) ? parent.source_le_id : form.leId,
+      scenario: sameYear && parent.has_rates && sources.scenarios.includes(parent.scenario_name)
+        ? parent.scenario_name : form.scenario,
+    });
+  };
+
+  const saveName = (note) => run(async () => {
+    try {
+      setView(Rest.unwrap(await Rest.patch(`/budget-builder/${selectedId}`, { note })));
+      await loadSources();
+    } finally {
+      setRev((r) => r + 1);
+    }
+  });
+
   const patchLine = (lineId, patch) => run(async () => {
     try {
       const data = Rest.unwrap(await Rest.patch(`/budget-builder/${selectedId}/lines/${lineId}`, patch));
@@ -164,7 +221,7 @@ function BudgetBuilder() {
     setDialog(null);
     const data = await loadSources();
     if (kind !== "delete") await loadBuild(selectedId);
-    else if (data.builds[0]) setSelectedId(data.builds[0].id);
+    else if (data.builds.length) setSelectedId(defaultBuild(data.builds).id);
   });
 
   const splitById = useMemo(() => new Map((split?.split || []).map((s) => [s.id, s])), [split]);
@@ -199,6 +256,17 @@ function BudgetBuilder() {
             ))}
           </select>
         </label>
+        {shown && (
+          <label className="bb-field">
+            <span className="bb-label">Name</span>
+            <input key={`n${shown.build.id}-${shown.build.note ?? ""}-${rev}`} type="text"
+              defaultValue={shown.build.note ?? ""} placeholder="none" disabled={busy} onKeyDown={commitOnEnter}
+              onBlur={(e) => {
+                const v = e.target.value.trim();
+                if (v !== (shown.build.note ?? "")) saveName(v);
+              }} />
+          </label>
+        )}
         <div className="bb-actions">
           {canPublish && (
             <button type="button" className="btn btn--primary" onClick={() => openDialog("publish")} disabled={busy}>
@@ -236,13 +304,13 @@ function BudgetBuilder() {
         </label>
         <label className="bb-field">
           <span className="bb-label">Start from</span>
-          <select value={form.parentId} onChange={(e) => setForm({ ...form, parentId: e.target.value })} disabled={busy}>
+          <select value={form.parentId} onChange={(e) => chooseStartFrom(e.target.value)} disabled={busy}>
             <option value="">remembered settings</option>
             {sources.builds.map((b) => <option key={b.id} value={b.id}>{buildLabel(b)}</option>)}
           </select>
         </label>
         <label className="bb-field">
-          <span className="bb-label">Note</span>
+          <span className="bb-label">Name</span>
           <input type="text" value={form.note} placeholder="optional"
             onChange={(e) => setForm({ ...form, note: e.target.value })} disabled={busy} />
         </label>
@@ -274,10 +342,16 @@ function BudgetBuilder() {
             <RateLine label="Inflation" rate={shown.rates.inflation} targetYear={targetYear} digits={1} suffix="%" />
             <RateLine label="PLN per USD" rate={shown.rates.fx.PLN} targetYear={targetYear} />
             <RateLine label="EUR per USD" rate={shown.rates.fx.EUR} targetYear={targetYear} />
-            {[shown.rates.inflation, shown.rates.fx.PLN, shown.rates.fx.EUR].some((r) => r && r.fromYear < targetYear) && (
+            {isDraft && [shown.rates.inflation, shown.rates.fx.PLN, shown.rates.fx.EUR].some((r) => r && r.fromYear < targetYear) && (
               <span className="bb-muted">
                 Rates for {targetYear} are not set in {shown.build.scenario}; set them on Forecast Scenarios
                 first if these are not what you expect.
+              </span>
+            )}
+            {isDraft && !shown.rates.inflation && (
+              <span className="bb-flag">
+                {shown.build.scenario} has no inflation rate, so Recurring lines have no figure and this draft
+                cannot be published. Start a new draft from it with another scenario, or restore the rates.
               </span>
             )}
             <button type="button" className="btn btn--outline bb-push-right" onClick={loadSplit} disabled={busy}>
@@ -344,7 +418,7 @@ function BudgetBuilder() {
                           {l.policy === "recurring" && isDraft ? (
                             <input key={`i${l.id}-${l.inflationPct}-${rev}`} type="number" step="0.1" className="bb-num-input"
                               aria-label={`${l.category} inflation override`} defaultValue={l.inflationPct ?? ""}
-                              placeholder={fmt(shown.rates.inflation.rate, 1)} disabled={busy}
+                              placeholder={fmt(shown.rates.inflation?.rate, 1)} disabled={busy}
                               onKeyDown={commitOnEnter} onWheel={blurOnWheel}
                               onBlur={(e) => {
                                 const v = e.target.value === "" ? null : Number(e.target.value);
@@ -372,11 +446,17 @@ function BudgetBuilder() {
                           {isDraft ? (
                             <span className="bb-split">
                               <select value={l.splitMethod} aria-label={`${l.category} month split`} disabled={busy}
-                                onChange={(e) => patchLine(l.id, e.target.value === "month"
-                                  ? { splitMethod: "month", splitMonth: l.splitMonth || 1 } : { splitMethod: e.target.value })}>
+                                onChange={(e) => {
+                                  const method = e.target.value;
+                                  if (method === "custom") setOpenLine(l.id);
+                                  patchLine(l.id, method === "month" ? { splitMethod: "month", splitMonth: l.splitMonth || 1 }
+                                    : method === "custom" ? { splitMethod: "custom", splitWeights: Array(12).fill(1) }
+                                    : { splitMethod: method });
+                                }}>
                                 <option value="auto">from actuals</option>
                                 <option value="even">even</option>
                                 <option value="month">one month</option>
+                                <option value="custom">month weights</option>
                               </select>
                               {l.splitMethod === "month" && (
                                 <select value={l.splitMonth || 1} aria-label={`${l.category} month`} disabled={busy}
@@ -391,6 +471,15 @@ function BudgetBuilder() {
                       {openLine === l.id && (
                         <tr className="bb-months-row">
                           <td colSpan={11}>
+                            {isDraft && (
+                              <>
+                                <span className="bb-muted">
+                                  Month weights: blank is nothing that month; the numbers set the proportions of the annual figure.
+                                </span>
+                                <MonthWeights line={l} rev={rev} busy={busy}
+                                  onSave={(values) => patchLine(l.id, { splitMethod: "custom", splitWeights: values })} />
+                              </>
+                            )}
                             {s ? (
                               <>
                                 <table className="bb-months">
@@ -400,8 +489,10 @@ function BudgetBuilder() {
                                 <span className="bb-muted">
                                   {s.splitApplied.startsWith("lump")
                                     ? `An annual payment, all in ${MONTHS[Number(s.splitApplied.split(":")[1]) - 1]}`
-                                    : { auto: "Spread like last year's months", even: "Spread evenly", month: "All in one month" }[s.splitApplied] || s.splitApplied}
-                                  {" "}· pattern from {s.splitSource === "actuals" ? `actuals ${split.window?.from} – ${split.window?.to}` : s.splitSource === "budget" ? `the ${shown.build.le.year} budget` : "nothing (even months)"}
+                                    : { auto: "Spread like last year's months", even: "Spread evenly", month: "All in one month", custom: "By your month weights", stored: "As published" }[s.splitApplied] || s.splitApplied}
+                                  {s.splitSource !== "stored" && (
+                                    <> · {s.splitApplied === "custom" ? "accounts" : "pattern"} from {s.splitSource === "actuals" ? `actuals ${split.window?.from} – ${split.window?.to}` : s.splitSource === "budget" ? `the ${shown.build.le.year} budget` : s.splitApplied === "custom" ? "nothing (no account)" : "nothing (even months)"}</>
+                                  )}
                                   {" "}· {s.accounts.length} account(s)
                                 </span>
                               </>
@@ -442,7 +533,7 @@ function BudgetBuilder() {
         title={
           dialog?.kind === "publish" ? (isDraft ? `Publish ${targetYear} v${shown?.build.buildNo}?` : `Restore ${targetYear} v${shown?.build.buildNo}?`)
             : dialog?.kind === "unpublish" ? `Un-publish ${targetYear} v${shown?.build.buildNo}?`
-            : "Delete this draft?"
+            : `Delete ${targetYear} v${shown?.build.buildNo}?`
         }
         footer={dialog && (
           <>
@@ -497,7 +588,13 @@ function BudgetBuilder() {
             refused rather than losing those edits.
           </p>
         )}
-        {dialog?.kind === "delete" && <p className="bb-dialog">The draft and its lines are deleted. Published builds are not affected.</p>}
+        {dialog?.kind === "delete" && (
+          <p className="bb-dialog">
+            {targetYear} v{shown?.build.buildNo}{shown?.build.note ? ` (${shown.build.note})` : ""} and its lines are
+            permanently deleted; this cannot be undone. A draft started from it keeps its own settings, and the
+            live budget is not affected.
+          </p>
+        )}
       </Modal>
     </main>
   );

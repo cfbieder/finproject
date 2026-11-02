@@ -6,7 +6,7 @@
  *
  *   1. one LINE per (category, currency) of the LE, starting from its full-year figure;
  *   2. a per-category POLICY — Recurring (× (1 + inflation)), One-off (0) or Fixed (typed) —
- *      remembered in `budget_category_policy` so next year's build starts from it;
+ *      remembered in `budget_category_policy` at publish, so next year's build starts from it;
  *   3. inflation and FX from a forecast scenario, resolved for the target year by the engine's own
  *      `rateAtYear`, so a carried-forward rate is the engine's and the grid can say where it came from;
  *   4. an ACCOUNT and MONTH split from the last twelve actual months (the LE's `actual_through`
@@ -27,7 +27,7 @@ const { rateAtYear } = require('./forecast/fcbuilder-setup');
 
 const CURRENCIES = new Set(['USD', 'PLN', 'EUR']); // the engine's FX knows PLN and EUR only
 const POLICIES = new Set(['recurring', 'one_off', 'fixed']);
-const SPLITS = new Set(['auto', 'even', 'month']);
+const SPLITS = new Set(['auto', 'even', 'month', 'custom']);
 const LUMP_SHARE = 0.8;              // one month holding ≥ 80% of |spend| is an annual payment
 const LOCK_NS = 1178489698;          // advisory-lock namespace for publish / un-publish
 
@@ -51,6 +51,10 @@ function sourceYear(entries, year) {
   return Number(src);
 }
 
+/**
+ * A scenario renamed, deleted or emptied leaves rates null rather than throwing: a draft stays
+ * openable and editable, and only a figure that needs the missing rate goes null.
+ */
 async function scenarioRates(scenarioName, targetYear) {
   const doc = await assumpRepo.getDoc();
   const list = (key) => {
@@ -65,9 +69,10 @@ async function scenarioRates(scenarioName, targetYear) {
     Year: Number(e.Year), Rate: Number(e.Rates?.[cur] ?? e.Rates?.[`USD${cur}`]),
   })).filter((e) => Number.isFinite(e.Rate) && e.Rate > 0);
 
-  if (!inflation.length) throw err(400, `Scenario '${scenarioName}' has no inflation assumption`);
   const out = {
-    inflation: { rate: rateAtYear(inflation, targetYear), fromYear: sourceYear(inflation, targetYear) },
+    inflation: inflation.length
+      ? { rate: rateAtYear(inflation, targetYear), fromYear: sourceYear(inflation, targetYear) }
+      : null,
     fx: { USD: { rate: 1, fromYear: null } },
   };
   for (const cur of ['PLN', 'EUR']) {
@@ -77,11 +82,30 @@ async function scenarioRates(scenarioName, targetYear) {
   return out;
 }
 
+/** Null for a Recurring line with no override and no inflation rate — unknown, never 0. */
 function annualFor(line, rates) {
   if (line.policy === 'one_off') return 0;
   if (line.policy === 'fixed') return round2(line.fixed_amount ?? 0);
-  const pct = line.inflation_pct != null ? Number(line.inflation_pct) : rates.inflation.rate;
+  const pct = line.inflation_pct != null ? Number(line.inflation_pct) : rates.inflation?.rate;
+  if (pct == null) return null;
   return round2(Number(line.le_fy) * (1 + pct / 100));
+}
+
+/**
+ * The rates a build displays. A draft reads its scenario; a stored build reads what it was published
+ * at, so a later rename, delete or rate change cannot move or break it. One published before
+ * migration 085 has no stored rates: its FX comes from its cells, inflation and provenance unknown.
+ */
+async function ratesFor(client, build) {
+  if (build.status === 'draft') return scenarioRates(build.scenario_name, build.target_year);
+  if (build.published_rates) return build.published_rates;
+  const fx = { USD: { rate: 1, fromYear: null }, PLN: null, EUR: null };
+  const rows = (await client.query(
+    'SELECT DISTINCT ON (currency) currency, fx_rate FROM budget_build_cells WHERE build_id = $1 ORDER BY currency, id',
+    [build.id]
+  )).rows;
+  for (const r of rows) fx[r.currency.trim()] = { rate: Number(r.fx_rate), fromYear: null };
+  return { inflation: null, fx };
 }
 
 // ---------------------------------------------------------------------------
@@ -111,10 +135,14 @@ async function listSources() {
   )).rows.map((r) => r.name);
   const builds = (await db.query(
     `SELECT b.id, b.target_year, b.build_no, b.status, b.note, b.scenario_name, b.published_at,
-            b.parent_build_id, b.created_at, le.name AS le_name
+            b.parent_build_id, b.created_at, b.source_le_id, le.name AS le_name
        FROM budget_builds b JOIN budget_le le ON le.id = b.source_le_id
       ORDER BY b.target_year DESC, b.build_no DESC`
   )).rows;
+  // Start from prefills a same-year build's scenario only while that scenario can still price it.
+  for (const b of builds) {
+    b.has_rates = (await scenarioRates(b.scenario_name, b.target_year)).inflation != null;
+  }
   return { les, scenarios, builds };
 }
 
@@ -134,11 +162,6 @@ async function createBuild({ targetYear, sourceLeId, scenarioName, parentBuildId
       'SELECT name FROM forecast_scenarios WHERE name = $1 AND parent_scenario_id IS NULL', [scenarioName]
     )).rows[0];
     if (!scen) throw err(400, `Base scenario '${scenarioName}' not found`);
-
-    const draft = (await client.query(
-      `SELECT build_no FROM budget_builds WHERE target_year = $1 AND status = 'draft'`, [year]
-    )).rows[0];
-    if (draft) throw err(409, `${year} v${draft.build_no} is already an open draft — finish or delete it first`);
 
     let parentLines = new Map();
     if (parentBuildId) {
@@ -173,9 +196,9 @@ async function createBuild({ targetYear, sourceLeId, scenarioName, parentBuildId
       .map((p) => [p.category_id, p]));
     const insertLine = (l) => client.query(
       `INSERT INTO budget_build_lines
-         (build_id, category_id, currency, le_fy, policy, fixed_amount, inflation_pct, split_method, split_month)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [build.id, l.category_id, l.currency, l.le_fy, l.policy, l.fixed_amount, l.inflation_pct, l.split_method, l.split_month]
+         (build_id, category_id, currency, le_fy, policy, fixed_amount, inflation_pct, split_method, split_month, split_weights)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::numeric[])`,
+      [build.id, l.category_id, l.currency, l.le_fy, l.policy, l.fixed_amount, l.inflation_pct, l.split_method, l.split_month, l.split_weights]
     );
 
     const dropped = [];
@@ -194,6 +217,7 @@ async function createBuild({ targetYear, sourceLeId, scenarioName, parentBuildId
         inflation_pct: from ? from.inflation_pct : (pol?.inflation_override_pct ?? null),
         split_method: from?.split_method ?? pol?.split_override ?? 'auto',
         split_month: from?.split_month ?? pol?.split_month ?? null,
+        split_weights: from ? from.split_weights : (pol?.split_weights ?? null),
       });
     }
     for (const [key, from] of parentLines) {
@@ -217,9 +241,18 @@ async function setNote(id, note) {
   await db.query('UPDATE budget_builds SET note = $2, updated_at = NOW() WHERE id = $1', [id, note || null]);
 }
 
+/** Twelve month weights: blank is 0, none negative, at least one above zero once stored to cents. */
+function checkWeights(raw) {
+  if (!Array.isArray(raw) || raw.length !== 12) throw err(400, 'Month weights need all twelve months');
+  const weights = raw.map((v) => (v === null || v === '' ? 0 : round2(v)));
+  if (weights.some((w) => !Number.isFinite(w) || w < 0)) throw err(400, 'A month weight must be a number, zero or more');
+  if (!weights.some((w) => w > 0)) throw err(400, 'Give at least one month a weight above zero');
+  return weights;
+}
+
 /**
- * Edit one line of a draft. Policy, inflation override and split are also REMEMBERED for the
- * category (decision 2); a Fixed amount is the line's own (one per currency line).
+ * Edit one line of a draft. Nothing here reaches `budget_category_policy`: a draft may be an
+ * experiment, so what next year's build starts from is written only at publish (`rememberPolicies`).
  */
 async function updateLine(buildId, lineId, patch) {
   return db.transaction(async (client) => {
@@ -255,19 +288,14 @@ async function updateLine(buildId, lineId, patch) {
       throw err(400, 'Pick the month the whole line goes in');
     }
     if (next.split_method !== 'month') next.split_month = null;
+    if (patch.splitWeights !== undefined) next.split_weights = checkWeights(patch.splitWeights);
+    if (next.split_method === 'custom' && !next.split_weights) throw err(400, 'Give at least one month a weight above zero');
+    if (next.split_method !== 'custom') next.split_weights = null;
 
     await client.query(
       `UPDATE budget_build_lines SET policy = $2, fixed_amount = $3, inflation_pct = $4,
-              split_method = $5, split_month = $6 WHERE id = $1`,
-      [lineId, next.policy, next.fixed_amount, next.inflation_pct, next.split_method, next.split_month]
-    );
-    await client.query(
-      `INSERT INTO budget_category_policy (category_id, policy, inflation_override_pct, split_override, split_month, updated_at)
-       VALUES ($1, $2, $3, $4, $5, NOW())
-       ON CONFLICT (category_id) DO UPDATE SET policy = EXCLUDED.policy,
-         inflation_override_pct = EXCLUDED.inflation_override_pct, split_override = EXCLUDED.split_override,
-         split_month = EXCLUDED.split_month, updated_at = NOW()`,
-      [line.category_id, next.policy, next.inflation_pct, next.split_method, next.split_month]
+              split_method = $5, split_month = $6, split_weights = $7::numeric[] WHERE id = $1`,
+      [lineId, next.policy, next.fixed_amount, next.inflation_pct, next.split_method, next.split_month, next.split_weights]
     );
     await client.query('UPDATE budget_builds SET updated_at = NOW() WHERE id = $1', [buildId]);
   });
@@ -329,7 +357,15 @@ function groupLines(tree, lines) {
 /** The draft or build with every line's annual figure, its deltas and its flags. */
 async function getBuild(id, client = db) {
   const build = await getBuildRow(client, id);
-  const rates = await scenarioRates(build.scenario_name, build.target_year);
+  const stored = build.status !== 'draft';
+  const rates = await ratesFor(client, build);
+  const storedUsd = new Map();
+  if (stored) {
+    for (const r of (await client.query(
+      `SELECT category_id, currency, SUM(base_amount) AS usd FROM budget_build_cells
+        WHERE build_id = $1 GROUP BY 1, 2`, [id]
+    )).rows) storedUsd.set(`${r.category_id}|${r.currency}`, round2(r.usd));
+  }
   const lines = (await client.query(
     `SELECT l.*, c.name AS category_name, c.section,
             p.name AS parent_name,
@@ -353,19 +389,25 @@ async function getBuild(id, client = db) {
   const totals = {};
   let usdTotal = 0;
   const out = lines.map((l) => {
-    const annual = build.status === 'draft' ? annualFor(l, rates) : round2(l.annual_amount);
+    const annual = stored ? round2(l.annual_amount) : annualFor(l, rates);
     const fx = rates.fx[l.currency];
-    const usd = fx && fx.rate ? round2(annual / fx.rate) : null;
-    totals[l.currency] = round2((totals[l.currency] || 0) + annual);
-    if (usd != null) usdTotal += usd;
+    let usd = null;
+    if (stored) usd = storedUsd.get(`${l.category_id}|${l.currency}`) ?? 0;
+    else if (annual === 0) usd = 0;
+    else if (annual != null && fx?.rate) usd = round2(annual / fx.rate);
+    // A total missing one line is not a smaller total: once null, it stays null.
+    if (!(l.currency in totals)) totals[l.currency] = 0;
+    totals[l.currency] = annual == null || totals[l.currency] == null ? null : round2(totals[l.currency] + annual);
+    usdTotal = usd == null || usdTotal == null ? null : usdTotal + usd;
     return {
       id: l.id, categoryId: l.category_id, category: l.category_name, parent: l.parent_name,
       currency: l.currency, leFy: num(l.le_fy), policy: l.policy, fixedAmount: num(l.fixed_amount),
       inflationPct: num(l.inflation_pct), effectiveInflationPct: l.policy === 'recurring'
-        ? (l.inflation_pct != null ? Number(l.inflation_pct) : rates.inflation.rate) : null,
-      splitMethod: l.split_method, splitMonth: l.split_month,
-      annual, annualUsd: usd, vsLe: round2(annual - Number(l.le_fy)),
-      thisYearBudget: round2(l.this_year_budget), vsThisYear: round2(annual - Number(l.this_year_budget)),
+        ? (l.inflation_pct != null ? Number(l.inflation_pct) : rates.inflation?.rate ?? null) : null,
+      splitMethod: l.split_method, splitMonth: l.split_month, splitWeights: l.split_weights?.map(Number) ?? null,
+      annual, annualUsd: usd, vsLe: annual == null ? null : round2(annual - Number(l.le_fy)),
+      thisYearBudget: round2(l.this_year_budget),
+      vsThisYear: annual == null ? null : round2(annual - Number(l.this_year_budget)),
       isParent: l.is_parent, onForecastLine: l.on_forecast_line,
     };
   });
@@ -376,7 +418,7 @@ async function getBuild(id, client = db) {
         year: build.le_year, actualThrough: build.actual_through }, parentBuildId: build.parent_build_id,
       publishedAt: build.published_at,
     },
-    rates, lines: out, rows: groupLines(tree, out), totals, usdTotal: round2(usdTotal),
+    rates, lines: out, rows: groupLines(tree, out), totals, usdTotal: usdTotal == null ? null : round2(usdTotal),
   };
 }
 
@@ -439,7 +481,8 @@ function splitLine(annual, line, actualGrid, budgetGrid) {
   const cells = [];
   accounts.forEach((acct, i) => {
     let weights;
-    if (method === 'month') weights = Array.from({ length: 12 }, (_, m) => (m + 1 === line.split_month ? 1 : 0));
+    if (method === 'custom') weights = line.split_weights.map(Number);
+    else if (method === 'month') weights = Array.from({ length: 12 }, (_, m) => (m + 1 === line.split_month ? 1 : 0));
     else if (lumpMonth) weights = Array.from({ length: 12 }, (_, m) => (m + 1 === lumpMonth ? 1 : 0));
     else if (method === 'even') weights = Array(12).fill(1);
     else {
@@ -494,7 +537,7 @@ async function computeCells(client, build, view) {
   const cells = [];
   const lines = view.lines.map((l) => {
     const key = `${l.categoryId}|${l.currency}`;
-    const rawLine = { split_method: l.splitMethod, split_month: l.splitMonth };
+    const rawLine = { split_method: l.splitMethod, split_month: l.splitMonth, split_weights: l.splitWeights };
     const { cells: lc, source, method } = splitLine(l.annual, rawLine, actual.get(key), budget.get(key));
     const fx = view.rates.fx[l.currency];
     if (!fx?.rate) throw err(400, `No ${l.currency} rate in scenario '${view.build.scenario}'`);
@@ -534,7 +577,50 @@ function cellsHash(cells) {
 async function cellsFor(client, build, view) {
   if (build.status === 'draft') return computeCells(client, build, view);
   const cells = (await client.query('SELECT * FROM budget_build_cells WHERE build_id = $1 ORDER BY id', [build.id])).rows;
-  return { cells, lines: [], window: null };
+  // Grouped back onto the view's lines, so a stored build can show its month split.
+  const lines = view.lines.map((l) => {
+    const own = cells.filter((c) => c.category_id === l.categoryId && c.currency === l.currency);
+    const months = Array(12).fill(0);
+    for (const c of own) months[c.month - 1] = round2(months[c.month - 1] + Number(c.amount));
+    return { id: l.id, splitSource: 'stored', splitApplied: 'stored', months, accounts: [...new Set(own.map((c) => c.account_id))] };
+  });
+  return { cells, lines, window: null };
+}
+
+/**
+ * Which line of each category sets what is remembered, when a category has several currency lines:
+ * the largest |LE full year| in USD, ties by currency. The estimate, not the result: a One-off's
+ * annual is always 0, so ranking by annual would almost never remember One-off and next year's draft
+ * would seed the large line as Recurring at full value. `fx` is the build's FX; a line with no rate
+ * cannot outrank one that has it.
+ */
+function policyLines(lines, fx) {
+  const usdLe = (l) => {
+    const rate = fx[l.currency]?.rate;
+    return rate ? Math.abs(Number(l.le_fy)) / rate : -1;
+  };
+  const best = new Map();
+  for (const l of lines) {
+    const held = best.get(l.category_id);
+    const beats = !held || usdLe(l) > usdLe(held) || (usdLe(l) === usdLe(held) && l.currency < held.currency);
+    if (beats) best.set(l.category_id, l);
+  }
+  return [...best.values()];
+}
+
+/** What next year's build starts from: the build that was actually published, draft or restore. */
+async function rememberPolicies(client, buildId, fx) {
+  const lines = (await client.query('SELECT * FROM budget_build_lines WHERE build_id = $1', [buildId])).rows;
+  for (const l of policyLines(lines, fx)) {
+    await client.query(
+      `INSERT INTO budget_category_policy (category_id, policy, inflation_override_pct, split_override, split_month, split_weights, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6::numeric[], NOW())
+       ON CONFLICT (category_id) DO UPDATE SET policy = EXCLUDED.policy,
+         inflation_override_pct = EXCLUDED.inflation_override_pct, split_override = EXCLUDED.split_override,
+         split_month = EXCLUDED.split_month, split_weights = EXCLUDED.split_weights, updated_at = NOW()`,
+      [l.category_id, l.policy, l.inflation_pct, l.split_method, l.split_month, l.split_weights]
+    );
+  }
 }
 
 /** The newest publish of the year that has not been undone — the one Un-publish reverses. */
@@ -574,6 +660,10 @@ async function scenariosReading(year) {
   return list.filter((e) => e && Number(e.PeriodStart) - 1 === Number(year)).map((e) => e.Name);
 }
 
+const noInflationMessage = (scenario, year) =>
+  `Scenario '${scenario}' has no inflation rate for ${year}, so a Recurring line has no figure. ` +
+  'Start a new draft from this one with another scenario, or restore the rates on Forecast Scenarios.';
+
 /** The publish preview: what goes, what comes, and anything that blocks it. */
 async function previewPublish(id) {
   const view = await getBuild(id);
@@ -598,6 +688,10 @@ async function previewPublish(id) {
     if (!view.rates.fx[l.currency]) {
       missingRate = true;
       blockers.add(`No ${l.currency} rate in scenario '${view.build.scenario}'`);
+    }
+    if (l.annual == null) {
+      missingRate = true;
+      blockers.add(noInflationMessage(view.build.scenario, view.build.targetYear));
     }
   }
   offForecast.usd = round2(offForecast.usd);
@@ -628,6 +722,10 @@ async function publish(id, { checksum }) {
     const view = await getBuild(id, client);
     if (isDraft && view.lines.some((l) => l.isParent && l.annual)) {
       throw err(400, 'A parent-category line has an amount — the forecast cannot see it (see the preview)');
+    }
+    // A null annual writes no cells, so the line would vanish from the budget rather than fail.
+    if (isDraft && view.lines.some((l) => l.annual == null)) {
+      throw err(400, noInflationMessage(view.build.scenario, year));
     }
     const { cells } = await cellsFor(client, build, view);
     if (!isDraft && !cells.length) throw err(409, 'This build was never published, so it has nothing to restore');
@@ -701,7 +799,10 @@ async function publish(id, { checksum }) {
       for (const l of view.lines) {
         await client.query('UPDATE budget_build_lines SET annual_amount = $2 WHERE id = $1', [l.id, l.annual]);
       }
+      // Frozen with the cells: a restore never rewrites them, or today's rates would sit beside old cells.
+      await client.query('UPDATE budget_builds SET published_rates = $2 WHERE id = $1', [id, JSON.stringify(view.rates)]);
     }
+    await rememberPolicies(client, id, view.rates.fx);
     await client.query(
       'UPDATE budget_build_publishes SET checksum_after = $2 WHERE id = $1', [event.id, await yearChecksum(client, year)]
     );
@@ -769,5 +870,5 @@ module.exports = {
   listSources, createBuild, deleteDraft, setNote, updateLine, getBuild, previewPublish,
   publish, unpublish, scenariosReading,
   // exported for tests
-  splitLine, allocate, groupLines, sourceYear, LUMP_SHARE,
+  splitLine, allocate, groupLines, sourceYear, policyLines, LUMP_SHARE,
 };

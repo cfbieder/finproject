@@ -40,6 +40,60 @@ describe('budget builder — split arithmetic', () => {
   });
 });
 
+describe('budget builder — custom month weights', () => {
+  const custom = (w) => ({ split_method: 'custom', split_weights: w });
+  const weights = Array(12).fill(0);
+  weights[2] = 3;  // March
+  weights[7] = 2;  // August
+
+  test('weights set the proportions, and an expense takes positive weights', () => {
+    const { cells, method } = svc.splitLine(-500000, custom(weights), null, null);
+    expect(method).toBe('custom');
+    expect(cells).toEqual([
+      { account_id: null, month: 3, amount: -300000 },
+      { account_id: null, month: 8, amount: -200000 },
+    ]);
+  });
+
+  test('each account keeps its share and the line sums exactly; the lump rule does not apply', () => {
+    const allDecember = (n) => [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, n];
+    const grid = new Map([[1, allDecember(-2000)], [2, allDecember(-1000)]]);
+    const { cells, method } = svc.splitLine(-1000, custom(weights), grid, null);
+    expect(method).toBe('custom');
+    expect(new Set(cells.map((c) => c.month))).toEqual(new Set([3, 8]));
+    const sum = (rows) => Math.round(rows.reduce((s, c) => s + c.amount, 0) * 100) / 100;
+    expect(sum(cells)).toBe(-1000);
+    expect(sum(cells.filter((c) => c.account_id === 1))).toBe(-666.67);
+    expect(sum(cells.filter((c) => c.account_id === 2))).toBe(-333.33);
+  });
+});
+
+describe('budget builder — which line a category remembers', () => {
+  const fx = { USD: { rate: 1 }, PLN: { rate: 4 } };
+  const line = (category_id, currency, le_fy, policy) => ({ category_id, currency, le_fy, policy });
+
+  test('the largest |LE| in USD wins, so a large One-off is remembered beside a small Recurring', () => {
+    const [kept] = svc.policyLines([line(1, 'USD', -100, 'recurring'), line(1, 'PLN', -1000, 'one_off')], fx);
+    expect(kept.policy).toBe('one_off'); // 1,000 PLN = 250 USD
+  });
+
+  test('ranks in USD, not in local units', () => {
+    const [kept] = svc.policyLines([line(1, 'USD', -300, 'fixed'), line(1, 'PLN', -1000, 'one_off')], fx);
+    expect(kept.policy).toBe('fixed');
+  });
+
+  test('a tie goes to the lower currency code, whichever line arrives first', () => {
+    const lines = [line(1, 'USD', -250, 'fixed'), line(1, 'PLN', -1000, 'one_off')];
+    expect(svc.policyLines(lines, fx)[0].currency).toBe('PLN');
+    expect(svc.policyLines([...lines].reverse(), fx)[0].currency).toBe('PLN');
+  });
+
+  test('a line with no rate cannot outrank one that has it, and one per category comes back', () => {
+    const kept = svc.policyLines([line(1, 'EUR', -9999, 'one_off'), line(1, 'USD', -1, 'fixed'), line(2, 'EUR', -5, 'one_off')], fx);
+    expect(kept.map((l) => [l.category_id, l.currency])).toEqual([[1, 'USD'], [2, 'EUR']]);
+  });
+});
+
 describe('budget builder — grid rows in Chart of Accounts order', () => {
   const tree = [
     { id: 1, name: 'Income', children: [{ id: 2, name: 'Salary', children: [] }] },
@@ -78,6 +132,7 @@ describe('budget builder — grid rows in Chart of Accounts order', () => {
 const dbDescribe = process.env.SKIP_DB_TESTS ? describe.skip : describe;
 const P = 'CR098T';
 const SCEN = `${P} Base`;
+const EMPTY_SCEN = `${P} Empty`; // a base scenario with no rates at all
 const YEAR = 2090;     // the LE's year
 const TARGET = 2091;   // the budget it builds
 
@@ -95,11 +150,11 @@ dbDescribe('budget builder — the cycle (DB)', () => {
     await db.query(`DELETE FROM budget_category_policy WHERE category_id IN (SELECT id FROM accounts WHERE name LIKE $1)`, [`${P} %`]);
     await db.query(`DELETE FROM accounts WHERE name LIKE $1 AND parent_id IS NOT NULL`, [`${P} %`]);
     await db.query(`DELETE FROM accounts WHERE name LIKE $1`, [`${P} %`]);
-    await db.query(`DELETE FROM forecast_scenarios WHERE name = $1`, [SCEN]);
+    await db.query(`DELETE FROM forecast_scenarios WHERE name = ANY($1)`, [[SCEN, EMPTY_SCEN]]);
     const doc = await assumpRepo.getDoc();
     const pruned = {};
     for (const [key, field] of [['scenarios', 'Name'], ['inflation', 'Scenario'], ['FX', 'Scenario']]) {
-      if (Array.isArray(doc[key])) pruned[key] = doc[key].filter((e) => !e || e[field] !== SCEN);
+      if (Array.isArray(doc[key])) pruned[key] = doc[key].filter((e) => !e || ![SCEN, EMPTY_SCEN].includes(e[field]));
     }
     await assumpRepo.putDoc(pruned);
   }
@@ -125,6 +180,7 @@ dbDescribe('budget builder — the cycle (DB)', () => {
     await cleanup();
     ids.food = await account('Food');
     ids.rent = await account('Rent PLN', { currency: 'PLN' });
+    ids.mixed = await account('Mixed');
     ids.parent = await account('Kids');
     ids.child = await account('Kids School', { parent: ids.parent });
     ids.bankA = await account('Bank A', { section: 'balance_sheet', type: 'asset' });
@@ -147,10 +203,24 @@ dbDescribe('budget builder — the cycle (DB)', () => {
     await leLine('2090-07-01', ids.food, 'USD', -500);
     await leLine('2090-12-01', ids.rent, 'PLN', -1200);
     await leLine('2090-05-01', ids.parent, 'USD', -50);
+    await leLine('2090-05-01', ids.mixed, 'USD', -100);
+    await leLine('2090-05-01', ids.mixed, 'PLN', -1000); // 250 USD at 4: this line sets what is remembered
 
+    // An all-USD estimate, so a missing inflation rate cannot hide behind a missing FX rate.
+    ids.leUsd = (await db.query(
+      `INSERT INTO budget_le (budget_year, actual_through, name, status, finalized_at)
+       VALUES ($1, '2090-05-31', $2, 'final', NOW()) RETURNING id`, [YEAR, `${P} LE USD`]
+    )).rows[0].id;
     await db.query(
-      `INSERT INTO forecast_scenarios (name, is_active, cash_sweep_low, cash_sweep_high) VALUES ($1, TRUE, 0, 0)`, [SCEN]
+      `INSERT INTO budget_le_lines (le_id, period_month, category_id, currency, source, method, amount, base_amount)
+       VALUES ($1, '2090-01-01', $2, 'USD', 'manual', 'MANUAL', -1000, -1000)`, [ids.leUsd, ids.food]
     );
+
+    for (const name of [SCEN, EMPTY_SCEN]) {
+      await db.query(
+        `INSERT INTO forecast_scenarios (name, is_active, cash_sweep_low, cash_sweep_high) VALUES ($1, TRUE, 0, 0)`, [name]
+      );
+    }
     const doc = await assumpRepo.getDoc();
     await assumpRepo.putDoc({
       scenarios: [...(doc.scenarios || []), { Name: SCEN, IsActive: true, PeriodStart: 2092, PeriodEnd: 2100 }],
@@ -176,7 +246,15 @@ dbDescribe('budget builder — the cycle (DB)', () => {
     const food = view.lines.find((l) => l.categoryId === ids.food);
     expect(food.leFy).toBe(-1500);
     expect(food.annual).toBe(-1545); // Recurring: −1,500 × 1.03
-    await expect(svc.createBuild({ sourceLeId: ids.le, scenarioName: SCEN })).rejects.toThrow(/already an open draft/);
+  });
+
+  test('a year can hold several open drafts, numbered apart', async () => {
+    const { build } = await svc.createBuild({ sourceLeId: ids.le, scenarioName: SCEN });
+    expect(build.build_no).toBe(2);
+    const open = (await svc.listSources()).builds.filter((b) => b.target_year === TARGET && b.status === 'draft');
+    expect(open.map((b) => b.build_no)).toEqual([2, 1]);
+    expect(open[0].source_le_id).toBe(ids.le);
+    await svc.deleteDraft(build.id); // the walk below numbers its builds from v1
   });
 
   test('a parent-category line blocks publish until it is zero', async () => {
@@ -291,5 +369,178 @@ dbDescribe('budget builder — the cycle (DB)', () => {
   test('an edit after publish makes un-publish refuse', async () => {
     await db.query(`UPDATE budget_entries SET note = 'hand edit' WHERE id = (SELECT MIN(id) FROM budget_entries WHERE budget_year = $1)`, [TARGET]);
     await expect(svc.unpublish(ids.v3)).rejects.toThrow(/edited after this publish/);
+  });
+
+  test('month weights: refused when empty, rescale with the annual, copied, remembered, frozen on restore', async () => {
+    const weights = Array(12).fill('');
+    weights[2] = 3;
+    weights[7] = 2;
+    const { build } = await svc.createBuild({ sourceLeId: ids.le, scenarioName: SCEN, parentBuildId: ids.v1 });
+    const food = (await svc.getBuild(build.id)).lines.find((l) => l.categoryId === ids.food);
+
+    await expect(svc.updateLine(build.id, food.id, { splitMethod: 'custom', splitWeights: Array(12).fill('') }))
+      .rejects.toThrow(/at least one month/);
+    await expect(svc.updateLine(build.id, food.id, { splitMethod: 'custom' })).rejects.toThrow(/at least one month/);
+    await expect(svc.updateLine(build.id, food.id, { splitMethod: 'custom', splitWeights: [1, 2] })).rejects.toThrow(/all twelve/);
+    await expect(svc.updateLine(build.id, food.id, { splitMethod: 'custom', splitWeights: Array(12).fill(-1) })).rejects.toThrow(/zero or more/);
+
+    await svc.updateLine(build.id, food.id, { policy: 'fixed', fixedAmount: -500, splitMethod: 'custom', splitWeights: weights });
+    const months = async (id) => {
+      const p = await svc.previewPublish(id);
+      const l = p.lines.find((x) => x.categoryId === ids.food);
+      return p.split.find((s) => s.id === l.id).months;
+    };
+    let m = await months(build.id);
+    expect([m[2], m[7]]).toEqual([-300, -200]);
+    expect(m.reduce((a, b) => a + b, 0)).toBeCloseTo(-500, 2);
+
+    await svc.updateLine(build.id, food.id, { fixedAmount: -1000 });
+    m = await months(build.id);
+    expect([m[2], m[7]]).toEqual([-600, -400]);
+
+    const { build: copy } = await svc.createBuild({ sourceLeId: ids.le, scenarioName: SCEN, parentBuildId: build.id });
+    const copied = (await svc.getBuild(copy.id)).lines.find((l) => l.categoryId === ids.food);
+    expect(copied.splitMethod).toBe('custom');
+    expect(copied.splitWeights[2]).toBe(3);
+
+    // Leaving custom clears the weights.
+    await svc.updateLine(copy.id, copied.id, { splitMethod: 'even' });
+    expect((await svc.getBuild(copy.id)).lines.find((l) => l.categoryId === ids.food).splitWeights).toBeNull();
+    await svc.deleteDraft(copy.id);
+
+    let p = await svc.previewPublish(build.id);
+    await svc.publish(build.id, { checksum: p.checksum });
+    const pol = (await db.query('SELECT split_override, split_weights FROM budget_category_policy WHERE category_id = $1', [ids.food])).rows[0];
+    expect(pol.split_override).toBe('custom');
+    expect(Number(pol.split_weights[7])).toBe(2);
+
+    // A weight edit in a later draft cannot touch what this build stored.
+    const cells = async () => (await db.query('SELECT month, amount FROM budget_build_cells WHERE build_id = $1 ORDER BY id', [build.id])).rows;
+    const stored = await cells();
+    const { build: later } = await svc.createBuild({ sourceLeId: ids.le, scenarioName: SCEN, parentBuildId: build.id });
+    const laterFood = (await svc.getBuild(later.id)).lines.find((l) => l.categoryId === ids.food);
+    await svc.updateLine(later.id, laterFood.id, { splitWeights: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1] });
+    p = await svc.previewPublish(later.id);
+    await svc.publish(later.id, { checksum: p.checksum });
+    p = await svc.previewPublish(build.id);
+    await svc.publish(build.id, { checksum: p.checksum });
+    expect(await cells()).toEqual(stored);
+    const foodRows = (await rows()).filter((r) => r.category_id === ids.food);
+    expect(foodRows.reduce((s, r) => s + Number(r.amount), 0)).toBeCloseTo(-1000, 2);
+    expect(new Set(foodRows.map((r) => r.entry_date.slice(5, 7)))).toEqual(new Set(['03', '08']));
+    await db.query('DELETE FROM budget_category_policy WHERE category_id = $1', [ids.food]);
+  });
+
+  test('deleting a draft that has a copy leaves the copy whole, with no parent', async () => {
+    const { build: a } = await svc.createBuild({ sourceLeId: ids.le, scenarioName: SCEN });
+    const aFood = (await svc.getBuild(a.id)).lines.find((l) => l.categoryId === ids.food);
+    await svc.updateLine(a.id, aFood.id, { policy: 'fixed', fixedAmount: -111 });
+    const { build: b } = await svc.createBuild({ sourceLeId: ids.le, scenarioName: SCEN, parentBuildId: a.id });
+
+    // Editing the copy leaves the original alone.
+    const bFood = (await svc.getBuild(b.id)).lines.find((l) => l.categoryId === ids.food);
+    await svc.updateLine(b.id, bFood.id, { fixedAmount: -222 });
+    expect((await svc.getBuild(a.id)).lines.find((l) => l.categoryId === ids.food).annual).toBe(-111);
+
+    await svc.deleteDraft(a.id);
+    const after = await svc.getBuild(b.id);
+    expect(after.build.parentBuildId).toBeNull();
+    expect(after.lines.find((l) => l.categoryId === ids.food).annual).toBe(-222);
+    await svc.deleteDraft(b.id);
+  });
+
+  test('line edits remember nothing; publish and restore remember the published build', async () => {
+    const remembered = async (categoryId) => (await db.query(
+      'SELECT policy FROM budget_category_policy WHERE category_id = $1', [categoryId]
+    )).rows[0]?.policy;
+    await db.query('DELETE FROM budget_category_policy WHERE category_id = $1', [ids.mixed]);
+
+    const { build } = await svc.createBuild({ sourceLeId: ids.le, scenarioName: SCEN, parentBuildId: ids.v1 });
+    ids.oneOff = build.id;
+    const mixedLine = (view, currency) => view.lines.find((l) => l.categoryId === ids.mixed && l.currency === currency);
+    let view = await svc.getBuild(build.id);
+    await svc.updateLine(build.id, mixedLine(view, 'PLN').id, { policy: 'one_off' });
+    expect(await remembered(ids.mixed)).toBeUndefined();
+
+    let p = await svc.previewPublish(build.id);
+    await svc.publish(build.id, { checksum: p.checksum });
+    expect(await remembered(ids.mixed)).toBe('one_off'); // the PLN line outranks the USD one, at 250 USD
+
+    // v1 has both lines Recurring, and restoring it puts that back.
+    p = await svc.previewPublish(ids.v1);
+    await svc.publish(ids.v1, { checksum: p.checksum });
+    expect(await remembered(ids.mixed)).toBe('recurring');
+  });
+
+  test('a stored build keeps its published USD and rates when the scenario moves or goes', async () => {
+    const before = await svc.getBuild(ids.oneOff);
+    expect(before.rates.fx.PLN.rate).toBe(4);
+    const { build: draft } = await svc.createBuild({ sourceLeId: ids.le, scenarioName: SCEN, parentBuildId: ids.oneOff });
+    const draftBefore = await svc.getBuild(draft.id);
+
+    const doc = await assumpRepo.getDoc();
+    const others = (doc.FX || []).filter((e) => e.Scenario !== SCEN);
+    await assumpRepo.putDoc({ FX: [...others, { Scenario: SCEN, Year: YEAR, Rates: { PLN: 8, EUR: 1 } }] });
+
+    const after = await svc.getBuild(ids.oneOff);
+    expect(after.rates.fx.PLN.rate).toBe(4);
+    expect(after.usdTotal).toBe(before.usdTotal);
+    expect((await svc.getBuild(draft.id)).usdTotal).not.toBe(draftBefore.usdTotal);
+
+    // A stored month split comes back from its cells.
+    const preview = await svc.previewPublish(ids.oneOff);
+    const food = preview.lines.find((l) => l.categoryId === ids.food);
+    const foodSplit = preview.split.find((s) => s.id === food.id);
+    expect(foodSplit.splitSource).toBe('stored');
+    expect(foodSplit.months.reduce((a, b) => a + b, 0)).toBeCloseTo(food.annual, 2);
+
+    // Published before migration 085: FX from the cells, inflation unknown, and it still opens.
+    await db.query('UPDATE budget_builds SET published_rates = NULL WHERE id = $1', [ids.oneOff]);
+    const legacy = await svc.getBuild(ids.oneOff);
+    expect(legacy.rates.inflation).toBeNull();
+    expect(legacy.rates.fx.PLN).toEqual({ rate: 4, fromYear: null });
+    expect(legacy.usdTotal).toBe(before.usdTotal);
+    await svc.deleteDraft(draft.id);
+  });
+
+  test('a draft with no rates opens, stays editable, and refuses to publish', async () => {
+    const { build } = await svc.createBuild({ sourceLeId: ids.leUsd, scenarioName: EMPTY_SCEN });
+    const view = await svc.getBuild(build.id);
+    const food = view.lines.find((l) => l.categoryId === ids.food);
+    expect(view.rates.inflation).toBeNull();
+    expect(food.annual).toBeNull();
+    expect(food.annualUsd).toBeNull();
+    expect(food.vsLe).toBeNull();
+    expect(view.totals.USD).toBeNull();
+    expect(view.usdTotal).toBeNull();
+
+    const before = await rows();
+    const p = await svc.previewPublish(build.id);
+    expect(p.blockers.join(' ')).toMatch(/CR098T Empty' has no inflation rate/);
+    await expect(svc.publish(build.id, { checksum: p.checksum })).rejects.toThrow(/no inflation rate/);
+    expect(await rows()).toEqual(before);
+
+    // A Fixed line needs no rate.
+    await svc.updateLine(build.id, food.id, { policy: 'fixed', fixedAmount: -900 });
+    const fixed = await svc.getBuild(build.id);
+    expect(fixed.usdTotal).toBe(-900);
+    expect((await svc.previewPublish(build.id)).blockers).toEqual([]);
+    await svc.deleteDraft(build.id);
+  });
+
+  test('a superseded build opens and restores exactly after its scenario is gone', async () => {
+    const stored = async () => (await db.query(
+      `SELECT category_id, account_id, currency, month, amount FROM budget_build_cells WHERE build_id = $1 ORDER BY id`, [ids.oneOff]
+    )).rows.map((c) => `${c.category_id}|${c.account_id}|${c.currency}|${c.month}|${c.amount}`).sort();
+    const doc = await assumpRepo.getDoc();
+    await assumpRepo.putDoc({
+      inflation: (doc.inflation || []).filter((e) => e.Scenario !== SCEN),
+      FX: (doc.FX || []).filter((e) => e.Scenario !== SCEN),
+    });
+    const p = await svc.previewPublish(ids.oneOff);
+    expect(p.blockers).toEqual([]);
+    await svc.publish(ids.oneOff, { checksum: p.checksum });
+    const written = (await rows()).map((r) => `${r.category_id}|${r.account_id}|${r.currency}|${Number(r.entry_date.slice(5, 7))}|${r.amount}`).sort();
+    expect(written).toEqual(await stored());
   });
 });

@@ -31,6 +31,7 @@ function freshState() {
       { id: 47, name: '2026 Base' },
       { id: 60, name: '2026 Downside' },
     ],
+    builds: [{ id: 1, scenario_name: '2026 Base' }, { id: 2, scenario_name: '2026 Downside' }],
     doc: {
       scenarios: [
         { Name: '2026 Base', Description: null, IsActive: true, id: 47, PeriodStart: 2027, PeriodEnd: 2062 },
@@ -76,6 +77,10 @@ function fakeClient() {
         state.doc[params[1]] = JSON.parse(params[0]);
         return { rows: [] };
       }
+      if (/UPDATE budget_builds SET scenario_name/.test(sql)) {
+        for (const b of state.builds) if (b.scenario_name === params[1]) b.scenario_name = params[0];
+        return { rows: [] };
+      }
       throw new Error(`unexpected SQL in test: ${sql}`);
     },
   };
@@ -96,6 +101,14 @@ describe('renameScenario', () => {
     expect(state.doc.inflation.map((e) => e.Scenario)).toEqual(['2026 Base Case', '2026 Downside']);
     expect(state.doc.FX.map((e) => e.Scenario)).toEqual(['2026 Base Case', '2026 Downside']);
     expect(state.doc['Tax Rate'].map((e) => e.Scenario)).toEqual(['2026 Base Case', '2026 Downside']);
+  });
+
+  it('carries a budget build that names the scenario, and no other (CR098)', async () => {
+    await repo.renameScenario(47, '2026 Base Case');
+    expect(state.builds).toEqual([
+      { id: 1, scenario_name: '2026 Base Case' },
+      { id: 2, scenario_name: '2026 Downside' },
+    ]);
   });
 
   it('leaves every other scenario untouched, values and all', async () => {
