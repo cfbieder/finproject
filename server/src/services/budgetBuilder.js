@@ -62,7 +62,10 @@ async function scenarioRates(scenarioName, targetYear) {
     const arr = typeof raw === 'string' ? JSON.parse(raw) : raw || [];
     return Array.isArray(arr) ? arr.filter((e) => e && e.Scenario === scenarioName) : [];
   };
-  const inflation = list('inflation').map((e) => ({ Year: Number(e.Year), Rate: Number(e.Rate) }))
+  // A null Rate would read as 0%, so it is filtered before Number(), not after.
+  const inflation = list('inflation').filter((e) => e.Rate != null)
+    .map((e) => ({ Year: Number(e.Year), Rate: Number(e.Rate) }))
+    .filter((e) => Number.isFinite(e.Rate))
     .sort((a, b) => a.Year - b.Year);
   const fx = list('FX').sort((a, b) => Number(a.Year) - Number(b.Year));
   const fxSeries = (cur) => fx.map((e) => ({
@@ -216,7 +219,7 @@ async function createBuild({ targetYear, sourceLeId, scenarioName, parentBuildId
         fixed_amount: from ? from.fixed_amount : (pol?.policy === 'fixed' ? round2(l.le_fy) : null),
         inflation_pct: from ? from.inflation_pct : (pol?.inflation_override_pct ?? null),
         split_method: from?.split_method ?? pol?.split_override ?? 'auto',
-        split_month: from?.split_month ?? pol?.split_month ?? null,
+        split_month: from ? from.split_month : (pol?.split_month ?? null),
         split_weights: from ? from.split_weights : (pol?.split_weights ?? null),
       });
     }
@@ -241,11 +244,15 @@ async function setNote(id, note) {
   await db.query('UPDATE budget_builds SET note = $2, updated_at = NOW() WHERE id = $1', [id, note || null]);
 }
 
-/** Twelve month weights: blank is 0, none negative, at least one above zero once stored to cents. */
+/**
+ * Twelve month weights: blank is 0, none negative, at least one above zero. Stored to two decimals,
+ * so a finer one is refused: rounding it would quietly move money between months.
+ */
 function checkWeights(raw) {
   if (!Array.isArray(raw) || raw.length !== 12) throw err(400, 'Month weights need all twelve months');
-  const weights = raw.map((v) => (v === null || v === '' ? 0 : round2(v)));
+  const weights = raw.map((v) => (v === null || v === '' ? 0 : Number(v)));
   if (weights.some((w) => !Number.isFinite(w) || w < 0)) throw err(400, 'A month weight must be a number, zero or more');
+  if (weights.some((w) => Math.abs(w - round2(w)) > 1e-9)) throw err(400, 'A month weight can have at most two decimals');
   if (!weights.some((w) => w > 0)) throw err(400, 'Give at least one month a weight above zero');
   return weights;
 }
@@ -274,6 +281,8 @@ async function updateLine(buildId, lineId, patch) {
       if (v !== null && !Number.isFinite(v)) throw err(400, 'Fixed amount must be a number');
       next.fixed_amount = v;
     }
+    // A Fixed line with no amount would read as 0 and publish as nothing.
+    if (next.policy === 'fixed' && next.fixed_amount == null) throw err(400, 'A Fixed line needs an amount — use One-off for zero');
     if (patch.inflationPct !== undefined) {
       const v = patch.inflationPct === null || patch.inflationPct === '' ? null : Number(patch.inflationPct);
       if (v !== null && (!Number.isFinite(v) || v < -100 || v > 1000)) throw err(400, 'Inflation % must be between −100 and 1000');

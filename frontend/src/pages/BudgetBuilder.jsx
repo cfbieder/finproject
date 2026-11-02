@@ -71,7 +71,7 @@ function MonthWeights({ line, rev, busy, onSave }) {
         }}>
           {MONTHS.map((m, i) => (
             <td key={m} className="num">
-              <input key={`w${line.id}-${i}-${current[i] ?? ""}-${rev}`} type="number" min="0" step="any" className="bb-num-input"
+              <input key={`w${line.id}-${i}-${current[i] ?? ""}-${rev}`} type="number" min="0" step="0.01" className="bb-num-input"
                 aria-label={`${line.category} weight for ${m}`} defaultValue={shown(i)} disabled={busy}
                 onKeyDown={commitOnEnter} onWheel={blurOnWheel} />
             </td>
@@ -215,6 +215,7 @@ function BudgetBuilder() {
         (r.live ? ` — ${r.year} v${r.live} is live again.` : " — before any build."));
     } else if (kind === "delete") {
       await Rest.del(`/budget-builder/${selectedId}`);
+      setForm((f) => (Number(f.parentId) === selectedId ? { ...f, parentId: "" } : f));
       setSelectedId(null);
       setView(null);
     }
@@ -496,6 +497,8 @@ function BudgetBuilder() {
                                   {" "}· {s.accounts.length} account(s)
                                 </span>
                               </>
+                            ) : split ? (
+                              <span className="bb-muted">No month split yet: {split.blockers.join(" ")}</span>
                             ) : (
                               <span className="bb-muted">Press <strong>Show month split</strong> to see this line by month.</span>
                             )}

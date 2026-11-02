@@ -383,6 +383,7 @@ dbDescribe('budget builder — the cycle (DB)', () => {
     await expect(svc.updateLine(build.id, food.id, { splitMethod: 'custom' })).rejects.toThrow(/at least one month/);
     await expect(svc.updateLine(build.id, food.id, { splitMethod: 'custom', splitWeights: [1, 2] })).rejects.toThrow(/all twelve/);
     await expect(svc.updateLine(build.id, food.id, { splitMethod: 'custom', splitWeights: Array(12).fill(-1) })).rejects.toThrow(/zero or more/);
+    await expect(svc.updateLine(build.id, food.id, { splitMethod: 'custom', splitWeights: [0.125, ...Array(11).fill('')] })).rejects.toThrow(/two decimals/);
 
     await svc.updateLine(build.id, food.id, { policy: 'fixed', fixedAmount: -500, splitMethod: 'custom', splitWeights: weights });
     const months = async (id) => {
@@ -514,14 +515,20 @@ dbDescribe('budget builder — the cycle (DB)', () => {
     expect(view.totals.USD).toBeNull();
     expect(view.usdTotal).toBeNull();
 
+    // A null Rate is no rate, not 0%.
+    const doc = await assumpRepo.getDoc();
+    await assumpRepo.putDoc({ inflation: [...doc.inflation, { Scenario: EMPTY_SCEN, Year: YEAR, Rate: null }] });
+    expect((await svc.getBuild(build.id)).rates.inflation).toBeNull();
+
     const before = await rows();
     const p = await svc.previewPublish(build.id);
     expect(p.blockers.join(' ')).toMatch(/CR098T Empty' has no inflation rate/);
     await expect(svc.publish(build.id, { checksum: p.checksum })).rejects.toThrow(/no inflation rate/);
     expect(await rows()).toEqual(before);
 
-    // A Fixed line needs no rate.
+    // A Fixed line needs no rate, but it does need an amount.
     await svc.updateLine(build.id, food.id, { policy: 'fixed', fixedAmount: -900 });
+    await expect(svc.updateLine(build.id, food.id, { fixedAmount: null })).rejects.toThrow(/needs an amount/);
     const fixed = await svc.getBuild(build.id);
     expect(fixed.usdTotal).toBe(-900);
     expect((await svc.previewPublish(build.id)).blockers).toEqual([]);

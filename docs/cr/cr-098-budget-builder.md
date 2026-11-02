@@ -586,6 +586,12 @@ at publish, `checkWeights`, custom in `splitLine`. `renameScenario` carries `sce
 Choosing *month weights* in the dropdown seeds a 1 in all twelve months, which equals even, so nothing moves
 until a weight is changed; boxes save when focus leaves the row. Leaving custom clears the weights.
 
+**Found at code review, fixed before merge.** A weight rounded to two decimals moved money between months
+(0.125 / 0.375 on 500,000 wrote 127,450.98 / 372,549.02), so a finer weight is refused and §10.3's "any
+non-negative numbers" means to two decimals. Blanking a Fixed box published the line as nothing, a defect
+from v3.77.0, now refused. A null inflation `Rate` read as 0%, now as no rate. Left alone: focus is lost
+after a save while tabbing between boxes, the pattern every input on this page already has.
+
 **Verified on a fresh prod dump in a throwaway database (§10.6 items 1–5, 8, 9).** Three drafts, copy
 independent, delete leaves the copy with NULL parent. Publish, replace, restore: restore byte-for-byte on
 amount, base amount, account and date, and **per FC line 16/16 at each of the three steps**, read through
