@@ -449,7 +449,7 @@ function BudgetBuilder() {
                               <select value={l.splitMethod} aria-label={`${l.category} month split`} disabled={busy}
                                 onChange={(e) => {
                                   const method = e.target.value;
-                                  if (method === "custom") setOpenLine(l.id);
+                                  setOpenLine(method === "custom" ? l.id : openLine === l.id ? null : openLine);
                                   patchLine(l.id, method === "month" ? { splitMethod: "month", splitMonth: l.splitMonth || 1 }
                                     : method === "custom" ? { splitMethod: "custom", splitWeights: Array(12).fill(1) }
                                     : { splitMethod: method });
@@ -472,7 +472,7 @@ function BudgetBuilder() {
                       {openLine === l.id && (
                         <tr className="bb-months-row">
                           <td colSpan={11}>
-                            {isDraft && (
+                            {isDraft && l.splitMethod === "custom" && (
                               <>
                                 <span className="bb-muted">
                                   Month weights: blank is nothing that month; the numbers set the proportions of the annual figure.

@@ -484,7 +484,7 @@ reader files; 131 of the 793 rows for 2026 have `version_id` NULL).
   restoring the rates, is the way out. The page does not dereference `rates.inflation.rate` unguarded.
 
 - **V8 — month weights.** A fourth month split, **custom**, beside *from actuals*, *even* and *one month*.
-  Opening a line shows 12 boxes above its money row: blank means nothing in that month, and any
+  On a custom line, opening it shows 12 boxes above its money row (choosing another split closes the row, and no other split shows them): blank means nothing in that month, and any
   non-negative numbers set the proportions (Mar 3, Aug 2 on 500,000 → 300,000 and 200,000; a 1 in four
   months → four equal payments). Weights, not amounts, because the annual still comes from the policy: a
   typed 300,000 / 200,000 lands exactly while the annual is 500,000 and rescales when it changes, so no
