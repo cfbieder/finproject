@@ -41,7 +41,7 @@ Naming convention for new smoke scripts: `server/src/scripts/smoke-<topic>.js`. 
 
 ### Frontend Vitest tests — `cd frontend && npm test`
 
-**741 tests across 71 files** (2026-11-03, CR098 P3b — `features/Budgets/__tests__/buildCompare.test.js` (7) added; measured on its branch). Earlier 734 / 70 (measured 2026-10-15; incl. `features/Forecast/__tests__/fcReviewLeReference.test.jsx` (6) — the LE column renders and every other cell is unchanged). Pure-function helpers plus component render tests (Modal/DataTable) in `jsdom`; no network, no real DB. Established under [CR016 — Frontend Test Framework](../cr/cr-016-frontend-test-framework.md) (closed 2026-05-20).
+**750 tests across 72 files** (2026-11-03, CR099 — `features/Forecast/__tests__/returnPath.test.js` (9) added). Before that **741 tests across 71 files** (2026-11-03, CR098 P3b — `features/Budgets/__tests__/buildCompare.test.js` (7) added; measured on its branch). Earlier 734 / 70 (measured 2026-10-15; incl. `features/Forecast/__tests__/fcReviewLeReference.test.jsx` (6) — the LE column renders and every other cell is unchanged). Pure-function helpers plus component render tests (Modal/DataTable) in `jsdom`; no network, no real DB. Established under [CR016 — Frontend Test Framework](../cr/cr-016-frontend-test-framework.md) (closed 2026-05-20).
 
 | File | Tests | Coverage |
 |------|-------|----------|

@@ -1,6 +1,6 @@
-# CR099 — A per-year return path on a forecast module (market crash and recovery) — PLANNED
+# CR099 — A per-year return path on a forecast module (market crash and recovery) — IN-PROGRESS (built, not released)
 
-**Status:** PLANNED (2026-11-03) — pass 1 `cr-technical-reviewer` revise → rev 2; pass 2 `cr-signoff-pm` **GO** on rev 3 (§9). Version and ship date go in the index row at ship time · **Track:** v3 · **Migration:** one (number claimed at build time, not now)
+**Status:** IN-PROGRESS — built and verified on dev 2026-11-03 (§10), not yet released; migration **086**. Pass 1 `cr-technical-reviewer` revise → rev 2; pass 2 `cr-signoff-pm` **GO** on rev 3 (§9). Version and ship date go in the index row at ship time
 **Depends on:** CR050 (variants), CR062 (amortization child-table pattern), CR076 D1 (`growthPctForYear`), CR085 P0 (derived copy lists)
 **Roadmap anchor:** [project-roadmap.md#cr099](../current/project-roadmap.md#cr099)
 
@@ -322,3 +322,47 @@ what Downside becomes; not started unasked.
   column), deploy and verification (§8), build window (§8), scope cuts (§4.6), status PLANNED.
   Pass 2's disposal-wording deferral was conditional on no disposal on a pathed module; CVC Fund
   VIII has four, so it stays in scope.
+
+## 10. As built (2026-11-03, not yet released)
+
+**Code.** Migration **086** (`forecast_module_returns`, §4.1). `moduleGrowthSeries` in
+`fcbuilder-common.js` applies the path; the builder and the convergence loop both call it, and the
+structural guard now fails if either calls `growthPctForYear` itself. The loader attaches
+`mod.Returns` and returns `returnWarnings` (logged) for rows it cannot apply. Every §4.2 site carries
+the table: copy, the sensitivity digest and fingerprint, variant schedules (read `ORDER BY year`),
+the variant intercept, `crud`, the routes, the preview guard, and the close's `VALUE_PIN_KEYS`.
+Validation lives in `v2/utils/forecastReturns.js`, shared by POST, PUT and the save-time preview.
+UI: `FCReturnPath.jsx` on the module editor, a **PATH** marker on the modules list, the variant panel
+prints the path, `fcWarnings` names rows that do nothing, the disposal wording claims no direction
+on a pathed module, the Growth sensitivity knob reads *· years off its return path*. Ride-along, own
+commit: the variant panel names and prints an `amortization` override.
+
+**Departures from §4, found while building or at code review.**
+- **A row sent back unchanged is not re-judged** against the year bounds, the loan or the valuation.
+  Without this, a row the annual close made stale (base date +1) made the module unsaveable: the
+  editor sends the whole path on every save. The engine ignores such a row and the Review warns.
+- **The Review's warning covers what the write path cannot refuse:** rows after the first Full
+  disposal at or after the base year, rows past the plan's end, and every row on a loan or flow
+  module. The list carries `DisposeFullFirstYear` for it.
+- **A blank percent is refused (400), never stored as 0%,** and the editor sends a blank as null
+  rather than dropping the row. "Add a year" starts blank, on the year after the last row.
+- **The preview payload carries `Returns`** (it is built without `normalizeTransfers`, where a path
+  edit would have previewed as no change), and the preview validates before building its copy.
+- **Found by rendering:** the editor's years read "20251" — the base year arrives as a string.
+
+**Verified.**
+- Backend: 1,580 passed on dev (127 suites); the fresh-database run, before the code-review fixes,
+  was 127 suites green. New: `returnPath.test.js` (engine, 7), `forecast.returns.test.js` (API, 20),
+  `moduleChildCatalog.test.js` (5), copy and parity tests extended.
+- **Falsified:** the convergence loop without the path pays the crash-year dividend on the uncrashed
+  value (36,858.94 against 27,168.75); the catalog guard fails when the sensitivity digest drops the
+  table; the order test fails without `ORDER BY year`; both stale-row tests fail without the
+  exemption.
+- Frontend 750 passed; six ratchets at baseline.
+- **Rendered on dev, both themes:** editor and PATH marker; a row added in the UI went through the
+  save-time preview (which priced it) and was stored; a regenerate gave Fidelity Stocks 2027 =
+  1,403,299 × 0.5 and the recovery years as typed. Dev was restored afterwards.
+
+**Not verified:** §5.4 (the sweep's `growthByYear` carries the path) and §5.5 (a crash-year sweep
+draw realizes zero) are inherited behaviour, untested here; the dip on the Compare page was not
+rendered; no prod-dump "old engine vs new" run yet (§8 step 3, due before the deploy).
