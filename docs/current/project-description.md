@@ -436,7 +436,7 @@ Secrets live in **untracked** files (since CR034, 2026-06-12): root `.env` (comp
 | `DATABASE_URL` | derived in compose / set for scripts+tests | Server & CLI DB connection; **no embedded fallback anywhere** |
 | `BANK_FEED_URL` | `.env` | bank-feed service base URL (default `http://host.docker.internal:3007`) |
 | `BANK_FEED_API_KEY` | `.env` (secret) | Auth for `/v1/*`; empty disables bank-feed calls; shared with the OCME consumer |
-| `LLM_GATEWAY_URL` | compose default `http://192.168.1.61:8080` | Local ocr-llm gateway — **two server-side callers**: AI Review (`aiReview.js`) and the CR092 P1 net-worth narration (`netWorthNarration.js`). No *cloud* key needed, but see the next row |
+| `LLM_GATEWAY_URL` | compose and code default `https://llm-api.tail413695.ts.net` (`llm0`, since 2026-10-15; the `192.168.1.61` forwarder goes away from 2026-11-06) | Local ocr-llm gateway — **two server-side callers**: AI Review (`aiReview.js`) and the CR092 P1 net-worth narration (`netWorthNarration.js`). No *cloud* key needed, but see the next row |
 | `OCR_LLM_CLIENT_KEY` | `.env` (secret); mapped in all three compose files | Gateway client key, sent as the `X-Client-Id: finance` + `X-Client-Key` pair. **Required** — the gateway has enforced identity since 2026-08-31, an unkeyed `POST /task` gets `401 client_unidentified`, and `aiReview.js` refuses to make the call at all when it is unset ([guide](../guides/ocr-llm-integration.md)) |
 | `CORS_ORIGINS` | optional | Comma-separated CORS allowlist override (defaults cover dev/prod/Tailscale — `app.js`) |
 | `BANK_FEED_SYNC_MAX_AGE_MIN` | optional (default 60) | Sync-before-reconcile freshness window |

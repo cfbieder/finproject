@@ -12,7 +12,7 @@ You scout Fin's sibling repos so work lands on the right side of the boundary. R
 repos"):
 - `/home/cfbieder/Programs/fin/bank-feed` — the feed microservice (:3007): upstream
   connectors, per-institution converters, sign handling, ingest paging, its own `db/migrations`.
-- `/home/cfbieder/Programs/fin/ocr-llm` — the LLM gateway (`100.66.213.40:8080`, pinned
+- `/home/cfbieder/Programs/fin/ocr-llm` — the LLM gateway (`https://llm-api.tail413695.ts.net`, pinned
   contract **v1**), used by AI Review.
 
 **These are live siblings, not a parts bin.** So the usual answer is *not* "copy this into
