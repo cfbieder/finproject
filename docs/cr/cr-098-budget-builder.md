@@ -1,6 +1,6 @@
-# CR098 — Budget builder: next year's budget from this year's Latest Estimate — IN-PROGRESS (P0–P2 live)
+# CR098 — Budget builder: next year's budget from this year's Latest Estimate — COMPLETED
 
-**Status:** IN-PROGRESS — P0 + P1 + P2 **LIVE v3.77.0** (2026-10-30, §9). **Rev 3 (§10, budget variants): P3a (V1–V4, V7, V8; migration 085) is **LIVE v3.78.0** (2026-11-02, §10.9); P3b (V5, the comparison) is **LIVE v3.79.0** (2026-11-03, §10.10); P3c (V6) is not built.** The CR closes when the first real 2027 publish is done **and** V1–V5 have shipped, with anything cut listed on the roadmap (§10.7). Take a manual prod backup the day of that publish (§6). Planned 2026-10-15, two-pass reviewed: pass 1 *revise* → rev 2; pass 2 **GO** with four conditions, all written in (§8). ⚠️ Do not build [CR095](cr-095-forecast-spend-currency-share.md) (same FX area) at the same time.
+**Status:** COMPLETED (2026-11-03, owner close). P0 + P1 + P2 live (§9); rev 3 (§10, budget variants) P3a (V1–V4, V7, V8; migration 085, §10.9) and P3b (V5, the comparison, §10.10) live. **Closed before its recorded condition** — *V1–V5 shipped and the first real 2027 publish done* — by the owner's decision once the comparison was checked on prod: V1–V5 are live, and the two open pieces moved to the [roadmap §2 backlog](../current/project-roadmap.md#2-open-backlog-non-cr-items) so closing did not drop them: **the first 2027 publish** (an owner action, manual prod backup that day, by 2026-12-10) and **P3c / V6, the hand-edit warning** (needed before the first swap over a hand edit). Planned 2026-10-15, two-pass reviewed (§8, §10.8). ⚠️ Do not build [CR095](cr-095-forecast-spend-currency-share.md) (same FX area) at the same time.
 **Track:** v3 · **Migrations:** 084 (`084_budget_builder.sql`, six tables) · 085 (`085_budget_build_variants.sql`, rev 3)
 **Depends on:** [CR083](cr-083-budget-latest-estimate.md) (the Latest Estimate, and its §11.4 list of
 what a seed must solve first) · [CR075](cr-075-base-year-is-the-budget.md) (the base year IS the
@@ -364,7 +364,8 @@ line fall back to an even split with no account (the whole grid fails validation
 account). A restore writes stored cells even if a category or account was deactivated since. The
 radius values on the page's own inputs (4px / 6px) are below the smallest `--radius-*` token (10px).
 
-## 10. Rev 3 — budget variants (PLANNED 2026-11-01, not built)
+<a id="10-rev-3--budget-variants-planned-2026-11-01-not-built"></a>
+## 10. Rev 3 — budget variants (planned 2026-11-01; P3a + P3b built, P3c to the roadmap)
 
 ### 10.1 The ask and the decisions
 
@@ -497,7 +498,7 @@ reader files; 131 of the 793 rows for 2026 have `version_id` NULL).
   cells make a restore independent of them. The preview token already hashes the cells, so a weight edit
   after the preview is refused like any other.
 
-### 10.4 Storage (migration 085, number to be claimed at build)
+### 10.4 Storage (migration 085)
 
 Fresh-DB-safe, 084 untouched: `DROP INDEX IF EXISTS bb_one_draft_per_year`; `DROP CONSTRAINT IF EXISTS
 budget_builds_parent_build_id_fkey` and re-add it with `ON DELETE SET NULL`; `ADD COLUMN IF NOT EXISTS

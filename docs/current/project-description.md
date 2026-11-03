@@ -470,4 +470,4 @@ cd frontend && npm test && npm run build             # frontend tests + build
 
 ---
 
-*Last updated: 2026-10-31*
+*Last updated: 2026-11-03*

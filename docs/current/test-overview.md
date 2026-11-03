@@ -6,7 +6,7 @@ How testing is organised across the project, what's automated, and where to run 
 
 ### Backend Jest tests — `cd server && npm test`
 
-**1,614 tests across 124 suites** (measured 2026-11-02 via `./Scripts/test-fresh-db.sh`, v3.78.0). Frontend: **734 across 70 files** (same day); **741 across 71 files** on 2026-11-03 (CR098 P3b, measured on its branch). *Earlier:* 1,427 across 100 suites on 2026-09-08 — ✅ and those passed against dev's REAL database too, which was not true until then: `exposure.test.js` used to be green here and red there ([roadmap §3 #26](project-roadmap.md#3-known-issues), now closed).
+**1,614 tests across 124 suites** (measured 2026-11-02 via `./Scripts/test-fresh-db.sh`, v3.78.0). Frontend: **734 across 70 files** (same day); **741 across 71 files** on 2026-11-03 (CR098 P3b, measured on its branch); backend +2 in `budgetBuilder.test.js` the same day, not re-measured on a fresh DB. *Earlier:* 1,427 across 100 suites on 2026-09-08 — ✅ and those passed against dev's REAL database too, which was not true until then: `exposure.test.js` used to be green here and red there ([roadmap §3 #26](project-roadmap.md#3-known-issues), now closed).
 
 | File | Tests | Coverage |
 |------|-------|----------|
@@ -28,6 +28,7 @@ How testing is organised across the project, what's automated, and where to run 
 | `v2/routes/__tests__/ingestBankFeed.test.js` | 10 | Feed ingest route. |
 | `v2/repositories/__tests__/` (18 files) | 121 | createTransaction, ledger running balance, neutralize, split residual (CR037), and later repositories — incl. `cr083.baseYearLe.test.js` (7): the §8.1 LE reference column reads only finalised LEs, honours its exclusions, and never moves the base year. |
 | `services/forecast/__tests__/annualClose.test.js` | 8 | CR064 P2 annual close: per-column tick defaults, period + name move, variant carry incl. the loan link from the old variant's id space and a shifted period pin, rollback on a name clash, refusals. |
+| `services/__tests__/budgetBuilder.test.js` | 31 | CR098 budget builder (DB): draft, split, publish / un-publish / restore, variants (P3a), and the comparison (P3b: build order; a database error fails `compareYear` rather than reaching the page). |
 | `v2/utils/__tests__/validate.test.js` | 8 | CR037 field-whitelist validation + strict real-date check (CR097). |
 
 Naming: Jest convention `*.test.js`. Test files are colocated with the modules under test in `__tests__/` subdirectories. (This table is a snapshot — `npx jest --listTests` is the live source of truth.)
@@ -40,7 +41,7 @@ Naming convention for new smoke scripts: `server/src/scripts/smoke-<topic>.js`. 
 
 ### Frontend Vitest tests — `cd frontend && npm test`
 
-**734 tests across 70 files** (measured 2026-10-15; incl. `features/Forecast/__tests__/fcReviewLeReference.test.jsx` (6) — the LE column renders and every other cell is unchanged). Pure-function helpers plus component render tests (Modal/DataTable) in `jsdom`; no network, no real DB. Established under [CR016 — Frontend Test Framework](../cr/cr-016-frontend-test-framework.md) (closed 2026-05-20).
+**741 tests across 71 files** (2026-11-03, CR098 P3b — `features/Budgets/__tests__/buildCompare.test.js` (7) added; measured on its branch). Earlier 734 / 70 (measured 2026-10-15; incl. `features/Forecast/__tests__/fcReviewLeReference.test.jsx` (6) — the LE column renders and every other cell is unchanged). Pure-function helpers plus component render tests (Modal/DataTable) in `jsdom`; no network, no real DB. Established under [CR016 — Frontend Test Framework](../cr/cr-016-frontend-test-framework.md) (closed 2026-05-20).
 
 | File | Tests | Coverage |
 |------|-------|----------|
