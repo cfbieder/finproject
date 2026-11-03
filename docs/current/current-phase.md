@@ -68,3 +68,15 @@ warning sentence, or any figure that asserts what the engine does. The one that 
 **a restatement asserted as the engine's behaviour, found TEN times** — the ninth
 ([CR059 §22](../cr/cr-059-fintable-api-ingestion.md)) is the first to reach the **ledger**, and the
 tenth (§22.9) is the first where the restatement is of a **measurement**, not the engine.
+
+## Owner judgements carried from status.md
+
+Moved here verbatim from [status.md](status.md) on 2026-11-03 (its line budget); both are
+forecast judgements for the owner, not work to start.
+
+- **Re-examine SRQ** — **−476,930**: funds itself 35 of 36 years, dry in the last. Marginal, not
+  hopeless. Financing would be the untested lever (all cash, no rent, sells at 7%), and testing it
+  is **DECLINED** (owner, 2026-08-23) — so this is a judgement to make, not an experiment to run.
+- **`Retirement Home`** — ~**105,000**/yr today for two, reasonable for assisted living, but the plan
+  **double-counts** `Living Expenses` on top (~83,000) while escalating care at general inflation.
+  The two errors nearly cancel — by luck, not design.

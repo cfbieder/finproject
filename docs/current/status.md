@@ -2,19 +2,10 @@
 
 > The one mandatory read at session start. Keep ≤ ~60 lines; link onward, never restate.
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
-> Older headlines: [2026-09-14](../archive/status-log_2026-09-14.md) ·
+> Older headlines: [2026-11-03](../archive/status-log_2026-11-03.md) · [2026-09-14](../archive/status-log_2026-09-14.md) ·
 > [2026-09-05](../archive/status-log_2026-09-05.md) · [2026-08-01](../archive/status-log_2026-08-01.md).
-> **The budget is load-bearing** (216 → 60 on 2026-08-05; 122 → **94** on 2026-08-09, by lifting
-> the failure table and the infrastructure block into their own files; **405 → 238 on 2026-09-05**,
-> by archiving twelve *Next* bullets that were already finished; **250 on 2026-09-14**, cut by
-> archiving the v3.61 headline write-ups, the closed Known-issues narrative and three shipped *Next*
-> bullets; **167 → 113 on 2026-09-23**, by moving *Current phase* to
-> [current-phase.md](current-phase.md) — the cut this note had been naming): overrun = restatement
-> the CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
-> MOVING something that changes on a different clock, never from deleting what is true.
-> ⚠️ **Still over budget at 107 lines** (123 → 107 on 2026-10-07, by dropping two finished *Next* bullets). The *Live version* paragraph now carries only the current
-> release (cut 2026-10-03; roadmap §1.2 owns the log). That paragraph is one line, so the line
-> overrun sits in *Known issues* and *Next*.
+> Every budget cut has come from MOVING what changes on a different clock, never deleting what is true
+> (history in the 2026-11-03 log).
 
 **Last updated:** 2026-11-03 · **Live version:** **v3.80.0** (see `VERSION` / git tags) — release log: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
 
@@ -30,22 +21,8 @@ Two things from it are worth carrying into every session:
   Read it before writing a rule, a warning sentence, or any figure that asserts what the engine does.
 
 ## Known issues
-[roadmap §3](project-roadmap.md#3-known-issues) is canonical; the closed narrative that sat here
-(CR059 §22, #19–#21, #12, #23, the ocr-llm ack) moved to
-[status-log_2026-09-14](../archive/status-log_2026-09-14.md). Worth knowing at session start:
-- ✅ **Both 2026-09-20 feed alarms are CLOSED, measured 2026-09-23** — every Wise (4) and PKO (7)
-  account reads `state: ok` with `days_since_upstream_sync: 0`, and PKO's 180.00 PLN cleared on the
-  repaired sync rather than by calibration. ✅ **CR091 §U3's post-reconnect mapping re-check is DONE and
-  clean** (2026-09-23), run through the shipped v3.61.5 diff rather than by hand: **disappeared 0**
-  (no mapping points at an id the feed no longer has), **appeared 0**, and the single *duplicated*
-  row is `acc_01M1R5KN…` — §U3's **own specimen**, still `ignored`, i.e. the regression fixture
-  behaving. Wise's three mapped accounts still map one-to-one by currency, so the re-authorisation
-  re-pointed nothing. The one account upstream still flags `needs_reconnect` is **Bank Pekao**,
-  which fin deliberately ignores (`account_id = NULL`, one of 5) and has no account for, so
-  `attention-summary` correctly answers 0. **The rule that buys:** *"attention-summary says 0"
-  proves nothing about connections fin does not map* — it is scoped to mapped, non-ignored accounts
-  by CR060's own correction. Pekao's last good sync, `2026-09-18`, is also the date this file had
-  recorded as PKO's, so the PKO bullet probably named the wrong Polish bank.
+[roadmap §3](project-roadmap.md#3-known-issues) is canonical; closed items are in the
+[2026-11-03 log](../archive/status-log_2026-11-03.md). Still worth knowing at session start:
 - 🟡 **The feed can revise a date (or an amount) AFTER promote and the ledger keeps the old one** —
   `staging.upsert` updates staging and never resets `promoted_transaction_id`. One live date instance
   (PKO), **zero amount instances — but that path is permanent drift no re-run clears**.
@@ -53,37 +30,22 @@ Two things from it are worth carrying into every session:
   the 08-10 cutover); its three checks are now a step in the [month-end runbook](../guides/month-end-reconcile.md).
 - **#29 FIXED v3.61.7** — the feed FLIPS two FDIC sweeps between a ticker and a numeric id; migration
   081 merged them. ⚠️ A **third** label for the same deposit would still mint a new twin.
-- ✅ **CR059's Sheet path is retired** (2026-09-15, bank-feed `615b2bb`, [§26](../cr/cr-059-fintable-api-ingestion.md)):
-  the rollback, the hourly watchdog and the `FINTABLE_SOURCE` switch are gone. ⚠️ **Owner:** revoke the
-  Sheet share and delete the service-account key in Google Cloud.
+- ⚠️ **Owner:** revoke the retired Sheet share and delete its service-account key in Google Cloud
+  ([CR059 §26](../cr/cr-059-fintable-api-ingestion.md); the code path is gone since 2026-09-15).
 - **#18** — a fresh DB enforces `fc_lines.line_type`'s CHECK while dev and prod do not, so a test can
   pass on dev and fail only in CI.
-- The timezone rule (#3), the ESLint JSX blind spot (#10), dirty-tree deploys (#17). Both items filed back to
-  ocr-llm (a client-abort rule; a stale deadline in their API doc) are **fixed upstream** —
-  verified 2026-09-28 at their `f249397`; their handoff board has no open threads.
-- ✅ **ocr-llm's 413 broadcast ACKED 2026-09-23** — we were unaffected and **measured** it
-  (`/clients?days=30`: 142 served / **0 errors**, window covering all 16 days), but only because our
-  one 413 branch **discarded the body**. Fixed: it now names `estimated_tokens` / `max_supported`,
-  treating the latter as optional. **Unaffected because unimplemented is not unaffected.**
+- The timezone rule (#3), the ESLint JSX blind spot (#10), dirty-tree deploys (#17).
 
 ## Live infrastructure
-Moved to [guides/infrastructure.md](../guides/infrastructure.md) — hosts, ports, the deploy script,
-the dev-first migration rule, and the fact that **an engine change moves nothing until the
-scenarios are REGENERATED**. It changes far less often than this file does.
+[guides/infrastructure.md](../guides/infrastructure.md) — hosts, ports, deploy, the dev-first migration rule.
+⚠️ **An engine change moves nothing until the scenarios are REGENERATED.**
 
 ## Next
-> Finished headlines are archived, not repeated: twelve on 2026-09-05
-> ([log](../archive/status-log_2026-09-05.md)) and CR091 P1, CR086/CR087 P0–P1 and CR083 P0 on
-> 2026-09-14 ([log](../archive/status-log_2026-09-14.md)); the 2026-09-28 CR close-out and CR096 on 2026-10-07 (recorded in roadmap §1.2, v3.67.0 / v3.68.0). Statuses are canonical in the
-> [CR index](../cr/README.md), versions in [the roadmap](project-roadmap.md).
+Statuses are canonical in the [CR index](../cr/README.md), versions in [the roadmap](project-roadmap.md).
 
 - **[CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) (forecast annual close — rolling to a new base year):** run *Annual close…* in January 2027 on `2026 Base` → `2027 Base`; the CR closes after that run. Forecast Review shows the latest finalised LE beside the base year (LE-09-26: +62,977 vs the 2026 budget; LE-10-26, which holds the −65,000 car purchase, and LE-11-26 are finalised — checked 2026-11-01) — the input to deciding whether the base year should follow the LE. **Budget builder** ([CR098](../cr/cr-098-budget-builder.md), next year's budget from this year's LE) is closed; its two follow-ups are on [roadmap §2](project-roadmap.md#2-open-backlog-non-cr-items): ⚠️ **publish the 2027 budget by 2026-12-10** (owner action; one 2027 draft from LE-11-26 is open on prod with 0 blockers, checked 2026-11-03; manual prod backup that day; builder code freeze 2026-12-03) and the hand-edit warning (P3c), needed before the first swap over a hand edit. [CR095](../cr/cr-095-forecast-spend-currency-share.md) (forecast spend that moves with the złoty) awaits review. [CR099](../cr/cr-099-forecast-module-return-path.md) (a per-year return path on a forecast module, for a market crash and recovery): a path is entered on `2026 Market Crash`; follow-ups, including an annual-close check due before January, on [roadmap §2](project-roadmap.md#2-open-backlog-non-cr-items). [CR097](../cr/cr-097-manual-holdings-register.md) (a holdings register for manually valued accounts) is open for P1b/P2 — P1a is **live on Misc Investments since 2026-10-14** (first valuation entered). Next: the 2026-10-31 month-end valuation, CR097 §8's acceptance case — ⚠️ **blocked by its cost gap** (checked 2026-11-02: −823.22 against a 95.85 threshold): the 10-16 $517.50 Republic and 10-30 $223.14 Seedrs transfers have no holding yet, and saving would otherwise book a false −695.55. `2026 Base` was regenerated 2026-11-03 together with `2026 Market Crash`, so its stored forecast now carries the 2027 rates set 11-01. Statuses: [CR index](../cr/README.md).
-- **Re-examine SRQ** — **−476,930**: funds itself 35 of 36 years, dry in the last. Marginal, not
-  hopeless. Financing would be the untested lever (all cash, no rent, sells at 7%), and testing it
-  is **DECLINED** (owner, 2026-08-23) — so this is a judgement to make, not an experiment to run.
-- **`Retirement Home`** — ~**105,000**/yr today for two, reasonable for assisted living, but the plan
-  **double-counts** `Living Expenses` on top (~83,000) while escalating care at general inflation.
-  The two errors nearly cancel — by luck, not design.
+- **Two forecast judgements for the owner** — re-examine SRQ, and `Retirement Home` double-counting
+  `Living Expenses`: both in [current-phase.md](current-phase.md#owner-judgements-carried-from-statusmd).
 - **Backlog from the close-out** (roadmap §2): idle-cash interest, loss carry-forward, CR083's P1
   warnings and P2 seed. CR059 is done; its only tail is the owner's Google Cloud cleanup (Known issues).
 - **With the owner, do not start unasked:** "2026 Downside" (being redone) · [CR058 §12.8–12.9](../cr/cr-058-quicken-valuation-anchors.md) ·
@@ -97,11 +59,7 @@ scenarios are REGENERATED**. It changes far less often than this file does.
 [dev-workflow](../guides/dev-workflow.md) · [permissions](../guides/claude-code-permissions.md).
 Last restore drill **2026-11-02 — PASSED** ([runbook](../guides/restore.md)): a fresh prod dump
 restored in 6 s / 0 errors, all 68 tables checksum-identical; the encrypted PBS leg was not exercised.
-Secrets: [secrets-inventory.md](secrets-inventory.md) — ⚠️ **two values exposed 2026-09-08**
-(`POSTGRES_PASSWORD`, `TRADIER_ACCESS_TOKEN`; owner declined rotation, logged there). It is the
-**second redaction failure in three days**, and the first one's own rule would have stopped it:
-there is no safe redaction of a multi-secret file — verify an `.env` edit with `grep -c` /
-`cut -d= -f1` / `git diff --stat`, never by printing the region you changed.
-**ocr-llm handoffs now PULL rather than needing to be remembered** — a `SessionStart` hook asks
-their server what Fin owes ([guide](../guides/ocr-llm-integration.md)); silence means the inbox was
-empty *and* their checkout was current, and nothing else prints nothing.
+Secrets: [secrets-inventory.md](secrets-inventory.md) (⚠️ two exposed 2026-09-08, rotation declined) — verify an
+`.env` edit with `grep -c` / `cut -d= -f1` / `git diff --stat`, never by printing the region you changed.
+ocr-llm handoffs are PULLED by a `SessionStart` hook ([guide](../guides/ocr-llm-integration.md)); silence means
+the inbox was empty *and* their checkout current.
