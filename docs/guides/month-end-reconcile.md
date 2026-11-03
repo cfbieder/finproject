@@ -7,7 +7,7 @@
 > Background for the *why*: [CR065](../cr/cr-065-neutralize-pair-identity.md) §4.5, §11, §12.
 
 **Goal:** the Balance Calibration page reads **`0 unreconciled`** and **`0` unpaired legs**,
-with every mark-to-market entry dated at month-end.
+with every brokerage row `reconciled` or `current to <month-end>` — its mark-to-market entry dated at month-end.
 
 **Page:** `https://fin.tail413695.ts.net` → **Balance Calibration**.
 
@@ -141,7 +141,9 @@ Above the table:
 - **Book MTM entry as of** → the month-end, e.g. `07/31/2026`
 - **· mark against balance dated** → **leave blank on the first attempt**
 
-Then **Reconcile** on each `brokerage (mtm)` row.
+Then **Reconcile** on each `brokerage (mtm)` row. Before booking, each such row reads `MTM gap` with
+*Last reconciled* = last month's mark; afterwards it reads `current to <month-end>` (Status filter →
+*MTM current* lists them).
 
 **If it refuses**, that is the guard working, and the message names the alternatives:
 
@@ -212,8 +214,12 @@ have plugged a real gap and hidden it.
 
 ## 6. Confirm
 
-Balance Calibration should read **`0 unreconciled`**, no red `unpaired legs` on any row, and
-each MTM entry dated at month-end (Ledger → source `mtm`).
+Balance Calibration should read **`0 unreconciled`**, and show no red `unpaired legs` on any row. Each
+brokerage row should read either `reconciled` or **`current to <month-end>`**, with its *Last reconciled*
+cell showing `MTM <month-end>` and the amount. `current to` only says a month-end mark exists: the row's
+Drift is activity since that mark, and the page does not check it again until the next month-end. So
+the mark must be right before you leave (§4), and `unpaired legs` is what catches a bookkeeping error
+booked after it.
 
 ## 7. Roll the Latest Estimate
 
@@ -246,6 +252,7 @@ four days; drift shows what has landed since. Finalising a month later re-reads 
 | reconcile refuses, *"stale feed"* | connection stalled / no month-end row | wait — do not `force` |
 | MTM looks far too large | possibly marking against the wrong observation | check the balance against a statement first |
 | `bank (calibrate)` row drifting | cash mismatch | diff the bank export, then re-anchor |
+| `current to <date>` on a brokerage row | marked at the latest month-end; the Drift shown is activity since | nothing until the next month-end — but only if that mark was right |
 
 ## Verified run — 2026-07-31 month-end
 
