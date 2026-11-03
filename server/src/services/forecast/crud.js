@@ -16,6 +16,7 @@ const repo = require('../../v2/repositories').forecast;
 const variants = require('../../v2/services/forecastVariants'); // CR050
 const { baseYearFxRate } = require('./fcbuilder-setup'); // CR064 P8 — base-year FX
 const validate = require('../../v2/utils/validate'); // CR069 P2 — 400s from the write path
+const { normalizeReturns } = require('../../v2/utils/forecastReturns'); // CR099
 
 /**
  * Resolve an account name to its id (null when absent/not found).
@@ -127,6 +128,18 @@ async function replaceModuleSchedules(id, body) {
       }
     }
 
+    // CR099 — the per-year return path. Validated by the route (it needs the module's base year
+    // and the scenario's end); same replace-wholesale shape as the schedules above.
+    if (Array.isArray(body.Returns)) {
+      await client.query('DELETE FROM forecast_module_returns WHERE module_id = $1', [id]);
+      for (const r of normalizeReturns(body.Returns)) {
+        await client.query(
+          'INSERT INTO forecast_module_returns (module_id, year, pct) VALUES ($1, $2, $3)',
+          [id, r.Year, r.Pct]
+        );
+      }
+    }
+
     // CR069 P3 — IncomePct and IncomeSteps are NOT here: they are `Spread %` and `Fixed $`
     // rows on a stream, written by `replaceModuleStreams`. What remains is the balance path's
     // own schedules, which belong to the valuation and never moved.
@@ -177,7 +190,8 @@ async function clearForLoanRetype(id) {
 
   // Empty-array patches: on an inherited row this records the override; on a
   // variant-local or base row it falls through to the ordinary delete-and-reinsert.
-  await replaceModuleSchedules(id, { Invest: [], Dispose: [] });
+  // CR099 — and its return path: a loan does not follow one.
+  await replaceModuleSchedules(id, { Invest: [], Dispose: [], Returns: [] });
 
   // CR069 P2 — the yield schedule, the steps and both windows are STREAM properties now, so
   // clearing them is a stream write, which carries its own variant interception. What a loan

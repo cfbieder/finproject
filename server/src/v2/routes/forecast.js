@@ -24,6 +24,7 @@ const { generateForecast } = require('../../services/forecast');
 const autoAdjust = require('../services/forecastAutoAdjust'); // CR053
 const sensitivity = require('../services/forecastSensitivity'); // CR085
 const { pruneAssumptionsForName } = require('../services/forecastScratch');
+const { validateReturns, scenarioPeriodEnd, yearOf, assertReturnsForModule } = require('../utils/forecastReturns'); // CR099
 const db = require('../db');
 const { PATHS } = require('../../services/forecast/constants');
 
@@ -66,6 +67,8 @@ const MODULE_WRITE_FIELDS = [
   // CR062 — loan assumptions + the principal schedule
   'LoanPrincipal', 'LoanStartDate', 'LoanEndDate', 'LoanInterestRate', 'Amortization',
   'SecuredAssetModuleId',
+  // CR099 — the per-year return path
+  'Returns',
 ];
 
 
@@ -186,7 +189,7 @@ function assertModuleBody(body) {
     }
   }
   if (body.Matched !== undefined) validate.assertBoolean(body.Matched, 'Matched');
-  for (const f of ['Invest', 'Dispose', 'IncomePct', 'Amortization', 'IncomeSteps']) {
+  for (const f of ['Invest', 'Dispose', 'IncomePct', 'Amortization', 'IncomeSteps', 'Returns']) {
     if (body[f] !== undefined && !Array.isArray(body[f])) {
       throw validate.badRequest(`${f} must be an array`);
     }
@@ -836,6 +839,8 @@ function moduleCommonFields(m) {
       Date: r.effective_date,
       Pct: parseFloat(r.pct) || 0,
     })),
+    // CR099 — the per-year return path, in year order.
+    Returns: (m.returns || []).map((r) => ({ Year: Number(r.year), Pct: parseFloat(r.pct) })),
   };
 }
 
@@ -892,6 +897,7 @@ router.get('/modules', async (req, res, next) => {
       // query for why the list carries scalars here and not the rows.
       DisposeCount: Number(m.dispose_count) || 0,
       DisposeFullCount: Number(m.dispose_full_count) || 0,
+      DisposeFullFirstYear: m.dispose_full_first_year ?? null,   // CR099
       DisposeFirstYear: m.dispose_first_year ?? null,
       // CR050 — Inherited · Overridden · Local, and which fields were overridden.
       Inheritance: variants.rowInheritance(inheritance, m),
@@ -1099,6 +1105,13 @@ router.post('/modules', async (req, res, next) => {
       secured_asset_module_id: body.SecuredAssetModuleId ?? null,
     };
 
+    // CR099 — first, so a path on a loan is refused for that reason, not a later one.
+    if (body.Returns !== undefined) {
+      validateReturns(body.Returns, {
+        baseYear: yearOf(body.BaseDate), periodEnd: await scenarioPeriodEnd(db, scenario.id),
+        isLoan: isLoanBody(body), hasValuation: moduleData.has_valuation,
+      });
+    }
     if (isLoanBody(body)) {
       assertLoanHasInterestLine(
         (body.Streams || []).find((st) => (st.Direction ?? st.direction) === 'expense')?.FcLineId ?? null
@@ -1108,6 +1121,11 @@ router.post('/modules', async (req, res, next) => {
     await assertSecuredAssetLink(body.SecuredAssetModuleId ?? null, scenario.id, null);
 
     const module = await repo.createModule(moduleData);
+
+    // CR099 — the return path, through the same writer a PUT uses.
+    if (Array.isArray(body.Returns) && body.Returns.length) {
+      await crud.replaceModuleSchedules(module.id, { Returns: body.Returns });
+    }
 
     // CR062 — the loan's principal schedule (the other three arrays below are
     // rejected non-empty on a loan, so only one of these ever has rows).
@@ -1256,6 +1274,9 @@ router.put('/modules/:id', async (req, res, next) => {
     if (body.SecuredAssetModuleId !== undefined) {
       await assertSecuredAssetLink(body.SecuredAssetModuleId || null, before.scenario_id, id);
     }
+    // CR099 — checked against the module as the write would leave it, before anything is written
+    // (and before the variant intercept, which would otherwise store a path the engine ignores).
+    await assertReturnsForModule(db, before, body);
 
     // CR084 — the SAME translation the save-time preview applies to its throwaway copy.
     // Extracted to `services/moduleWrite` so the two cannot drift: a preview that maps the body
@@ -1321,7 +1342,7 @@ router.put('/modules/:id', async (req, res, next) => {
     // schedule wiped by the leading DELETEs (CR037 P5).
     if (Array.isArray(body.Invest) || Array.isArray(body.Dispose) ||
         Array.isArray(body.IncomePct) || Array.isArray(body.Amortization) ||
-        Array.isArray(body.IncomeSteps)) {
+        Array.isArray(body.IncomeSteps) || Array.isArray(body.Returns)) {
       await crud.replaceModuleSchedules(id, body);
     }
 

@@ -2125,3 +2125,14 @@ input.fc-modules-modal__input:read-only {
 @media (max-width: 640px) {
   .fc-residue__row { grid-template-columns: 1fr auto; }
 }
+
+/* CR099 — the return path: a short year / percent table, not a full-width form. */
+.fc-return-path { display: flex; flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+.fc-return-path__hint { margin: 0; color: var(--muted); font-size: 0.85rem; max-width: 60ch; }
+.fc-return-path__table { border-collapse: collapse; width: auto; }
+.fc-return-path__table th { text-align: left; font-size: 0.75rem; color: var(--muted); font-weight: 600; padding: 0 0.5rem 0.25rem 0; }
+.fc-return-path__table th.num { text-align: right; }
+.fc-return-path__table td { padding: 0.15rem 0.5rem 0.15rem 0; }
+.fc-return-path__table select.form-input { width: 6.5rem; }
+.fc-return-path__pct.form-input { width: 6.5rem; text-align: right; }
+.fc-return-path__stale { margin-left: 0.4rem; color: var(--muted); font-size: 0.75rem; }

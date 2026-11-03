@@ -63,7 +63,11 @@ describe("CR076 D1 — growthPctForYear is the single growth implementation", ()
         .replace(/\/\*[\s\S]*?\*\//g, "")
         .replace(/^\s*\/\/.*$/gm, "");
 
-      expect(code).toContain("growthPctForYear");
+      // CR099 — both go through the SERIES function, which is where the return path is applied.
+      // A file calling `growthPctForYear` itself would build a series that ignores the path and
+      // still pass every unit test of the function: the D1 defect again, one level up.
+      expect(code).toContain("moduleGrowthSeries(");
+      expect(code).not.toMatch(/growthPctForYear\s*\(/);
       // No open-coded `growthPct * inflationSeries[...]` anywhere in executable code.
       expect(code).not.toMatch(/growthPct\s*\*\s*inflationSeries\s*\[/);
     }

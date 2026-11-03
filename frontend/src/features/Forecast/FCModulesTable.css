@@ -569,3 +569,16 @@
 .fc-modules-table__sweep-badge--primary {
   background: var(--success-subtle);
 }
+
+/* CR099 — the module follows a per-year return path. Neutral ink: it is a fact, not a state. */
+.fc-modules-table__path-badge {
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  color: var(--muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+  vertical-align: middle;
+  white-space: nowrap;
+}

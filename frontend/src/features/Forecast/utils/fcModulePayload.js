@@ -115,6 +115,19 @@ export function buildModulePayload(editForm = {}, { normalizeTransfers } = {}) {
       })),
   }));
 
+  // CR099 — the return path, sorted by year (a variant compares it to the base row by row). Sent
+  // on the save AND on the save-time preview, which builds this payload without
+  // `normalizeTransfers`: inside that branch a path edit would preview as "no change". A loan or
+  // a module with no valuation sends none — the route refuses rows on either.
+  payload.Returns = isLoanModule(editForm) || editForm.HasValuation === false
+    ? []
+    : (Array.isArray(editForm.Returns) ? editForm.Returns : [])
+        // A blank return is SENT as null, not dropped: the save is then refused with a sentence
+        // naming the year, where dropping it would silently remove a row the owner added.
+        .filter((r) => r && r.Year != null)
+        .map((r) => ({ Year: Number(r.Year), Pct: r.Pct === "" || r.Pct == null ? null : Number(r.Pct) }))
+        .sort((x, y) => x.Year - y.Year);
+
   if (normalizeTransfers) {
     // CR062 — a loan's principal schedule is derived, and the route REJECTS a
     // non-empty Invest/Dispose/IncomePct on one. Sending empty arrays is not a

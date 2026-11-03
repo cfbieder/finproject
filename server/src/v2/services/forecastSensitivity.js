@@ -85,7 +85,7 @@ function bandsOf(knob) {
  * column.
  */
 async function assertCopyFidelity(sourceId, scratchId, client = db) {
-  const { investCols, disposeCols, amortCols, streamCols, streamChangeCols } =
+  const { investCols, disposeCols, amortCols, returnCols, streamCols, streamChangeCols } =
     await repo.copyChildColumns(client);
 
   const digest = async (scenarioId) => {
@@ -99,6 +99,7 @@ async function assertCopyFidelity(sourceId, scratchId, client = db) {
         ['forecast_module_investments', investCols, 'module_id'],
         ['forecast_module_disposals', disposeCols, 'module_id'],
         ['forecast_module_amortization', amortCols, 'module_id'],
+        ['forecast_module_returns', returnCols, 'module_id'],   // CR099
         ['forecast_streams', streamCols, 'module_id'],
       ]) {
         const r = await client.query(
@@ -170,6 +171,10 @@ async function inputFingerprint(scenarioId, client = db) {
         SELECT 'c' || c.id::text || ':' || COALESCE(c.amount::text,'~') || ':' || COALESCE(c.change_date::text,'~')
           FROM forecast_stream_changes c JOIN forecast_streams s ON s.id = c.stream_id
           JOIN forecast_modules m ON m.id = s.module_id WHERE m.scenario_id = $1
+        UNION ALL
+        SELECT 'r' || r.module_id::text || ':' || r.year::text || ':' || r.pct::text   -- CR099
+          FROM forecast_module_returns r JOIN forecast_modules m ON m.id = r.module_id
+         WHERE m.scenario_id = $1
      ) t`,
     [scenarioId]
   );
@@ -569,6 +574,10 @@ async function listKnobs(scenarioName, client = db) {
     `SELECT * FROM forecast_modules WHERE scenario_id = $1 ORDER BY name`, [scenario.id]
   );
   const out = [];
+  // CR099 — on a module with a return path, Growth moves only the years the path does not set.
+  const pathed = new Set((await client.query(
+    'SELECT DISTINCT module_id FROM forecast_module_returns WHERE module_id = ANY($1)', [mods.map((m) => m.id)]
+  )).rows.map((r) => r.module_id));
 
   const offer = (spec, row, moduleRow, target, current, streams = [], disposals = [], extra = {}) => {
     try {
@@ -581,7 +590,9 @@ async function listKnobs(scenarioName, client = db) {
       return;   // not offerable — the setter would refuse it, so the picker does not show it
     }
     out.push({
-      entity: spec.entity, field: spec.field, kind: spec.kind, label: spec.label,
+      entity: spec.entity, field: spec.field, kind: spec.kind,
+      label: spec.field === 'growth_rate' && spec.entity === 'module' && pathed.has(moduleRow.id)
+        ? `${spec.label} · years off its return path` : spec.label,
       band: knobs.DEFAULT_BAND[spec.kind],
       module: moduleRow.name, moduleType: moduleRow.module_type, target,
       // A knob moves the module's OWN-currency column. Without the currency the picker and the

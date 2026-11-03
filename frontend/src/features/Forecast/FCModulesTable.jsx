@@ -385,6 +385,16 @@ export default function FCModulesTable({
                                   SWEEP {module.CashSweepPriority}
                                 </span>
                               )}
+                              {/* CR099 — Growth no longer tells the whole story for a module on a
+                                  return path, so say it has one, and what it is. */}
+                              {Array.isArray(module?.Returns) && module.Returns.length > 0 && (
+                                <span
+                                  className="fc-modules-table__path-badge"
+                                  title={`Return path: ${module.Returns.map((r) => `${r.Year} ${r.Pct > 0 ? "+" : ""}${r.Pct}%`).join(", ")}`}
+                                >
+                                  PATH
+                                </span>
+                              )}
                               {/* CR050: on a variant, say where this row came from. Null (and so
                                   nothing rendered) on a plain scenario. */}
                               <FCInheritanceBadge inheritance={module?.Inheritance} />

@@ -231,6 +231,8 @@ export function computeForecastWarnings({
   warnings.push(...computeLoanWarnings(modules));
   warnings.push(...computeModuleIntegrityWarnings(modules, {
     periodStart: periodStart ?? years[0],
+    // CR099 — the last year built, so a return-path row past it can be named.
+    periodEnd: years.length ? Number(years[years.length - 1]) : null,
     baseYearValues,
   }));
 
@@ -329,7 +331,7 @@ function isRetiredStream(st) {
   );
 }
 
-export function computeModuleIntegrityWarnings(modules = [], { periodStart = null, baseYearValues = null } = {}) {
+export function computeModuleIntegrityWarnings(modules = [], { periodStart = null, periodEnd = null, baseYearValues = null } = {}) {
   const out = [];
   const num = (v) => (v == null || v === "" ? null : Number(v));
 
@@ -589,17 +591,27 @@ export function computeModuleIntegrityWarnings(modules = [], { periodStart = nul
       Math.abs(basis - market) < 0.005 &&
       market > 0   // a liability's basis equals its balance by construction; that is not a finding
     ) {
-      const flat = growth == null || growth === 0;
-      const shrinking = growth != null && growth < 0;
+      // CR099 — a module on a return path does not grow by Growth alone, so Growth cannot say
+      // whether the sale gains or loses; it gets its own wording, which claims neither.
+      const pathed = Array.isArray(mod.Returns) && mod.Returns.length > 0;
+      const flat = !pathed && (growth == null || growth === 0);
+      const shrinking = !pathed && growth != null && growth < 0;
       out.push({
         id: `disposal-no-gain-${name}`,
         severity: "warning",
-        title: flat
+        title: pathed
+          ? `"${name}" is sold against a cost basis typed from its base-date value`
+          : flat
           ? `"${name}" is sold without realizing any gain`
           : shrinking
             ? `"${name}" is sold at a loss against its cost basis`
             : `"${name}" is taxed only on growth since the base date`,
-        detail: flat
+        detail: pathed
+          ? `Cost basis and market value are both ${formatMoney(market)} at the base date, and the ` +
+            "module follows a return path, so the sale books a gain or a loss depending on where " +
+            "the path leaves it — a loss is not set against any gain. If the basis is a placeholder " +
+            "rather than the real purchase price, that result is wrong."
+          : flat
           ? `Cost basis and market value are both ${formatMoney(market)} and the module does not ` +
             "grow, so the sale realizes no gain and pays no tax. If the basis is a placeholder " +
             "rather than the real purchase price, the plan is understating the tax on this sale."
@@ -616,6 +628,43 @@ export function computeModuleIntegrityWarnings(modules = [], { periodStart = nul
         years: [],
         amount: null,
       });
+    }
+
+    // ---- CR099: return-path rows the engine will ignore ----------------------
+    //
+    // A row that sits on the module and moves nothing is the defect class this project keeps
+    // finding. The engine ignores these and logs it; this is where the owner sees it. They arise
+    // when the module or the scenario changes under the path — it becomes a loan or a flow module,
+    // the annual close moves its base date past a row, a variant ends earlier — and when a row
+    // falls after the module is fully disposed of, which the write path cannot know to refuse.
+    const returns = Array.isArray(mod.Returns) ? mod.Returns : [];
+    if (returns.length) {
+      const modBaseYear = mod.BaseDate ? Number(String(mod.BaseDate).slice(0, 4)) : null;
+      const isLoan = mod.LoanInterestRate != null;
+      const fullYear = mod.DisposeFullFirstYear != null ? Number(mod.DisposeFullFirstYear) : null;
+      const reasonFor = (y) => {
+        if (modBaseYear != null && y <= modBaseYear) return `not after the base year (${modBaseYear})`;
+        if (periodEnd != null && y > Number(periodEnd)) return `after the plan ends (${periodEnd})`;
+        if (fullYear != null && y > fullYear) return `after the module is sold in full (${fullYear})`;
+        return null;
+      };
+      const ignored = returns
+        .map((r) => ({ year: Number(r.Year), why: !hasValuation || isLoan ? "all" : reasonFor(Number(r.Year)) }))
+        .filter((r) => r.why);
+      if (ignored.length) {
+        out.push({
+          id: `return-path-ignored-${name}`,
+          severity: "warning",
+          title: `"${name}" has return-path years that do nothing`,
+          detail: !hasValuation
+            ? "The module has no valuation, so there is no value for a return path to move."
+            : isLoan
+              ? "A loan does not follow a return path: its balance comes from its own schedule."
+              : ignored.map((r) => `${r.year} is ${r.why}`).join("; ") + ". The engine skips these years.",
+          years: ignored.map((r) => r.year),
+          amount: null,
+        });
+      }
     }
 
     // ---- R9: base-year money the BUDGET does not carry (CR075) --------------

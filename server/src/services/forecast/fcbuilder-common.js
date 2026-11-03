@@ -117,9 +117,41 @@ const growthPctForYear = (year, periodStart, growthPct, inflationSeries, baseYea
   return rateIdx < series.length ? growthPct * series[rateIdx] : 0;
 };
 
+/**
+ * A valuation module's growth percent for every year of its series, index 0 = `startYear`.
+ *
+ * CR099 — the one place a module's per-year RETURN PATH (`mod.Returns`, from
+ * `forecast_module_returns`) is applied. A year with a row takes that row's nominal return; every
+ * other year takes `growthPctForYear`. Index 0 is the observed base year and never grows, so a row
+ * for it does nothing (the loader warns). A loan or a flow module ignores the path: on a loan a
+ * −50 row would halve the debt, and a flow module has no value to move.
+ *
+ * Both consumers call THIS, not `growthPctForYear` in their own loop: `fcbuilder-module.js`,
+ * which writes the market value, and `index.js`'s convergence loop, which rebuilds it in memory
+ * to strike yields. CR076 D1 is what two copies cost; a path one of them skipped would be the
+ * same defect again.
+ */
+const moduleGrowthSeries = (mod, startYear, yearsCount, periodStart, inflationSeries, baseYearInflation = null) => {
+  const valuation = mod.HasValuation !== false;
+  const growthPct = valuation ? (mod.Growth ?? 0) : 0;
+  const path = new Map();
+  if (valuation && mod.LoanRate == null && Array.isArray(mod.Returns)) {
+    for (const r of mod.Returns) path.set(Number(r.year), Number(r.pct));
+  }
+  const out = new Array(yearsCount).fill(0);
+  for (let i = 1; i < yearsCount; i++) {
+    const year = startYear + i;
+    out[i] = path.has(year)
+      ? path.get(year)
+      : growthPctForYear(year, periodStart, growthPct, inflationSeries, baseYearInflation);
+  }
+  return out;
+};
+
 module.exports = {
   getIndexValues,
   buildFcEntriesPayload,
   insertModuleEntries,
   growthPctForYear,
+  moduleGrowthSeries,
 };

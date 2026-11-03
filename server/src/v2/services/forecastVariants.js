@@ -23,6 +23,7 @@
 
 const db = require('../db');
 const assumpRepo = require('../repositories/forecastAssumptions');
+const { normalizeReturns } = require('../utils/forecastReturns');
 
 const SYNC_LOCK_NS = 1178489672; // adjacent to the engine's build lock (1178489671)
 
@@ -34,7 +35,7 @@ const SCHEDULE_KEYS = {
   // CR069 P2 — `streams` replaces `income_pct` and `income_steps` (both absorbed into a
   // stream's own change schedule), and `forecast_income_expense` is gone entirely: an
   // Expenditure item is a module with has_valuation = FALSE and one stream.
-  forecast_modules: ['investments', 'disposals', 'amortization', 'streams'],
+  forecast_modules: ['investments', 'disposals', 'amortization', 'returns', 'streams'],
 };
 
 const SCHEDULE_TABLES = {
@@ -52,6 +53,10 @@ const SCHEDULE_TABLES = {
   // a child TABLE does not, so it has to be named here or an inherited loan would
   // materialize with no repayments at all — a flat balance that looks deliberate.
   amortization: { table: 'forecast_module_amortization', fk: 'module_id', cols: ['effective_date', 'pct'] },
+  // CR099 — the per-year return path. Read in YEAR order, and every writer sends it sorted: the
+  // comparison below is positional, so the same path entered in another order must not read as
+  // an override.
+  returns: { table: 'forecast_module_returns', fk: 'module_id', cols: ['year', 'pct'], orderBy: 'year' },
   // CR069 P2 — the one TWO-LEVEL schedule: a module has streams, and each stream has its own
   // change rows. Every other entry here hangs one level off the parent's id, which is all
   // `replaceSchedule` could express; `nested` is what makes this one work. Without it, the
@@ -707,7 +712,7 @@ async function pruneOverride(c, ov, baseRow, table) {
 async function baseSchedule(c, key, baseRowId) {
   const { table, fk, cols, nested } = SCHEDULE_TABLES[key];
   const res = await c.query(
-    `SELECT id, ${cols.join(', ')} FROM ${table} WHERE ${fk} = $1 ORDER BY id`,
+    `SELECT id, ${cols.join(', ')} FROM ${table} WHERE ${fk} = $1 ORDER BY ${SCHEDULE_TABLES[key].orderBy || 'id'}`,
     [baseRowId]
   );
   const rows = res.rows;
@@ -974,6 +979,11 @@ async function interceptSchedules(entityType, rowId, body) {
       patch.amortization = body.Amortization
         .filter((a) => a.Date)
         .map((a) => ({ effective_date: a.Date, pct: a.Pct ?? a.Value ?? a.Amount ?? 0 }));
+    }
+    // CR099 — the third place a schedule has to be named (with crud and SCHEDULE_TABLES), or a
+    // variant's crash path is dropped on save. Sorted, to match `baseSchedule`'s order.
+    if (Array.isArray(body.Returns)) {
+      patch.returns = normalizeReturns(body.Returns).map((r) => ({ year: r.Year, pct: r.Pct }));
     }
     // CR069 P2 — the streams patch is TWO levels: each stream carries its own change rows,
     // and `replaceSchedule` rebuilds both. `IncomePct` and `IncomeSteps` no longer appear as

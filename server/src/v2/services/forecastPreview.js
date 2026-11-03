@@ -22,6 +22,7 @@ const repo = require('../repositories').forecast;
 const { withScratchScenario, readEntries } = require('./forecastScratch');
 const { moduleBodyToColumns } = require('./moduleWrite');
 const crud = require('../../services/forecast/crud');
+const { assertReturnsForModule } = require('../utils/forecastReturns'); // CR099
 
 /**
  * Which OTHER scenarios would this module edit actually reach?
@@ -87,6 +88,8 @@ async function blastRadius(moduleId) {
 async function previewModuleChange({ moduleId, patch }) {
   const target = await repo.findModuleById(moduleId);
   if (!target) throw new Error('Module not found');
+  // CR099 — the same refusal the save gives, before the scratch copy's CHECK can phrase it.
+  await assertReturnsForModule(db, target, patch || {});
   const scenario = await repo.findScenarioById(target.scenario_id);
   if (!scenario) throw new Error('Scenario not found');
 
@@ -132,7 +135,7 @@ async function previewModuleChange({ moduleId, patch }) {
     // disposals on the copy and report a vast difference the real save would never produce.
     if (Array.isArray(patch.Invest) || Array.isArray(patch.Dispose) ||
         Array.isArray(patch.IncomePct) || Array.isArray(patch.Amortization) ||
-        Array.isArray(patch.IncomeSteps)) {
+        Array.isArray(patch.IncomeSteps) || Array.isArray(patch.Returns)) {
       await crud.replaceModuleSchedules(scratchModuleId, patch);
     }
     await crud.replaceModuleStreams(scratchModuleId, patch);

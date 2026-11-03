@@ -42,6 +42,7 @@ const CHILD_TABLES = [
   ['forecast_module_disposals', ['id', 'module_id'], MODULE_CHILD_JOIN],
   ['forecast_module_investments', ['id', 'module_id'], MODULE_CHILD_JOIN],
   ['forecast_module_amortization', ['id', 'module_id'], MODULE_CHILD_JOIN],
+  ['forecast_module_returns', ['id', 'module_id'], MODULE_CHILD_JOIN],   // CR099
   ['forecast_streams', ['id', 'module_id'], MODULE_CHILD_JOIN],
   ['forecast_stream_changes', ['id', 'stream_id'], STREAM_CHILD_JOIN],
 ];
@@ -101,6 +102,11 @@ dbDescribe('copyScenario carries every child-table column (DB)', () => {
     await db.query(
       `INSERT INTO forecast_module_amortization (module_id, effective_date, pct)
        VALUES ($1, '2030-01-01', 3.5)`,
+      [moduleId]
+    );
+    // CR099 — a return path: a copy without it builds an uncrashed plan and says nothing.
+    await db.query(
+      'INSERT INTO forecast_module_returns (module_id, year, pct) VALUES ($1, 2027, -42.5)',
       [moduleId]
     );
 

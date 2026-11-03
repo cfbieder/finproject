@@ -4,6 +4,7 @@ import FCModuleAuditModal from "./FCModuleAuditModal.jsx";
 import FCLineDrilldownModal from "./FCLineDrilldownModal.jsx";
 import Modal from "../../components/Modal/Modal.jsx";
 import FCModulesStreams from "./FCModulesStreams.jsx";
+import FCReturnPath from "./FCReturnPath.jsx";
 import "./FCModulesStreams.css";
 import {
   fieldSectionsFor,
@@ -1674,6 +1675,21 @@ export default function FCModulesEditModal({
                   </div>
                 </div>
               ))}
+
+              {/* CR099 — a per-year return path: a crash and a recovery, on a valuation module
+                  that is not a loan (a loan's schedule is derived, and a −50 row would halve the
+                  debt). Years run from the year after the base date to the scenario's end. */}
+              {editForm.HasValuation !== false && !isLoan && (
+                <div className="fc-modules-modal__field-group">
+                  <h5 className="fc-modules-modal__group-title">Return path</h5>
+                  <FCReturnPath
+                    rows={editForm.Returns || []}
+                    onChange={(next) => onFieldChange("Returns", next)}
+                    firstYear={Number(baseYear) + 1}
+                    lastYear={Math.max(Number(baseYear) + 1, Number(transferYearEnd))}
+                  />
+                </div>
+              )}
 
               {/* CR069 P3 — the module's P&L streams, one card each. A card IS a row: adding
                   one inserts a stream, removing one deletes it. That is what lets this form

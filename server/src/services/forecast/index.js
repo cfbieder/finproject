@@ -22,7 +22,7 @@ const { LabelFrame } = require("./frame");
 // CR069 P2 — ONE builder. `fcbuilder-incexp.js` is deleted: an income/expense item is a
 // module with `has_valuation = FALSE` and a single stream, and goes through the same path.
 const { computeModule, writeAuditTrail } = require("./fcbuilder-module");
-const { insertModuleEntries, growthPctForYear } = require("./fcbuilder-common");
+const { insertModuleEntries, moduleGrowthSeries } = require("./fcbuilder-common");
 const { deriveLoanSchedule } = require("./fcbuilder-loan");
 const { CATEGORIES, PATHS } = require("./constants");
 const { computeCashSweepIterative } = require("./cash-sweep");
@@ -76,15 +76,18 @@ async function loadModulesForScenario(scenarioId, fcLineNameMap, dbc = db, scena
 
   const modules = modulesResult.rows;
   const loanWarnings = [];
+  const returnWarnings = [];
 
   // Load nested data for all modules
   for (const mod of modules) {
-    const [investments, disposals, amortization, streams] = await Promise.all([
+    const [investments, disposals, amortization, streams, returns] = await Promise.all([
       dbc.query('SELECT * FROM forecast_module_investments WHERE module_id = $1 ORDER BY investment_date', [mod.id]),
       dbc.query('SELECT * FROM forecast_module_disposals WHERE module_id = $1 ORDER BY disposal_date', [mod.id]),
       dbc.query('SELECT * FROM forecast_module_amortization WHERE module_id = $1 ORDER BY effective_date', [mod.id]),
       // CR069 — the module's P&L streams, each with its own change schedule.
       dbc.query('SELECT * FROM forecast_streams WHERE module_id = $1 ORDER BY direction, id', [mod.id]),
+      // CR099 — the per-year return path, applied by `moduleGrowthSeries`.
+      dbc.query('SELECT year, pct FROM forecast_module_returns WHERE module_id = $1 ORDER BY year', [mod.id]),
     ]);
 
     const streamIds = streams.rows.map((s) => s.id);
@@ -190,9 +193,31 @@ async function loadModulesForScenario(scenarioId, fcLineNameMap, dbc = db, scena
       mod.Dispose = [];
       for (const w of warnings) loanWarnings.push({ ...w, module: mod.name });
     }
+
+    // CR099 — the return path. A row the engine cannot apply is ignored, and SAID so: a row that
+    // sits in the table and moves nothing is the defect class this project keeps finding.
+    mod.Returns = returns.rows.map((r) => ({ year: Number(r.year), pct: parseFloat(r.pct) }));
+    if (mod.Returns.length && scenario) {
+      const baseYear = new Date(mod.BaseDate).getFullYear();
+      // Only a Full disposal the builder applies — one at or after the base year (its `idx >= 0`).
+      const fullYear = mod.Dispose
+        .filter((d) => d.Flag === 'Full' && d.Date)
+        .map((d) => new Date(d.Date).getFullYear())
+        .filter((y) => y >= baseYear)
+        .sort((a, b) => a - b)[0];
+      for (const r of mod.Returns) {
+        let why = null;
+        if (!mod.HasValuation) why = 'a flow module has no value to move';
+        else if (mod.LoanRate != null) why = 'a loan does not follow a return path';
+        else if (r.year <= baseYear) why = `${r.year} is not after the module's base year (${baseYear})`;
+        else if (r.year > scenario.PeriodEnd) why = `${r.year} is after the scenario ends (${scenario.PeriodEnd})`;
+        else if (fullYear != null && r.year > fullYear) why = `the module is fully disposed of in ${fullYear}`;
+        if (why) returnWarnings.push({ module: mod.name, year: r.year, message: `return row ${r.year} is ignored: ${why}` });
+      }
+    }
   }
 
-  return Object.assign(modules, { loanWarnings });
+  return Object.assign(modules, { loanWarnings, returnWarnings });
 }
 
 /**
@@ -318,6 +343,10 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
     const loanWarnings = bsModules.loanWarnings || [];
     for (const w of loanWarnings) {
       console.warn(`[FORECAST-GENERATE] Loan "${w.module}": ${w.message}`);
+    }
+    const returnWarnings = bsModules.returnWarnings || [];
+    for (const w of returnWarnings) {
+      console.warn(`[FORECAST-GENERATE] Module "${w.module}": ${w.message}`);
     }
 
     // Step 5: Build the ONE category axis every module computes against (CR069 P2).
@@ -761,7 +790,11 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
           const modStartYear = new Date(mod.BaseDate).getFullYear();
           const modEndYear = scenario.PeriodEnd;
           const modYearsCount = modEndYear - modStartYear + 1;
-          const growthPct = mod.Growth ?? 0;
+          // CR099 — the builder's series, return path included; see `moduleGrowthSeries`.
+          const growthSeries = moduleGrowthSeries(
+            mod, modStartYear, modYearsCount, periodStartYr, inflationSeries,
+            scenario?.BaseYearRates?.inflation
+          );
 
           // Yield schedule → per-year spread values (step function)
           const sortedIncomePct = (yieldStream.changes || [])
@@ -832,11 +865,7 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
               // pair — `Fidelity Stocks` 2027 dividend read 27,723.71, the average of its 2025 and
               // 2026 values, beside a 2027 balance of 1,438,381. −39,715 on Base.
               // Now one implementation, called from both. Do not inline it back.
-              const g = growthPctForYear(
-                modStartYear + i, periodStartYr, growthPct, inflationSeries,
-                scenario?.BaseYearRates?.inflation
-              );
-              const ug = mv[i - 1] * (g / 100);
+              const ug = mv[i - 1] * (growthSeries[i] / 100);
               const avail = mv[i - 1] + ug + inv[i];
               if (disp[i] < -avail && avail > 0) disp[i] = -avail;
               else if (avail <= 0) disp[i] = 0;
@@ -1120,6 +1149,7 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
       modulesProcessed: bsModules.length,
       entriesCreated: totalEntries,
       loanWarnings,
+      returnWarnings,
     };
 
     }); // end db.transaction — COMMIT here, advisory lock released

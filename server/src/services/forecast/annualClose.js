@@ -45,8 +45,10 @@ const TRACK_TOLERANCE = 1;
 /**
  * Patch keys that pin a VALUE the close re-bases — flagged in the preview of a carried variant,
  * because they carry as they are. (A pinned `base_date` or `PeriodStart` is shifted instead.)
+ * CR099 — `returns` too: a return row is pinned to its calendar year (owner decision 2026-11-03),
+ * so a "2027 crash" stays in 2027 across the close rather than moving a year later each January.
  */
-const VALUE_PIN_KEYS = new Set(['base_value', 'base_value_usd', 'market_value', 'market_value_usd']);
+const VALUE_PIN_KEYS = new Set(['base_value', 'base_value_usd', 'market_value', 'market_value_usd', 'returns']);
 
 const ISO_YEAR_END = /^(\d{4})-12-31$/;
 

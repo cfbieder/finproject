@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const { PATHS } = require("./constants");
 const { LabelFrame } = require("./frame");
-const { getIndexValues, buildFcEntriesPayload, insertModuleEntries, growthPctForYear } = require("./fcbuilder-common");
+const { getIndexValues, buildFcEntriesPayload, insertModuleEntries, moduleGrowthSeries } = require("./fcbuilder-common");
 const { computeStreamSeries, applyStreamWindow, yearIndex } = require("./fcbuilder-stream");
 
 const auditTrailDir = PATHS.AUDIT_TRAIL_DIR;
@@ -285,16 +285,12 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
   // ⚠️ THIS MOVES FORECAST NUMBERS, deliberately — every matched valuation module gains one
   // compounding year, carried through all 36. Gated by a measured prod-copy delta, not by the
   // usual "must not move" rule (CR072 §9).
-  const growthPct = hasValuation ? (module.Growth ?? 0) : 0;
-  const growthValues = new Array(yearsCount).fill(0);
-  for (let i = 0, year = startyear; year <= endyear; i++, year++) {
-    if (i === 0) { growthValues[i] = 0; continue; }   // the base year is observed, not projected
-    // CR076 D1 — ONE implementation, shared with index.js's convergence loop, which overwrites
-    // these rows. They drifted once and cost −39,715; see `growthPctForYear`.
-    growthValues[i] = growthPctForYear(
-      year, periodStart, growthPct, inflationSeries, scenario?.BaseYearRates?.inflation
-    );
-  }
+  // CR076 D1 / CR099 — ONE implementation, shared with index.js's convergence loop, which rebuilds
+  // this series. They drifted once and cost −39,715; the return path lives inside it for the same
+  // reason. Index 0, the base year, is observed and never grows.
+  const growthValues = moduleGrowthSeries(
+    module, startyear, yearsCount, periodStart, inflationSeries, scenario?.BaseYearRates?.inflation
+  );
 
   const unrealizedGainValues = new Array(yearsCount).fill(0);
   const realizedGainValues = new Array(yearsCount).fill(0);

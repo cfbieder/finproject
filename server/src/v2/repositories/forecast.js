@@ -227,6 +227,7 @@ async function copyChildColumns(client = db) {
     investCols: await cols('forecast_module_investments'),
     disposeCols: await cols('forecast_module_disposals'),
     amortCols: await cols('forecast_module_amortization'),
+    returnCols: await cols('forecast_module_returns'),   // CR099
     streamCols: await cols('forecast_streams'),
     streamChangeCols: await cols('forecast_stream_changes', new Set(['id', 'stream_id'])),
   };
@@ -370,7 +371,7 @@ async function copyScenario(sourceId, newName, { isScratch = false, client: oute
     // per module. The names come from the catalog, never from a caller, so interpolating them is
     // not an injection surface.
     const {
-      investCols, disposeCols, amortCols, streamCols, streamChangeCols,
+      investCols, disposeCols, amortCols, returnCols, streamCols, streamChangeCols,
     } = await copyChildColumns(client);
 
     for (const mod of modules.rows) {
@@ -390,6 +391,7 @@ async function copyScenario(sourceId, newName, { isScratch = false, client: oute
         ['forecast_module_investments', investCols],
         ['forecast_module_disposals', disposeCols],
         ['forecast_module_amortization', amortCols],
+        ['forecast_module_returns', returnCols],   // CR099 — a copy without the path builds a better plan
       ]) {
         await client.query(
           `INSERT INTO ${table} (module_id, ${cols.join(', ')})
@@ -484,6 +486,12 @@ async function findModulesByScenario(scenarioId) {
                         ORDER BY am.effective_date)
         FROM forecast_module_amortization am WHERE am.module_id = m.id
       ), '[]'::json) AS amortization,
+      -- CR099 — the return path rides on the LIST too: the modules table marks a module that has
+      -- one, and fcWarnings names a row that cannot apply. Both are client-side over this list.
+      COALESCE((
+        SELECT json_agg(json_build_object('year', r.year, 'pct', r.pct) ORDER BY r.year)
+        FROM forecast_module_returns r WHERE r.module_id = m.id
+      ), '[]'::json) AS returns,
       -- CR071 — disposal SUMMARY, not the schedule. Three of this CR's rules need to know
       -- whether a module disposes and when (a basis that equals market value only matters if
       -- something is sold; a disposal dated before PeriodStart does nothing), and the list
@@ -495,7 +503,12 @@ async function findModulesByScenario(scenarioId) {
       (SELECT count(*) FROM forecast_module_disposals d
         WHERE d.module_id = m.id AND d.flag = 'Full') AS dispose_full_count,
       (SELECT min(EXTRACT(YEAR FROM d.disposal_date))::int FROM forecast_module_disposals d
-        WHERE d.module_id = m.id) AS dispose_first_year
+        WHERE d.module_id = m.id) AS dispose_first_year,
+      -- CR099 — the first Full disposal at or after the base year (the builder skips earlier
+      -- ones): return-path rows after it move nothing, and fcWarnings says so.
+      (SELECT min(EXTRACT(YEAR FROM d.disposal_date))::int FROM forecast_module_disposals d
+        WHERE d.module_id = m.id AND d.flag = 'Full'
+          AND EXTRACT(YEAR FROM d.disposal_date) >= EXTRACT(YEAR FROM m.base_date)) AS dispose_full_first_year
     FROM forecast_modules m
     LEFT JOIN accounts a ON m.account_id = a.id
     WHERE m.scenario_id = $1
@@ -521,10 +534,11 @@ async function findModuleById(id) {
   const module = moduleResult.rows[0];
 
   // Get nested arrays
-  const [investments, disposals, amortization] = await Promise.all([
+  const [investments, disposals, amortization, returns] = await Promise.all([
     db.query('SELECT * FROM forecast_module_investments WHERE module_id = $1 ORDER BY investment_date', [id]),
     db.query('SELECT * FROM forecast_module_disposals WHERE module_id = $1 ORDER BY disposal_date', [id]),
-    db.query('SELECT * FROM forecast_module_amortization WHERE module_id = $1 ORDER BY effective_date', [id])
+    db.query('SELECT * FROM forecast_module_amortization WHERE module_id = $1 ORDER BY effective_date', [id]),
+    db.query('SELECT year, pct FROM forecast_module_returns WHERE module_id = $1 ORDER BY year', [id]),
   ]);
 
   // CR069 P3 — the yield schedule and the income steps are stream change rows now; the route
@@ -532,6 +546,7 @@ async function findModuleById(id) {
   module.investments = investments.rows;
   module.disposals = disposals.rows;
   module.amortization = amortization.rows;
+  module.returns = returns.rows;   // CR099
 
   return module;
 }

@@ -45,6 +45,7 @@ const MODULE_LABELS = {
   investments: "Investments schedule",
   disposals: "Disposals schedule",
   amortization: "Amortization schedule",
+  returns: "Return path",   // CR099
 };
 
 const INCEXP_LABELS = {
@@ -85,7 +86,7 @@ export function fieldLabel(entityType, field) {
 
 /** True for the patch keys that carry a whole child list rather than a scalar. */
 export function isScheduleField(field) {
-  return ["income_pct", "investments", "disposals", "amortization", "changes", "inflation", "FX"].includes(field);
+  return ["income_pct", "investments", "disposals", "amortization", "returns", "changes", "inflation", "FX"].includes(field);
 }
 
 /**
@@ -97,11 +98,12 @@ export function isScheduleField(field) {
 export function formatSchedule(field, list) {
   if (!Array.isArray(list) || list.length === 0) return "—";
 
-  const suffix = field === "income_pct" || field === "amortization" ? "%" : "";
+  const suffix = field === "income_pct" || field === "amortization" || field === "returns" ? "%" : "";
   const parts = list.map((row) => {
     const date = row.effective_date || row.investment_date || row.disposal_date || row.change_date;
     const value = row.value ?? row.amount ?? row.pct;
-    const year = date ? String(date).slice(0, 4) : null;
+    // CR099 — a return row carries its calendar year as an integer, not a date.
+    const year = date ? String(date).slice(0, 4) : row.year != null ? String(row.year) : null;
     const shown = `${formatFieldValue(value)}${suffix}`;
     return year ? `${year}: ${shown}` : shown;
   });
