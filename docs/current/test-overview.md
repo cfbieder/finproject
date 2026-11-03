@@ -6,7 +6,7 @@ How testing is organised across the project, what's automated, and where to run 
 
 ### Backend Jest tests — `cd server && npm test`
 
-**1,614 tests across 124 suites** (measured 2026-11-02 via `./Scripts/test-fresh-db.sh`, v3.78.0). Frontend: **734 across 70 files** (same day). *Earlier:* 1,427 across 100 suites on 2026-09-08 — ✅ and those passed against dev's REAL database too, which was not true until then: `exposure.test.js` used to be green here and red there ([roadmap §3 #26](project-roadmap.md#3-known-issues), now closed).
+**1,614 tests across 124 suites** (measured 2026-11-02 via `./Scripts/test-fresh-db.sh`, v3.78.0). Frontend: **734 across 70 files** (same day); **741 across 71 files** on 2026-11-03 (CR098 P3b, measured on its branch). *Earlier:* 1,427 across 100 suites on 2026-09-08 — ✅ and those passed against dev's REAL database too, which was not true until then: `exposure.test.js` used to be green here and red there ([roadmap §3 #26](project-roadmap.md#3-known-issues), now closed).
 
 | File | Tests | Coverage |
 |------|-------|----------|
