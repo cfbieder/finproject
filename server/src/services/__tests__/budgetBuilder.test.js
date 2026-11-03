@@ -535,6 +535,46 @@ dbDescribe('budget builder — the cycle (DB)', () => {
     await svc.deleteDraft(build.id);
   });
 
+  test('compare lists every build of the year with its own total; a draft without rates shows none', async () => {
+    const { build } = await svc.createBuild({ sourceLeId: ids.leUsd, scenarioName: EMPTY_SCEN });
+    const { year, builds } = await svc.compareYear(String(TARGET));
+    expect(year).toBe(TARGET);
+    const all = (await db.query(
+      'SELECT id FROM budget_builds WHERE target_year = $1 ORDER BY build_no DESC', [TARGET]
+    )).rows.map((r) => r.id);
+    expect(builds.map((b) => b.id)).toEqual(all);
+    for (const b of builds) {
+      expect(b.error).toBeUndefined();
+      expect(b.usdTotal).toBe((await svc.getBuild(b.id)).usdTotal);
+    }
+    const noRates = builds.find((b) => b.id === build.id);
+    expect(noRates.usdTotal).toBeNull();
+    expect(noRates.rates.inflation).toBeNull();
+    expect(builds.some((b) => b.status === 'published' && b.usdTotal != null)).toBe(true);
+    await expect(svc.compareYear('x')).rejects.toMatchObject({ status: 400 });
+    expect((await svc.compareYear(TARGET + 50)).builds).toEqual([]);
+    await svc.deleteDraft(build.id);
+  });
+
+  test('compare lists a build refused for a known reason, but a database error fails the request', async () => {
+    const real = db.query.bind(db);
+    const failSecondQuery = (error) => {
+      let n = 0;
+      return jest.spyOn(db, 'query').mockImplementation((...args) => (++n === 2 ? Promise.reject(error) : real(...args)));
+    };
+    let spy = failSecondQuery(Object.assign(new Error('Build not found'), { status: 404 }));
+    try {
+      const { builds } = await svc.compareYear(TARGET);
+      expect(builds[0].error).toBe('Build not found');
+      expect(builds.slice(1).every((b) => !b.error)).toBe(true);
+    } finally { spy.mockRestore(); }
+
+    spy = failSecondQuery(new Error('relation "budget_builds" does not exist'));
+    try {
+      await expect(svc.compareYear(TARGET)).rejects.toThrow(/relation/);
+    } finally { spy.mockRestore(); }
+  });
+
   test('a superseded build opens and restores exactly after its scenario is gone', async () => {
     const stored = async () => (await db.query(
       `SELECT category_id, account_id, currency, month, amount FROM budget_build_cells WHERE build_id = $1 ORDER BY id`, [ids.oneOff]

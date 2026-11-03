@@ -875,9 +875,39 @@ async function unpublish(id) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Comparison — every build of a year, side by side (rev 3, V5)
+// ---------------------------------------------------------------------------
+
+/**
+ * Every build of `year` with its totals and the rates behind them. Each build is read on its own,
+ * so one refused for a known reason (a 4xx) is listed with that reason rather than failing the list.
+ * Anything else — a database error — fails the request, so its text never reaches the page and an
+ * outage is not a 200 full of unreadable builds. The line-by-line view merges two `getBuild` results
+ * on the page; nothing here joins on `annual_amount`, which is 0 for every draft.
+ */
+async function compareYear(year) {
+  const y = Number(year);
+  if (!Number.isInteger(y)) throw err(400, 'Invalid year');
+  const ids = (await db.query(
+    'SELECT id FROM budget_builds WHERE target_year = $1 ORDER BY build_no DESC', [y]
+  )).rows.map((r) => r.id);
+  const builds = [];
+  for (const id of ids) {
+    try {
+      const v = await getBuild(id);
+      builds.push({ ...v.build, rates: v.rates, totals: v.totals, usdTotal: v.usdTotal, lineCount: v.lines.length });
+    } catch (e) {
+      if (!(e.status && e.status < 500)) throw e;
+      builds.push({ id, error: e.message });
+    }
+  }
+  return { year: y, builds };
+}
+
 module.exports = {
   listSources, createBuild, deleteDraft, setNote, updateLine, getBuild, previewPublish,
-  publish, unpublish, scenariosReading,
+  publish, unpublish, scenariosReading, compareYear,
   // exported for tests
   splitLine, allocate, groupLines, sourceYear, policyLines, LUMP_SHARE,
 };

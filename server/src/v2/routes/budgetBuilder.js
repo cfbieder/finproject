@@ -34,6 +34,9 @@ router.post('/', handle(async (req, res) => {
   res.status(201).json({ data: await svc.createBuild({ sourceLeId, scenarioName, targetYear, parentBuildId, note }) });
 }));
 
+// GET /compare?year= — every build of the year with its totals and rates. Declared before /:id.
+router.get('/compare', handle(async (req, res) => res.json({ data: await svc.compareYear(req.query.year) })));
+
 // GET /:id — the build: lines, annual figures, rates and where each rate came from
 router.get('/:id', handle(async (req, res) => res.json({ data: await svc.getBuild(id(req)) })));
 

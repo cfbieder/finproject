@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Rest from "../js/rest.js";
 import Modal from "../components/Modal/Modal.jsx";
+import BuildCompare from "../features/Budgets/BuildCompare.jsx";
 import "./PageLayout.css";
 import "./BudgetBuilder.css";
 
@@ -94,6 +95,7 @@ function BudgetBuilder() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [rev, setRev] = useState(0);              // remounts the number inputs after every save, kept or refused
+  const [comparing, setComparing] = useState(false);
 
   const loadSources = useCallback(async () => {
     const data = Rest.unwrap(await Rest.get("/budget-builder"));
@@ -284,6 +286,12 @@ function BudgetBuilder() {
               Delete draft
             </button>
           )}
+          {shown && (
+            <button type="button" className="btn btn--outline" aria-pressed={comparing}
+              onClick={() => setComparing((c) => !c)}>
+              {comparing ? "Hide comparison" : "Compare builds"}
+            </button>
+          )}
         </div>
       </section>
 
@@ -331,6 +339,10 @@ function BudgetBuilder() {
           No build yet. Pick a finalised estimate and the scenario whose inflation and exchange rates to
           use, then <strong>New draft</strong>.
         </p>
+      )}
+
+      {shown && comparing && (
+        <BuildCompare year={targetYear} current={shown} refreshKey={sources.builds} />
       )}
 
       {shown && (
