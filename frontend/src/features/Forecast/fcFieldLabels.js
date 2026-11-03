@@ -44,6 +44,7 @@ const MODULE_LABELS = {
   income_pct: "Yield Spread schedule",
   investments: "Investments schedule",
   disposals: "Disposals schedule",
+  amortization: "Amortization schedule",
 };
 
 const INCEXP_LABELS = {
@@ -84,7 +85,7 @@ export function fieldLabel(entityType, field) {
 
 /** True for the patch keys that carry a whole child list rather than a scalar. */
 export function isScheduleField(field) {
-  return ["income_pct", "investments", "disposals", "changes", "inflation", "FX"].includes(field);
+  return ["income_pct", "investments", "disposals", "amortization", "changes", "inflation", "FX"].includes(field);
 }
 
 /**
@@ -96,10 +97,10 @@ export function isScheduleField(field) {
 export function formatSchedule(field, list) {
   if (!Array.isArray(list) || list.length === 0) return "—";
 
-  const suffix = field === "income_pct" ? "%" : "";
+  const suffix = field === "income_pct" || field === "amortization" ? "%" : "";
   const parts = list.map((row) => {
     const date = row.effective_date || row.investment_date || row.disposal_date || row.change_date;
-    const value = row.value ?? row.amount;
+    const value = row.value ?? row.amount ?? row.pct;
     const year = date ? String(date).slice(0, 4) : null;
     const shown = `${formatFieldValue(value)}${suffix}`;
     return year ? `${year}: ${shown}` : shown;
