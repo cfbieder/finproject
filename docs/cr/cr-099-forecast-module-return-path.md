@@ -370,4 +370,10 @@ to the cent): with no rows, nothing moves. The dump and both databases were dest
 
 **Not verified:** §5.4 (the sweep's `growthByYear` carries the path) and §5.5 (a crash-year sweep
 draw realizes zero) are inherited behaviour, untested here; the dip on the Compare page was not
-rendered.
+rendered. §8 step 5 (the annual-close acceptance on a prod dump with 113's rows) was not run, and
+`annualClose.test.js` does not cover `returns`; it is a roadmap §2 item due before the January 2027
+close. §8 step 4 said to regenerate only 113; `2026 Base` was regenerated with it on 2026-11-03.
+
+**In use (2026-11-03):** the owner entered a path on `2026 Market Crash` — Fidelity Stocks, 2028
+−40%, 2029 +15% — which is what the January close must carry (step 5 names "the 2027 row" from the
+§3 example; the rows to check are these).
