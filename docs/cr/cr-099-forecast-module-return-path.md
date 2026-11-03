@@ -1,6 +1,6 @@
 # CR099 — A per-year return path on a forecast module (market crash and recovery) — COMPLETED
 
-**Status:** COMPLETED — live v3.80.0 (2026-11-03, §10); migration **086**. Pass 1 `cr-technical-reviewer` revise → rev 2; pass 2 `cr-signoff-pm` **GO** on rev 3 (§9). Next is use, not code: enter the crash path on `2026 Market Crash` (§6.2).
+**Status:** COMPLETED — live v3.80.0 (2026-11-03, §10); migration **086**; **confirmed working by the owner 2026-11-03**, with a path entered on `2026 Market Crash` (Fidelity Stocks). Pass 1 `cr-technical-reviewer` revise → rev 2; pass 2 `cr-signoff-pm` **GO** on rev 3 (§9). Two deferred follow-ups are on the [roadmap §2 backlog](../current/project-roadmap.md#2-open-backlog-non-cr-items).
 **Depends on:** CR050 (variants), CR062 (amortization child-table pattern), CR076 D1 (`growthPctForYear`), CR085 P0 (derived copy lists)
 **Roadmap anchor:** [project-roadmap.md#cr099](../current/project-roadmap.md#cr099)
 
