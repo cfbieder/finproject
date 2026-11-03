@@ -210,6 +210,19 @@ async function balanceReconcile({ asOf = null, tolerance = 0.01 } = {}) {
       m.feed_sign, m.feed_negate_tx, m.accrual_category_id,
       -- CR080: the category an accrue-mode account's yield books to, for display.
       (SELECT ac.name FROM accounts ac WHERE ac.id = m.accrual_category_id) AS accrual_category_name,
+      -- The latest month-end MTM mark on/before the as-of date, and the latest COMPLETED
+      -- month-end. A brokerage row is reconciled by an MTM entry, not by re-anchoring, so
+      -- "Last calibrated" never shows it; these let the page say when it was last marked and
+      -- treat a row marked at the latest month-end as current, not as work.
+      (SELECT t.transaction_date::text FROM transactions t
+        WHERE t.account_id = c.account_id AND t.source = 'mtm'
+          AND t.transaction_date <= COALESCE($1::date, CURRENT_DATE)
+        ORDER BY t.transaction_date DESC, t.id DESC LIMIT 1) AS last_mtm_date,
+      (SELECT ROUND(t.amount, 2) FROM transactions t
+        WHERE t.account_id = c.account_id AND t.source = 'mtm'
+          AND t.transaction_date <= COALESCE($1::date, CURRENT_DATE)
+        ORDER BY t.transaction_date DESC, t.id DESC LIMIT 1) AS last_mtm_amount,
+      (date_trunc('month', COALESCE($1::date, CURRENT_DATE)) - INTERVAL '1 day')::date::text AS last_month_end,
       -- feed_sign converts the feed's reported balance into fin's stored sign.
       -- NULL → account_type heuristic (liability -1, asset +1) = pre-029 behavior.
       ROUND(f.feed_balance * COALESCE(m.feed_sign, CASE WHEN c.account_type = 'liability' THEN -1 ELSE 1 END), 2) AS expected_balance,
@@ -268,6 +281,14 @@ async function balanceReconcile({ asOf = null, tolerance = 0.01 } = {}) {
       last_calibrated_delta:
         r.last_calibrated_delta != null ? Number(r.last_calibrated_delta) : null,
       calibrations_90d: Number(r.calibrations_90d || 0),
+      last_mtm_amount: r.last_mtm_amount != null ? Number(r.last_mtm_amount) : null,
+      // An MTM row marked at (or after) the latest completed month-end is CURRENT: its drift is
+      // activity since that mark, which the next month-end's mark recognizes. `reconciled` stays
+      // drift-only — the drift is real — but such a row is not counted as unreconciled work.
+      // The date is the mark's, so the page can say "current to 2026-10-31".
+      mtm_current_to:
+        r.reconcile_mode === 'mtm' && r.last_mtm_date && r.last_mtm_date >= r.last_month_end
+          ? r.last_mtm_date : null,
       // CR087 P1 — the currency the figures on this row are IN.
       //
       // `f.currency` is the FEED's; `account_currency` is fin's own. They agree
@@ -355,7 +376,7 @@ async function balanceReconcile({ asOf = null, tolerance = 0.01 } = {}) {
     asOf: asOfRow.rows[0].as_of,
     tolerance,
     accounts,
-    total_unreconciled: accounts.filter((a) => a.reconciled === false).length,
+    total_unreconciled: accounts.filter((a) => a.reconciled === false && !a.mtm_current_to).length,
     total_transfer_imbalanced: accounts.filter((a) => a.transfer_balanced === false).length,
   };
 }

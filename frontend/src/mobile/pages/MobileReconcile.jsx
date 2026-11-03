@@ -116,7 +116,8 @@ export default function MobileReconcile() {
     const days = kind === "fed" ? staleDays(a.feed_synced_at) : null;
     const isStale = days != null && days >= 3;
     const target = kind === "fed" ? a.feed_balance : a.entered_balance;
-    const actionable = a.reconciled === false;
+    // A brokerage row marked at the latest month-end is current; its gap is next month's.
+    const actionable = a.reconciled === false && !a.mtm_current_to;
     const isMtm = a.reconcile_mode === "mtm";
     return (
       <div className="m-tx" key={key}>
@@ -165,7 +166,7 @@ export default function MobileReconcile() {
   };
 
   const fedNeedy = (fed || []).filter(
-    (a) => a.reconciled === false || (staleDays(a.feed_synced_at) ?? 0) >= 3
+    (a) => (a.reconciled === false && !a.mtm_current_to) || (staleDays(a.feed_synced_at) ?? 0) >= 3
   );
   const manualNeedy = (manual || []).filter((a) => a.reconciled === false);
   const allClear = !isLoading && fedNeedy.length === 0 && manualNeedy.length === 0;

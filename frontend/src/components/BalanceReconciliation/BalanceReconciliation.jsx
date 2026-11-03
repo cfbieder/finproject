@@ -313,15 +313,18 @@ export default function BalanceReconciliation() {
     new Set(balRecon.accounts.map((a) => a.institution || "Unknown"))
   ).sort((x, y) => x.localeCompare(y));
   // Reconciliation status of a row: no-feed (no bank balance) / reconciled /
+  // mtm-current (marked at the latest month-end; its gap is activity since) /
   // mtm (brokerage mark-to-market gap) / drift (cash/bank mismatch).
   const rowStatus = (a) =>
     a.reconciled == null
       ? "no-feed"
       : a.reconciled
         ? "reconciled"
-        : a.reconcile_mode === "mtm"
-          ? "mtm"
-          : "drift";
+        : a.mtm_current_to
+          ? "mtm-current"
+          : a.reconcile_mode === "mtm"
+            ? "mtm"
+            : "drift";
 
   // Apply the feed filter first, then tally status counts for the status
   // dropdown (so counts reflect the selected feed), then apply the status filter.
@@ -338,7 +341,8 @@ export default function BalanceReconciliation() {
     statusFilter === "all"
       ? byInstitution
       : byInstitution.filter((a) => rowStatus(a) === statusFilter);
-  const visibleUnreconciled = visibleAccounts.filter((a) => a.reconciled === false).length;
+  // A row marked at the latest month-end is current, not work: its gap is next month's to book.
+  const visibleUnreconciled = visibleAccounts.filter((a) => a.reconciled === false && !a.mtm_current_to).length;
 
   // CR060 — distinct CONNECTIONS needing attention, not rows. One dead
   // connection can carry several accounts (Revolut had three wallets), and
@@ -496,6 +500,7 @@ export default function BalanceReconciliation() {
               ["reconciled", "Reconciled"],
               ["drift", "Drift"],
               ["mtm", "MTM gap"],
+              ["mtm-current", "MTM current"],
               ["no-feed", "No feed"],
             ].map(([val, lbl]) => (
               <option key={val} value={val}>
@@ -571,7 +576,7 @@ export default function BalanceReconciliation() {
             <th className="num">Bank (expected)</th>
             <th className="num">Drift</th>
             <th>Feed date</th>
-            <th>Last calibrated</th>
+            <th>Last reconciled</th>
             <th>Status</th>
             <th className="recon-actions-h">Actions</th>
           </tr>
@@ -743,7 +748,24 @@ export default function BalanceReconciliation() {
                     is NOT "never calibrated" and must not be rendered as a
                     date, a zero, or a dash that implies either. */}
                 <td className="bfd-muted">
-                  {a.last_calibrated_at ? (
+                  {/* A brokerage row is reconciled by a month-end MTM entry, never by a
+                      re-anchor, so the re-anchor trail below would read "no record yet"
+                      for it however current it is. Show its last mark instead. */}
+                  {isMtm ? (
+                    a.last_mtm_date ? (
+                      <>
+                        <div>MTM {a.last_mtm_date}</div>
+                        {a.last_mtm_amount != null && (
+                          <div style={{ fontSize: "0.7rem" }}>
+                            {fmtNum(a.last_mtm_amount, 2)}
+                            {a.currency ? ` ${a.currency}` : ""}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <span title="No month-end MTM entry on this account yet.">no mark yet</span>
+                    )
+                  ) : a.last_calibrated_at ? (
                     <>
                       <div>{String(a.last_calibrated_at).slice(0, 10)}</div>
                       {a.last_calibrated_delta != null && (
@@ -779,6 +801,10 @@ export default function BalanceReconciliation() {
                     <StatusPill label="no feed" kind="warn" />
                   ) : a.reconciled ? (
                     <StatusPill label="reconciled" kind="ok" />
+                  ) : a.mtm_current_to ? (
+                    <span title={`Marked at month-end ${a.mtm_current_to}. The gap shown is activity since then; the next month-end's mark books it.`}>
+                      <StatusPill label={`current to ${a.mtm_current_to}`} kind="ok" />
+                    </span>
                   ) : isMtm ? (
                     <StatusPill label="MTM gap" kind="warn" />
                   ) : isAccrue ? (
