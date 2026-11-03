@@ -1,6 +1,6 @@
 # CR098 — Budget builder: next year's budget from this year's Latest Estimate — IN-PROGRESS (P0–P2 live)
 
-**Status:** IN-PROGRESS — P0 + P1 + P2 **LIVE v3.77.0** (2026-10-30, §9). **Rev 3 (§10, budget variants): P3a (V1–V4, V7, V8; migration 085) is **LIVE v3.78.0** (2026-11-02, §10.9); P3b (V5, the comparison) is **built, not yet released** (§10.10); P3c (V6) is not built.** The CR closes when the first real 2027 publish is done **and** V1–V5 have shipped, with anything cut listed on the roadmap (§10.7). Take a manual prod backup the day of that publish (§6). Planned 2026-10-15, two-pass reviewed: pass 1 *revise* → rev 2; pass 2 **GO** with four conditions, all written in (§8). ⚠️ Do not build [CR095](cr-095-forecast-spend-currency-share.md) (same FX area) at the same time.
+**Status:** IN-PROGRESS — P0 + P1 + P2 **LIVE v3.77.0** (2026-10-30, §9). **Rev 3 (§10, budget variants): P3a (V1–V4, V7, V8; migration 085) is **LIVE v3.78.0** (2026-11-02, §10.9); P3b (V5, the comparison) is **LIVE v3.79.0** (2026-11-03, §10.10); P3c (V6) is not built.** The CR closes when the first real 2027 publish is done **and** V1–V5 have shipped, with anything cut listed on the roadmap (§10.7). Take a manual prod backup the day of that publish (§6). Planned 2026-10-15, two-pass reviewed: pass 1 *revise* → rev 2; pass 2 **GO** with four conditions, all written in (§8). ⚠️ Do not build [CR095](cr-095-forecast-spend-currency-share.md) (same FX area) at the same time.
 **Track:** v3 · **Migrations:** 084 (`084_budget_builder.sql`, six tables) · 085 (`085_budget_build_variants.sql`, rev 3)
 **Depends on:** [CR083](cr-083-budget-latest-estimate.md) (the Latest Estimate, and its §11.4 list of
 what a seed must solve first) · [CR075](cr-075-base-year-is-the-budget.md) (the base year IS the
@@ -610,7 +610,7 @@ ranking is proved by pure tests and one DB test, not on a named prod category.
 v3.77 (the table was empty when §10.3 was written), so a from-scratch draft starts from those until the first
 publish overwrites the categories it covers. Drafts already open are unaffected by 085.
 
-### 10.10 As built — P3b, V5 the comparison (2026-11-03, not yet released)
+### 10.10 As built — P3b, V5 the comparison (2026-11-03)
 
 **Code.** `compareYear(year)` in `budgetBuilder.js` and `GET /budget-builder/compare?year=`, declared
 before `/:id`: every build of the year with its name, status, estimate, scenario, rates and USD total,
