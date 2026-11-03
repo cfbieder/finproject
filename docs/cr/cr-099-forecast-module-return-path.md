@@ -1,6 +1,6 @@
-# CR099 — A per-year return path on a forecast module (market crash and recovery) — IN-PROGRESS (built, not released)
+# CR099 — A per-year return path on a forecast module (market crash and recovery) — COMPLETED
 
-**Status:** IN-PROGRESS — built and verified on dev 2026-11-03 (§10), not yet released; migration **086**. Pass 1 `cr-technical-reviewer` revise → rev 2; pass 2 `cr-signoff-pm` **GO** on rev 3 (§9). Version and ship date go in the index row at ship time
+**Status:** COMPLETED — live v3.80.0 (2026-11-03, §10); migration **086**. Pass 1 `cr-technical-reviewer` revise → rev 2; pass 2 `cr-signoff-pm` **GO** on rev 3 (§9). Next is use, not code: enter the crash path on `2026 Market Crash` (§6.2).
 **Depends on:** CR050 (variants), CR062 (amortization child-table pattern), CR076 D1 (`growthPctForYear`), CR085 P0 (derived copy lists)
 **Roadmap anchor:** [project-roadmap.md#cr099](../current/project-roadmap.md#cr099)
 
@@ -323,7 +323,7 @@ what Downside becomes; not started unasked.
   Pass 2's disposal-wording deferral was conditional on no disposal on a pathed module; CVC Fund
   VIII has four, so it stays in scope.
 
-## 10. As built (2026-11-03, not yet released)
+## 10. As built (2026-11-03)
 
 **Code.** Migration **086** (`forecast_module_returns`, §4.1). `moduleGrowthSeries` in
 `fcbuilder-common.js` applies the path; the builder and the convergence loop both call it, and the
@@ -363,6 +363,11 @@ commit: the variant panel names and prints an `amortization` override.
   save-time preview (which priced it) and was stored; a regenerate gave Fidelity Stocks 2027 =
   1,403,299 × 0.5 and the recovery years as typed. Dev was restored afterwards.
 
+**§8 step 3, the prod-copy check (2026-11-03, before the deploy):** a fresh prod dump restored twice
+into throwaway databases; v3.79.0's engine built every scenario on one, this code (with 086 applied)
+on the other. Both scenarios built, and all **3,212 forecast entries are byte-identical** (rounded
+to the cent): with no rows, nothing moves. The dump and both databases were destroyed after.
+
 **Not verified:** §5.4 (the sweep's `growthByYear` carries the path) and §5.5 (a crash-year sweep
 draw realizes zero) are inherited behaviour, untested here; the dip on the Compare page was not
-rendered; no prod-dump "old engine vs new" run yet (§8 step 3, due before the deploy).
+rendered.
