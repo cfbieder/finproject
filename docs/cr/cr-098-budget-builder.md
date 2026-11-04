@@ -594,14 +594,14 @@ non-negative numbers" means to two decimals. Blanking a Fixed box published the 
 from v3.77.0, now refused. A null inflation `Rate` read as 0%, now as no rate. Left alone: focus is lost
 after a save while tabbing between boxes, the pattern every input on this page already has.
 
-**Owner revision, 2026-11-04: weights are percentages.** Choosing *month weights* seeded twelve 1s, which
+**Owner revision, 2026-11-04 (v3.82.0): weights are percentages.** Choosing *month weights* seeded twelve 1s, which
 read as nonsense (and equals *even*). The boxes now start blank, take the percentage of the annual figure per
 month, show how much is allocated and how much is left, and save only once the months total 100%; until then
 the line keeps its previous split. The server refuses any other total. The split still reads stored weights as
 proportions, so a line saved under the old rule (prod's `Financial Income - Barkeria`, twelve 1s) keeps its
 even split and shows *12% allocated · 88% left* until it is re-entered.
 
-**Owner addition, 2026-11-04: a done mark per line** (migration 087). A round toggle before each line's name
+**Owner addition, 2026-11-04 (v3.82.0): a done mark per line** (migration 087). A round toggle before each line's name
 turns green when ticked, and the rates bar counts *N of M lines done*, so a long grid shows what is still
 undecided. Planning information only: it works on any build, changes no figure, sits outside the publish token
 (test), and *Start from* copies it with the line's other settings. `PATCH /:id/lines/:lineId/done`.
