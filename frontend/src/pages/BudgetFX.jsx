@@ -8,6 +8,7 @@ import {
 } from "../features/BudgetEntry/utils/budgetInputUtils.js";
 import "./PageLayout.css";
 import EmptyState from "../components/EmptyState.jsx";
+import ConfirmModal from "../components/ConfirmModal/ConfirmModal.jsx";
 import "./BudgetFX.css";
 
 const CURRENT_MONTH = new Date().getMonth() + 1;
@@ -35,6 +36,10 @@ export default function BudgetFX() {
   const [previewData, setPreviewData] = useState([]);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [recalcLoading, setRecalcLoading] = useState(false);
+
+  // Copy January to February–December
+  const [copyConfirm, setCopyConfirm] = useState(null); // { plan, message } when it would overwrite
+  const [copying, setCopying] = useState(false);
 
   // --- Load default budget year from appdata ---
   useEffect(() => {
@@ -191,6 +196,67 @@ export default function BudgetFX() {
     }
   };
 
+  // --- Copy January's rates to the rest of the year ---
+  // Every currency with a January rate; a month already at that rate is skipped. Overwriting a
+  // different rate asks first. It sets rates only, as typing them would: budget entries keep their
+  // USD figures until a Recalculate.
+  const janCurrencies = currencies.filter((c) => rateMap[c]?.[1] != null);
+  const copyPlan = () => {
+    const plan = [];
+    for (const currency of janCurrencies) {
+      const jan = Number(rateMap[currency][1]);
+      for (let month = 2; month <= 12; month++) {
+        const current = rateMap[currency]?.[month];
+        if (current == null || Number(current) !== jan) plan.push({ currency, month, rate: jan, current });
+      }
+    }
+    return plan;
+  };
+
+  const runCopy = async (plan) => {
+    setCopying(true);
+    let done = 0;
+    try {
+      for (const { currency, month, rate } of plan) {
+        await Rest.fetchJson("/api/v2/budget/fx-rates", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ currency, year: selectedYear, month, rate }),
+        });
+        done += 1;
+      }
+      addToast(
+        `Copied January ${selectedYear} ${[...new Set(plan.map((p) => p.currency))].join(", ")} to February–December (${done} rates)`,
+        "success"
+      );
+    } catch (err) {
+      addToast(`${err.message || "Failed to save rate"} — ${done} of ${plan.length} rates were copied`, "error");
+    } finally {
+      setCopying(false);
+      setCopyConfirm(null);
+      fetchRates(selectedYear);
+    }
+  };
+
+  const handleCopyJanuary = () => {
+    const plan = copyPlan();
+    if (!plan.length) {
+      addToast("February–December already match January", "info");
+      return;
+    }
+    const overwrites = plan.filter((p) => p.current != null);
+    if (!overwrites.length) {
+      runCopy(plan);
+      return;
+    }
+    const lines = overwrites.map((p) =>
+      `${p.currency} ${getMonthLabel(p.month)}: ${Number(p.current).toFixed(4)} → ${p.rate.toFixed(4)}`);
+    setCopyConfirm({
+      plan,
+      message: `This replaces ${overwrites.length} rate(s) already set:\n${lines.join("\n")}`,
+    });
+  };
+
   // --- Recalculate flow ---
   const isMonthRecalculable = (month) => {
     if (selectedYear < CURRENT_YEAR) return true;
@@ -318,6 +384,15 @@ export default function BudgetFX() {
                 </option>
               ))}
             </select>
+            <button
+              type="button"
+              className="btn btn--secondary"
+              onClick={handleCopyJanuary}
+              disabled={copying || janCurrencies.length === 0}
+              title={janCurrencies.length ? "Set February–December to January's rate for each currency" : "Enter a January rate first"}
+            >
+              {copying ? "Copying…" : "Copy January to all months"}
+            </button>
           </div>
 
           {currencies.length === 0 ? (
@@ -404,6 +479,13 @@ export default function BudgetFX() {
           )}
         </section>
       </div>
+
+      <ConfirmModal
+        state={copyConfirm ? { title: `Copy January ${selectedYear} to all months?`, message: copyConfirm.message, confirmLabel: "Copy" } : null}
+        busy={copying}
+        onConfirm={() => runCopy(copyConfirm.plan)}
+        onCancel={() => setCopyConfirm(null)}
+      />
 
       {/* Recalculate Preview Modal */}
       {previewMonth !== null && (
