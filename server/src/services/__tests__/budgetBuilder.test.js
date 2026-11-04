@@ -257,6 +257,17 @@ dbDescribe('budget builder — the cycle (DB)', () => {
     await svc.deleteDraft(build.id); // the walk below numbers its builds from v1
   });
 
+  test('the preview carries the LE year\'s actual months as a reference, through actual_through only', async () => {
+    const p = await svc.previewPublish(ids.v1);
+    expect(p.priorYear).toEqual({ year: YEAR, through: '2090-06-30' });
+    const food = p.lines.find((l) => l.categoryId === ids.food);
+    // Jan–Jun 2090 actual: −100 a month from Bank A, plus −300 from Bank B in March; Jul–Dec not yet actual.
+    expect(p.split.find((s) => s.id === food.id).priorActual)
+      .toEqual([-100, -100, -400, -100, -100, -100, null, null, null, null, null, null]);
+    const rent = p.lines.find((l) => l.categoryId === ids.rent);
+    expect(p.split.find((s) => s.id === rent.id).priorActual.slice(0, 6)).toEqual([0, 0, 0, 0, 0, 0]);
+  });
+
   test('a parent-category line blocks publish until it is zero', async () => {
     const p = await svc.previewPublish(ids.v1);
     expect(p.blockers.join(' ')).toMatch(/Kids \(USD\) is a parent category/);

@@ -690,6 +690,31 @@ const noInflationMessage = (scenario, year) =>
   `Scenario '${scenario}' has no inflation rate for ${year}, so a Recurring line has no figure. ` +
   'Start a new draft from this one with another scenario, or restore the rates on Forecast Scenarios.';
 
+/**
+ * The LE year's actual months per line, January through the LE's own `actual_through` — a reference
+ * row under the budget months, never an input. A month after that is null (not yet actual), not 0.
+ * Same scope and keys as the split's actuals, so the two rows describe the same postings.
+ */
+async function priorYearActuals(client, build) {
+  const through = String(build.actual_through).slice(0, 10);
+  const lastMonth = Number(through.slice(5, 7));
+  const rows = (await client.query(
+    `WITH scope AS (${SCOPE_SQL})
+     SELECT t.category_id, t.currency, EXTRACT(MONTH FROM t.transaction_date)::int AS m, SUM(t.amount) AS amount
+       FROM transactions t JOIN scope s ON s.id = t.category_id
+      WHERE t.transaction_date >= make_date($1, 1, 1) AND t.transaction_date <= $2::date
+      GROUP BY 1, 2, 3`, [build.le_year, through]
+  )).rows;
+  const byKey = new Map();
+  for (const r of rows) {
+    const key = `${r.category_id}|${r.currency}`;
+    if (!byKey.has(key)) byKey.set(key, Array(12).fill(0));
+    byKey.get(key)[r.m - 1] = round2(r.amount);
+  }
+  const months = (key) => (byKey.get(key) || Array(12).fill(0)).map((v, i) => (i < lastMonth ? v : null));
+  return { year: build.le_year, through, months };
+}
+
 /** The publish preview: what goes, what comes, and anything that blocks it. */
 async function previewPublish(id) {
   const view = await getBuild(id);
@@ -727,8 +752,12 @@ async function previewPublish(id) {
     count: computed.cells.length,
     usd: round2(computed.cells.reduce((s, c) => s + Number(c.base_amount), 0)),
   };
+  const prior = await priorYearActuals(db, build);
+  const lineKey = new Map(view.lines.map((l) => [l.id, `${l.categoryId}|${l.currency}`]));
+  const split = computed.lines.map((s) => ({ ...s, priorActual: prior.months(lineKey.get(s.id)) }));
   return {
-    ...view, split: computed.lines, window: computed.window, blockers: [...blockers], offForecast,
+    ...view, split, window: computed.window, priorYear: { year: prior.year, through: prior.through },
+    blockers: [...blockers], offForecast,
     current: await yearSummary(db, view.build.targetYear),
     checksum: `${await yearChecksum(db, view.build.targetYear)}.${cellsHash(computed.cells)}`,
     willWrite,

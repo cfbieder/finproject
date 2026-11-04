@@ -606,6 +606,14 @@ turns green when ticked, and the rates bar counts *N of M lines done*, so a long
 undecided. Planning information only: it works on any build, changes no figure, sits outside the publish token
 (test), and *Start from* copies it with the line's other settings. `PATCH /:id/lines/:lineId/done`.
 
+**Owner revision, 2026-11-04: the month split opens with its line.** *Show / Refresh month split* is gone:
+clicking a line's name opens its month split and a second click closes it, and the split reloads by itself
+after any edit (the preview is refetched whenever an edit clears it). Changing the split dropdown no longer
+closes an open line. Under the budget months sits a reference row, *Actual* for the LE's year by calendar
+month, January through the LE's `actual_through` and "—" after it, so a half-posted month never reads as a
+figure (`priorActual` per split line and `priorYear` on `GET /:id/preview`). It is told apart by background,
+not text colour.
+
 **Verified on a fresh prod dump in a throwaway database (§10.6 items 1–5, 8, 9).** Three drafts, copy
 independent, delete leaves the copy with NULL parent. Publish, replace, restore: restore byte-for-byte on
 amount, base amount, account and date, and **per FC line 16/16 at each of the three steps**, read through

@@ -73,12 +73,13 @@ function MonthWeights({ line, busy, onSave }) {
         {dirty && left !== 0 && <span className="bb-muted"> · not saved until the months total 100%</span>}
       </p>
       <table className="bb-months bb-weights">
-        <thead><tr>{MONTHS.map((m) => <th key={m} className="num">{m}</th>)}</tr></thead>
+        <thead><tr><th className="bb-months__lbl" />{MONTHS.map((m) => <th key={m} className="num">{m}</th>)}</tr></thead>
         <tbody>
           <tr onBlur={(e) => {
             if (e.currentTarget.contains(e.relatedTarget)) return;
             if (dirty && left === 0) onSave(values.map((v) => v.trim()));
           }}>
+            <th scope="row" className="bb-months__lbl">Weight %</th>
             {MONTHS.map((m, i) => (
               <td key={m} className="num">
                 <input type="number" min="0" step="0.01" className="bb-num-input" placeholder="0"
@@ -214,9 +215,16 @@ function BudgetBuilder() {
     }
   });
 
-  const loadSplit = () => run(async () => {
-    setSplit(Rest.unwrap(await Rest.get(`/budget-builder/${selectedId}/preview`)));
-  });
+  // An open line shows its month split. Every edit clears `split`, so this refetches it by itself;
+  // it runs outside `run` so a refused edit's error stays on screen.
+  useEffect(() => {
+    if (openLine == null || split || !selectedId) return undefined;
+    let cancelled = false;
+    Rest.get(`/budget-builder/${selectedId}/preview`)
+      .then((r) => { if (!cancelled) setSplit(Rest.unwrap(r)); })
+      .catch((e) => !cancelled && setError(e.message || "Could not load the month split"));
+    return () => { cancelled = true; };
+  }, [openLine, split, selectedId]);
 
   const openDialog = (kind) => run(async () => {
     const preview = kind === "publish" ? Rest.unwrap(await Rest.get(`/budget-builder/${selectedId}/preview`)) : null;
@@ -387,9 +395,6 @@ function BudgetBuilder() {
                 cannot be published. Start a new draft from it with another scenario, or restore the rates.
               </span>
             )}
-            <button type="button" className="btn btn--outline bb-push-right" onClick={loadSplit} disabled={busy}>
-              {split ? "Refresh month split" : "Show month split"}
-            </button>
           </section>
 
           <div className="bb-table-wrap">
@@ -430,6 +435,7 @@ function BudgetBuilder() {
                     <Fragment key={l.id}>
                       <tr className={rowClass}>
                         <td style={{ paddingLeft: `${0.5 + row.depth * 1.1}rem` }}>
+                          <span className="bb-cat">
                           <button type="button" className="bb-done" aria-pressed={l.done} disabled={busy}
                             aria-label={`${l.category} (${l.currency}) ${l.done ? "done — mark not done" : "mark done"}`}
                             title={l.done ? "Done — click to unmark" : "Mark this line done"}
@@ -440,6 +446,7 @@ function BudgetBuilder() {
                             aria-expanded={openLine === l.id}>
                             {l.category}
                           </button>
+                          </span>
                           {l.isParent && <span className="bb-flag"> ⚠ parent — not in the forecast&apos;s base year</span>}
                           {!l.isParent && !l.onForecastLine && <span className="bb-muted"> · on no forecast line</span>}
                         </td>
@@ -488,7 +495,8 @@ function BudgetBuilder() {
                                 aria-label={`${l.category} month split`} disabled={busy}
                                 onChange={(e) => {
                                   const method = e.target.value;
-                                  setOpenLine(method === "custom" ? l.id : openLine === l.id ? null : openLine);
+                                  // An open line stays open, so its month split refreshes in place.
+                                  if (method === "custom") setOpenLine(l.id);
                                   // Month weights start blank and save only once they total 100%; until then
                                   // the line keeps the split it had.
                                   setPendingCustom(method === "custom" && l.splitMethod !== "custom" ? l.id : null);
@@ -530,8 +538,19 @@ function BudgetBuilder() {
                             {s ? (
                               <>
                                 <table className="bb-months">
-                                  <thead><tr>{MONTHS.map((m) => <th key={m} className="num">{m}</th>)}</tr></thead>
-                                  <tbody><tr>{s.months.map((v, i) => <td key={i} className={`num ${neg(v) || ""}`}>{fmt(v)}</td>)}</tr></tbody>
+                                  <thead><tr><th className="bb-months__lbl" />{MONTHS.map((m) => <th key={m} className="num">{m}</th>)}</tr></thead>
+                                  <tbody>
+                                    <tr>
+                                      <th scope="row" className="bb-months__lbl">Budget {targetYear}</th>
+                                      {s.months.map((v, i) => <td key={i} className={`num ${neg(v) || ""}`}>{fmt(v)}</td>)}
+                                    </tr>
+                                    {s.priorActual && (
+                                      <tr className="bb-months__ref">
+                                        <th scope="row" className="bb-months__lbl">Actual {split.priorYear.year}</th>
+                                        {s.priorActual.map((v, i) => <td key={i} className={`num ${neg(v) || ""}`}>{fmt(v)}</td>)}
+                                      </tr>
+                                    )}
+                                  </tbody>
                                 </table>
                                 <span className="bb-muted">
                                   {s.splitApplied.startsWith("lump")
@@ -541,12 +560,13 @@ function BudgetBuilder() {
                                     <> · {s.splitApplied === "custom" ? "accounts" : "pattern"} from {s.splitSource === "actuals" ? `actuals ${split.window?.from} – ${split.window?.to}` : s.splitSource === "budget" ? `the ${shown.build.le.year} budget` : s.splitApplied === "custom" ? "nothing (no account)" : "nothing (even months)"}</>
                                   )}
                                   {" "}· {s.accounts.length} account(s)
+                                  {s.priorActual && <> · actual {split.priorYear.year} through {split.priorYear.through}</>}
                                 </span>
                               </>
                             ) : split ? (
                               <span className="bb-muted">No month split yet: {split.blockers.join(" ")}</span>
                             ) : (
-                              <span className="bb-muted">Press <strong>Show month split</strong> to see this line by month.</span>
+                              <span className="bb-muted">Loading the month split…</span>
                             )}
                           </td>
                         </tr>

@@ -215,7 +215,7 @@ base scenarios, every build) · `POST /` (`sourceLeId`, `scenarioName`, `parentB
 several per year, `note` is the build's name) · `GET /compare?year=` (every build of the year with its rates and USD total; a build refused with a 4xx is listed with its reason, a database error fails the request; declared before `/:id`) · `GET|PATCH|DELETE /:id` (DELETE: drafts only) · `PATCH /:id/lines/:lineId` (policy,
 fixed amount, inflation override, split, month weights; remembered per category only at publish) ·
 `PATCH /:id/lines/:lineId/done` (`{done}`, the owner's planning mark; any build, changes no figure) ·
-`GET /:id/preview` (the month split, what publish removes and writes, blockers, the token) ·
+`GET /:id/preview` (the month split with the LE year's actual months beside each line, what publish removes and writes, blockers, the token) ·
 `POST /:id/publish` (`{checksum}` = the preview's token, which covers the year's rows **and** the
 previewed cells; a draft publishes, an earlier build restores) · `POST /:id/unpublish` (undoes the
 year's newest publish). Publish and un-publish take an advisory lock **and** a table lock on

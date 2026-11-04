@@ -64,8 +64,14 @@
 
 .bb-row--blocked td:first-child { box-shadow: inset 3px 0 0 var(--warning); }
 .bb-months-row td { background: var(--surface); }
+.bb-months th.bb-months__lbl { width: 7rem; text-align: left; font-weight: 600; color: var(--muted); white-space: nowrap; }
+/* The reference row is told apart by its background; text colour stays sign only. */
+.bb-months-row .bb-months__ref td,
+.bb-months-row .bb-months__ref th { background: var(--surface-muted); }
 .bb-months { width: 100%; table-layout: fixed; border-collapse: collapse; margin-bottom: 0.35rem; }
 .bb-weights .bb-num-input { width: 100%; box-sizing: border-box; }
+/* The done mark stays beside the name when an open month table narrows the column. */
+.bb-cat { display: inline-flex; align-items: baseline; }
 .bb-done {
   display: inline-flex;
   align-items: center;
@@ -100,6 +106,7 @@
   text-align: left;
 }
 .bb-linkish:hover { text-decoration: underline; }
+.bb-linkish[aria-expanded="true"] { font-weight: 600; }
 .bb-linkish:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 .bb-neg { color: var(--danger); }
