@@ -55,31 +55,42 @@ function RateLine({ label, rate, targetYear, digits = 2, suffix = "" }) {
 }
 
 /**
- * A line's month weights: blank means nothing that month, any other numbers set the proportions, and
- * the annual figure stays the policy's. Saved when focus leaves the row, not box by box.
+ * A line's month weights, as percentages of its annual figure: blank is nothing that month. The
+ * running total says what is left to place, and nothing saves until the months total 100%, when
+ * focus leaves the row. The parent keys this on the saved weights, so a save or refusal resets it.
  */
-function MonthWeights({ line, rev, busy, onSave }) {
-  const current = line.splitWeights || [];
-  const shown = (i) => (current[i] ? String(current[i]) : "");
+function MonthWeights({ line, busy, onSave }) {
+  const saved = MONTHS.map((_, i) => (line.splitWeights?.[i] ? String(line.splitWeights[i]) : ""));
+  const [values, setValues] = useState(saved);
+  const total = Math.round(values.reduce((s, v) => s + (Number(v) || 0), 0) * 100) / 100;
+  const left = Math.round((100 - total) * 100) / 100;
+  const dirty = values.some((v, i) => v.trim() !== saved[i]);
   return (
-    <table className="bb-months bb-weights">
-      <thead><tr>{MONTHS.map((m) => <th key={m} className="num">{m}</th>)}</tr></thead>
-      <tbody>
-        <tr onBlur={(e) => {
-          if (e.currentTarget.contains(e.relatedTarget)) return;
-          const values = [...e.currentTarget.querySelectorAll("input")].map((el) => el.value.trim());
-          if (values.some((v, i) => v !== shown(i))) onSave(values);
-        }}>
-          {MONTHS.map((m, i) => (
-            <td key={m} className="num">
-              <input key={`w${line.id}-${i}-${current[i] ?? ""}-${rev}`} type="number" min="0" step="0.01" className="bb-num-input"
-                aria-label={`${line.category} weight for ${m}`} defaultValue={shown(i)} disabled={busy}
-                onKeyDown={commitOnEnter} onWheel={blurOnWheel} />
-            </td>
-          ))}
-        </tr>
-      </tbody>
-    </table>
+    <>
+      <p className="bb-weights-status" role="status">
+        <strong>{fmt(total, 2)}%</strong> allocated ·{" "}
+        {left === 0 ? "complete" : left > 0 ? `${fmt(left, 2)}% left to allocate` : `${fmt(-left, 2)}% over`}
+        {dirty && left !== 0 && <span className="bb-muted"> · not saved until the months total 100%</span>}
+      </p>
+      <table className="bb-months bb-weights">
+        <thead><tr>{MONTHS.map((m) => <th key={m} className="num">{m}</th>)}</tr></thead>
+        <tbody>
+          <tr onBlur={(e) => {
+            if (e.currentTarget.contains(e.relatedTarget)) return;
+            if (dirty && left === 0) onSave(values.map((v) => v.trim()));
+          }}>
+            {MONTHS.map((m, i) => (
+              <td key={m} className="num">
+                <input type="number" min="0" step="0.01" className="bb-num-input" placeholder="0"
+                  aria-label={`${line.category} percent for ${m}`} value={values[i]} disabled={busy}
+                  onChange={(e) => setValues(values.map((v, j) => (j === i ? e.target.value : v)))}
+                  onKeyDown={commitOnEnter} onWheel={blurOnWheel} />
+              </td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+    </>
   );
 }
 
@@ -89,6 +100,7 @@ function BudgetBuilder() {
   const [view, setView] = useState(null);
   const [split, setSplit] = useState(null);       // preview data, for the month rows
   const [openLine, setOpenLine] = useState(null);
+  const [pendingCustom, setPendingCustom] = useState(null); // a line switching to month weights, not yet saved
   const [form, setForm] = useState({ leId: "", scenario: "", parentId: "", note: "" });
   const [dialog, setDialog] = useState(null);     // { kind: 'publish' | 'unpublish' | 'delete', preview? }
   const [busy, setBusy] = useState(false);
@@ -458,12 +470,17 @@ function BudgetBuilder() {
                         <td>
                           {isDraft ? (
                             <span className="bb-split">
-                              <select value={l.splitMethod} aria-label={`${l.category} month split`} disabled={busy}
+                              <select value={pendingCustom === l.id ? "custom" : l.splitMethod}
+                                aria-label={`${l.category} month split`} disabled={busy}
                                 onChange={(e) => {
                                   const method = e.target.value;
                                   setOpenLine(method === "custom" ? l.id : openLine === l.id ? null : openLine);
+                                  // Month weights start blank and save only once they total 100%; until then
+                                  // the line keeps the split it had.
+                                  setPendingCustom(method === "custom" && l.splitMethod !== "custom" ? l.id : null);
+                                  if (method === l.splitMethod) return;
+                                  if (method === "custom") return;
                                   patchLine(l.id, method === "month" ? { splitMethod: "month", splitMonth: l.splitMonth || 1 }
-                                    : method === "custom" ? { splitMethod: "custom", splitWeights: Array(12).fill(1) }
                                     : { splitMethod: method });
                                 }}>
                                 <option value="auto">from actuals</option>
@@ -484,13 +501,16 @@ function BudgetBuilder() {
                       {openLine === l.id && (
                         <tr className="bb-months-row">
                           <td colSpan={11}>
-                            {isDraft && l.splitMethod === "custom" && (
+                            {isDraft && (l.splitMethod === "custom" || pendingCustom === l.id) && (
                               <>
                                 <span className="bb-muted">
-                                  Month weights: blank is nothing that month; the numbers set the proportions of the annual figure.
+                                  Month weights: the percentage of the annual figure in each month; blank is nothing that month.
                                 </span>
-                                <MonthWeights line={l} rev={rev} busy={busy}
-                                  onSave={(values) => patchLine(l.id, { splitMethod: "custom", splitWeights: values })} />
+                                <MonthWeights key={`w${l.id}-${(l.splitWeights || []).join()}-${rev}`} line={l} busy={busy}
+                                  onSave={(values) => {
+                                    setPendingCustom(null);
+                                    patchLine(l.id, { splitMethod: "custom", splitWeights: values });
+                                  }} />
                               </>
                             )}
                             {s ? (

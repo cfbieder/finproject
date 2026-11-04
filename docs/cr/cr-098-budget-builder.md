@@ -485,8 +485,9 @@ reader files; 131 of the 793 rows for 2026 have `version_id` NULL).
   restoring the rates, is the way out. The page does not dereference `rates.inflation.rate` unguarded.
 
 - **V8 — month weights.** A fourth month split, **custom**, beside *from actuals*, *even* and *one month*.
-  On a custom line, opening it shows 12 boxes above its money row (choosing another split closes the row, and no other split shows them): blank means nothing in that month, and any
-  non-negative numbers set the proportions (Mar 3, Aug 2 on 500,000 → 300,000 and 200,000; a 1 in four
+  On a custom line, opening it shows 12 boxes above its money row (choosing another split closes the row, and no other split shows them): blank means nothing in that month, and the numbers
+  are percentages of the annual figure that must total 100% (owner, 2026-11-04; first built as free
+  proportions, which the split still reads them as) (Mar 3, Aug 2 on 500,000 → 300,000 and 200,000; a 1 in four
   months → four equal payments). Weights, not amounts, because the annual still comes from the policy: a
   typed 300,000 / 200,000 lands exactly while the annual is 500,000 and rescales when it changes, so no
   total can disagree. The line's sign is applied by the split, so an expense also takes positive weights.
@@ -592,6 +593,13 @@ until a weight is changed; boxes save when focus leaves the row. Leaving custom 
 non-negative numbers" means to two decimals. Blanking a Fixed box published the line as nothing, a defect
 from v3.77.0, now refused. A null inflation `Rate` read as 0%, now as no rate. Left alone: focus is lost
 after a save while tabbing between boxes, the pattern every input on this page already has.
+
+**Owner revision, 2026-11-04: weights are percentages.** Choosing *month weights* seeded twelve 1s, which
+read as nonsense (and equals *even*). The boxes now start blank, take the percentage of the annual figure per
+month, show how much is allocated and how much is left, and save only once the months total 100%; until then
+the line keeps its previous split. The server refuses any other total. The split still reads stored weights as
+proportions, so a line saved under the old rule (prod's `Financial Income - Barkeria`, twelve 1s) keeps its
+even split and shows *12% allocated · 88% left* until it is re-entered.
 
 **Verified on a fresh prod dump in a throwaway database (§10.6 items 1–5, 8, 9).** Three drafts, copy
 independent, delete leaves the copy with NULL parent. Publish, replace, restore: restore byte-for-byte on

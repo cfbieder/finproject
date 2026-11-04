@@ -66,6 +66,7 @@
 .bb-months-row td { background: var(--surface); }
 .bb-months { width: 100%; table-layout: fixed; border-collapse: collapse; margin-bottom: 0.35rem; }
 .bb-weights .bb-num-input { width: 100%; box-sizing: border-box; }
+.bb-weights-status { margin: 0.35rem 0 0.2rem; font-size: 0.8rem; color: var(--ink); }
 .bb-months th,
 .bb-months td { padding: 0.2rem 0.45rem; text-align: right; font-size: 0.8rem; }
 

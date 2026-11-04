@@ -373,8 +373,8 @@ dbDescribe('budget builder — the cycle (DB)', () => {
 
   test('month weights: refused when empty, rescale with the annual, copied, remembered, frozen on restore', async () => {
     const weights = Array(12).fill('');
-    weights[2] = 3;
-    weights[7] = 2;
+    weights[2] = 60;
+    weights[7] = 40;
     const { build } = await svc.createBuild({ sourceLeId: ids.le, scenarioName: SCEN, parentBuildId: ids.v1 });
     const food = (await svc.getBuild(build.id)).lines.find((l) => l.categoryId === ids.food);
 
@@ -384,6 +384,8 @@ dbDescribe('budget builder — the cycle (DB)', () => {
     await expect(svc.updateLine(build.id, food.id, { splitMethod: 'custom', splitWeights: [1, 2] })).rejects.toThrow(/all twelve/);
     await expect(svc.updateLine(build.id, food.id, { splitMethod: 'custom', splitWeights: Array(12).fill(-1) })).rejects.toThrow(/zero or more/);
     await expect(svc.updateLine(build.id, food.id, { splitMethod: 'custom', splitWeights: [0.125, ...Array(11).fill('')] })).rejects.toThrow(/two decimals/);
+    await expect(svc.updateLine(build.id, food.id, { splitMethod: 'custom', splitWeights: [3, 2, ...Array(10).fill('')] }))
+      .rejects.toThrow(/total 100% — these total 5%/);
 
     await svc.updateLine(build.id, food.id, { policy: 'fixed', fixedAmount: -500, splitMethod: 'custom', splitWeights: weights });
     const months = async (id) => {
@@ -402,7 +404,7 @@ dbDescribe('budget builder — the cycle (DB)', () => {
     const { build: copy } = await svc.createBuild({ sourceLeId: ids.le, scenarioName: SCEN, parentBuildId: build.id });
     const copied = (await svc.getBuild(copy.id)).lines.find((l) => l.categoryId === ids.food);
     expect(copied.splitMethod).toBe('custom');
-    expect(copied.splitWeights[2]).toBe(3);
+    expect(copied.splitWeights[2]).toBe(60);
 
     // Leaving custom clears the weights.
     await svc.updateLine(copy.id, copied.id, { splitMethod: 'even' });
@@ -413,14 +415,14 @@ dbDescribe('budget builder — the cycle (DB)', () => {
     await svc.publish(build.id, { checksum: p.checksum });
     const pol = (await db.query('SELECT split_override, split_weights FROM budget_category_policy WHERE category_id = $1', [ids.food])).rows[0];
     expect(pol.split_override).toBe('custom');
-    expect(Number(pol.split_weights[7])).toBe(2);
+    expect(Number(pol.split_weights[7])).toBe(40);
 
     // A weight edit in a later draft cannot touch what this build stored.
     const cells = async () => (await db.query('SELECT month, amount FROM budget_build_cells WHERE build_id = $1 ORDER BY id', [build.id])).rows;
     const stored = await cells();
     const { build: later } = await svc.createBuild({ sourceLeId: ids.le, scenarioName: SCEN, parentBuildId: build.id });
     const laterFood = (await svc.getBuild(later.id)).lines.find((l) => l.categoryId === ids.food);
-    await svc.updateLine(later.id, laterFood.id, { splitWeights: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1] });
+    await svc.updateLine(later.id, laterFood.id, { splitWeights: [50, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 50] });
     p = await svc.previewPublish(later.id);
     await svc.publish(later.id, { checksum: p.checksum });
     p = await svc.previewPublish(build.id);

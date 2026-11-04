@@ -245,8 +245,10 @@ async function setNote(id, note) {
 }
 
 /**
- * Twelve month weights: blank is 0, none negative, at least one above zero. Stored to two decimals,
- * so a finer one is refused: rounding it would quietly move money between months.
+ * Twelve month weights, as percentages of the annual figure: blank is 0, none negative, totalling
+ * 100. Stored to two decimals, so a finer one is refused: rounding it would quietly move money
+ * between months. The split still reads them as proportions, so a line saved before the 100% rule
+ * keeps working.
  */
 function checkWeights(raw) {
   if (!Array.isArray(raw) || raw.length !== 12) throw err(400, 'Month weights need all twelve months');
@@ -254,6 +256,8 @@ function checkWeights(raw) {
   if (weights.some((w) => !Number.isFinite(w) || w < 0)) throw err(400, 'A month weight must be a number, zero or more');
   if (weights.some((w) => Math.abs(w - round2(w)) > 1e-9)) throw err(400, 'A month weight can have at most two decimals');
   if (!weights.some((w) => w > 0)) throw err(400, 'Give at least one month a weight above zero');
+  const total = round2(weights.reduce((a, b) => a + b, 0));
+  if (total !== 100) throw err(400, `Month weights must total 100% — these total ${total}%`);
   return weights;
 }
 
