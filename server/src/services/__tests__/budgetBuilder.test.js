@@ -434,6 +434,26 @@ dbDescribe('budget builder — the cycle (DB)', () => {
     await db.query('DELETE FROM budget_category_policy WHERE category_id = $1', [ids.food]);
   });
 
+  test('a done mark: any build, no figure or token moves, and Start from copies it', async () => {
+    const view = await svc.getBuild(ids.v1); // published or superseded by now: marks still allowed
+    const food = view.lines.find((l) => l.categoryId === ids.food);
+    expect(food.done).toBe(false);
+    const before = await svc.previewPublish(ids.v1);
+    await svc.setLineDone(ids.v1, food.id, true);
+    expect((await svc.getBuild(ids.v1)).lines.find((l) => l.id === food.id).done).toBe(true);
+    expect((await svc.previewPublish(ids.v1)).checksum).toBe(before.checksum);
+    await expect(svc.setLineDone(ids.v1, food.id, 'yes')).rejects.toThrow(/true or false/);
+    await expect(svc.setLineDone(ids.v1, 999999999, true)).rejects.toThrow(/Line not found/);
+
+    const { build: copy } = await svc.createBuild({ sourceLeId: ids.le, scenarioName: SCEN, parentBuildId: ids.v1 });
+    expect((await svc.getBuild(copy.id)).lines.find((l) => l.categoryId === ids.food).done).toBe(true);
+    const { build: fresh } = await svc.createBuild({ sourceLeId: ids.le, scenarioName: SCEN });
+    expect((await svc.getBuild(fresh.id)).lines.every((l) => l.done === false)).toBe(true);
+    await svc.deleteDraft(copy.id);
+    await svc.deleteDraft(fresh.id);
+    await svc.setLineDone(ids.v1, food.id, false);
+  });
+
   test('deleting a draft that has a copy leaves the copy whole, with no parent', async () => {
     const { build: a } = await svc.createBuild({ sourceLeId: ids.le, scenarioName: SCEN });
     const aFood = (await svc.getBuild(a.id)).lines.find((l) => l.categoryId === ids.food);

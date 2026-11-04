@@ -199,6 +199,11 @@ function BudgetBuilder() {
     }
   });
 
+  // The owner's own planning mark: saved straight away, changes no figure, and never closes a row.
+  const toggleDone = (line) => run(async () => {
+    setView(Rest.unwrap(await Rest.patch(`/budget-builder/${selectedId}/lines/${line.id}/done`, { done: !line.done })));
+  });
+
   const patchLine = (lineId, patch) => run(async () => {
     try {
       const data = Rest.unwrap(await Rest.patch(`/budget-builder/${selectedId}/lines/${lineId}`, patch));
@@ -367,6 +372,9 @@ function BudgetBuilder() {
             <RateLine label="Inflation" rate={shown.rates.inflation} targetYear={targetYear} digits={1} suffix="%" />
             <RateLine label="PLN per USD" rate={shown.rates.fx.PLN} targetYear={targetYear} />
             <RateLine label="EUR per USD" rate={shown.rates.fx.EUR} targetYear={targetYear} />
+            <span className="bb-rate">
+              <strong>{shown.lines.filter((l) => l.done).length}</strong> of {shown.lines.length} lines done
+            </span>
             {isDraft && [shown.rates.inflation, shown.rates.fx.PLN, shown.rates.fx.EUR].some((r) => r && r.fromYear < targetYear) && (
               <span className="bb-muted">
                 Rates for {targetYear} are not set in {shown.build.scenario}; set them on Forecast Scenarios
@@ -422,6 +430,12 @@ function BudgetBuilder() {
                     <Fragment key={l.id}>
                       <tr className={rowClass}>
                         <td style={{ paddingLeft: `${0.5 + row.depth * 1.1}rem` }}>
+                          <button type="button" className="bb-done" aria-pressed={l.done} disabled={busy}
+                            aria-label={`${l.category} (${l.currency}) ${l.done ? "done — mark not done" : "mark done"}`}
+                            title={l.done ? "Done — click to unmark" : "Mark this line done"}
+                            onClick={() => toggleDone(l)}>
+                            {l.done ? "✓" : ""}
+                          </button>
                           <button type="button" className="bb-linkish" onClick={() => setOpenLine(openLine === l.id ? null : l.id)}
                             aria-expanded={openLine === l.id}>
                             {l.category}

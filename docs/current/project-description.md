@@ -94,7 +94,7 @@ psproject/                          # ~/Programs/fin symlinks here
 │       ├── mobile/                 # Dedicated /m/* shell (see §5)
 │       └── pages/                  # 57 page components
 ├── server/                         # Express API
-│   ├── db/migrations/              # 001..086 SQL (85 files; 068 withdrawn)
+│   ├── db/migrations/              # 001..087 SQL (86 files; 068 withdrawn)
 │                                   #  — registry in docs/current/migrations.md
 │   ├── db/ci-seed.sql              # CI baseline COA rows (NOT a migration)
 │   └── src/
@@ -214,6 +214,7 @@ All mounted at `/api/v2` (nginx rewrites legacy `/api/*`). Behavioural detail in
 base scenarios, every build) · `POST /` (`sourceLeId`, `scenarioName`, `parentBuildId?`, `note?` → a draft;
 several per year, `note` is the build's name) · `GET /compare?year=` (every build of the year with its rates and USD total; a build refused with a 4xx is listed with its reason, a database error fails the request; declared before `/:id`) · `GET|PATCH|DELETE /:id` (DELETE: drafts only) · `PATCH /:id/lines/:lineId` (policy,
 fixed amount, inflation override, split, month weights; remembered per category only at publish) ·
+`PATCH /:id/lines/:lineId/done` (`{done}`, the owner's planning mark; any build, changes no figure) ·
 `GET /:id/preview` (the month split, what publish removes and writes, blockers, the token) ·
 `POST /:id/publish` (`{checksum}` = the preview's token, which covers the year's rows **and** the
 previewed cells; a draft publishes, an earlier build restores) · `POST /:id/unpublish` (undoes the

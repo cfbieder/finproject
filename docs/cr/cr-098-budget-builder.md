@@ -601,6 +601,11 @@ the line keeps its previous split. The server refuses any other total. The split
 proportions, so a line saved under the old rule (prod's `Financial Income - Barkeria`, twelve 1s) keeps its
 even split and shows *12% allocated · 88% left* until it is re-entered.
 
+**Owner addition, 2026-11-04: a done mark per line** (migration 087). A round toggle before each line's name
+turns green when ticked, and the rates bar counts *N of M lines done*, so a long grid shows what is still
+undecided. Planning information only: it works on any build, changes no figure, sits outside the publish token
+(test), and *Start from* copies it with the line's other settings. `PATCH /:id/lines/:lineId/done`.
+
 **Verified on a fresh prod dump in a throwaway database (§10.6 items 1–5, 8, 9).** Three drafts, copy
 independent, delete leaves the copy with NULL parent. Publish, replace, restore: restore byte-for-byte on
 amount, base amount, account and date, and **per FC line 16/16 at each of the three steps**, read through

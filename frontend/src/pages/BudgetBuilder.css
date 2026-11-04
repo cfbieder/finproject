@@ -66,6 +66,26 @@
 .bb-months-row td { background: var(--surface); }
 .bb-months { width: 100%; table-layout: fixed; border-collapse: collapse; margin-bottom: 0.35rem; }
 .bb-weights .bb-num-input { width: 100%; box-sizing: border-box; }
+.bb-done {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.05rem;
+  height: 1.05rem;
+  margin-right: 0.45rem;
+  padding: 0;
+  vertical-align: -0.15rem;
+  font-size: 0.7rem;
+  line-height: 1;
+  color: var(--surface);
+  background: var(--surface);
+  border: 1.5px solid var(--border-strong, var(--border));
+  border-radius: 50%;
+  cursor: pointer;
+}
+.bb-done:hover { border-color: var(--success); }
+.bb-done[aria-pressed="true"] { background: var(--success); border-color: var(--success); }
+.bb-done:disabled { cursor: default; }
 .bb-weights-status { margin: 0.35rem 0 0.2rem; font-size: 0.8rem; color: var(--ink); }
 .bb-months th,
 .bb-months td { padding: 0.2rem 0.45rem; text-align: right; font-size: 0.8rem; }

@@ -199,9 +199,9 @@ async function createBuild({ targetYear, sourceLeId, scenarioName, parentBuildId
       .map((p) => [p.category_id, p]));
     const insertLine = (l) => client.query(
       `INSERT INTO budget_build_lines
-         (build_id, category_id, currency, le_fy, policy, fixed_amount, inflation_pct, split_method, split_month, split_weights)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::numeric[])`,
-      [build.id, l.category_id, l.currency, l.le_fy, l.policy, l.fixed_amount, l.inflation_pct, l.split_method, l.split_month, l.split_weights]
+         (build_id, category_id, currency, le_fy, policy, fixed_amount, inflation_pct, split_method, split_month, split_weights, done)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::numeric[], $11)`,
+      [build.id, l.category_id, l.currency, l.le_fy, l.policy, l.fixed_amount, l.inflation_pct, l.split_method, l.split_month, l.split_weights, l.done ?? false]
     );
 
     const dropped = [];
@@ -221,6 +221,7 @@ async function createBuild({ targetYear, sourceLeId, scenarioName, parentBuildId
         split_method: from?.split_method ?? pol?.split_override ?? 'auto',
         split_month: from ? from.split_month : (pol?.split_month ?? null),
         split_weights: from ? from.split_weights : (pol?.split_weights ?? null),
+        done: from?.done ?? false,
       });
     }
     for (const [key, from] of parentLines) {
@@ -259,6 +260,18 @@ function checkWeights(raw) {
   const total = round2(weights.reduce((a, b) => a + b, 0));
   if (total !== 100) throw err(400, `Month weights must total 100% — these total ${total}%`);
   return weights;
+}
+
+/**
+ * The owner's done mark on a line — planning information only, on any build. It changes no figure,
+ * so it is outside the publish token and does not touch the build's `updated_at`.
+ */
+async function setLineDone(buildId, lineId, done) {
+  if (typeof done !== 'boolean') throw err(400, 'done must be true or false');
+  const res = await db.query(
+    'UPDATE budget_build_lines SET done = $3 WHERE id = $1 AND build_id = $2', [lineId, buildId, done]
+  );
+  if (!res.rowCount) throw err(404, 'Line not found');
 }
 
 /**
@@ -421,7 +434,7 @@ async function getBuild(id, client = db) {
       annual, annualUsd: usd, vsLe: annual == null ? null : round2(annual - Number(l.le_fy)),
       thisYearBudget: round2(l.this_year_budget),
       vsThisYear: annual == null ? null : round2(annual - Number(l.this_year_budget)),
-      isParent: l.is_parent, onForecastLine: l.on_forecast_line,
+      isParent: l.is_parent, onForecastLine: l.on_forecast_line, done: l.done,
     };
   });
   return {
@@ -910,7 +923,7 @@ async function compareYear(year) {
 }
 
 module.exports = {
-  listSources, createBuild, deleteDraft, setNote, updateLine, getBuild, previewPublish,
+  listSources, createBuild, deleteDraft, setNote, updateLine, setLineDone, getBuild, previewPublish,
   publish, unpublish, scenariosReading, compareYear,
   // exported for tests
   splitLine, allocate, groupLines, sourceYear, policyLines, LUMP_SHARE,

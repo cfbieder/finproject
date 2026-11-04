@@ -58,6 +58,12 @@ router.patch('/:id/lines/:lineId', handle(async (req, res) => {
   res.json({ data: await svc.getBuild(id(req)) });
 }));
 
+// PATCH /:id/lines/:lineId/done — { done } the owner's own mark; any build, changes no figure
+router.patch('/:id/lines/:lineId/done', handle(async (req, res) => {
+  await svc.setLineDone(id(req), positiveInt(req.params.lineId, 'line'), req.body?.done);
+  res.json({ data: await svc.getBuild(id(req)) });
+}));
+
 // GET /:id/preview — the month split, what Publish deletes and writes, blockers, checksum
 router.get('/:id/preview', handle(async (req, res) => res.json({ data: await svc.previewPublish(id(req)) })));
 
