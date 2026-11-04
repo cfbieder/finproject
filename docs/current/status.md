@@ -7,7 +7,7 @@
 > Every budget cut has come from MOVING what changes on a different clock, never deleting what is true
 > (history in the 2026-11-03 log).
 
-**Last updated:** 2026-11-04 · **Live version:** **v3.82.0** (see `VERSION` / git tags) — release log: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
+**Last updated:** 2026-11-04 · **Live version:** **v3.83.0** (see `VERSION` / git tags) — release log: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
 
 ## Current phase
 **Moved to [current-phase.md](current-phase.md)** — it changes on a regenerate, not on a release.

@@ -606,7 +606,7 @@ turns green when ticked, and the rates bar counts *N of M lines done*, so a long
 undecided. Planning information only: it works on any build, changes no figure, sits outside the publish token
 (test), and *Start from* copies it with the line's other settings. `PATCH /:id/lines/:lineId/done`.
 
-**Owner revision, 2026-11-04: the month split opens with its line.** *Show / Refresh month split* is gone:
+**Owner revision, 2026-11-04 (v3.83.0): the month split opens with its line.** *Show / Refresh month split* is gone:
 clicking a line's name opens its month split and a second click closes it, and the split reloads by itself
 after any edit (the preview is refetched whenever an edit clears it). Changing the split dropdown no longer
 closes an open line. Under the budget months sits a reference row, *Actual* for the LE's year by calendar
