@@ -614,7 +614,7 @@ month, January through the LE's `actual_through` and "—" after it, so a half-p
 figure (`priorActual` per split line and `priorYear` on `GET /:id/preview`). It is told apart by background,
 not text colour.
 
-**Owner revision, 2026-11-04 (unreleased): a Fixed line's months can be typed as amounts.** On a Fixed line the
+**Owner revision, 2026-11-04 (v3.84.0): a Fixed line's months can be typed as amounts.** On a Fixed line the
 month boxes default to *amounts* (an *enter as* select switches to *percent*): Jan 2,000 and Mar 3,000 save the
 Fixed amount as −5,000 (signed like the line, else its estimate) and store the amounts themselves as the
 weights, so the months publish exactly as typed. Converting them to percentages was rejected: weights carry two

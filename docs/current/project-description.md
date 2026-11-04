@@ -213,7 +213,7 @@ All mounted at `/api/v2` (nginx rewrites legacy `/api/*`). Behavioural detail in
 **Budget builder (`/budget-builder`, [CR098](../cr/cr-098-budget-builder.md)):** `GET /` (finalised LEs,
 base scenarios, every build) · `POST /` (`sourceLeId`, `scenarioName`, `parentBuildId?`, `note?` → a draft;
 several per year, `note` is the build's name) · `GET /compare?year=` (every build of the year with its rates and USD total; a build refused with a 4xx is listed with its reason, a database error fails the request; declared before `/:id`) · `GET|PATCH|DELETE /:id` (DELETE: drafts only) · `PATCH /:id/lines/:lineId` (policy,
-fixed amount, inflation override, split, month weights; remembered per category only at publish) ·
+fixed amount, inflation override, split, month weights — proportions, any positive total: percentages, or a Fixed line's month amounts sent with their sum as `fixedAmount`; remembered per category only at publish) ·
 `PATCH /:id/lines/:lineId/done` (`{done}`, the owner's planning mark; any build, changes no figure) ·
 `GET /:id/preview` (the month split with the LE year's actual months beside each line, what publish removes and writes, blockers, the token) ·
 `POST /:id/publish` (`{checksum}` = the preview's token, which covers the year's rows **and** the
