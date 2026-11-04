@@ -55,35 +55,60 @@ function RateLine({ label, rate, targetYear, digits = 2, suffix = "" }) {
 }
 
 /**
- * A line's month weights, as percentages of its annual figure: blank is nothing that month. The
- * running total says what is left to place, and nothing saves until the months total 100%, when
- * focus leaves the row. The parent keys this on the saved weights, so a save or refusal resets it.
+ * A line's month split, typed per month. Weights are stored as proportions (the server divides by
+ * their sum), so the same twelve numbers can be entered two ways:
+ *  - "pct": percentages of the annual figure; nothing saves until they total 100%.
+ *  - "amount" (Fixed lines only): money per month, as magnitudes; saving sets the Fixed amount to
+ *    their sum, signed like the line, and stores the amounts themselves as the weights.
+ * Blank is nothing that month. Saves when focus leaves the row; the parent keys this on the saved
+ * weights, so a save or refusal resets it.
  */
-function MonthWeights({ line, busy, onSave }) {
-  const saved = MONTHS.map((_, i) => (line.splitWeights?.[i] ? String(line.splitWeights[i]) : ""));
+const round2 = (v) => Math.round(v * 100) / 100;
+function MonthWeights({ line, mode, busy, onSave }) {
+  const weights = (line.splitWeights || []).map(Number);
+  const wSum = weights.reduce((a, b) => a + b, 0);
+  const annual = Math.abs(Number(line.fixedAmount) || 0);
+  const show = (w) => (mode === "amount" ? round2((annual * w) / wSum) : round2((100 * w) / wSum));
+  const saved = MONTHS.map((_, i) => (wSum && weights[i] ? String(show(weights[i])) : ""));
   const [values, setValues] = useState(saved);
-  const total = Math.round(values.reduce((s, v) => s + (Number(v) || 0), 0) * 100) / 100;
-  const left = Math.round((100 - total) * 100) / 100;
+  const total = round2(values.reduce((s, v) => s + (Number(v) || 0), 0));
+  const left = round2(100 - total);
   const dirty = values.some((v, i) => v.trim() !== saved[i]);
+  // The sign a typed month total takes: the line's own, else its estimate's, else income-positive.
+  const sign = Math.sign(Number(line.fixedAmount) || 0) || Math.sign(Number(line.leFy) || 0) || 1;
+  const ready = mode === "amount" ? total > 0 : left === 0;
   return (
     <>
       <p className="bb-weights-status" role="status">
-        <strong>{fmt(total, 2)}%</strong> allocated ·{" "}
-        {left === 0 ? "complete" : left > 0 ? `${fmt(left, 2)}% left to allocate` : `${fmt(-left, 2)}% over`}
-        {dirty && left !== 0 && <span className="bb-muted"> · not saved until the months total 100%</span>}
+        {mode === "amount" ? (
+          <>
+            <strong>{fmt(sign * total, 2)}</strong> {line.currency} total
+            {dirty && total > 0 && <span className="bb-muted"> · becomes the Fixed amount when you leave the row</span>}
+          </>
+        ) : (
+          <>
+            <strong>{fmt(total, 2)}%</strong> allocated ·{" "}
+            {left === 0 ? "complete" : left > 0 ? `${fmt(left, 2)}% left to allocate` : `${fmt(-left, 2)}% over`}
+            {dirty && left !== 0 && <span className="bb-muted"> · not saved until the months total 100%</span>}
+          </>
+        )}
       </p>
       <table className="bb-months bb-weights">
         <thead><tr><th className="bb-months__lbl" />{MONTHS.map((m) => <th key={m} className="num">{m}</th>)}</tr></thead>
         <tbody>
           <tr onBlur={(e) => {
             if (e.currentTarget.contains(e.relatedTarget)) return;
-            if (dirty && left === 0) onSave(values.map((v) => v.trim()));
+            if (!dirty || !ready) return;
+            const trimmed = values.map((v) => v.trim());
+            onSave(mode === "amount"
+              ? { fixedAmount: round2(sign * total), splitWeights: trimmed }
+              : { splitWeights: trimmed });
           }}>
-            <th scope="row" className="bb-months__lbl">Weight %</th>
+            <th scope="row" className="bb-months__lbl">{mode === "amount" ? `Amount ${line.currency}` : "Weight %"}</th>
             {MONTHS.map((m, i) => (
               <td key={m} className="num">
-                <input type="number" min="0" step="0.01" className="bb-num-input" placeholder="0"
-                  aria-label={`${line.category} percent for ${m}`} value={values[i]} disabled={busy}
+                <input type="number" min="0" step={mode === "amount" ? "1" : "0.01"} className="bb-num-input" placeholder="0"
+                  aria-label={`${line.category} ${mode === "amount" ? "amount" : "percent"} for ${m}`} value={values[i]} disabled={busy}
                   onChange={(e) => setValues(values.map((v, j) => (j === i ? e.target.value : v)))}
                   onKeyDown={commitOnEnter} onWheel={blurOnWheel} />
               </td>
@@ -102,6 +127,7 @@ function BudgetBuilder() {
   const [split, setSplit] = useState(null);       // preview data, for the month rows
   const [openLine, setOpenLine] = useState(null);
   const [pendingCustom, setPendingCustom] = useState(null); // a line switching to month weights, not yet saved
+  const [pctEntry, setPctEntry] = useState(() => new Set()); // Fixed lines whose months are typed as % rather than amounts
   const [form, setForm] = useState({ leId: "", scenario: "", parentId: "", note: "" });
   const [dialog, setDialog] = useState(null);     // { kind: 'publish' | 'unpublish' | 'delete', preview? }
   const [busy, setBusy] = useState(false);
@@ -525,14 +551,38 @@ function BudgetBuilder() {
                           <td colSpan={11}>
                             {isDraft && (l.splitMethod === "custom" || pendingCustom === l.id) && (
                               <>
-                                <span className="bb-muted">
-                                  Month weights: the percentage of the annual figure in each month; blank is nothing that month.
-                                </span>
-                                <MonthWeights key={`w${l.id}-${(l.splitWeights || []).join()}-${rev}`} line={l} busy={busy}
-                                  onSave={(values) => {
-                                    setPendingCustom(null);
-                                    patchLine(l.id, { splitMethod: "custom", splitWeights: values });
-                                  }} />
+                                {(() => {
+                                  const mode = l.policy === "fixed" && !pctEntry.has(l.id) ? "amount" : "pct";
+                                  return (
+                                    <>
+                                      <span className="bb-muted">
+                                        {mode === "amount"
+                                          ? "Month amounts: what goes in each month; their total becomes the Fixed amount. Blank is nothing that month."
+                                          : "Month weights: the percentage of the annual figure in each month; blank is nothing that month."}
+                                      </span>
+                                      {l.policy === "fixed" && (
+                                        <label className="bb-muted bb-entry-mode">
+                                          {" "}· enter as{" "}
+                                          <select value={mode} disabled={busy} aria-label={`${l.category} enter months as`}
+                                            onChange={(e) => setPctEntry((prev) => {
+                                              const next = new Set(prev);
+                                              if (e.target.value === "pct") next.add(l.id); else next.delete(l.id);
+                                              return next;
+                                            })}>
+                                            <option value="amount">amounts</option>
+                                            <option value="pct">percent</option>
+                                          </select>
+                                        </label>
+                                      )}
+                                      <MonthWeights key={`w${l.id}-${mode}-${l.fixedAmount}-${(l.splitWeights || []).join()}-${rev}`}
+                                        line={l} mode={mode} busy={busy}
+                                        onSave={(patch) => {
+                                          setPendingCustom(null);
+                                          patchLine(l.id, { splitMethod: "custom", ...patch });
+                                        }} />
+                                    </>
+                                  );
+                                })()}
                               </>
                             )}
                             {s ? (

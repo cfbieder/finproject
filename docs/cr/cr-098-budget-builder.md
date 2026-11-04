@@ -486,7 +486,7 @@ reader files; 131 of the 793 rows for 2026 have `version_id` NULL).
 
 - **V8 — month weights.** A fourth month split, **custom**, beside *from actuals*, *even* and *one month*.
   On a custom line, opening it shows 12 boxes above its money row (choosing another split closes the row, and no other split shows them): blank means nothing in that month, and the numbers
-  are percentages of the annual figure that must total 100% (owner, 2026-11-04; first built as free
+  are percentages of the annual figure that must total 100%, or on a Fixed line month amounts whose total becomes the Fixed amount (§10.9; owner, 2026-11-04; first built as free
   proportions, which the split still reads them as) (Mar 3, Aug 2 on 500,000 → 300,000 and 200,000; a 1 in four
   months → four equal payments). Weights, not amounts, because the annual still comes from the policy: a
   typed 300,000 / 200,000 lands exactly while the annual is 500,000 and rescales when it changes, so no
@@ -613,6 +613,17 @@ closes an open line. Under the budget months sits a reference row, *Actual* for 
 month, January through the LE's `actual_through` and "—" after it, so a half-posted month never reads as a
 figure (`priorActual` per split line and `priorYear` on `GET /:id/preview`). It is told apart by background,
 not text colour.
+
+**Owner revision, 2026-11-04 (unreleased): a Fixed line's months can be typed as amounts.** On a Fixed line the
+month boxes default to *amounts* (an *enter as* select switches to *percent*): Jan 2,000 and Mar 3,000 save the
+Fixed amount as −5,000 (signed like the line, else its estimate) and store the amounts themselves as the
+weights, so the months publish exactly as typed. Converting them to percentages was rejected: weights carry two
+decimals, so 1,000 / 2,000 / 4,000 would have come back as 1,000.30 for January. The split already divides by
+the weights' sum, so **the server no longer requires a 100% total** (it still requires twelve months, zero or
+more, two decimals, one above zero); percent entry keeps the 100% rule in the page, and shows stored weights
+as their share of the sum. Consequences: editing the Fixed amount afterwards rescales the months in the same
+shape; the remembered policy carries them to next year as a shape, not as amounts. No migration. Walked on dev
+in both themes (`Car - Lease`, PLN: typed 2,000 / 3,000 → −2,000 / −3,000, percent view 40 / 60).
 
 **Verified on a fresh prod dump in a throwaway database (§10.6 items 1–5, 8, 9).** Three drafts, copy
 independent, delete leaves the copy with NULL parent. Publish, replace, restore: restore byte-for-byte on

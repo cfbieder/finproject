@@ -395,16 +395,22 @@ dbDescribe('budget builder — the cycle (DB)', () => {
     await expect(svc.updateLine(build.id, food.id, { splitMethod: 'custom', splitWeights: [1, 2] })).rejects.toThrow(/all twelve/);
     await expect(svc.updateLine(build.id, food.id, { splitMethod: 'custom', splitWeights: Array(12).fill(-1) })).rejects.toThrow(/zero or more/);
     await expect(svc.updateLine(build.id, food.id, { splitMethod: 'custom', splitWeights: [0.125, ...Array(11).fill('')] })).rejects.toThrow(/two decimals/);
-    await expect(svc.updateLine(build.id, food.id, { splitMethod: 'custom', splitWeights: [3, 2, ...Array(10).fill('')] }))
-      .rejects.toThrow(/total 100% — these total 5%/);
 
-    await svc.updateLine(build.id, food.id, { policy: 'fixed', fixedAmount: -500, splitMethod: 'custom', splitWeights: weights });
     const months = async (id) => {
       const p = await svc.previewPublish(id);
       const l = p.lines.find((x) => x.categoryId === ids.food);
       return p.split.find((s) => s.id === l.id).months;
     };
+    // Month amounts are stored as weights: they need not total 100, and the months come back exact.
+    await svc.updateLine(build.id, food.id, {
+      policy: 'fixed', fixedAmount: -5000, splitMethod: 'custom', splitWeights: [2000, '', 3000, ...Array(9).fill('')],
+    });
     let m = await months(build.id);
+    expect([m[0], m[2]]).toEqual([-2000, -3000]);
+    expect(m.reduce((a, b) => a + b, 0)).toBeCloseTo(-5000, 2);
+
+    await svc.updateLine(build.id, food.id, { fixedAmount: -500, splitWeights: weights });
+    m = await months(build.id);
     expect([m[2], m[7]]).toEqual([-300, -200]);
     expect(m.reduce((a, b) => a + b, 0)).toBeCloseTo(-500, 2);
 

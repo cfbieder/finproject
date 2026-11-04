@@ -257,8 +257,8 @@ function checkWeights(raw) {
   if (weights.some((w) => !Number.isFinite(w) || w < 0)) throw err(400, 'A month weight must be a number, zero or more');
   if (weights.some((w) => Math.abs(w - round2(w)) > 1e-9)) throw err(400, 'A month weight can have at most two decimals');
   if (!weights.some((w) => w > 0)) throw err(400, 'Give at least one month a weight above zero');
-  const total = round2(weights.reduce((a, b) => a + b, 0));
-  if (total !== 100) throw err(400, `Month weights must total 100% — these total ${total}%`);
+  // Weights are proportions — allocate() divides by their sum — so percentages that total 100 and
+  // typed month amounts (a Fixed line entered month by month) are stored the same way.
   return weights;
 }
 
