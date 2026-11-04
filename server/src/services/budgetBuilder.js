@@ -246,10 +246,9 @@ async function setNote(id, note) {
 }
 
 /**
- * Twelve month weights, as percentages of the annual figure: blank is 0, none negative, totalling
- * 100. Stored to two decimals, so a finer one is refused: rounding it would quietly move money
- * between months. The split still reads them as proportions, so a line saved before the 100% rule
- * keeps working.
+ * Twelve month weights (the "monthly" split), read as proportions: blank is 0, none negative —
+ * percentages totalling 100, or a Fixed line's month amounts (v3.84.0). Stored to two decimals, so a
+ * finer one is refused: rounding it would quietly move money between months.
  */
 function checkWeights(raw) {
   if (!Array.isArray(raw) || raw.length !== 12) throw err(400, 'Month weights need all twelve months');

@@ -625,6 +625,13 @@ as their share of the sum. Consequences: editing the Fixed amount afterwards res
 shape; the remembered policy carries them to next year as a shape, not as amounts. No migration. Walked on dev
 in both themes (`Car - Lease`, PLN: typed 2,000 / 3,000 → −2,000 / −3,000, percent view 40 / 60).
 
+**Owner report, 2026-11-04 (fix after v3.84.0): typed negatives never saved, and the split is renamed *monthly*.**
+The amount boxes took magnitudes only, so −6,055 in two months summed below zero, the row refused to save, and
+the page said nothing (it showed the total as +12,110). Amounts are now shown and typed signed like the Budget row:
+negatives stay negative, positives take the line's sign, and months of both signs are refused with the reason
+on the page (as is a negative percentage). *Month weights* is now *monthly* in the dropdown, since it takes
+either percentages or amounts. Walked on dev in both themes (−6,055 / −6,055 → Fixed −12,110).
+
 **Verified on a fresh prod dump in a throwaway database (§10.6 items 1–5, 8, 9).** Three drafts, copy
 independent, delete leaves the copy with NULL parent. Publish, replace, restore: restore byte-for-byte on
 amount, base amount, account and date, and **per FC line 16/16 at each of the three steps**, read through

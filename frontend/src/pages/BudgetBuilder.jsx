@@ -22,7 +22,7 @@ const POLICIES = [
   { value: "one_off", label: "One-off" },
   { value: "fixed", label: "Fixed" },
 ];
-const SPLIT_LABEL = { auto: "from actuals", even: "even", month: "one month", custom: "month weights" };
+const SPLIT_LABEL = { auto: "from actuals", even: "even", month: "one month", custom: "monthly" };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 const fmt = (v, digits = 0) =>
@@ -58,8 +58,9 @@ function RateLine({ label, rate, targetYear, digits = 2, suffix = "" }) {
  * A line's month split, typed per month. Weights are stored as proportions (the server divides by
  * their sum), so the same twelve numbers can be entered two ways:
  *  - "pct": percentages of the annual figure; nothing saves until they total 100%.
- *  - "amount" (Fixed lines only): money per month, as magnitudes; saving sets the Fixed amount to
- *    their sum, signed like the line, and stores the amounts themselves as the weights.
+ *  - "amount" (Fixed lines only): money per month, shown signed like the Budget row. Typed
+ *    negatives stay negative and positives take the line's sign; saving sets the Fixed amount to
+ *    their signed sum and stores their magnitudes as the weights. Months of both signs are refused.
  * Blank is nothing that month. Saves when focus leaves the row; the parent keys this on the saved
  * weights, so a save or refusal resets it.
  */
@@ -67,47 +68,55 @@ const round2 = (v) => Math.round(v * 100) / 100;
 function MonthWeights({ line, mode, busy, onSave }) {
   const weights = (line.splitWeights || []).map(Number);
   const wSum = weights.reduce((a, b) => a + b, 0);
-  const annual = Math.abs(Number(line.fixedAmount) || 0);
+  // The line's sign: its own Fixed amount's, else its estimate's, else income-positive.
+  const lineSign = Math.sign(Number(line.fixedAmount) || 0) || Math.sign(Number(line.leFy) || 0) || 1;
+  const annual = Number(line.fixedAmount) || 0;
   const show = (w) => (mode === "amount" ? round2((annual * w) / wSum) : round2((100 * w) / wSum));
   const saved = MONTHS.map((_, i) => (wSum && weights[i] ? String(show(weights[i])) : ""));
   const [values, setValues] = useState(saved);
-  const total = round2(values.reduce((s, v) => s + (Number(v) || 0), 0));
-  const left = round2(100 - total);
+  const nums = values.map((v) => Number(v) || 0);
+  const anyNeg = nums.some((v) => v < 0);
+  const mixed = anyNeg && nums.some((v) => v > 0);
+  const total = round2(nums.reduce((s, v) => s + Math.abs(v), 0)); // magnitude in amount mode
+  const left = round2(100 - round2(nums.reduce((s, v) => s + v, 0)));
   const dirty = values.some((v, i) => v.trim() !== saved[i]);
-  // The sign a typed month total takes: the line's own, else its estimate's, else income-positive.
-  const sign = Math.sign(Number(line.fixedAmount) || 0) || Math.sign(Number(line.leFy) || 0) || 1;
-  const ready = mode === "amount" ? total > 0 : left === 0;
+  const sign = anyNeg ? -1 : lineSign;
+  // Why the row will not save, said on the page rather than left to a silent no-op.
+  const problem = mode === "amount"
+    ? (mixed ? "months of both signs — enter them all with one sign" : total === 0 ? "enter at least one month" : null)
+    : (anyNeg ? "a percentage cannot be negative" : left !== 0 ? "not saved until the months total 100%" : null);
   return (
     <>
       <p className="bb-weights-status" role="status">
         {mode === "amount" ? (
           <>
-            <strong>{fmt(sign * total, 2)}</strong> {line.currency} total
-            {dirty && total > 0 && <span className="bb-muted"> · becomes the Fixed amount when you leave the row</span>}
+            <strong>{fmt(mixed ? null : sign * total, 2)}</strong> {line.currency} total
+            {dirty && !problem && <span className="bb-muted"> · becomes the Fixed amount when you leave the row</span>}
           </>
         ) : (
           <>
-            <strong>{fmt(total, 2)}%</strong> allocated ·{" "}
+            <strong>{fmt(100 - left, 2)}%</strong> allocated ·{" "}
             {left === 0 ? "complete" : left > 0 ? `${fmt(left, 2)}% left to allocate` : `${fmt(-left, 2)}% over`}
-            {dirty && left !== 0 && <span className="bb-muted"> · not saved until the months total 100%</span>}
+            {dirty && left !== 0 && !anyNeg && <span className="bb-muted"> · not saved until the months total 100%</span>}
           </>
         )}
+        {dirty && problem && (mode === "amount" || anyNeg) && <span className="bb-flag"> ⚠ Not saved: {problem}</span>}
       </p>
       <table className="bb-months bb-weights">
         <thead><tr><th className="bb-months__lbl" />{MONTHS.map((m) => <th key={m} className="num">{m}</th>)}</tr></thead>
         <tbody>
           <tr onBlur={(e) => {
             if (e.currentTarget.contains(e.relatedTarget)) return;
-            if (!dirty || !ready) return;
+            if (!dirty || problem) return;
             const trimmed = values.map((v) => v.trim());
             onSave(mode === "amount"
-              ? { fixedAmount: round2(sign * total), splitWeights: trimmed }
+              ? { fixedAmount: round2(sign * total), splitWeights: trimmed.map((v) => (v === "" ? "" : String(Math.abs(Number(v))))) }
               : { splitWeights: trimmed });
           }}>
             <th scope="row" className="bb-months__lbl">{mode === "amount" ? `Amount ${line.currency}` : "Weight %"}</th>
             {MONTHS.map((m, i) => (
               <td key={m} className="num">
-                <input type="number" min="0" step={mode === "amount" ? "1" : "0.01"} className="bb-num-input" placeholder="0"
+                <input type="number" min={mode === "amount" ? undefined : "0"} step={mode === "amount" ? "1" : "0.01"} className="bb-num-input" placeholder="0"
                   aria-label={`${line.category} ${mode === "amount" ? "amount" : "percent"} for ${m}`} value={values[i]} disabled={busy}
                   onChange={(e) => setValues(values.map((v, j) => (j === i ? e.target.value : v)))}
                   onKeyDown={commitOnEnter} onWheel={blurOnWheel} />
@@ -126,7 +135,7 @@ function BudgetBuilder() {
   const [view, setView] = useState(null);
   const [split, setSplit] = useState(null);       // preview data, for the month rows
   const [openLine, setOpenLine] = useState(null);
-  const [pendingCustom, setPendingCustom] = useState(null); // a line switching to month weights, not yet saved
+  const [pendingCustom, setPendingCustom] = useState(null); // a line switching to monthly, not yet saved
   const [pctEntry, setPctEntry] = useState(() => new Set()); // Fixed lines whose months are typed as % rather than amounts
   const [form, setForm] = useState({ leId: "", scenario: "", parentId: "", note: "" });
   const [dialog, setDialog] = useState(null);     // { kind: 'publish' | 'unpublish' | 'delete', preview? }
@@ -534,9 +543,9 @@ function BudgetBuilder() {
                                 <option value="auto">from actuals</option>
                                 <option value="even">even</option>
                                 <option value="month">one month</option>
-                                <option value="custom">month weights</option>
+                                <option value="custom">monthly</option>
                               </select>
-                              {l.splitMethod === "month" && (
+                              {l.splitMethod === "month" && pendingCustom !== l.id && (
                                 <select value={l.splitMonth || 1} aria-label={`${l.category} month`} disabled={busy}
                                   onChange={(e) => patchLine(l.id, { splitMethod: "month", splitMonth: Number(e.target.value) })}>
                                   {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
@@ -557,8 +566,8 @@ function BudgetBuilder() {
                                     <>
                                       <span className="bb-muted">
                                         {mode === "amount"
-                                          ? "Month amounts: what goes in each month; their total becomes the Fixed amount. Blank is nothing that month."
-                                          : "Month weights: the percentage of the annual figure in each month; blank is nothing that month."}
+                                          ? "Monthly, as amounts: what goes in each month; their total becomes the Fixed amount. Blank is nothing that month."
+                                          : "Monthly, as percentages of the annual figure; blank is nothing that month."}
                                       </span>
                                       {l.policy === "fixed" && (
                                         <label className="bb-muted bb-entry-mode">
@@ -605,7 +614,7 @@ function BudgetBuilder() {
                                 <span className="bb-muted">
                                   {s.splitApplied.startsWith("lump")
                                     ? `An annual payment, all in ${MONTHS[Number(s.splitApplied.split(":")[1]) - 1]}`
-                                    : { auto: "Spread like last year's months", even: "Spread evenly", month: "All in one month", custom: "By your month weights", stored: "As published" }[s.splitApplied] || s.splitApplied}
+                                    : { auto: "Spread like last year's months", even: "Spread evenly", month: "All in one month", custom: "By your monthly split", stored: "As published" }[s.splitApplied] || s.splitApplied}
                                   {s.splitSource !== "stored" && (
                                     <> · {s.splitApplied === "custom" ? "accounts" : "pattern"} from {s.splitSource === "actuals" ? `actuals ${split.window?.from} – ${split.window?.to}` : s.splitSource === "budget" ? `the ${shown.build.le.year} budget` : s.splitApplied === "custom" ? "nothing (no account)" : "nothing (even months)"}</>
                                   )}
