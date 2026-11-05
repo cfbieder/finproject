@@ -1,6 +1,6 @@
-# CR100 — Itemised budget lines (a line built from listed items, by month, in any currency) — PLANNED
+# CR100 — Itemised budget lines (a line built from listed items, by month, in any currency) — IN-PROGRESS
 
-**Status:** PLANNED rev 3 (2026-11-05); **P1 built 2026-11-05 (§9).** Pass 1 `cr-technical-reviewer` REVISE on rev 1, with all 18 findings
+**Status:** IN-PROGRESS — P0 live v3.84.2; **P1 live v3.85.0** (2026-11-05, migration 088, §9). Closes on the owner's trial on a *Start from* copy of 2027 V1. Pass 1 `cr-technical-reviewer` REVISE on rev 1, with all 18 findings
 addressed in rev 2. Pass 2 `cr-signoff-pm` **GO** on rev 2, on three conditions, applied in rev 3 (§7, §8). Owner
 decisions D1–D6 taken 2026-11-05 (§3). Order: P0 split fix ✅ v3.84.2, then P1 by 2026-11-20, with a hard stop on
 2026-11-26.
@@ -247,7 +247,7 @@ positives only.
 | Phase | What | Release | Target |
 |---|---|---|---|
 | **P0** | The month-first split (§4.2) for the existing *monthly* split, alone, with §5 test 2. No migration. | ✅ **v3.84.2** (2026-11-05) | done |
-| **P1** | Migration 088, §4.2–4.4, the two endpoints, the modal. Two sessions. | minor v3.85.0 | **2026-11-20** |
+| **P1** | Migration 088, §4.2–4.4, the two endpoints, the modal. | ✅ **v3.85.0** (2026-11-05) | done |
 
 - **Why P0 goes first:** the live 2027 draft has 7 Fixed lines on the monthly split (checked on prod at
   pass 2). Those lines feed the publish whether or not P1 ships. Nothing is published yet, so no stored
