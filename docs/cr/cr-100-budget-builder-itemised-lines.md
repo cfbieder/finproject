@@ -1,7 +1,9 @@
-# CR100 — Itemised budget lines (a line built from listed items, by month, in any currency) — DRAFT
+# CR100 — Itemised budget lines (a line built from listed items, by month, in any currency) — PLANNED
 
-**Status:** DRAFT rev 2 (2026-11-05). Pass 1 `cr-technical-reviewer` **REVISE** on rev 1; all 18 findings
-addressed in rev 2 (§8). Pass 2 `cr-signoff-pm` is pending. Owner decisions D1–D6 taken 2026-11-05 (§3).
+**Status:** PLANNED rev 3 (2026-11-05). Pass 1 `cr-technical-reviewer` REVISE on rev 1, with all 18 findings
+addressed in rev 2. Pass 2 `cr-signoff-pm` **GO** on rev 2, on three conditions, applied in rev 3 (§7, §8). Owner
+decisions D1–D6 taken 2026-11-05 (§3). Order: P0 split fix (patch), then P1 by 2026-11-20, with a hard stop on
+2026-11-26.
 **Depends on:** CR098 (budget builder: lines, policies, monthly split, stored rates, publish token)
 **Roadmap anchor:** [project-roadmap.md#cr100](../current/project-roadmap.md#cr100)
 **Deadline context:** the builder code freeze is **2026-12-03**, and the first 2027 publish is due **2026-12-10**
@@ -240,12 +242,32 @@ positives only.
 - Currencies beyond USD, PLN and EUR.
 - Itemising outside the builder (the official budget, the LE).
 
-## 7. Phasing and cost
+## 7. Phasing, order and cost
 
-One phase, **P1**: migration 088, §4.2–4.4 (including the month-first split), the two endpoints, the modal.
-Estimated at two sessions. **Target: on prod by 2026-11-20**, leaving two weeks before the 2026-12-03 freeze.
-If it cannot ship by the freeze, it waits until after the 2027 publish; it does not go in late. The
-month-first split fix (§4.2) could ship on its own first if P1 slips, because it corrects v3.84.0's figures.
+| Phase | What | Release | Target |
+|---|---|---|---|
+| **P0** | The month-first split (§4.2) for the existing *monthly* split, alone, with §5 test 2. No migration. | patch v3.84.x | this week |
+| **P1** | Migration 088, §4.2–4.4, the two endpoints, the modal. Two sessions. | minor v3.85.0 | **2026-11-20** |
+
+- **Why P0 goes first:** the live 2027 draft has 7 Fixed lines on the monthly split (checked on prod at
+  pass 2). Those lines feed the publish whether or not P1 ships. Nothing is published yet, so no stored
+  figure is wrong today.
+- **Hard stop: if P1 is not on prod by 2026-11-26, it waits until after the 2026-12-10 publish.** A week
+  before the freeze, so the publish is not the first use of fresh code (CR098 §10.7's reason for the freeze).
+- **If P1 runs short, cut in this order:**
+  - (a) Copying rows on the no-parent `createBuild` path. Keep the guard (a remembered `itemised` with no
+    rows → One-off plus a notice) and keep `rememberPolicies` writing `items_line_id`, so the pointer is
+    captured at the first publish. Nothing reads it before the 2028 draft.
+  - (b) Re-remembering at un-publish (a stated CR098 limitation).
+  - (c) The read-only rows view on published and superseded builds.
+- **Deploy order:** 088 goes to dev, then to prod through `Scripts/deploy-to-production.sh` (backup, then
+  migrations at Step 2b), in the same release as the code. P0 needs no migration.
+- **Owner trial:** try Itemised on a *Start from* copy of 2027 V1, not on V1 itself. Saving sets siblings to
+  One-off and clears their done mark, and leaving Itemised deletes the rows. The copy is the undo path.
+- **After the freeze:** re-run CR098 §5.3's per-forecast-line check on a fresh prod dump (CR098 §10.7),
+  now covering an Itemised line.
+- **After CR100:** CR098 P3c (the hand-edit warning) waits until after the 12-10 publish. It edits the same
+  publish and un-publish dialogs, so it lands after CR100, never at the same time.
 
 ## 8. Review log
 
@@ -275,4 +297,12 @@ findings. All 18 are addressed in rev 2:
   - #17 reference conversion: labelled, §4.5.
   - #18 the `/budget-worksheet` naming fact: verified by the author against `routes.jsx`.
 
-*(Pass 2 `cr-signoff-pm`: pending)*
+**Pass 2 — `cr-signoff-pm`, rev 2 (2026-11-05): GO, on three conditions, all applied in rev 3:**
+(1) P0, the split fix, ships first and alone; (2) the CR100 index row and the 088 claim reach `main` ahead of
+the code; (3) a hard stop on 2026-11-26 and a slip order (§7). Recommendations 4–7 (owner trial on a copy,
+deploy order, the post-freeze check, P3c after the publish) are in §7.
+
+Pass 2 note #11 asked whether the month-first split changes known limit #1 (an account against the
+category's sign sends the line to an even split). **Checked: no.** `splitLine`'s `valid()` gate chooses the
+account set before any division and is unchanged; month-first only changes the order of the two `allocate`
+steps over the same `|account totals|`.
