@@ -2,7 +2,7 @@
 
 **Status:** PLANNED rev 3 (2026-11-05). Pass 1 `cr-technical-reviewer` REVISE on rev 1, with all 18 findings
 addressed in rev 2. Pass 2 `cr-signoff-pm` **GO** on rev 2, on three conditions, applied in rev 3 (§7, §8). Owner
-decisions D1–D6 taken 2026-11-05 (§3). Order: P0 split fix (patch), then P1 by 2026-11-20, with a hard stop on
+decisions D1–D6 taken 2026-11-05 (§3). Order: P0 split fix ✅ v3.84.2, then P1 by 2026-11-20, with a hard stop on
 2026-11-26.
 **Depends on:** CR098 (budget builder: lines, policies, monthly split, stored rates, publish token)
 **Roadmap anchor:** [project-roadmap.md#cr100](../current/project-roadmap.md#cr100)
@@ -246,7 +246,7 @@ positives only.
 
 | Phase | What | Release | Target |
 |---|---|---|---|
-| **P0** | The month-first split (§4.2) for the existing *monthly* split, alone, with §5 test 2. No migration. | patch v3.84.x | this week |
+| **P0** | The month-first split (§4.2) for the existing *monthly* split, alone, with §5 test 2. No migration. | ✅ **v3.84.2** (2026-11-05) | done |
 | **P1** | Migration 088, §4.2–4.4, the two endpoints, the modal. Two sessions. | minor v3.85.0 | **2026-11-20** |
 
 - **Why P0 goes first:** the live 2027 draft has 7 Fixed lines on the monthly split (checked on prod at

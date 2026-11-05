@@ -23,7 +23,7 @@ although that CR's row reads DRAFT.*
 | COMPLETED | 88 | CR001–CR013, CR016, CR017, CR018, CR019, CR021, CR022, CR023, CR024, CR025, CR026, CR028, CR030, CR031, CR032, CR033, CR034, CR035, CR036, CR037, CR038, CR039, CR040, CR041, CR042, CR043, CR044 *(decision record)*, CR045, CR046, CR047, CR048, CR049, CR050, CR051, CR053, CR054, CR055, CR056, CR057, CR058, CR059, CR060, CR061, CR062, CR063, CR065, CR066, CR067, CR068, CR069, CR070, CR071, CR072, CR073, CR074, CR075, CR076, CR077, CR078, CR079, CR080, CR082, CR083, CR084, CR085, CR086, CR087, CR088, CR089, CR090, CR091, CR092, CR093 *(the Portfolio X-ray: exposure, fixed income, the security chart, income and risk)*, CR096, CR098 *(budget builder)*, CR099 *(forecast return path)* |
 | IN-PROGRESS | 2 | CR064 *(P2, the annual close — live v3.76.0; closes after the January 2027 run)*, CR097 *(P1a shipped v3.75.0)* |
 | OPEN | 0 | — |
-| PLANNED | 1 | CR100 *(P0 split fix, then P1 by 2026-11-20; hard stop 2026-11-26)* |
+| PLANNED | 1 | CR100 *(P0 split fix ✅ v3.84.2; P1 by 2026-11-20, hard stop 2026-11-26)* |
 | DRAFT | 1 | CR095 *(not yet reviewed)* |
 | DEFERRED | 0 | — |
 | SUPERSEDED | 3 | CR014, CR052 *(→ CR095)*, CR081 *(→ CR084)* |
