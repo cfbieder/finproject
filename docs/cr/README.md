@@ -24,11 +24,11 @@ although that CR's row reads DRAFT.*
 | IN-PROGRESS | 2 | CR064 *(P2, the annual close — live v3.76.0; closes after the January 2027 run)*, CR097 *(P1a shipped v3.75.0)* |
 | OPEN | 0 | — |
 | PLANNED | 0 | — |
-| DRAFT | 1 | CR095 *(not yet reviewed)* |
+| DRAFT | 2 | CR095 *(not yet reviewed)*, CR100 *(not yet reviewed)* |
 | DEFERRED | 0 | — |
 | SUPERSEDED | 3 | CR014, CR052 *(→ CR095)*, CR081 *(→ CR084)* |
 | OBSOLETE | 5 | CR015, CR020, CR027 *(v4)*, CR029, CR094 |
-| **Total** | **99** | |
+| **Total** | **100** | |
 
 ## All CRs
 
@@ -133,3 +133,4 @@ although that CR's row reads DRAFT.*
 | [CR097](cr-097-manual-holdings-register.md) | **IN-PROGRESS** — P1a shipped v3.75.0 (2026-10-14; menu v3.75.1, buy from cash v3.75.2); P1b, P2 open | v3 | A holdings register for manually valued accounts | A non-fed account (specimen: Misc Investments, $4,875 of crowdfunded private holdings, mostly GBP) can carry a list of holdings with typed valuations; each valuation sets the manual balance and the existing CR033 MTM books Unrealized G/L, shown split into price vs FX effect. |
 | [CR098](cr-098-budget-builder.md) | **COMPLETED** 2026-11-03 (owner close) — P0–P2 v3.77.0 (migration 084); rev 3 P3a v3.78.0 (migration 085), P3b comparison v3.79.0. The first 2027 publish (by 2026-12-10) and P3c, the hand-edit warning, moved to the roadmap backlog | v3 | Budget builder | Next year's budget from this year's latest finalised LE: per-category Recurring / One-off / Fixed policy (remembered), the forecast's inflation and FX, accounts and months split from the last 12 actual months, then a previewed Publish that replaces the year and can be undone. Specifies CR083 P2. Needed by mid-December 2026 — the 2027 budget is `2027 Base`'s base year at the January close; fallback 2026-12-10. Not to be built alongside CR095 (same FX area). |
 | [CR099](cr-099-forecast-module-return-path.md) | **COMPLETED** — live v3.80.0 (2026-11-03, migration 086); prod-copy check byte-identical with no rows | v3 | A per-year return path on a forecast module | A valuation module can carry `(year, return %)` rows that replace `growth_rate × inflation` for those years, so a −50% crash and a slower recovery can be modelled as an unrealized move, with no tax or cash; variants override the path wholesale. |
+| [CR100](cr-100-budget-builder-itemised-lines.md) | **DRAFT (2026-11-05) — not yet reviewed** | v3 | Itemised budget lines | A fourth builder policy: a line built from described rows by month, each in its own currency, converted at the build's rates into the line's total; the category's other currency lines go One-off. Owner decisions taken 2026-11-05; target prod by 2026-11-20, ahead of the 2026-12-03 builder freeze. |

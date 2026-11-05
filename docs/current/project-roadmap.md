@@ -79,6 +79,9 @@ Only what is still open. Closed CRs and resolved investigations are kept as reco
 Each entry carries its own closing status; the [CR index](../cr/README.md) is canonical. Moved out of §1.1 on
 2026-11-03 so the open list reads as open.
 
+<a id="cr100"></a>
+- **CR100** — 📝 **DRAFT 2026-11-05, not yet reviewed.** [Itemised budget lines](../cr/cr-100-budget-builder-itemised-lines.md): a builder line built from described rows (e.g. one per trip) by month, each in its own currency, totalled into the line at the build's rates. Owner decisions D1–D5 taken; migration 088 planned. Target prod by 2026-11-20, before the 2026-12-03 builder freeze; otherwise after the 2027 publish.
+
 <a id="cr098"></a>
 - **CR098** — ✅ **COMPLETED 2026-11-03** (owner close after the comparison was checked on prod). Next year's budget from this year's finalised LE: draft, split, publish / un-publish / restore (v3.77.0, migration 084); rev 3 budget variants — several named drafts, stored rates, month weights (v3.78.0, migration 085) and the side-by-side comparison (v3.79.0); month weights as percentages and a per-line done mark (v3.82.0, migration 087); the month split opening with its line, with the prior year's actuals (v3.83.0). Closed before its recorded condition (V1–V5 shipped **and** the first real 2027 publish): V1–V5 are live; **the publish and P3c moved to §2** so closing did not drop them. Known limits: §3. Record: [cr-098-budget-builder.md](../cr/cr-098-budget-builder.md).
 
