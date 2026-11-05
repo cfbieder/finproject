@@ -1,6 +1,6 @@
 # CR100 — Itemised budget lines (a line built from listed items, by month, in any currency) — PLANNED
 
-**Status:** PLANNED rev 3 (2026-11-05). Pass 1 `cr-technical-reviewer` REVISE on rev 1, with all 18 findings
+**Status:** PLANNED rev 3 (2026-11-05); **P1 built 2026-11-05 (§9).** Pass 1 `cr-technical-reviewer` REVISE on rev 1, with all 18 findings
 addressed in rev 2. Pass 2 `cr-signoff-pm` **GO** on rev 2, on three conditions, applied in rev 3 (§7, §8). Owner
 decisions D1–D6 taken 2026-11-05 (§3). Order: P0 split fix ✅ v3.84.2, then P1 by 2026-11-20, with a hard stop on
 2026-11-26.
@@ -268,6 +268,47 @@ positives only.
   now covering an Itemised line.
 - **After CR100:** CR098 P3c (the hand-edit warning) waits until after the 12-10 publish. It edits the same
   publish and un-publish dialogs, so it lands after CR100, never at the same time.
+
+## 9. As built — P1 (2026-11-05)
+
+Built to §4 with no change in design. Files: migration `088_budget_build_line_items.sql`;
+`services/budgetBuilder.js` (`itemMonths`, `unconvertible`, `setLineItems`, plus the changes in §4.2–4.4);
+`PUT /:id/lines/:lineId/items`; `features/Budgets/itemsMath.js` (the modal's arithmetic, mirroring the
+server) and `ItemsModal.jsx`; the builder page's policy, Fixed and Months cells and the sibling notes.
+
+- **Leaving Itemised** goes through a `ConfirmModal` (*Delete the items*), not a native confirm.
+- **The month boxes are text fields** (`inputMode="decimal"`). Number inputs' spinners left room for three
+  digits, so 2,000 read as 200. Found on the first walk.
+- **Code review before release (`code-quality-reviewer`):** no change to any build without itemised lines,
+  and server and page arithmetic match to the cent. Fixed before release:
+  1. **The sign rule checked typed signs, not the result.** A re-opened expense line shows its rows negative,
+     so a new positive row was refused as *both signs*. Each amount is now signed with the line's sign
+     first, and only the result must agree, as §4.2 says. A mixed sign is still refused on an income line.
+  2. **Start from ignored memory.** Memory is now loaded on both paths. With a parent, a new currency line of
+     a category the parent itemises is a One-off sibling, with no false *rows not found* notice. A category the
+     parent has no line for is still reached from memory.
+  3. **Memory was replayed onto a category the LE excludes, or that is now a parent.** Such a category is not
+     carried, and a notice names it.
+  4. **An amount of 10¹³ or more** reached the database. It is now a 400.
+  5. **The notice was missing when an itemised parent line arrives without rows.**
+  - Nits fixed: the D6 option is hidden on a second line of the category; the read-only rows show cents;
+    `MAX_ITEMS` is shared.
+- **Verification:**
+  - Server: `budgetBuilderItemised.test.js`, 19 tests (§5 items 1–11, plus a re-opened line taking a
+    positive row, Start from with a newer estimate, a remembered currency the estimate lacks, an
+    excluded category, and leaving to One-off). The existing `budgetBuilder.test.js`, 34 tests, passes
+    unchanged. The full server suite passes: 129 suites, 1,606 tests.
+  - Frontend: `itemsMath.test.js`, 9 tests, including negative and positive input. Vitest passes; the
+    modal, hex, token, button and lint-debt ratchets are at baseline.
+  - Dev walk in both themes on a throwaway draft (Anna – Exp, PLN with a USD row):
+    - positives saved as −2,000 / −1,950 (500 USD at 3.9), annual −3,950;
+    - EUR and USD siblings set to One-off with the note;
+    - mixed signs refused on the page;
+    - negatives (−12,345.67) shown signed;
+    - the leave confirm;
+    - no page errors.
+  - A second walk after the review fixes: a saved line was re-opened and given an 800 EUR row typed
+    positive, and the line came to −5,627.91; the USD line no longer offers Itemised.
 
 ## 8. Review log
 

@@ -2,6 +2,8 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Rest from "../js/rest.js";
 import Modal from "../components/Modal/Modal.jsx";
 import BuildCompare from "../features/Budgets/BuildCompare.jsx";
+import ItemsModal from "../features/Budgets/ItemsModal.jsx";
+import ConfirmModal from "../components/ConfirmModal/ConfirmModal.jsx";
 import "./PageLayout.css";
 import "./BudgetBuilder.css";
 
@@ -21,6 +23,7 @@ const POLICIES = [
   { value: "recurring", label: "Recurring" },
   { value: "one_off", label: "One-off" },
   { value: "fixed", label: "Fixed" },
+  { value: "itemised", label: "Itemised" }, // CR100 — set by saving items, never by a bare PATCH
 ];
 const SPLIT_LABEL = { auto: "from actuals", even: "even", month: "one month", custom: "monthly" };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -144,6 +147,9 @@ function BudgetBuilder() {
   const [notice, setNotice] = useState("");
   const [rev, setRev] = useState(0);              // remounts the number inputs after every save, kept or refused
   const [comparing, setComparing] = useState(false);
+  const [itemsFor, setItemsFor] = useState(null);        // CR100: the line whose items modal is open
+  const [itemsError, setItemsError] = useState("");
+  const [confirmLeave, setConfirmLeave] = useState(null); // { line, policy } — leaving Itemised deletes the rows
 
   const loadSources = useCallback(async () => {
     const data = Rest.unwrap(await Rest.get("/budget-builder"));
@@ -205,9 +211,12 @@ function BudgetBuilder() {
     await loadSources();
     setSelectedId(res.build.id);
     setForm((f) => ({ ...f, note: "", parentId: "" }));
+    const notes = [];
     if (res.dropped?.length) {
-      setNotice(`${res.dropped.length} line(s) of the build you started from are not in this LE and were not carried (they were not Fixed).`);
+      notes.push(`${res.dropped.length} line(s) of the build you started from are not in this LE and were not carried (they were not Fixed or Itemised).`);
     }
+    if (res.notices?.length) notes.push(...res.notices);
+    if (notes.length) setNotice(notes.join(" "));
   });
 
   // A copy of a build of the same year is a copy: it takes that build's estimate and scenario, so a
@@ -239,6 +248,33 @@ function BudgetBuilder() {
   const toggleDone = (line) => run(async () => {
     setView(Rest.unwrap(await Rest.patch(`/budget-builder/${selectedId}/lines/${line.id}/done`, { done: !line.done })));
   });
+
+  const openItems = (lineId) => {
+    setItemsError("");
+    setItemsFor(lineId);
+    setOpenLine(lineId); // loads the preview, which carries the reference rows
+  };
+  // Errors stay in the modal, with the rows the owner typed (CR100 §4.5).
+  const saveItems = async (lineId, items) => {
+    setBusy(true);
+    setItemsError("");
+    setNotice("");
+    try {
+      const data = Rest.unwrap(await Rest.put(`/budget-builder/${selectedId}/lines/${lineId}/items`, { items }));
+      const { setOneOff, ...next } = data;
+      setView(next);
+      setSplit(null);
+      setItemsFor(null);
+      setRev((r) => r + 1);
+      if (setOneOff?.length) {
+        setNotice(`Items saved. Set to One-off so the items are not counted twice: the ${setOneOff.map((x) => x.currency).join(", ")} line(s) of this category.`);
+      }
+    } catch (e) {
+      setItemsError(e?.message || "The items were not saved");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const patchLine = (lineId, patch) => run(async () => {
     try {
@@ -289,6 +325,9 @@ function BudgetBuilder() {
 
   const splitById = useMemo(() => new Map((split?.split || []).map((s) => [s.id, s])), [split]);
   const linesById = useMemo(() => new Map((view?.lines || []).map((l) => [l.id, l])), [view]);
+  // CR100: which currency line of each category is itemised, for the notes on its siblings.
+  const itemisedOn = useMemo(() => new Map((view?.lines || [])
+    .filter((l) => l.policy === "itemised").map((l) => [l.categoryId, l.currency])), [view]);
   const hasPublished = (b) => b.status === "superseded" || b.status === "unpublished";
   const canPublish = shown && (isDraft || hasPublished(shown.build));
   const readersNote = (readers) =>
@@ -484,14 +523,26 @@ function BudgetBuilder() {
                           </span>
                           {l.isParent && <span className="bb-flag"> ⚠ parent — not in the forecast&apos;s base year</span>}
                           {!l.isParent && !l.onForecastLine && <span className="bb-muted"> · on no forecast line</span>}
+                          {l.policy !== "itemised" && itemisedOn.has(l.categoryId) && (l.policy === "one_off"
+                            ? <span className="bb-muted"> · itemised on the {itemisedOn.get(l.categoryId)} line</span>
+                            : <span className="bb-flag"> ⚠ also itemised on the {itemisedOn.get(l.categoryId)} line — counted twice</span>)}
                         </td>
                         <td>{l.currency}</td>
                         <td className={`num ${neg(l.leFy) || ""}`}>{fmt(l.leFy)}</td>
                         <td>
                           {isDraft ? (
                             <select value={l.policy} aria-label={`${l.category} policy`} disabled={busy}
-                              onChange={(e) => patchLine(l.id, { policy: e.target.value })}>
-                              {POLICIES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                              onChange={(e) => {
+                                const policy = e.target.value;
+                                // Itemised arrives by saving items; nothing changes until Save.
+                                if (policy === "itemised") return openItems(l.id);
+                                if (l.policy === "itemised") return setConfirmLeave({ line: l, policy });
+                                patchLine(l.id, { policy });
+                              }}>
+                              {/* Itemised: not on a parent, nor on a second line of an itemised category (D6). */}
+                              {POLICIES.filter((p) => p.value !== "itemised" || l.policy === "itemised"
+                                || (!l.isParent && !itemisedOn.has(l.categoryId)))
+                                .map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
                             </select>
                           ) : POLICIES.find((p) => p.value === l.policy)?.label}
                         </td>
@@ -516,7 +567,9 @@ function BudgetBuilder() {
                                 const v = e.target.value === "" ? null : Number(e.target.value);
                                 if (v !== l.fixedAmount) patchLine(l.id, { fixedAmount: v });
                               }} />
-                          ) : l.policy === "fixed" ? fmt(l.fixedAmount) : ""}
+                          ) : l.policy === "fixed" ? fmt(l.fixedAmount) : l.policy === "itemised" ? (
+                            <span className="bb-muted">{fmt(l.annual)}</span>
+                          ) : ""}
                           {signFlipped && <div className="bb-flag">⚠ opposite sign to the estimate</div>}
                         </td>
                         <td className={`num bb-strong ${neg(l.annual) || ""}`}>{fmt(l.annual)}</td>
@@ -524,7 +577,12 @@ function BudgetBuilder() {
                         <td className={`num ${neg(l.vsLe) || ""}`}>{fmt(l.vsLe)}</td>
                         <td className={`num ${neg(l.thisYearBudget) || ""}`}>{fmt(l.thisYearBudget)}</td>
                         <td>
-                          {isDraft ? (
+                          {l.policy === "itemised" ? (
+                            <button type="button" className="btn btn--secondary btn--sm" disabled={busy}
+                              aria-label={`${l.category} (${l.currency}) items`} onClick={() => openItems(l.id)}>
+                              Items ({l.items?.length ?? 0})
+                            </button>
+                          ) : isDraft ? (
                             <span className="bb-split">
                               <select value={pendingCustom === l.id ? "custom" : l.splitMethod}
                                 aria-label={`${l.category} month split`} disabled={busy}
@@ -612,7 +670,8 @@ function BudgetBuilder() {
                                   </tbody>
                                 </table>
                                 <span className="bb-muted">
-                                  {s.splitApplied.startsWith("lump")
+                                  {l.policy === "itemised" ? "By its items"
+                                    : s.splitApplied.startsWith("lump")
                                     ? `An annual payment, all in ${MONTHS[Number(s.splitApplied.split(":")[1]) - 1]}`
                                     : { auto: "Spread like last year's months", even: "Spread evenly", month: "All in one month", custom: "By your monthly split", stored: "As published" }[s.splitApplied] || s.splitApplied}
                                   {s.splitSource !== "stored" && (
@@ -724,6 +783,23 @@ function BudgetBuilder() {
           </p>
         )}
       </Modal>
+      {itemsFor != null && shown && linesById.get(itemsFor) && (
+        <ItemsModal key={`${itemsFor}-${rev}`} line={linesById.get(itemsFor)}
+          categoryLines={shown.lines.filter((x) => x.categoryId === linesById.get(itemsFor).categoryId)}
+          rates={shown.rates} reference={split?.reference} leYear={shown.build.le.year} targetYear={targetYear}
+          readOnly={!isDraft} busy={busy} error={itemsError}
+          onSave={(items) => saveItems(itemsFor, items)} onClose={() => setItemsFor(null)} />
+      )}
+      <ConfirmModal
+        state={confirmLeave && {
+          title: `Stop itemising ${confirmLeave.line.category} (${confirmLeave.line.currency})?`,
+          message: `Its ${confirmLeave.line.items?.length ?? 0} item(s) are deleted.` +
+            (confirmLeave.policy === "fixed" ? " The Fixed amount starts at the itemised total." : ""),
+          confirmLabel: "Delete the items", danger: true,
+        }}
+        busy={busy}
+        onCancel={() => setConfirmLeave(null)}
+        onConfirm={() => { const { line, policy } = confirmLeave; setConfirmLeave(null); patchLine(line.id, { policy }); }} />
     </main>
   );
 }

@@ -58,6 +58,13 @@ router.patch('/:id/lines/:lineId', handle(async (req, res) => {
   res.json({ data: await svc.getBuild(id(req)) });
 }));
 
+// PUT /:id/lines/:lineId/items — { items: [{ description, currency, months[12] }] } (CR100): replaces the
+// rows, makes the line Itemised, and sets the category's other currency lines to One-off
+router.put('/:id/lines/:lineId/items', handle(async (req, res) => {
+  const { setOneOff } = await svc.setLineItems(id(req), positiveInt(req.params.lineId, 'line'), req.body || {});
+  res.json({ data: { ...(await svc.getBuild(id(req))), setOneOff } });
+}));
+
 // PATCH /:id/lines/:lineId/done — { done } the owner's own mark; any build, changes no figure
 router.patch('/:id/lines/:lineId/done', handle(async (req, res) => {
   await svc.setLineDone(id(req), positiveInt(req.params.lineId, 'line'), req.body?.done);

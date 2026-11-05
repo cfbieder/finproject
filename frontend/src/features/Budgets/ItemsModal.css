@@ -1,0 +1,20 @@
+/* CR100 — the itemised-line modal. Reuses the builder's month-table classes (BudgetBuilder.css);
+   only the grid's own columns and the reference rows' background are set here. Tokens only. */
+.bb-items { display: grid; gap: 0.5rem; }
+.bb-items__note { margin: 0; }
+.bb-items__ref tbody td,
+.bb-items__ref tbody th { background: var(--surface-muted); }
+.bb-items__scroll { overflow-x: auto; }
+.bb-items__grid { min-width: 1100px; }
+.bb-items__grid td { padding-inline: 0.15rem; }
+.bb-items__grid .bb-num-input { width: 100%; box-sizing: border-box; padding-inline: 0.25rem; }
+.bb-items__grid th.bb-items__desc,
+.bb-items__grid td.bb-items__desc { width: 9.5rem; text-align: left; }
+.bb-items__grid td.bb-items__desc input { width: 100%; box-sizing: border-box; }
+.bb-items__grid th.bb-items__cur,
+.bb-items__grid td.bb-items__cur { width: 4.5rem; text-align: left; }
+.bb-items__grid th.bb-items__del,
+.bb-items__grid td.bb-items__del { width: 2rem; }
+.bb-items__grid tfoot td,
+.bb-items__grid tfoot th { border-top: 1px solid var(--border); }
+.bb-items__actions { margin: 0; display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; }

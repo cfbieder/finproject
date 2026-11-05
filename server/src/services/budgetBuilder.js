@@ -26,7 +26,8 @@ const { SCOPE_SQL } = require('../v2/repositories/budgetLe');
 const { rateAtYear } = require('./forecast/fcbuilder-setup');
 
 const CURRENCIES = new Set(['USD', 'PLN', 'EUR']); // the engine's FX knows PLN and EUR only
-const POLICIES = new Set(['recurring', 'one_off', 'fixed']);
+const POLICIES = new Set(['recurring', 'one_off', 'fixed']); // 'itemised' arrives only through setLineItems
+const ITEM_MAX = 100;                // rows on one itemised line (CR100)
 const SPLITS = new Set(['auto', 'even', 'month', 'custom']);
 const LUMP_SHARE = 0.8;              // one month holding ≥ 80% of |spend| is an annual payment
 const LOCK_NS = 1178489698;          // advisory-lock namespace for publish / un-publish
@@ -85,9 +86,42 @@ async function scenarioRates(scenarioName, targetYear) {
   return out;
 }
 
-/** Null for a Recurring line with no override and no inflation rate — unknown, never 0. */
-function annualFor(line, rates) {
+/**
+ * An itemised line's twelve months in its own currency: every item converted at the build's rates
+ * (local per USD), summed per month, rounded per month. A same-currency item needs no rate. Null when
+ * an item's currency has no rate — unknown, never 0. Derived on every read, never stored (CR100 §4.2).
+ */
+function itemMonths(items, currency, fx) {
+  const cur = String(currency).trim();
+  const months = Array(12).fill(0);
+  for (const it of items) {
+    const from = String(it.currency).trim();
+    let factor = 1;
+    if (from !== cur) {
+      const to = fx?.[cur]?.rate;
+      const fr = fx?.[from]?.rate;
+      if (!to || !fr) return null;
+      factor = to / fr;
+    }
+    it.months.forEach((v, m) => { months[m] += Number(v) * factor; });
+  }
+  return months.map(round2);
+}
+
+/** The item currencies a line's rates cannot convert — what the missing-rate message names. */
+function unconvertible(items, currency, fx) {
+  const cur = String(currency).trim();
+  return [...new Set(items.map((it) => String(it.currency).trim()))]
+    .filter((c) => c !== cur && !(fx?.[c]?.rate && fx?.[cur]?.rate));
+}
+
+/**
+ * Null for a Recurring line with no override and no inflation rate — unknown, never 0. An Itemised
+ * line's figure is the sum of its converted months (`months`, from `itemMonths`); null if unconvertible.
+ */
+function annualFor(line, rates, months = null) {
   if (line.policy === 'one_off') return 0;
+  if (line.policy === 'itemised') return months == null ? null : round2(months.reduce((a, b) => a + b, 0));
   if (line.policy === 'fixed') return round2(line.fixed_amount ?? 0);
   const pct = line.inflation_pct != null ? Number(line.inflation_pct) : rates.inflation?.rate;
   if (pct == null) return null;
@@ -167,11 +201,19 @@ async function createBuild({ targetYear, sourceLeId, scenarioName, parentBuildId
     if (!scen) throw err(400, `Base scenario '${scenarioName}' not found`);
 
     let parentLines = new Map();
+    const parentItems = new Map(); // parent line id → its items
     if (parentBuildId) {
       const parent = (await client.query('SELECT target_year FROM budget_builds WHERE id = $1', [parentBuildId])).rows[0];
       if (!parent) throw err(404, 'Build to start from not found');
       for (const r of (await client.query('SELECT * FROM budget_build_lines WHERE build_id = $1', [parentBuildId])).rows) {
         parentLines.set(`${r.category_id}|${r.currency}`, r);
+      }
+      for (const it of (await client.query(
+        `SELECT i.* FROM budget_build_line_items i JOIN budget_build_lines l ON l.id = i.line_id
+          WHERE l.build_id = $1 ORDER BY i.line_id, i.position`, [parentBuildId]
+      )).rows) {
+        if (!parentItems.has(it.line_id)) parentItems.set(it.line_id, []);
+        parentItems.get(it.line_id).push(it);
       }
     }
 
@@ -197,12 +239,58 @@ async function createBuild({ targetYear, sourceLeId, scenarioName, parentBuildId
 
     const policies = new Map((await client.query('SELECT * FROM budget_category_policy')).rows
       .map((p) => [p.category_id, p]));
-    const insertLine = (l) => client.query(
+    // A category remembered as Itemised: its rows, and the currency line they belong to (CR100 §4.4).
+    // Used for a category the parent build (if any) has no line for — with a parent, the parent decides.
+    const remembered = new Map(); // category_id → { currency, items }
+    for (const p of policies.values()) {
+      if (p.policy !== 'itemised' || p.items_line_id == null) continue;
+      const src = (await client.query('SELECT currency FROM budget_build_lines WHERE id = $1', [p.items_line_id])).rows[0];
+      const items = (await client.query(
+        'SELECT * FROM budget_build_line_items WHERE line_id = $1 ORDER BY position', [p.items_line_id]
+      )).rows;
+      if (src && items.length) remembered.set(p.category_id, { currency: src.currency.trim(), items });
+    }
+    const parentCats = new Set([...parentLines.values()].map((l) => l.category_id));
+    const parentItemisedCats = new Set([...parentLines.values()].filter((l) => l.policy === 'itemised').map((l) => l.category_id));
+    // Memory carries amounts now, so it is not replayed onto a category this LE excludes or that has
+    // become a parent since (a parent cannot publish) — those are named, not silently re-created.
+    const excluded = new Set((le.excluded_category_ids || []).map(Number));
+    const nowParent = new Set((await client.query(
+      'SELECT DISTINCT parent_id FROM accounts WHERE parent_id = ANY($1::int[])', [[...remembered.keys()]]
+    )).rows.map((r) => r.parent_id));
+    const notices = [];
+    for (const cat of [...remembered.keys()]) {
+      if (parentCats.has(cat) || !(excluded.has(cat) || nowParent.has(cat))) continue;
+      remembered.delete(cat);
+      const name = (await client.query('SELECT name FROM accounts WHERE id = $1', [cat])).rows[0]?.name;
+      notices.push(`${name} was itemised, but ${excluded.has(cat) ? 'this estimate excludes it' : 'it is now a parent category'} — its items were not carried`);
+    }
+    const useMemory = (cat) => remembered.has(cat) && !parentCats.has(cat);
+    const insertLine = async (l) => (await client.query(
       `INSERT INTO budget_build_lines
          (build_id, category_id, currency, le_fy, policy, fixed_amount, inflation_pct, split_method, split_month, split_weights, done)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::numeric[], $11)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::numeric[], $11) RETURNING id`,
       [build.id, l.category_id, l.currency, l.le_fy, l.policy, l.fixed_amount, l.inflation_pct, l.split_method, l.split_month, l.split_weights, l.done ?? false]
-    );
+    )).rows[0].id;
+    const copyItems = async (lineId, items) => {
+      for (const [i, it] of items.entries()) {
+        await client.query(
+          `INSERT INTO budget_build_line_items (line_id, position, description, currency, months)
+           VALUES ($1, $2, $3, $4, $5::numeric[])`, [lineId, i, it.description, it.currency, it.months]
+        );
+      }
+    };
+    // No line is ever Itemised without rows (CR100 §4.4). A category meant to be itemised (by its
+    // parent line or by memory) that ends with no itemised line is named once in `notices`.
+    const meant = new Set();
+    const itemisedCats = new Set();
+    const oneOff = { policy: 'one_off', fixed_amount: null, inflation_pct: null, split_method: 'auto', split_month: null, split_weights: null };
+    const itemisedLine = async (l, items) => {
+      const lineId = await insertLine({ ...l, policy: 'itemised', fixed_amount: null, inflation_pct: null,
+        split_method: 'auto', split_month: null, split_weights: null });
+      await copyItems(lineId, items);
+      itemisedCats.add(l.category_id);
+    };
 
     const dropped = [];
     const seen = new Set();
@@ -211,9 +299,34 @@ async function createBuild({ targetYear, sourceLeId, scenarioName, parentBuildId
       seen.add(key);
       const from = parentLines.get(key);
       const pol = policies.get(l.category_id);
+      const base = { category_id: l.category_id, currency: l.currency, le_fy: round2(l.le_fy), done: from?.done ?? false };
+      if (from?.policy === 'itemised') {
+        meant.add(l.category_id);
+        if (parentItems.get(from.id)?.length) await itemisedLine(base, parentItems.get(from.id));
+        else await insertLine({ ...base, ...oneOff });
+        continue;
+      }
+      if (!from && parentItemisedCats.has(l.category_id)) {
+        // A new currency line of a category the parent itemises: a sibling, so One-off (D2).
+        await insertLine({ ...base, ...oneOff });
+        continue;
+      }
+      if (!from && pol?.policy === 'itemised' && !parentCats.has(l.category_id)) {
+        meant.add(l.category_id);
+        const mem = useMemory(l.category_id) ? remembered.get(l.category_id) : null;
+        if (mem && mem.currency === l.currency.trim()) {
+          await itemisedLine(base, mem.items);
+          mem.used = true;
+        } else {
+          await insertLine({ ...base, ...oneOff });
+        }
+        continue;
+      }
+      // A remembered 'itemised' on a category the parent decided otherwise is not applied: Recurring.
+      const polPolicy = pol?.policy === 'itemised' ? 'recurring' : pol?.policy;
       await insertLine({
         category_id: l.category_id, currency: l.currency, le_fy: round2(l.le_fy),
-        policy: from?.policy ?? pol?.policy ?? 'recurring',
+        policy: from?.policy ?? polPolicy ?? 'recurring',
         // A Fixed line with nothing typed yet starts at its LE figure, so a flip to Fixed is an edit,
         // not a zero that silently drops the line.
         fixed_amount: from ? from.fixed_amount : (pol?.policy === 'fixed' ? round2(l.le_fy) : null),
@@ -228,11 +341,27 @@ async function createBuild({ targetYear, sourceLeId, scenarioName, parentBuildId
       if (seen.has(key)) continue;
       if (from.policy === 'fixed') {
         await insertLine({ ...from, le_fy: 0 });
+      } else if (from.policy === 'itemised' && parentItems.get(from.id)?.length) {
+        // Kept like a Fixed line: its siblings are One-off, so dropping it would zero the category.
+        meant.add(from.category_id);
+        await itemisedLine({ category_id: from.category_id, currency: from.currency, le_fy: 0, done: from.done }, parentItems.get(from.id));
       } else {
+        if (from.policy === 'itemised') meant.add(from.category_id);
         dropped.push({ category_id: from.category_id, currency: from.currency, policy: from.policy });
       }
     }
-    return { build, dropped };
+    // A remembered itemised currency the new LE lacks is still created, at le_fy 0 (§4.4).
+    for (const [categoryId, mem] of remembered) {
+      if (mem.used || !useMemory(categoryId) || seen.has(`${categoryId}|${mem.currency}`)) continue;
+      meant.add(categoryId);
+      await itemisedLine({ category_id: categoryId, currency: mem.currency, le_fy: 0, done: false }, mem.items);
+    }
+    const lost = [...meant].filter((c) => !itemisedCats.has(c));
+    if (lost.length) {
+      const names = (await client.query('SELECT name FROM accounts WHERE id = ANY($1::int[]) ORDER BY name', [lost])).rows;
+      for (const n of names) notices.push(`${n.name} was itemised but its rows were not found — it starts as One-off`);
+    }
+    return { build, dropped, notices };
   });
 }
 
@@ -287,9 +416,31 @@ async function updateLine(buildId, lineId, patch) {
     if (!line) throw err(404, 'Line not found');
 
     const next = { ...line };
+    if (patch.policy === 'itemised') throw err(400, 'A line becomes Itemised by saving its items');
+    if (line.policy === 'itemised') {
+      const touches = ['fixedAmount', 'inflationPct', 'splitMethod', 'splitMonth', 'splitWeights']
+        .some((k) => patch[k] !== undefined);
+      if (patch.policy === undefined) {
+        if (touches) throw err(400, "An itemised line's figure and months come from its items — edit the items");
+      } else if (touches && patch.policy !== 'fixed') {
+        throw err(400, 'Change the policy on its own first');
+      }
+    }
     if (patch.policy !== undefined) {
       if (!POLICIES.has(patch.policy)) throw err(400, `Unknown policy '${patch.policy}'`);
       next.policy = patch.policy;
+      if (line.policy === 'itemised') {
+        // Leaving Itemised deletes the rows (no inert state kept); to Fixed starts at the itemised
+        // annual, so the figure does not jump. Unconvertible → the estimate, as any new Fixed line.
+        const items = (await client.query(
+          'SELECT * FROM budget_build_line_items WHERE line_id = $1 ORDER BY position', [lineId]
+        )).rows;
+        if (patch.policy === 'fixed' && patch.fixedAmount === undefined) {
+          const months = itemMonths(items, line.currency, (await ratesFor(client, build)).fx);
+          next.fixed_amount = months ? annualFor({ policy: 'itemised' }, null, months) : null;
+        }
+        await client.query('DELETE FROM budget_build_line_items WHERE line_id = $1', [lineId]);
+      }
       if (patch.policy === 'fixed' && next.fixed_amount == null) next.fixed_amount = line.le_fy;
     }
     if (patch.fixedAmount !== undefined) {
@@ -323,6 +474,95 @@ async function updateLine(buildId, lineId, patch) {
       [lineId, next.policy, next.fixed_amount, next.inflation_pct, next.split_method, next.split_month, next.split_weights]
     );
     await client.query('UPDATE budget_builds SET updated_at = NOW() WHERE id = $1', [buildId]);
+  });
+}
+
+/** Parse one month amount: blank is 0; a number or a plain numeric string, at most two decimals. */
+function itemAmount(v) {
+  if (v === null || v === undefined || v === '') return 0;
+  if (typeof v === 'string' && !/^\s*-?\d+(\.\d+)?\s*$/.test(v)) throw err(400, `'${v}' is not an amount`);
+  if (typeof v !== 'string' && typeof v !== 'number') throw err(400, 'An item amount must be a number');
+  const n = Number(v);
+  if (!Number.isFinite(n)) throw err(400, 'An item amount must be a number');
+  if (Math.abs(n - round2(n)) > 1e-9) throw err(400, 'An item amount can have at most two decimals');
+  if (Math.abs(n) >= 1e13) throw err(400, 'An item amount is too large');
+  return n;
+}
+
+/**
+ * Save an Itemised line's rows (CR100 §4.3) — replaces them all. The sign is decided here, once:
+ * positives take the line's sign (its estimate's, else expense − / income +), negatives stay
+ * negative, and every amount must end up with one sign. The rows are stored signed, so no copy or
+ * read re-signs them. The category's other currency lines go One-off (D2), clearing their done mark;
+ * a second Itemised line in the category is refused (D6). Returns the lines set to One-off.
+ */
+async function setLineItems(buildId, lineId, body) {
+  const raw = body?.items;
+  if (!Array.isArray(raw) || !raw.length) throw err(400, 'Add at least one item — use One-off for nothing');
+  if (raw.length > ITEM_MAX) throw err(400, `At most ${ITEM_MAX} items on one line`);
+  const items = raw.map((it, i) => {
+    const row = `Item ${i + 1}`;
+    const description = typeof it?.description === 'string' ? it.description.trim() : '';
+    if (!description) throw err(400, `${row} needs a description`);
+    if (description.length > 200) throw err(400, `${row}: a description can be at most 200 characters`);
+    const currency = typeof it?.currency === 'string' ? it.currency.trim().toUpperCase() : '';
+    if (!CURRENCIES.has(currency)) throw err(400, `${row}: currency must be one of ${[...CURRENCIES].join(', ')}`);
+    if (!Array.isArray(it?.months) || it.months.length !== 12) throw err(400, `${row} needs all twelve months`);
+    let months;
+    try {
+      months = it.months.map(itemAmount);
+    } catch (e) {
+      throw err(400, `${row}: ${e.message}`);
+    }
+    return { description, currency, months };
+  });
+  if (!items.some((it) => it.months.some((v) => v !== 0))) {
+    throw err(400, 'Give at least one item an amount — use One-off for nothing');
+  }
+
+  return db.transaction(async (client) => {
+    const build = await getBuildRow(client, buildId, { lock: true });
+    if (build.status !== 'draft') throw err(409, 'Only a draft can be edited — start a new build from this one');
+    const line = (await client.query(
+      `SELECT l.*, c.account_type, EXISTS (SELECT 1 FROM accounts ch WHERE ch.parent_id = c.id) AS is_parent
+         FROM budget_build_lines l JOIN accounts c ON c.id = l.category_id
+        WHERE l.id = $1 AND l.build_id = $2`, [lineId, buildId]
+    )).rows[0];
+    if (!line) throw err(404, 'Line not found');
+    if (line.is_parent) throw err(400, 'This is a parent category — the forecast cannot see it. Put the items on a sub-category.');
+    const other = (await client.query(
+      `SELECT currency FROM budget_build_lines
+        WHERE build_id = $1 AND category_id = $2 AND id <> $3 AND policy = 'itemised'`, [buildId, line.category_id, lineId]
+    )).rows[0];
+    if (other) throw err(400, `Already itemised on the ${other.currency.trim()} line — switch that line to another policy first`);
+
+    // Positives take the line's sign, negatives stay negative; what must agree is the RESULT
+    // (CR100 §4.2). So a re-opened expense line (rows shown negative) takes a new positive row.
+    const lineSign = sign(Number(line.le_fy)) || (line.account_type === 'income' ? 1 : -1);
+    const signed = items.map((it) => it.months.map((v) => (v > 0 ? round2(v * lineSign) : v)));
+    const all = signed.flat();
+    if (all.some((v) => v > 0) && all.some((v) => v < 0)) {
+      throw err(400, 'Items of both signs — on this line a negative cannot sit beside a positive');
+    }
+    await client.query('DELETE FROM budget_build_line_items WHERE line_id = $1', [lineId]);
+    for (const [i, it] of items.entries()) {
+      await client.query(
+        `INSERT INTO budget_build_line_items (line_id, position, description, currency, months)
+         VALUES ($1, $2, $3, $4, $5::numeric[])`,
+        [lineId, i, it.description, it.currency, signed[i]]
+      );
+    }
+    await client.query(
+      `UPDATE budget_build_lines SET policy = 'itemised', fixed_amount = NULL, inflation_pct = NULL,
+              split_method = 'auto', split_month = NULL, split_weights = NULL WHERE id = $1`, [lineId]
+    );
+    const setOneOff = (await client.query(
+      `UPDATE budget_build_lines SET policy = 'one_off', done = FALSE
+        WHERE build_id = $1 AND category_id = $2 AND id <> $3 AND policy <> 'one_off'
+        RETURNING id, currency`, [buildId, line.category_id, lineId]
+    )).rows.map((r) => ({ lineId: r.id, currency: r.currency.trim() }));
+    await client.query('UPDATE budget_builds SET updated_at = NOW() WHERE id = $1', [buildId]);
+    return { setOneOff };
   });
 }
 
@@ -392,7 +632,7 @@ async function getBuild(id, client = db) {
     )).rows) storedUsd.set(`${r.category_id}|${r.currency}`, round2(r.usd));
   }
   const lines = (await client.query(
-    `SELECT l.*, c.name AS category_name, c.section,
+    `SELECT l.*, c.name AS category_name, c.section, c.account_type,
             p.name AS parent_name,
             EXISTS (SELECT 1 FROM accounts ch WHERE ch.parent_id = c.id) AS is_parent,
             EXISTS (SELECT 1 FROM fc_line_categories flc WHERE flc.category_id IN (
@@ -410,11 +650,23 @@ async function getBuild(id, client = db) {
       ORDER BY p.name NULLS FIRST, c.name, l.currency`, [id, build.le_year]
   )).rows;
 
+  // An itemised line's rows, all in one query; its months and annual are derived here, never stored.
+  const itemsByLine = new Map();
+  for (const it of (await client.query(
+    `SELECT i.line_id, i.description, i.currency, i.months FROM budget_build_line_items i
+       JOIN budget_build_lines l ON l.id = i.line_id WHERE l.build_id = $1 ORDER BY i.line_id, i.position`, [id]
+  )).rows) {
+    if (!itemsByLine.has(it.line_id)) itemsByLine.set(it.line_id, []);
+    itemsByLine.get(it.line_id).push({ description: it.description, currency: it.currency.trim(), months: it.months.map(Number) });
+  }
+
   const tree = await accountsRepo.getNestedTree({ section: 'profit_loss' });
   const totals = {};
   let usdTotal = 0;
   const out = lines.map((l) => {
-    const annual = stored ? round2(l.annual_amount) : annualFor(l, rates);
+    const items = l.policy === 'itemised' ? itemsByLine.get(l.id) || [] : null;
+    const months = items ? itemMonths(items, l.currency, rates.fx) : null;
+    const annual = stored ? round2(l.annual_amount) : annualFor(l, rates, months);
     const fx = rates.fx[l.currency];
     let usd = null;
     if (stored) usd = storedUsd.get(`${l.category_id}|${l.currency}`) ?? 0;
@@ -434,6 +686,9 @@ async function getBuild(id, client = db) {
       thisYearBudget: round2(l.this_year_budget),
       vsThisYear: annual == null ? null : round2(annual - Number(l.this_year_budget)),
       isParent: l.is_parent, onForecastLine: l.on_forecast_line, done: l.done,
+      accountType: l.account_type,
+      items, itemMonths: months,
+      itemsUnconvertible: items ? unconvertible(items, l.currency, rates.fx) : null,
     };
   });
   return {
@@ -574,7 +829,10 @@ async function computeCells(client, build, view) {
   const cells = [];
   const lines = view.lines.map((l) => {
     const key = `${l.categoryId}|${l.currency}`;
-    const rawLine = { split_method: l.splitMethod, split_month: l.splitMonth, split_weights: l.splitWeights };
+    // An itemised line splits as the monthly split over its converted month totals (CR100 §4.2).
+    const rawLine = l.policy === 'itemised'
+      ? { split_method: 'custom', split_month: null, split_weights: (l.itemMonths || Array(12).fill(0)).map(Math.abs) }
+      : { split_method: l.splitMethod, split_month: l.splitMonth, split_weights: l.splitWeights };
     const { cells: lc, source, method } = splitLine(l.annual, rawLine, actual.get(key), budget.get(key));
     const fx = view.rates.fx[l.currency];
     if (!fx?.rate) throw err(400, `No ${l.currency} rate in scenario '${view.build.scenario}'`);
@@ -639,7 +897,11 @@ function policyLines(lines, fx) {
   const best = new Map();
   for (const l of lines) {
     const held = best.get(l.category_id);
-    const beats = !held || usdLe(l) > usdLe(held) || (usdLe(l) === usdLe(held) && l.currency < held.currency);
+    const isItem = (x) => x.policy === 'itemised';
+    // An Itemised line speaks for its category whatever the siblings' estimates (CR100 §4.4):
+    // its siblings are One-off, and remembering one of them would lose the itemisation.
+    const beats = !held || (isItem(l) !== isItem(held) ? isItem(l)
+      : usdLe(l) > usdLe(held) || (usdLe(l) === usdLe(held) && l.currency < held.currency));
     if (beats) best.set(l.category_id, l);
   }
   return [...best.values()];
@@ -650,12 +912,14 @@ async function rememberPolicies(client, buildId, fx) {
   const lines = (await client.query('SELECT * FROM budget_build_lines WHERE build_id = $1', [buildId])).rows;
   for (const l of policyLines(lines, fx)) {
     await client.query(
-      `INSERT INTO budget_category_policy (category_id, policy, inflation_override_pct, split_override, split_month, split_weights, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6::numeric[], NOW())
+      `INSERT INTO budget_category_policy (category_id, policy, inflation_override_pct, split_override, split_month, split_weights, items_line_id, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6::numeric[], $7, NOW())
        ON CONFLICT (category_id) DO UPDATE SET policy = EXCLUDED.policy,
          inflation_override_pct = EXCLUDED.inflation_override_pct, split_override = EXCLUDED.split_override,
-         split_month = EXCLUDED.split_month, split_weights = EXCLUDED.split_weights, updated_at = NOW()`,
-      [l.category_id, l.policy, l.inflation_pct, l.split_method, l.split_month, l.split_weights]
+         split_month = EXCLUDED.split_month, split_weights = EXCLUDED.split_weights,
+         items_line_id = EXCLUDED.items_line_id, updated_at = NOW()`,
+      [l.category_id, l.policy, l.inflation_pct, l.split_method, l.split_month, l.split_weights,
+       l.policy === 'itemised' ? l.id : null]
     );
   }
 }
@@ -696,6 +960,12 @@ async function scenariosReading(year) {
   const list = typeof raw === 'string' ? JSON.parse(raw) : raw || [];
   return list.filter((e) => e && Number(e.PeriodStart) - 1 === Number(year)).map((e) => e.Name);
 }
+
+const noItemRateMessage = (line, scenario) =>
+  `${line.category} (${line.currency}) has an item in ${line.itemsUnconvertible.join(', ')} and scenario '${scenario}' ` +
+  'has no rate to convert it. Restore the rate on Forecast Scenarios, or change the item\'s currency.';
+const nullAnnualMessage = (line, scenario, year) =>
+  (line.policy === 'itemised' ? noItemRateMessage(line, scenario) : noInflationMessage(scenario, year));
 
 const noInflationMessage = (scenario, year) =>
   `Scenario '${scenario}' has no inflation rate for ${year}, so a Recurring line has no figure. ` +
@@ -753,7 +1023,7 @@ async function previewPublish(id) {
     }
     if (l.annual == null) {
       missingRate = true;
-      blockers.add(noInflationMessage(view.build.scenario, view.build.targetYear));
+      blockers.add(nullAnnualMessage(l, view.build.scenario, view.build.targetYear));
     }
   }
   offForecast.usd = round2(offForecast.usd);
@@ -766,8 +1036,22 @@ async function previewPublish(id) {
   const prior = await priorYearActuals(db, build);
   const lineKey = new Map(view.lines.map((l) => [l.id, `${l.categoryId}|${l.currency}`]));
   const split = computed.lines.map((s) => ({ ...s, priorActual: prior.months(lineKey.get(s.id)) }));
+  // Reference rows for every line, outside the rate check, so they survive a missing rate (CR100 §4.3).
+  const thisYear = new Map();
+  for (const r of (await db.query(
+    `SELECT category_id, currency, EXTRACT(MONTH FROM entry_date)::int AS m, SUM(amount) AS amount
+       FROM budget_entries WHERE budget_year = $1 GROUP BY 1, 2, 3`, [build.le_year]
+  )).rows) {
+    const key = `${r.category_id}|${r.currency}`;
+    if (!thisYear.has(key)) thisYear.set(key, Array(12).fill(0));
+    thisYear.get(key)[r.m - 1] = round2(r.amount);
+  }
+  const reference = Object.fromEntries(view.lines.map((l) => [l.id, {
+    priorActual: prior.months(lineKey.get(l.id)),
+    thisYearMonths: thisYear.get(lineKey.get(l.id)) || Array(12).fill(0),
+  }]));
   return {
-    ...view, split, window: computed.window, priorYear: { year: prior.year, through: prior.through },
+    ...view, split, reference, window: computed.window, priorYear: { year: prior.year, through: prior.through },
     blockers: [...blockers], offForecast,
     current: await yearSummary(db, view.build.targetYear),
     checksum: `${await yearChecksum(db, view.build.targetYear)}.${cellsHash(computed.cells)}`,
@@ -790,9 +1074,8 @@ async function publish(id, { checksum }) {
       throw err(400, 'A parent-category line has an amount — the forecast cannot see it (see the preview)');
     }
     // A null annual writes no cells, so the line would vanish from the budget rather than fail.
-    if (isDraft && view.lines.some((l) => l.annual == null)) {
-      throw err(400, noInflationMessage(view.build.scenario, year));
-    }
+    const nullLine = isDraft ? view.lines.find((l) => l.annual == null) : null;
+    if (nullLine) throw err(400, nullAnnualMessage(nullLine, view.build.scenario, year));
     const { cells } = await cellsFor(client, build, view);
     if (!isDraft && !cells.length) throw err(409, 'This build was never published, so it has nothing to restore');
     // The token covers the year as previewed AND what was previewed for writing — a line edit or
@@ -927,6 +1210,9 @@ async function unpublish(id) {
         `UPDATE budget_builds SET status = 'published', updated_at = NOW() WHERE id = $1 RETURNING build_no`,
         [before.build_id]
       )).rows[0].build_no;
+      // What next year starts from follows the live budget, not the withdrawn one (CR100 §4.4).
+      const liveRow = await getBuildRow(client, before.build_id);
+      await rememberPolicies(client, before.build_id, (await ratesFor(client, liveRow)).fx);
     }
     return { restored, year, live };
   });
@@ -963,8 +1249,8 @@ async function compareYear(year) {
 }
 
 module.exports = {
-  listSources, createBuild, deleteDraft, setNote, updateLine, setLineDone, getBuild, previewPublish,
+  listSources, createBuild, deleteDraft, setNote, updateLine, setLineItems, setLineDone, getBuild, previewPublish,
   publish, unpublish, scenariosReading, compareYear,
   // exported for tests
-  splitLine, allocate, groupLines, sourceYear, policyLines, LUMP_SHARE,
+  splitLine, allocate, groupLines, sourceYear, policyLines, itemMonths, LUMP_SHARE,
 };
