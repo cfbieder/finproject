@@ -1,7 +1,11 @@
-# CR101 — Accounts inactive from a date (sold properties, finished schools: out of later reports and planning) — DRAFT
+# CR101 — Accounts inactive from a date (sold properties, finished schools: out of later reports and planning) — PLANNED
 
-**Status:** DRAFT rev 2 (2026-11-05). Pass 1 `cr-technical-reviewer` **REVISE** on rev 1; all findings
-addressed in rev 2 (§8). Pass 2 `cr-signoff-pm` is pending. Owner decisions D1–D6 taken 2026-11-05 (§3).
+**Status:** PLANNED rev 3 (2026-11-05).
+- Pass 1 `cr-technical-reviewer`: REVISE on rev 1, addressed in rev 2.
+- Pass 2 `cr-signoff-pm`: **GO** on rev 2, on four conditions, applied in rev 3 (§7, §8).
+- Owner decisions D1–D6 taken 2026-11-05 (§3).
+- **Order:** the 2027 publish first. P1a after 2026-12-10 by default, or before the 2026-11-26 hard stop only if
+  it is already done. P1b before the first 2027 month-end.
 **Depends on:** CR063 (the Chart of Accounts order and `getTree`); CR098/CR100 (the budget builder, frozen
 2026-12-03 until the first 2027 publish)
 **Roadmap anchor:** [project-roadmap.md#cr101](../current/project-roadmap.md#cr101)
@@ -101,7 +105,7 @@ SELECT id, eff AS inactive_from_eff FROM walk;
   (D6). The COA nodes carry both the own and the effective date.
 - **The page:**
   - an *inactive from 2027-01* badge on every account inactive today or later;
-  - a *Hide inactive* toolbar filter, off by default;
+  - a *Hide inactive* toolbar filter, off by default (**deferred to the roadmap**);
   - a **Last activity** column: the newest transaction date, as category or account. It is read-only, from one
     grouped query, and shows where to look.
 - **Write path:**
@@ -152,7 +156,8 @@ by: the "exists, renders, no effect" defect class.
 - Cash Flow and Cash Flow Periods;
 - Balance Sheet, Balance Sheet Periods, Balance V2;
 - Budget vs Actual: Variances, Realization, Graph;
-- the mobile pages: MobileCashFlow, MobileBudgetRealization, MobileBudgetGraph, MobileBalanceTrends.
+- **Deferred to the roadmap:** the four mobile report pages (MobileCashFlow, MobileBudgetRealization,
+  MobileBudgetGraph, MobileBalanceTrends). Until then they show zero rows as today, and never a wrong number.
 
 **Non-goals:** BalanceTrends, CashFlowByAccount, BalanceChart, Category Trend, Net Worth Bridge and Investment
 Returns. They chart chosen accounts.
@@ -165,9 +170,11 @@ Returns. They chart chosen accounts.
     kept. A late final bill dated 2026 and entered in 2027 can still be categorised.
   - **Filter** (the transaction filter bars): keeps them, **muted in place** (D5).
 - **`HierarchyFilter`** is always a filter and never drops anything. It mutes in place (D5).
-- **The 11 direct callers of `/categories` and `/accounts`** each apply `isInactiveFor`, and §9 classifies every
-  one as a picker or a filter. Both endpoints return `inactiveFromEffective` on every row, and `/accounts/categories`
-  too.
+- **The direct callers of `/categories` and `/accounts`:** both endpoints, and `/accounts/categories`, return
+  `inactiveFromEffective` on every row.
+  - The **picker** sites in §9 apply `isInactiveFor` in P1b.
+  - Muting at the roughly nine direct-caller **filter** sites is **deferred to the roadmap**. They keep listing
+    inactive accounts unmuted, as today, which loses nothing.
 - **`categorySuggest.suggestForIds`** skips categories inactive for the transaction's date. Otherwise it would
   propose the Spanish categories from merchant history and *generate* D3 flags.
 
@@ -180,10 +187,16 @@ Returns. They chart chosen accounts.
   TRUE`), as the review queue does, so the bar returns to zero once each is looked at.
 - **The link.** It opens Transactions with a new `inactivePosting=1` filter parameter on `transactions.findAll`.
 - **Write paths are unchanged.** Postings are flagged, not refused.
-- **Reconciliation surfaces.** Manual reconcile eligibility (`manualReconciliation.js`) and fed reconciliation
-  (`bankFeedReconciliation.js`: stale feeds, drift, MTM due) leave out balance-sheet accounts inactive for
-  today. A closed bank would otherwise nag the attention bar forever. The bank-feed account-mapping picker is
-  unchanged.
+- **Reconciliation surfaces: deferred to the roadmap (pass 2, condition 3).** The claim that a closed bank
+  would nag the attention bar forever is unverified, and the code points the other way:
+  - fed reconciliation covers only mapped feeds, and a closed bank's mapping can be set to `ignored`;
+  - D2 forces a balance-sheet account to zero before it can be dated, so manual drift could only come from a
+    stale non-zero manual target.
+
+  Build it only once a real account is seen nagging.
+
+**`services/budgetLe.js`** (§9) has **no P1 change**. It reads `getNestedTree` and receives the new field
+unused. Its scope change is P2 (§4.6).
 
 ### 4.6 Planning (P2, after the 2027 publish)
 
@@ -252,15 +265,30 @@ themes:
 - The chosen-account charts listed in §4.3.
 - Inactive *to* / reopen history. Clearing the date reactivates the account outright.
 
-## 7. Phasing and deploy
+## 7. Phasing, freeze and deploy
+
+**P1 pays off from 2027-01-01.** Dates of 2027-01-01 change no 2026 view, and the 2027 budget is published before
+P2. Only the old banks and cards with no 2026 activity could take an earlier date.
 
 | Phase | What | When |
 |---|---|---|
-| **P1** | 089; the view joined at every list and tree; `inactiveFromEffective` through the report builders; COA (field, badge, filter, Last activity, D2); `pruneInactive` on the in-scope report pages; picker and filter modes; suggestions; the D3 flag, badge, count and filter; reconciliation exclusion. **No builder code.** | Outside the builder freeze, so any time. 089 goes to dev, then to prod at deploy Step 2b, before the code reads it. |
-| **P2** | §4.6 planning. | **After the 2026-12-10 publish**, and after CR098 P3c, which edits the same builder service. |
+| **P1a** | 089 and the view; `inactiveFromEffective` through `getTree`/`getNestedTree` and the report builders; COA own and inherited date, badge, D2 refusal, Last activity; `pruneInactive` on the **desktop** report pages (Cash Flow, Cash Flow Periods, the three Balance pages, the three Budget vs Actual pages). | **After the 2026-12-10 publish, by default.** Before the **2026-11-26 hard stop** only if already done. **No CR101 deploy between 11-26 and the publish.** |
+| **P1b** | `CategorySelector` picker and filter modes, and the picker call sites; the `categorySuggest` skip; the D3 flag, badge, attention count and `inactivePosting` filter. | Before the first 2027 month-end. It shares no surface with CR098 P3c, so the two can run side by side. |
+| **P2a** | LE scope for future years, the FC line-mapping pool, add-from-actuals. | From January, **not in the days around CR064's annual-close run**. |
+| **P2b** | `createBuild` and the Itemised pointer. | Before the 2028 build (autumn 2027), after CR098 P3c. |
+| **Roadmap** | Mobile report pages; filter muting at the direct-caller sites; the COA *Hide inactive* filter; the reconciliation exclusion (only if a real account nags). | Not scheduled. None can produce a wrong number. |
 
-P1 is large (reports, pickers, COA, flag), so it may ship in two releases: **P1a** (089, plumbing, COA,
-reports) and **P1b** (pickers, suggestions, flag, reconciliation). Each is usable on its own.
+- **P1a reaches the builder** even though it touches no builder file. `budgetBuilder.getBuild` reads
+  `getNestedTree`, and P1a changes `services/budget.js` and the Budget vs Actual pages used to review the
+  budget. **Freeze gate for any pre-11-26 deploy:**
+  - `getTree` keeps the same rows in the same order: a LEFT JOIN to the view, with no new filter;
+  - the builder suites pass;
+  - `GET /budget-builder/compare` on the open 2027 draft is byte-identical before and after.
+- **No `inactive_from` dates are set on prod before the publish.** The owner trial runs on a dev copy; prod
+  dates come after 12-10.
+- **Deploy:** 089 applies at `deploy-to-production.sh` Step 2b, before the code. **Rollback:** clearing a date
+  undoes it for data; dropping the view and the column undoes the schema.
+- **§9 line numbers drift.** Refresh them at build time; they are not a checklist.
 
 ## 8. Review log
 
@@ -296,7 +324,15 @@ reports) and **P1b** (pickers, suggestions, flag, reconciliation). Each is usabl
   - N6: muted token.
 - **Owner addition (2026-11-05):** a *Last activity* column on the COA page, and Patrick - USF and the old banks
   in scope as examples.
-- *(Pass 2 `cr-signoff-pm`: pending.)*
+**Pass 2 — `cr-signoff-pm`, rev 2 (2026-11-05): GO, on four conditions, applied in rev 3:**
+1. Freeze treatment: the 11-26 hard stop and the gate, with after-publish as the default (§7).
+2. A minimal P1a, with P1b, P2a and P2b, and the long tail moved to the roadmap (§7).
+3. The reconciliation exclusion deferred as unverified (§4.5).
+4. The index and roadmap drift fixed, and the status set to PLANNED.
+
+Recommendations applied: Last activity kept in P1a; no prod dates before the publish; P2 re-timed around CR064;
+rollback stated; `budgetLe.js` marked P2-only; D3 noted as a backstop (a posting to an inactive account always
+shows in reports, because hiding needs a zero).
 
 ## 9. Surface map (2026-11-05)
 
