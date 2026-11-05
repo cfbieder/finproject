@@ -79,6 +79,9 @@ Only what is still open. Closed CRs and resolved investigations are kept as reco
 Each entry carries its own closing status; the [CR index](../cr/README.md) is canonical. Moved out of §1.1 on
 2026-11-03 so the open list reads as open.
 
+<a id="cr101"></a>
+- **CR101** — 📝 **DRAFT 2026-11-05, not yet reviewed.** [Accounts inactive from a date](../cr/cr-101-account-inactive-from.md): `accounts.inactive_from` so a sold property's categories drop out of later reports (hidden only where zero, decided after every column loads), pickers and planning, without touching 2026. D1–D4 owner decisions taken; migration 089 claimed. P1 (reports, pickers, COA, flag) is outside the builder freeze; P2 (planning) after the 2027 publish.
+
 <a id="cr100"></a>
 - **CR100** — ✅ **COMPLETED 2026-11-05** (owner trial passed: `FL - Flights` itemised on 2027 V1). P0 v3.84.2, P1 v3.85.0. [Itemised budget lines](../cr/cr-100-budget-builder-itemised-lines.md): a builder line built from described rows (e.g. one per trip) by month, each in its own currency, totalled into the line at the build's rates. Owner decisions D1–D6 taken; migration 088 claimed. **P0 ✅ v3.84.2:** the month-first split as a patch, since the live 2027 draft has 7 lines on the monthly split, which can drift a cent per month over several accounts. **P1** by 2026-11-20, hard stop 2026-11-26, else after the 12-10 publish. CR098 P3c follows the publish.
 
