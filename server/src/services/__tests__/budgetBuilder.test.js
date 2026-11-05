@@ -66,6 +66,17 @@ describe('budget builder — custom month weights', () => {
     expect(sum(cells.filter((c) => c.account_id === 1))).toBe(-666.67);
     expect(sum(cells.filter((c) => c.account_id === 2))).toBe(-333.33);
   });
+
+  test('month totals land to the cent across several accounts (month first, CR100 P0)', () => {
+    const typed = [123.45, 333.33, 77.77, 0, 410.01, 265.55, 99.99, 0, 1234.56, 888.88, 512.13, 500];
+    const annual = -Math.round(typed.reduce((a, b) => a + b, 0) * 100) / 100;
+    const grid = new Map([[1, Array(12).fill(-100)], [2, Array(12).fill(-37)], [3, Array(12).fill(-11)]]);
+    const { cells } = svc.splitLine(annual, custom(typed), grid, null);
+    const months = Array(12).fill(0);
+    for (const c of cells) months[c.month - 1] = Math.round((months[c.month - 1] + c.amount) * 100) / 100;
+    expect(months).toEqual(typed.map((v) => (v ? -v : 0)));
+    expect(new Set(cells.map((c) => c.account_id))).toEqual(new Set([1, 2, 3]));
+  });
 });
 
 describe('budget builder — which line a category remembers', () => {

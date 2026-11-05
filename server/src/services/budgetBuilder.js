@@ -504,10 +504,22 @@ function splitLine(annual, line, actualGrid, budgetGrid) {
   if (method === 'auto' && !grid) method = 'even';
 
   const cells = [];
+  // The monthly split goes month first: the year into its months, then each month across the
+  // accounts, so typed month totals land to the cent. Account first, each account's share rounds
+  // its months on its own and a month across accounts drifts by a cent or two (CR100 §2).
+  if (method === 'custom') {
+    const accWeights = grid ? accTotals.map(Math.abs) : [1];
+    allocate(annual, line.split_weights.map(Number)).forEach((total, m) => {
+      if (!total) return;
+      allocate(total, accWeights).forEach((amount, i) => {
+        if (amount) cells.push({ account_id: accounts[i], month: m + 1, amount });
+      });
+    });
+    return { cells, source, method };
+  }
   accounts.forEach((acct, i) => {
     let weights;
-    if (method === 'custom') weights = line.split_weights.map(Number);
-    else if (method === 'month') weights = Array.from({ length: 12 }, (_, m) => (m + 1 === line.split_month ? 1 : 0));
+    if (method === 'month') weights = Array.from({ length: 12 }, (_, m) => (m + 1 === line.split_month ? 1 : 0));
     else if (lumpMonth) weights = Array.from({ length: 12 }, (_, m) => (m + 1 === lumpMonth ? 1 : 0));
     else if (method === 'even') weights = Array(12).fill(1);
     else {
