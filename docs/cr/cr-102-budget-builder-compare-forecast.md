@@ -1,9 +1,10 @@
-# CR102 — Budget builder: Compare Forecast (a build against a forecast scenario's year, in the forecast's P&L) — DRAFT
+# CR102 — Budget builder: Compare Forecast (a build against a forecast scenario's year, in the forecast's P&L) — PLANNED
 
-**Status:** DRAFT rev 2 (2026-11-06).
-- Pass 1 `cr-technical-reviewer`: REVISE on rev 1. All findings are addressed in rev 2 (§8).
-- Pass 2 `cr-signoff-pm`: pending.
+**Status:** PLANNED rev 3 (2026-11-06).
+- Pass 1 `cr-technical-reviewer`: REVISE on rev 1, addressed in rev 2.
+- Pass 2 `cr-signoff-pm`: **GO** on rev 2, on three conditions, applied in rev 3 (§7, §8).
 - Owner decisions D1–D5 taken 2026-11-06 (§3).
+- Build now: target 2026-11-20, hard stop 2026-11-26.
 
 **Depends on:** CR098, CR100 and CR101 (the builder, its lines, inactive lines); CR069 (forecast lines and
 stored forecast entries); CR083 (the LE); CR064 (the annual-close context).
@@ -110,7 +111,8 @@ modal says so.
   tokens only. It is opened by a *Compare Forecast* button beside *Compare builds* on `BudgetBuilder.jsx`. That
   button and the mount are the only page changes.
 - **Header:**
-  - a scenario or variant picker: the build's scenario and its variants, plus the other base scenarios;
+  - a scenario or variant picker: **the build's scenario and its variants**. Other base scenarios are left out:
+    prod has none, and another base has its own base year, which undercuts D5;
   - *Budget {year}: {build label} · Forecast: {scenario}, generated {date} · LE: {name}*;
   - the rates note, when the rates differ;
   - the residual warning, if any.
@@ -141,7 +143,9 @@ modal says so.
 
 **Frontend (Vitest):** grouping order, subtotals and the net; Δ% sign; a null subtotal shown as *—*.
 
-**Page:** the modal walked on dev in both themes against `2026 Base` and `2026 Market Crash`. One line's Budget
+**Page:** first refresh dev with `Scripts/sync-db-prod-to-dev.sh`, taking a turn on the shared dev DB. Dev has no
+build and no `2026 Market Crash` today. Then walk the modal in both themes against `2026 Base` and
+`2026 Market Crash`. One line's Budget
 and LE are checked by hand against the builder grid. A line expands.
 
 **Freeze gate:** the 2027 drafts' preview hash and USD totals are identical before and after the deploy.
@@ -160,10 +164,25 @@ One phase. It is read-only, and kept in a new service and a new component. It sh
 freeze, targeting 2026-11-20, with a hard stop on 2026-11-26** (as for CR100 and CR101). Otherwise it waits
 until after the publish.
 
-**A note for the owner:** `2026 Base`'s 2027 is projected from the *2026* budget, so the comparison shows how the
-draft departs from the plan's assumption. After January's annual close (CR064), `2027 Base` is built from the
-published 2027 budget, so against it the comparison will mostly match by design. Its lasting use is against
-variants.
+**Fix window (pass 2, condition 1):**
+- Before 11-26, fixes stay inside CR102's own files, and each deploy re-runs the freeze gate.
+- **No CR102 deploy from 11-26 until the publish.** A defect found then waits; the modal writes nothing and can
+  be ignored.
+- It ships as a minor release; there is no migration.
+- **If it runs late, cut first:** making *Not in the forecast* expandable. The row and its total stay. The
+  residual warning, the rates note and null propagation are never cut.
+
+**A note for the owner:**
+- **The payoff.** Before you publish, it shows how far the long-range forecast's 2027 will move when this draft
+  becomes `2027 Base`'s base year at January's annual close (CR064). Otherwise that change would appear silently
+  at the close.
+- **`2026 Base`'s 2027 is projected from the *2026* budget.** So the comparison shows how the draft departs from
+  the plan's assumption. Against `2027 Base`, after the close, it will mostly match by design; its lasting use is
+  against variants.
+- **On engine-computed lines** (Taxes, Property Costs, Interest, Dividend, CVC Dividend), the forecast figure is
+  the engine's own calculation. A difference there is a modelling difference, not overspending.
+- **A variant can be older than its base.** On 2026-11-06, `2026 Market Crash` was generated 11-03 and
+  `2026 Base` 11-06. The header's *generated* date says which.
 
 ## 8. Review log
 
@@ -188,4 +207,14 @@ variants.
   13. Parameter validation.
   14. Test files named; Modal primitive and tokens.
 
-*(Pass 2 `cr-signoff-pm`: pending.)*
+**Pass 2 — `cr-signoff-pm`, rev 2 (2026-11-06): GO.** Ship before the freeze: most of the value is before the
+publish, and the risk is low (read-only, isolated, gated). Conditions applied in rev 3:
+1. The fix window, with no deploy from 11-26 until the publish.
+2. The dev sync step, so the page walk can run.
+3. The index and roadmap updated.
+
+Recommendations applied:
+- the owner note leads with the payoff, and covers engine lines and variant age;
+- the other-base option is cut from the picker;
+- the first cut if the build runs late is named;
+- it ships as a minor release.
