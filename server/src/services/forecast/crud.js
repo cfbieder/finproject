@@ -585,6 +585,7 @@ module.exports = {
   buildAddFromActualsTree,
   getBaseYearValues,
   getBaseYearLeValues,
+  FC_LINE_LEAVES_CTE, // CR102 — the category→forecast-line leaf mapping, one definition
 };
 
 /**

@@ -1259,7 +1259,7 @@ async function compareYear(year) {
 
 module.exports = {
   listSources, createBuild, deleteDraft, setNote, updateLine, setLineItems, setLineDone, getBuild, previewPublish,
-  publish, unpublish, scenariosReading, compareYear,
+  publish, unpublish, scenariosReading, compareYear, scenarioRates, // scenarioRates: CR102 (read-only)
   // exported for tests
   splitLine, allocate, groupLines, sourceYear, policyLines, itemMonths, LUMP_SHARE,
 };

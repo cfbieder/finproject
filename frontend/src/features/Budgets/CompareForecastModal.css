@@ -1,0 +1,15 @@
+/* CR102 — Compare Forecast modal. Builder classes (bb-*) do the type and sign colours; tokens only. */
+.cf { display: grid; gap: 0.5rem; }
+.cf-head { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: baseline; }
+.cf-scroll { overflow-x: auto; }
+.cf-table { width: 100%; min-width: 760px; }
+.cf-table td, .cf-table th { padding: 0.3rem 0.5rem; }
+.cf-table .num { text-align: right; white-space: nowrap; }
+.cf-section th { text-align: left; font-weight: 700; padding-top: 0.6rem; border-bottom: 1px solid var(--border); }
+.cf-line td:first-child { padding-left: 0.75rem; }
+.cf-indent { padding-left: 1rem; }
+.cf-cat td { font-size: 0.85rem; background: var(--surface-muted); }
+.cf-cat td:first-child { padding-left: 2.25rem; }
+.cf-subtotal th, .cf-subtotal td { font-weight: 700; border-top: 1px solid var(--border); }
+.cf-subtotal th { text-align: left; }
+.cf-note { margin: 0; }

@@ -1,6 +1,8 @@
-# CR102 — Budget builder: Compare Forecast (a build against a forecast scenario's year, in the forecast's P&L) — PLANNED
+# CR102 — Budget builder: Compare Forecast (a build against a forecast scenario's year, in the forecast's P&L) — COMPLETED
 
-**Status:** PLANNED rev 3 (2026-11-06).
+**Status:** COMPLETED 2026-11-06 — **live v3.87.0** (§9). Built the same day it was approved; no migration.
+
+Rev 3 (2026-11-06):
 - Pass 1 `cr-technical-reviewer`: REVISE on rev 1, addressed in rev 2.
 - Pass 2 `cr-signoff-pm`: **GO** on rev 2, on three conditions, applied in rev 3 (§7, §8).
 - Owner decisions D1–D5 taken 2026-11-06 (§3).
@@ -183,6 +185,43 @@ until after the publish.
   the engine's own calculation. A difference there is a modelling difference, not overspending.
 - **A variant can be older than its base.** On 2026-11-06, `2026 Market Crash` was generated 11-03 and
   `2026 Base` 11-06. The header's *generated* date says which.
+
+## 9. As built (2026-11-06, v3.87.0)
+
+**Files:**
+- `services/budgetCompareForecast.js`, new; it reads `getBuild` and does not edit it;
+- `GET /budget-builder/:id/compare-forecast?scenario=`;
+- `features/Budgets/CompareForecastModal.jsx` and `.css`, new;
+- `features/Budgets/compareForecast.js`, the Δ and Δ% arithmetic;
+- a *Compare forecast* button on `BudgetBuilder.jsx`.
+
+The only changes to existing modules are two exports, `FC_LINE_LEAVES_CTE` from `forecast/crud.js` and
+`scenarioRates` from `budgetBuilder.js`, and the route.
+
+**Rows** come from `fcLinesRepo.findAll` (Forecast Review's order), bucketed as `review-structure` does. A
+synthetic Taxes row is added only if no forecast line is named Taxes; prod has one.
+
+**Verification:**
+- `budgetCompareForecast.test.js`, 6 seeded tests:
+  - per-line budget, LE and forecast, with a forecast line summing two entries;
+  - an unmapped engine line reads *—*;
+  - not-in-forecast, residual 0, and net = the build's `usdTotal`, with the transfer leg excluded;
+  - a variant's own entries and rates (`differ`);
+  - a leaf under two lines gives a residual of 50;
+  - a scenario with no year's entries gives null, not 0; an unknown scenario is a 404.
+- `compareForecast.test.js`: 3 Vitest cases, including Δ% over |forecast|.
+- Vitest: 762 tests pass; the ratchets are at baseline.
+
+**Dev walk, after a prod-to-dev sync, in both themes, on the owner's real draft 2027 v6 (V3) against `2026 Base`
+2027:**
+- residual 0; net budget −101,138 = the build's USD total, against a forecast of −85,237;
+- Dividend Income's 41,460 matched the builder grid by hand;
+- Travel expands into its categories;
+- the three unmapped engine lines read *computed by the engine*;
+- `2026 Market Crash` shows *(variant), generated 2026-11-03*;
+- no page errors.
+
+**Freeze gate:** V3's preview hash and USD total were identical before and after the prod deploy.
 
 ## 8. Review log
 

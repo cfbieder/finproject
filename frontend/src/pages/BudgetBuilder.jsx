@@ -3,6 +3,7 @@ import Rest from "../js/rest.js";
 import Modal from "../components/Modal/Modal.jsx";
 import BuildCompare from "../features/Budgets/BuildCompare.jsx";
 import ItemsModal from "../features/Budgets/ItemsModal.jsx";
+import CompareForecastModal from "../features/Budgets/CompareForecastModal.jsx";
 import ConfirmModal from "../components/ConfirmModal/ConfirmModal.jsx";
 import "./PageLayout.css";
 import "./BudgetBuilder.css";
@@ -147,6 +148,7 @@ function BudgetBuilder() {
   const [notice, setNotice] = useState("");
   const [rev, setRev] = useState(0);              // remounts the number inputs after every save, kept or refused
   const [comparing, setComparing] = useState(false);
+  const [comparingForecast, setComparingForecast] = useState(false); // CR102
   const [itemsFor, setItemsFor] = useState(null);        // CR100: the line whose items modal is open
   const [itemsError, setItemsError] = useState("");
   const [confirmLeave, setConfirmLeave] = useState(null); // { line, policy } — leaving Itemised deletes the rows
@@ -403,6 +405,11 @@ function BudgetBuilder() {
             <button type="button" className="btn btn--outline" aria-pressed={comparing}
               onClick={() => setComparing((c) => !c)}>
               {comparing ? "Hide comparison" : "Compare builds"}
+            </button>
+          )}
+          {shown && (
+            <button type="button" className="btn btn--outline" onClick={() => setComparingForecast(true)}>
+              Compare forecast
             </button>
           )}
         </div>
@@ -808,6 +815,11 @@ function BudgetBuilder() {
           </p>
         )}
       </Modal>
+      {comparingForecast && shown && (
+        <CompareForecastModal buildId={shown.build.id} buildLabel={buildLabel({ target_year: shown.build.targetYear,
+          build_no: shown.build.buildNo, status: shown.build.status, note: shown.build.note })}
+          onClose={() => setComparingForecast(false)} />
+      )}
       {itemsFor != null && shown && linesById.get(itemsFor) && (
         <ItemsModal key={`${itemsFor}-${rev}`} line={linesById.get(itemsFor)}
           categoryLines={shown.lines.filter((x) => x.categoryId === linesById.get(itemsFor).categoryId)}

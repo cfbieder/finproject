@@ -6,6 +6,7 @@
 
 const express = require('express');
 const svc = require('../../services/budgetBuilder');
+const compareSvc = require('../../services/budgetCompareForecast'); // CR102
 
 const router = express.Router();
 
@@ -69,6 +70,12 @@ router.put('/:id/lines/:lineId/items', handle(async (req, res) => {
 router.patch('/:id/lines/:lineId/done', handle(async (req, res) => {
   await svc.setLineDone(id(req), positiveInt(req.params.lineId, 'line'), req.body?.done);
   res.json({ data: await svc.getBuild(id(req)) });
+}));
+
+// GET /:id/compare-forecast?scenario= — CR102: the build against a forecast scenario/variant's year, read-only
+router.get('/:id/compare-forecast', handle(async (req, res) => {
+  const scenario = typeof req.query.scenario === 'string' && req.query.scenario.trim() ? req.query.scenario.trim() : undefined;
+  res.json({ data: await compareSvc.compareForecast(id(req), { scenario }) });
 }));
 
 // GET /:id/preview — the month split, what Publish deletes and writes, blockers, checksum
