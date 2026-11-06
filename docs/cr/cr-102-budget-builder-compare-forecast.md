@@ -1,6 +1,6 @@
 # CR102 — Budget builder: Compare Forecast (a build against a forecast scenario's year, in the forecast's P&L) — COMPLETED
 
-**Status:** COMPLETED 2026-11-06 — **live v3.87.0** (§9). Built the same day it was approved; no migration.
+**Status:** COMPLETED 2026-11-06 — **live v3.87.0** (§9); **owner confirmed it working on prod 2026-11-06**. Built the same day it was approved; no migration.
 
 Rev 3 (2026-11-06):
 - Pass 1 `cr-technical-reviewer`: REVISE on rev 1, addressed in rev 2.

@@ -7,7 +7,7 @@ decisions D1–D6 taken 2026-11-05 (§3). Order: P0 split fix ✅ v3.84.2, then 
 **Depends on:** CR098 (budget builder: lines, policies, monthly split, stored rates, publish token)
 **Roadmap anchor:** [project-roadmap.md#cr100](../current/project-roadmap.md#cr100)
 **Deadline context:** the builder code freeze is **2026-12-03**, and the first 2027 publish is due **2026-12-10**
-([status.md](../current/status.md)). This is the last builder change planned before that publish.
+([status.md](../current/status.md)). As of rev 3 (2026-11-05) this was the last builder change planned before that publish; CR101 P0 and CR102 followed.
 
 ## 1. The ask
 
