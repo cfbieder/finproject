@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import Modal from "../../components/Modal/Modal.jsx";
-import { CURRENCIES, MAX_ITEMS, categoryReference, factor, summarise } from "./itemsMath.js";
+import { CURRENCIES, MAX_ITEMS, applyPaste, categoryReference, factor, summarise } from "./itemsMath.js";
 import "./ItemsModal.css";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -29,8 +29,19 @@ export default function ItemsModal({ line, categoryLines, rates, reference, leYe
     [reference, categoryLines, line.currency, fx],
   );
 
+  const [pasteError, setPasteError] = useState(null);
   const setCell = (i, patch) => setRows(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const setMonth = (i, m, v) => setRows(rows.map((r, j) => (j === i ? { ...r, months: r.months.map((x, k) => (k === m ? v : x)) } : r)));
+  // CR103 P0: a tab-separated paste (one row or many) fills the grid in ONE update; a single value
+  // falls through to the browser. A bad paste applies nothing and says which cell.
+  const onPaste = (i) => (e) => {
+    const res = applyPaste(rows, i, e.clipboardData?.getData("text/plain"), line.currency);
+    if (!res) return;
+    e.preventDefault();
+    if (res.error) { setPasteError(res.error); return; }
+    setPasteError(null);
+    setRows(res.rows);
+  };
   const rateNote = CURRENCIES.filter((c) => c !== line.currency && fx?.[c]?.rate && fx?.[line.currency]?.rate)
     .map((c) => `1 ${c} = ${fmt(factor(c, line.currency, fx), 4)} ${line.currency}`).join(" · ");
 
@@ -101,7 +112,7 @@ export default function ItemsModal({ line, categoryLines, rates, reference, leYe
                     {readOnly ? r.description : (
                       <input type="text" maxLength={200} value={r.description} disabled={busy}
                         aria-label={`Item ${i + 1} description`} placeholder="e.g. Lisbon flights"
-                        onChange={(e) => setCell(i, { description: e.target.value })} />
+                        onChange={(e) => setCell(i, { description: e.target.value })} onPaste={onPaste(i)} />
                     )}
                   </td>
                   <td className="bb-items__cur">
@@ -117,7 +128,7 @@ export default function ItemsModal({ line, categoryLines, rates, reference, leYe
                       {readOnly ? <span className={neg(v)}>{v ? fmt(v, 2) : ""}</span> : (
                         <input type="text" inputMode="decimal" className="bb-num-input" value={v} placeholder="0" disabled={busy}
                           aria-label={`Item ${i + 1} ${MONTHS[m]}`}
-                          onChange={(e) => setMonth(i, m, e.target.value)} />
+                          onChange={(e) => setMonth(i, m, e.target.value)} onPaste={onPaste(i)} />
                       )}
                     </td>
                   ))}
@@ -148,6 +159,7 @@ export default function ItemsModal({ line, categoryLines, rates, reference, leYe
           <p className="bb-items__actions">
             <button type="button" className="btn btn--secondary btn--sm" disabled={busy || rows.length >= MAX_ITEMS}
               onClick={() => setRows([...rows, blankRow(line.currency)])}>+ Add item</button>
+            {pasteError && <span className="bb-flag" role="alert"> ⚠ Paste not applied: {pasteError}</span>}
             {sum.problem && <span className="bb-flag"> ⚠ Not saved yet: {sum.problem}</span>}
             {!sum.problem && sum.months == null && <span className="bb-flag"> ⚠ An item&apos;s currency has no rate in this build&apos;s scenario</span>}
           </p>

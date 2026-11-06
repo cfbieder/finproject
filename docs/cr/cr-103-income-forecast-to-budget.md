@@ -1,6 +1,6 @@
 # CR103 — Investment income by account, copied into the budget builder — APPROVED (rev 3)
 
-**Status:** APPROVED rev 3, 2026-11-06. Not started.
+**Status:** IN-PROGRESS. **P0 built 2026-11-06** (`applyPaste` in `itemsMath.js`, `onPaste` in `ItemsModal.jsx`; 18 parser tests plus the first `ItemsModal` component test), **not yet deployed**. Prod dividends reloaded 2026-11-06 (§7): the page's estimated income went from $47,855 to $56,485. P1 not started.
 - Pass 1 `cr-technical-reviewer`: **REVISE** on rev 1 (3 blocking, 9 should-fix, 5 nits). All are addressed in
   rev 2; see §9.
 - Pass 2 `cr-signoff-pm`: **GO** on rev 2, on four conditions, applied in rev 3 (§7, §9).

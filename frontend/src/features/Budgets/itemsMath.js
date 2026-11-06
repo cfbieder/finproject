@@ -22,6 +22,80 @@ export function parseAmount(raw) {
   return Math.abs(n - round2(n)) > 1e-9 || Math.abs(n) >= 1e13 ? NaN : n;
 }
 
+/** A cell may carry commas only as exact thousands separators ("1,820.50"); a decimal comma rejects. */
+const THOUSANDS = /^-?\d{1,3}(,\d{3})+(\.\d+)?$/;
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const isBlank = (r) => !String(r.description || "").trim() && r.months.every((v) => !String(v ?? "").trim());
+
+function parseCell(raw) {
+  const v = String(raw ?? "").trim();
+  return parseAmount(THOUSANDS.test(v) ? v.replace(/,/g, "") : v);
+}
+
+/**
+ * CR103 P0 — a tab-separated paste into the itemised grid (e.g. CR103's "Copy Interest rows").
+ *
+ * Returns null when the text is a single value (no tab, no line break): the browser's own paste
+ * applies. Otherwise `{ rows }`, the whole new row set, or `{ error }`, and nothing is applied —
+ * a partial paste is never kept. Cells follow the grid's column order:
+ *   14 cells  description, currency, Jan…Dec
+ *   13 cells  description, Jan…Dec (the line's currency)
+ *   12 cells  Jan…Dec — a single line only; fills row `at`, keeping its description and currency
+ * Every amount goes through `parseAmount`, the modal's one number rule, so "1820,50" (a decimal
+ * comma) rejects rather than becoming 182050.
+ * Placement: the first item replaces row `at` if that row is blank (no description, no amounts),
+ * otherwise it is appended; later items are appended.
+ */
+export function applyPaste(rows, at, text, lineCurrency) {
+  const body = String(text ?? "").replace(/[\r\n]+$/, "");
+  if (!/[\t\r\n]/.test(body)) return null;
+
+  const lines = body.split(/\r?\n/).filter((l) => l.trim() !== "");
+  const items = [];
+  for (let n = 0; n < lines.length; n += 1) {
+    const cells = lines[n].split("\t");
+    while (cells.length > 14 && cells[cells.length - 1].trim() === "") cells.pop();
+    // 12 amounts plus a trailing tab arrive as 13 cells; a description is never a number.
+    if (cells.length === 13 && cells[12].trim() === "" && !Number.isNaN(parseCell(cells[0]))) cells.pop();
+    const where = lines.length > 1 ? `Row ${n + 1}` : "The pasted row";
+
+    let description = null;
+    let currency = null;
+    let amounts;
+    if (cells.length === 14) [description, currency, ...amounts] = cells;
+    else if (cells.length === 13) [description, ...amounts] = cells;
+    else if (cells.length === 12 && lines.length === 1) amounts = cells;
+    else if (cells.length === 12) return { error: `${where}: 12 amounts with no description; paste such a row on its own, or include the description` };
+    else return { error: `${where} has ${cells.length} cells; expected 14 (item, currency, Jan–Dec), 13 (item, Jan–Dec) or 12 (Jan–Dec)` };
+
+    if (currency != null) {
+      currency = currency.trim().toUpperCase();
+      if (!CURRENCIES.includes(currency)) return { error: `${where}: currency "${currency}" is not one of ${CURRENCIES.join(", ")}` };
+    }
+    const months = [];
+    for (let m = 0; m < 12; m += 1) {
+      const raw = amounts[m].trim();
+      if (Number.isNaN(parseCell(raw))) return { error: `${where}, ${MONTH_NAMES[m]}: "${raw}" is not a number with at most two decimals` };
+      months.push(raw.replace(/,/g, ""));
+    }
+    items.push({ description: description == null ? null : description.trim(), currency, months });
+  }
+  if (!items.length) return null;
+
+  const next = rows.map((r) => ({ ...r }));
+  const [first, ...rest] = items;
+  if (first.description == null) {
+    next[at] = { ...next[at], months: first.months };
+    return { rows: next };
+  }
+  const asRow = (it) => ({ description: it.description, currency: it.currency || lineCurrency, months: it.months });
+  if (next[at] && isBlank(next[at])) next[at] = asRow(first);
+  else next.push(asRow(first));
+  for (const it of rest) next.push(asRow(it));
+  if (next.length > MAX_ITEMS) return { error: `That paste makes ${next.length} items; at most ${MAX_ITEMS} on one line` };
+  return { rows: next };
+}
+
 /** The line's own sign: its estimate's, else expense − / income +. */
 export function lineSign(line) {
   return sign(Number(line.leFy) || 0) || (line.accountType === "income" ? 1 : -1);

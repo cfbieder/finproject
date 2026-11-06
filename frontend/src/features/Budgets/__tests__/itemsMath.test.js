@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { categoryReference, factor, lineSign, parseAmount, summarise } from "../itemsMath.js";
+import { MAX_ITEMS, applyPaste, categoryReference, factor, lineSign, parseAmount, summarise } from "../itemsMath.js";
 
 const FX = { USD: { rate: 1 }, PLN: { rate: 4 }, EUR: { rate: 0.9 } };
 const blank = () => Array(12).fill("");
@@ -83,5 +83,86 @@ describe("itemsMath — CR100", () => {
     const r = categoryReference(lines, "PLN", FX, reference);
     expect(r.actual.slice(0, 3)).toEqual([-140, -20, null]);
     expect(r.budget[0]).toBe(-40);
+  });
+});
+
+describe("applyPaste (CR103 P0)", () => {
+  const tsv = (...cells) => cells.join("\t");
+  const twelve = (v = "100") => Array(12).fill(v);
+  const empty = () => [{ description: "", currency: "USD", months: blank() }];
+  const filled = () => [row("Existing", "USD", { 0: 5 })];
+
+  test("a single value is left to the browser", () => {
+    expect(applyPaste(empty(), 0, "1820.50", "USD")).toBeNull();
+    expect(applyPaste(empty(), 0, "1820.50\r\n", "USD")).toBeNull(); // one spreadsheet cell
+  });
+
+  test("14 cells: description, currency, Jan–Dec replace a blank row", () => {
+    const r = applyPaste(empty(), 0, tsv("Fidelity Bond — coupons", "usd", ...twelve("1820.5")), "PLN");
+    expect(r.rows).toEqual([{ description: "Fidelity Bond — coupons", currency: "USD", months: twelve("1820.5") }]);
+  });
+
+  test("13 cells take the line's currency", () => {
+    const r = applyPaste(empty(), 0, tsv("Trip", ...twelve()), "PLN");
+    expect(r.rows[0].currency).toBe("PLN");
+    expect(r.rows[0].months).toEqual(twelve());
+  });
+
+  test("several rows: the first fills the blank row, the rest append, CRLF and trailing blank lines ignored", () => {
+    const text = [tsv("A", "USD", ...twelve("1")), tsv("B", "EUR", ...twelve("2")), ""].join("\r\n") + "\r\n\r\n";
+    const r = applyPaste(empty(), 0, text, "USD");
+    expect(r.rows.map((x) => [x.description, x.currency])).toEqual([["A", "USD"], ["B", "EUR"]]);
+  });
+
+  test("a non-blank target row is kept and the paste appends", () => {
+    const r = applyPaste(filled(), 0, tsv("New", "USD", ...twelve()), "USD");
+    expect(r.rows.map((x) => x.description)).toEqual(["Existing", "New"]);
+  });
+
+  test("12 cells fill the target row's months, whichever month received them, keeping its description", () => {
+    const r = applyPaste(filled(), 0, tsv(...twelve("7")), "USD");
+    expect(r.rows).toEqual([{ description: "Existing", currency: "USD", months: twelve("7") }]);
+  });
+
+  test("12 amounts plus a trailing tab still read as 12", () => {
+    const r = applyPaste(filled(), 0, tsv(...twelve("7"), ""), "USD");
+    expect(r.rows[0].months).toEqual(twelve("7"));
+  });
+
+  test("12-cell rows in a multi-row paste reject", () => {
+    expect(applyPaste(empty(), 0, [tsv(...twelve()), tsv(...twelve())].join("\n"), "USD").error).toMatch(/12 amounts/);
+  });
+
+  test("thousands separators are stripped; empty cells stay empty", () => {
+    const cells = twelve(""); cells[0] = "1,820.50"; cells[5] = " 12,000 ";
+    const r = applyPaste(empty(), 0, tsv("X", "USD", ...cells), "USD");
+    expect(r.rows[0].months[0]).toBe("1820.50");
+    expect(r.rows[0].months[5]).toBe("12000");
+    expect(r.rows[0].months[1]).toBe("");
+  });
+
+  test.each([["1820,50"], ["$5"], ["(5)"], ["1\u00a0820"], ["1.005"], ["abc"]])("%s rejects the whole paste", (bad) => {
+    const cells = twelve(); cells[3] = bad;
+    const r = applyPaste(empty(), 0, [tsv("Good", "USD", ...twelve()), tsv("Bad", "USD", ...cells)].join("\n"), "USD");
+    expect(r.error).toMatch(/^Row 2, Apr: /);
+    expect(r.rows).toBeUndefined();
+  });
+
+  test("an unknown currency or a wrong cell count rejects", () => {
+    expect(applyPaste(empty(), 0, tsv("X", "GBP", ...twelve()), "USD").error).toMatch(/currency "GBP"/);
+    expect(applyPaste(empty(), 0, tsv("X", "1", "2"), "USD").error).toMatch(/has 3 cells/);
+  });
+
+  test("more than MAX_ITEMS rejects", () => {
+    const text = Array.from({ length: MAX_ITEMS + 1 }, (_, i) => tsv(`I${i}`, "USD", ...twelve())).join("\n");
+    expect(applyPaste(empty(), 0, text, "USD").error).toMatch(/at most 100/);
+  });
+
+  test("a pasted row flows through summarise to the cent", () => {
+    const cells = ["1820.50", "0", "0", "1820.50", "0", "0", "1820.50", "0", "0", "1820.51", "0", "0"];
+    const r = applyPaste(empty(), 0, tsv("Coupons", "USD", ...cells), "USD");
+    const s = summarise(r.rows, { currency: "USD", leFy: 40000, accountType: "income" }, FX);
+    expect(s.problem).toBeNull();
+    expect(s.annual).toBe(7282.01);
   });
 });
