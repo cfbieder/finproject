@@ -603,6 +603,15 @@ export const routes = [
     icon: PieChart,
   },
   {
+    // CR103 — one tab per account, deep-linkable, out of the nav (the tab strip carries them).
+    path: "/investments/income/:accountId",
+    component: InvestmentIncome,
+    label: "Investment Income",
+    category: "Investments",
+    showInNav: false,
+    icon: PieChart,
+  },
+  {
     // CR093 P2 — how much rests on ONE thing, as opposed to how it is
     // distributed. Sits after Income because it reads the same terms.
     path: "/investments/risk",

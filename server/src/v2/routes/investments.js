@@ -120,9 +120,26 @@ router.get('/risk', async (req, res, next) => {
  */
 router.get('/income', async (req, res, next) => {
   try {
-    res.json({ data: await income.buildIncome() });
+    // CR103: optional budget year (this year to +2) and reinvestment rate (0–20, percent).
+    const opts = {};
+    if (req.query.year !== undefined) {
+      const y = Number(req.query.year);
+      const now = new Date().getUTCFullYear();
+      if (!/^\d{4}$/.test(String(req.query.year)) || y < now || y > now + 2) {
+        return res.status(400).json({ error: `year must be ${now}–${now + 2}` });
+      }
+      opts.year = y;
+    }
+    if (req.query.reinvestRate !== undefined && req.query.reinvestRate !== '') {
+      const r = Number(req.query.reinvestRate);
+      if (!/^\d+(\.\d+)?$/.test(String(req.query.reinvestRate)) || r > 20) {
+        return res.status(400).json({ error: 'reinvestRate must be a percent from 0 to 20' });
+      }
+      opts.reinvestRate = r;
+    }
+    return res.json({ data: await income.buildIncome(opts) });
   } catch (err) {
-    next(err);
+    return next(err);
   }
 });
 

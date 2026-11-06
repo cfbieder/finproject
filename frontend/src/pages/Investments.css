@@ -492,3 +492,14 @@
 }
 .inv-income__note { display: block; font-size: 0.76rem; color: var(--ink-tertiary); }
 .inv-income__gap { margin-top: -0.4rem; }
+
+/* CR103 — budget-year income by account × month */
+.inv-income-budget__controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1.25rem; margin: 0.5rem 0 1rem; }
+.inv-income-budget__rate { width: 9rem; }
+.inv-income-budget__block h3 { margin: 1rem 0 0.4rem; font-size: 1rem; }
+.inv-income-budget__scroll { overflow-x: auto; }
+.inv-income-budget__table th[scope="row"] { white-space: nowrap; }
+.inv-income-budget__table td.inv-num { padding-left: 0.6rem; font-variant-numeric: tabular-nums; }
+.inv-income-budget__table tfoot th, .inv-income-budget__table tfoot td { border-top: 1px solid var(--border-subtle); }
+.inv-income-budget__actions { margin: 0.5rem 0 0; }
+.inv-income-budget__fallback textarea { width: 100%; font-family: var(--font-mono, monospace); font-size: 0.8rem; }

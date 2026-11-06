@@ -17,6 +17,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
 import {
   ComposedChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
@@ -26,25 +27,40 @@ import LoadingSpinner from "../components/LoadingSpinner.jsx";
 import useTheme from "../hooks/useTheme.js";
 import { chartChrome, seriesColors, tooltipStyle } from "../features/Forecast/utils/fcSeriesPalette.js";
 import { money } from "../features/Investments/investmentFormat.js";
+import IncomeBudgetYear from "../features/Investments/IncomeBudgetYear.jsx";
+import "../components/ReportTabs/ReportTabs.css";
 import "./PageLayout.css";
 import "./Investments.css";
 
 const pct = (n) => `${(Number(n) * 100).toFixed(2)}%`;
+const STALE_DAYS = 35;
+const thisYear = new Date().getFullYear();
+const YEARS = [thisYear, thisYear + 1, thisYear + 2];
 
 export default function InvestmentIncome() {
+  const { accountId } = useParams();
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  const [year, setYear] = useState(thisYear + 1);
+  const [rateInput, setRateInput] = useState("");
+  const [rate, setRate] = useState("");
   const { theme } = useTheme();
   const chrome = chartChrome(theme);
   const colors = seriesColors(theme);
 
   useEffect(() => {
     let live = true;
-    Rest.fetchJson("/api/v2/investments/income")
+    const q = new URLSearchParams({ year: String(year) });
+    if (rate !== "") q.set("reinvestRate", rate);
+    Rest.fetchJson(`/api/v2/investments/income?${q}`)
       .then((res) => { if (live) { setData(Rest.unwrap(res)); setError(null); } })
       .catch((e) => live && setError(e.message || String(e)));
     return () => { live = false; };
-  }, []);
+  }, [year, rate]);
+  const applyRate = () => {
+    const v = rateInput.trim();
+    if (v === "" || (/^\d+(\.\d+)?$/.test(v) && Number(v) <= 20)) setRate(v);
+  };
 
   if (error) {
     return (
@@ -55,18 +71,52 @@ export default function InvestmentIncome() {
   }
   if (!data) return <LoadingSpinner />;
 
-  const s = data.scheduled;
-  const e = data.estimated;
+  // CR103: the tab picks the view; All is the merged portfolio, exactly as before.
+  const view = accountId ? data.accounts.find((a) => String(a.account_id) === String(accountId)) : data;
+  if (!view) {
+    return (
+      <div className="page-shell">
+        <EmptyState message="No investment positions for that account." />
+      </div>
+    );
+  }
+  const s = view.scheduled;
+  const e = view.estimated;
+  const ageDays = data.dividends_age_days ?? null;
 
   return (
     <div className="page-shell inv-page">
       <header className="page-accent__header">
         <h1>Investment Income</h1>
         <p className="page-accent__sub">
-          What the portfolio pays over the next twelve months —{" "}
+          What {accountId ? view.account_name : "the portfolio"} pays over the next twelve months —{" "}
           {data.window.from} to {data.window.to}.
         </p>
       </header>
+
+      {/* Links, not buttons: each account has a URL, as on the positions page. */}
+      <nav className="report-tabs" aria-label="Income by account">
+        <Link to="/investments/income" className={`report-tab${!accountId ? " report-tab--active" : ""}`}
+          aria-current={!accountId ? "page" : undefined}>All accounts</Link>
+        {data.accounts.map((a) => {
+          const on = String(a.account_id) === String(accountId);
+          return (
+            <Link key={a.account_id} to={`/investments/income/${a.account_id}`}
+              className={`report-tab${on ? " report-tab--active" : ""}`} aria-current={on ? "page" : undefined}>
+              {a.account_name}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {ageDays !== null && (
+        <p className="inv-history__caveat">
+          {ageDays > STALE_DAYS ? (
+            <>⚠️ <strong>Dividend history is {ageDays} days old</strong> (loaded {data.dividends_as_of}). Reload it
+              (<code>Scripts/load-dividends.js --apply</code>) before copying to the budget.</>
+          ) : <>Dividend history loaded {data.dividends_as_of}.</>}
+        </p>
+      )}
 
       <section className="panel inv-account">
         <h2>The next twelve months</h2>
@@ -96,9 +146,9 @@ export default function InvestmentIncome() {
           </div>
           <div>
             <span className="inv-income__label">Together</span>
-            <span className="inv-income__figure">{money(data.total, "USD")}</span>
+            <span className="inv-income__figure">{money(view.total, "USD")}</span>
             <span className="inv-income__note">
-              {pct(data.yield_on_portfolio)} on the whole portfolio — not on the
+              {pct(view.yield_on_portfolio)} on {accountId ? "the whole account" : "the whole portfolio"} — not on the
               income-producing part, which would read much higher.
             </span>
           </div>
@@ -132,7 +182,7 @@ export default function InvestmentIncome() {
         </p>
         <div className="inv-chart">
           <ResponsiveContainer width="100%" height={260}>
-            <ComposedChart data={data.by_month} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+            <ComposedChart data={view.by_month} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
               <CartesianGrid stroke={chrome.grid} strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="month" stroke={chrome.axis} tick={{ fontSize: 11 }} />
               <YAxis stroke={chrome.axis} tick={{ fontSize: 11 }} width={70}
@@ -147,6 +197,13 @@ export default function InvestmentIncome() {
         </div>
       </section>
 
+      {data.budget && (
+        <IncomeBudgetYear budget={data.budget} accountId={accountId} years={YEARS} year={year} onYear={setYear}
+          rateInput={rateInput} onRateInput={setRateInput} onRateApply={applyRate}
+          defaultRate={data.budget.default_reinvest_rate} />
+      )}
+
+      {s.holdings.length > 0 && (
       <section className="panel inv-account">
         <h2>Where the scheduled income comes from</h2>
         <table className="inv-exposure">
@@ -178,6 +235,7 @@ export default function InvestmentIncome() {
           </tbody>
         </table>
       </section>
+      )}
 
       {e.holdings.some((h) => h.basis === "cash_rate") && (
         <section className="panel inv-account">
@@ -222,13 +280,14 @@ export default function InvestmentIncome() {
         </section>
       )}
 
+      {view.no_answer.length > 0 && (
       <section className="panel inv-account">
         <h2>What this cannot say</h2>
         <p className="inv-history__caveat">
-          <strong>{money(data.no_answer_value, "USD")}</strong> of the portfolio states no income
+          <strong>{money(view.no_answer_value, "USD")}</strong> of {accountId ? "the account" : "the portfolio"} states no income
           here, for four different reasons — and only one of them is a gap in our data.
         </p>
-        {data.no_answer.map((g) => (
+        {view.no_answer.map((g) => (
           <div key={g.key} className="inv-income__gap">
             <p className="inv-history__caveat">
               <strong>{money(g.value, "USD")}</strong> — {g.label} ({g.holdings.length}).{" "}
@@ -237,6 +296,7 @@ export default function InvestmentIncome() {
           </div>
         ))}
       </section>
+      )}
     </div>
   );
 }

@@ -14,6 +14,7 @@
 
 const {
   couponDates, bondIncome, faceOf, summariseIncome, absenceGroup, addMonths,
+  budgetYear, roundMonths, mergeBySecurity,
 } = require('../income');
 
 describe('couponDates — walked backwards from maturity', () => {
@@ -251,5 +252,90 @@ describe('addMonths', () => {
   test('crosses a year boundary in both directions', () => {
     expect(addMonths('2026-12-15', 1)).toBe('2027-01-15');
     expect(addMonths('2026-01-15', -1)).toBe('2025-12-15');
+  });
+});
+
+describe('budgetYear — CR103 P1: calendar year by account x basis', () => {
+  const A = { account_id: 1, account_name: 'Acct A' };
+  const bond = (o) => ({
+    ...A, id: 10, name: 'ZZ NOTE', price_basis: 'per_100_face', quantity: 100, price: 100,
+    market_value: 10000, coupon_rate: 4, payment_frequency: 'semiannually', maturity_date: '2031-01-01', ...o,
+  });
+  const mmf = { ...A, id: 20, ticker: 'MMF', name: 'MONEY FUND', asset_class: 'mmf', price_basis: 'par',
+    market_value: 12000, cash_rate: 4, rate_kind: 'seven_day_yield', cash_rate_as_of: '2026-06-30' };
+  const fdic = { ...A, id: 21, ticker: 'FDIC', name: 'SWEEP', price_basis: 'par', market_value: 1200,
+    cash_rate: 1, rate_kind: 'interest_rate' };
+  const opts = { today: '2026-11-06' };
+  const row = (r, basis) => r.rows.find((x) => x.basis === basis);
+
+  test('🔴 a 1 January coupon counts, and the year is exactly Jan–Dec', () => {
+    const r = budgetYear([bond()], 2027, opts);
+    const c = row(r, 'coupon');
+    expect(c.months).toHaveLength(12);
+    expect(c.months[0]).toBe(200); // 2027-01-01
+    expect(c.months[6]).toBe(200); // 2027-07-01
+    expect(c.total).toBe(400);
+    expect(c.category).toBe('interest');
+  });
+
+  test('D4: a June maturity reinvests Jul–Dec at the money-market yield, summing to the cent', () => {
+    const r = budgetYear([bond({ maturity_date: '2027-06-15', coupon_rate: 4 }), mmf], 2027, { ...opts, reinvestRate: 4 });
+    const re = row(r, 'reinvestment');
+    expect(re.total).toBe(200);
+    expect(re.months.slice(0, 6)).toEqual([0, 0, 0, 0, 0, 0]);
+    expect(re.months.reduce((a, v) => a + v, 0)).toBeCloseTo(200, 2);
+    expect(re.category).toBe('dividend');
+    expect(re.description).toBe('Acct A — reinvested maturities @ 4.00%');
+  });
+
+  test('D4: a maturity before 1 January reinvests the whole year; default rate is the account MMF yield', () => {
+    const r = budgetYear([bond({ maturity_date: '2026-12-15' }), mmf], 2027, opts);
+    expect(row(r, 'coupon')).toBeUndefined();
+    expect(row(r, 'reinvestment').total).toBe(400); // 10,000 x 4% x 12/12
+    expect(r.reinvest_rates).toEqual([{ account_id: 1, rate: 4, as_of: '2026-06-30', source: 'MMF' }]);
+  });
+
+  test('D7: money-market income is Dividend, an FDIC deposit is Interest', () => {
+    const r = budgetYear([mmf, fdic], 2027, opts);
+    expect(row(r, 'money_market')).toMatchObject({ category: 'dividend', total: 480 });
+    expect(row(r, 'cash_deposit')).toMatchObject({ category: 'interest', total: 12 });
+  });
+
+  test('D5: a quarterly payer lands in its pay months; two in one month both land there', () => {
+    const stock = { ...A, id: 30, ticker: 'QQ', name: 'QQ', asset_class: 'equity', price_basis: 'per_share',
+      quantity: 10, market_value: 1000, ttm_income: 4, pay_months: [3, 6, 9, 12, 12], pay_amounts: [1, 1, 1, 0.5, 0.5] };
+    const d = row(budgetYear([stock], 2027, opts), 'distribution_stock');
+    expect(d.months).toEqual([0, 0, 10, 0, 0, 10, 0, 0, 10, 0, 0, 10]);
+    expect(d.category).toBe('dividend');
+  });
+
+  test('a bond fund is per-share asset_class bond, and has no pay dates → even', () => {
+    const fund = { ...A, id: 31, ticker: 'BF', name: 'BOND FUND', asset_class: 'bond', price_basis: 'per_share',
+      quantity: 12, market_value: 1000, ttm_income: 1 };
+    const d = row(budgetYear([fund], 2027, opts), 'distribution_fund');
+    expect(d.months).toEqual(Array(12).fill(1));
+  });
+
+  test('holdings with no data are counted per account; pays-nothing is not', () => {
+    const awaiting = { ...A, id: 40, name: 'NO TERMS', price_basis: 'per_100_face', market_value: 5000 };
+    const none = { ...A, id: 41, name: 'NO DIV', price_basis: 'per_share', market_value: 700, dividends_asked: true };
+    expect(budgetYear([awaiting, none], 2027, opts).no_data).toEqual([{ account_id: 1, value: 5000 }]);
+  });
+});
+
+describe('roundMonths / mergeBySecurity', () => {
+  test('twelve rounded months sum to the rounded total', () => {
+    const r = roundMonths(Array(12).fill(100 / 12));
+    expect(r.total).toBe(100);
+    expect(r.months.reduce((a, v) => a + v, 0)).toBeCloseTo(100, 10);
+  });
+  test('the same security in two accounts merges back to one row', () => {
+    const m = mergeBySecurity([
+      { id: 1, account_id: 1, quantity: 2, market_value: 20, price: 10 },
+      { id: 1, account_id: 2, quantity: 3, market_value: 30, price: 10 },
+      { id: 2, account_id: 1, quantity: 1, market_value: 5, price: 5 },
+    ]);
+    expect(m).toHaveLength(2);
+    expect(m[0]).toMatchObject({ quantity: 5, market_value: 50 });
   });
 });
