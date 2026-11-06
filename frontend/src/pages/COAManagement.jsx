@@ -71,7 +71,7 @@ const collectCoaRows = (coaData, path = [], rows = []) => {
   return rows;
 };
 
-const buildCoaRows = (coaData = [], traitsMap = {}, fedNames = null) => {
+const buildCoaRows = (coaData = [], traitsMap = {}, fedNames = null, inactiveByName = null) => {
   const rows = collectCoaRows(coaData);
   const seenIds = new Map();
   return rows.map(({ accountId, name, path, isCategory }) => {
@@ -112,6 +112,11 @@ const buildCoaRows = (coaData = [], traitsMap = {}, fedNames = null) => {
       hasAccountNumber: !!traits.HasAccountNumber,
       isCategory,
       fed: !isCategory && fedNames instanceof Set && fedNames.has(name),
+      // CR101 — own date (editable), inherited date (what counts; a parent's covers its children),
+      // and the last posting, so a dormant account can be told from an annual one.
+      inactiveFrom: inactiveByName?.get(name)?.inactiveFrom || "",
+      inactiveFromEffective: inactiveByName?.get(name)?.inactiveFromEffective || "",
+      lastActivity: inactiveByName?.get(name)?.lastActivity || "",
     };
   });
 };
@@ -151,15 +156,17 @@ export default function COAManagement() {
     }
     setCoaLoadError("");
     try {
-      const [coaSections, traits, currencyPayload, fedPayload] = await Promise.all([
+      const [coaSections, traits, currencyPayload, fedPayload, inactivePayload] = await Promise.all([
         Rest.fetchCoaSections(),
         Rest.fetchCoaTraits().catch(() => ({})),
         Rest.fetchCurrencyOptionsV2().catch(() => null),
         Rest.fetchJson("/api/v2/bank-feed/fed-accounts").catch(() => ({ data: [] })),
+        Rest.fetchJson("/api/v2/util/coa/inactive").catch(() => ({ data: [] })),
       ]);
       setCoaSections(coaSections);
       const fedNames = new Set((fedPayload?.data || []).map((a) => a.name));
-      setCoaRows(buildCoaRows(coaSections, traits || {}, fedNames));
+      const inactiveByName = new Map((inactivePayload?.data || []).map((a) => [a.name, a]));
+      setCoaRows(buildCoaRows(coaSections, traits || {}, fedNames, inactiveByName));
       const currencies = currencyPayload?.currencies;
       if (Array.isArray(currencies)) {
         setCurrencyChoices(currencies);
@@ -440,6 +447,7 @@ export default function COAManagement() {
       type: isMulti && sharedValue("type") === "",
       currency: isMulti && sharedValue("currency") === "",
       accountNumber: isMulti && sharedValue("accountNumber") === "",
+      inactiveFrom: isMulti && new Set(selection.map((item) => item?.inactiveFrom || "")).size > 1,
     };
     const editRow = isMulti
       ? {
@@ -448,6 +456,9 @@ export default function COAManagement() {
           type: sharedValue("type"),
           currency: sharedValue("currency"),
           accountNumber: sharedValue("accountNumber"),
+          inactiveFrom: sharedValue("inactiveFrom"),
+          inactiveFromEffective: "",
+          lastActivity: "",
           originalName: selection[0]?.name,
         }
       : {
@@ -655,7 +666,7 @@ export default function COAManagement() {
         return { ...prev, row: { ...prev.row, isCategory: value } };
       }
       // Block non-name changes for categories in edit mode
-      if (prev.row?.isCategory && field !== "name" && prev.mode === "edit") {
+      if (prev.row?.isCategory && field !== "name" && field !== "inactiveFrom" && prev.mode === "edit") {
         return prev;
       }
       return {
@@ -763,9 +774,14 @@ export default function COAManagement() {
             oldName: target.originalName || target.name,
             name: nextName,
             type: nextType,
-            currency: nextCurrency,
+            // A category's currency is shown as "—" (not a value); sending it stored "—" (CR101 fix).
+            ...(isCategoryTarget ? {} : { currency: nextCurrency }),
             ...(accountNumberEdited
               ? { accountNumber: editModal.row.accountNumber }
+              : {}),
+            // CR101 — sent only when this edit changed it; '' clears (active again).
+            ...(editModal.changedFields?.inactiveFrom
+              ? { inactiveFrom: editModal.row.inactiveFrom || null }
               : {}),
           }),
         });

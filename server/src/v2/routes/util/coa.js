@@ -13,6 +13,7 @@ const express = require('express');
 const router = express.Router();
 const accountsRepo = require('../../repositories').accounts;
 const accountSourceMappingsRepo = require('../../repositories').accountSourceMappings;
+const accountInactive = require('../../../services/accountInactive');
 
 // accounts.account_type is a Postgres enum; these are its five values.
 const ACCOUNT_TYPES = ['asset', 'liability', 'equity', 'income', 'expense'];
@@ -166,12 +167,24 @@ router.post('/coa/add', async (req, res, next) => {
 });
 
 /**
+ * GET /api/v2/util/coa/inactive — CR101: every account's own and inherited Inactive-from date and its
+ * last posting, for the Chart of Accounts page.
+ */
+router.get('/coa/inactive', async (req, res, next) => {
+  try {
+    res.json({ data: await accountInactive.listInactive() });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
  * POST /api/v2/util/coa/update
  * Rename / update an account in the COA via PostgreSQL
  */
 router.post('/coa/update', async (req, res, next) => {
   try {
-    const { oldName, name, type, currency, accountNumber } = req.body || {};
+    const { oldName, name, type, currency, accountNumber, inactiveFrom } = req.body || {};
     if (!oldName || !name) {
       return res.status(400).json({ error: 'Missing account name' });
     }
@@ -182,8 +195,27 @@ router.post('/coa/update', async (req, res, next) => {
     }
 
     const updates = { name: String(name) };
-    if (currency) updates.currency = currency;
+    // A currency is a 3-letter code. The editor shows a category's currency as "—" and used to post it
+    // back, which stored "—" on the account and broke every balance-sheet read that converts by
+    // currency (found by CR101, whose Inactive-from field made category saves routine). Anything else
+    // is refused, and the page no longer sends a category's currency at all.
+    if (currency !== undefined && currency !== null && currency !== '') {
+      if (!/^[A-Z]{3}$/.test(String(currency))) {
+        return res.status(400).json({ error: `Invalid currency '${currency}' — expected a 3-letter code` });
+      }
+      updates.currency = currency;
+    }
     if (accountNumber !== undefined) updates.account_number = accountNumber;
+    // CR101 — absent = unchanged, null/'' = active again. Validated and balance-checked (D2) BEFORE
+    // update(), so a refusal leaves the whole row unchanged, a rename in the same request included.
+    if (inactiveFrom !== undefined) {
+      try {
+        updates.inactive_from = await accountInactive.checkInactiveFrom(account.id, inactiveFrom);
+      } catch (e) {
+        if (e.status && e.status < 500) return res.status(e.status).json({ error: e.message });
+        throw e;
+      }
+    }
 
     // `type` was destructured and then NEVER USED. The COA editor sends it on every save
     // (COAManagement.jsx), the repo's update() has always accepted `account_type`, and the
@@ -215,6 +247,7 @@ router.post('/coa/update', async (req, res, next) => {
         type: updated.account_type,
         currency: updated.currency,
         accountNumber: updated.account_number || '',
+        inactiveFrom: updated.inactive_from ? String(updated.inactive_from instanceof Date ? updated.inactive_from.toISOString() : updated.inactive_from).slice(0, 10) : null,
       },
     });
   } catch (error) {

@@ -352,6 +352,25 @@ dbDescribe('itemised lines — the cycle (DB)', () => {
     expect([pol.policy, pol.items_line_id]).toEqual(['itemised', ids.plnLine]);
   });
 
+  test('CR101: a line whose account is inactive from the target year is flagged, reads 0 and writes nothing', async () => {
+    const { build } = await svc.createBuild({ sourceLeId: ids.le, scenarioName: SCEN, parentBuildId: ids.v1 });
+    const before = await svc.getBuild(build.id);
+    const fees = lineOf(before, ids.fees, 'USD');
+    expect([fees.inactive, fees.annual]).toEqual([false, 103]);   // Recurring: 100 × 1.03
+    await db.query("UPDATE accounts SET inactive_from = '2094-01-01' WHERE id = $1", [ids.fees]);
+    const after = await svc.getBuild(build.id);
+    const hidden = lineOf(after, ids.fees, 'USD');
+    expect([hidden.inactive, hidden.inactiveFrom, hidden.annual, hidden.annualUsd]).toEqual([true, '2094-01-01', 0, 0]);
+    expect(after.usdTotal).toBe(Math.round((before.usdTotal - 103) * 100) / 100);
+    const p = await svc.previewPublish(build.id);
+    expect(p.split.find((s) => s.id === hidden.id).months).toEqual(Array(12).fill(0));
+    // A later date is not inactive for 2094; clearing brings the figure back.
+    await db.query("UPDATE accounts SET inactive_from = '2095-01-01' WHERE id = $1", [ids.fees]);
+    expect(lineOf(await svc.getBuild(build.id), ids.fees, 'USD').annual).toBe(103);
+    await db.query('UPDATE accounts SET inactive_from = NULL WHERE id = $1', [ids.fees]);
+    await svc.deleteDraft(build.id);
+  });
+
   test('a remembered itemised policy with no rows starts One-off, with a notice', async () => {
     await db.query('UPDATE budget_category_policy SET items_line_id = NULL WHERE category_id = $1', [ids.travel]);
     const { build, notices } = await svc.createBuild({ sourceLeId: ids.le, scenarioName: SCEN });

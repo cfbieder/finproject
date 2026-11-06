@@ -395,6 +395,41 @@ export default function COAEditModal({
             }
           />
         </div>}
+        {!isAdd && (
+          // CR101 — the account's OWN date; a parent's date covers its children (parent wins).
+          // A balance-sheet account must read zero the day before, or the save is refused.
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+            <label htmlFor="coa-edit-inactive-from" style={{ fontWeight: 700, color: "var(--ink)" }}>
+              Inactive from <span style={{ fontWeight: 400, color: "var(--ink-secondary)" }}>(optional — first of a month)</span>
+            </label>
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              <input
+                id="coa-edit-inactive-from"
+                type="month"
+                className="form-input"
+                value={(row.inactiveFrom || "").slice(0, 7)}
+                placeholder={isMultiEdit && mixedFields?.inactiveFrom ? "Multiple values" : undefined}
+                onChange={(event) =>
+                  onFieldChange("inactiveFrom", event.target.value ? `${event.target.value}-01` : "")
+                }
+              />
+              {row.inactiveFrom && (
+                <button type="button" className="coa-action-button" onClick={() => onFieldChange("inactiveFrom", "")}>
+                  Clear
+                </button>
+              )}
+            </div>
+            <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
+              {isMultiEdit && mixedFields?.inactiveFrom
+                ? "The selected accounts have different dates; a date set here applies to all of them."
+                : "Hidden from the budget builder for that year onward; it publishes nothing."}
+              {!row.inactiveFrom && row.inactiveFromEffective
+                ? ` Already inactive from ${row.inactiveFromEffective.slice(0, 7)} through a parent.`
+                : ""}
+              {row.lastActivity ? ` Last activity: ${row.lastActivity}.` : ""}
+            </span>
+          </div>
+        )}
         {editError && (
           <p style={{ margin: 0, color: "var(--danger)", fontWeight: 700 }}>
             {editError}

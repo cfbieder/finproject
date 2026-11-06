@@ -62,6 +62,12 @@ export default function COATreeRow({
             <span className="coa-tree-row__leaf-spacer" />
           )}
           {row.name}
+          {row.inactiveFromEffective && (
+            <span className="coa-tree-row__inactive"
+              title={row.inactiveFrom ? "Inactive from this date" : "Inherited from a parent's Inactive-from date"}>
+              inactive from {row.inactiveFromEffective.slice(0, 7)}{row.inactiveFrom ? "" : " (inherited)"}
+            </span>
+          )}
           {row.fed && (
             <span
               className="coa-tree-row__feed-icon"

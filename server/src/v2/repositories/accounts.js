@@ -358,7 +358,8 @@ async function update(id, data) {
     'name', 'parent_id', 'account_type', 'section', 'currency',
     'account_number', 'display_order', 'is_active', 'ps_account_name',
     'opening_balance', 'opening_balance_date', 'last_calibrated_at',
-    'ps_transaction_account_id', 'is_transfer', 'ps_category_id'
+    'ps_transaction_account_id', 'is_transfer', 'ps_category_id',
+    'inactive_from', // CR101 — validated and balance-checked by services/accountInactive before this
   ];
 
   for (const field of allowedFields) {

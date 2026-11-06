@@ -1,6 +1,8 @@
-# CR101 — Accounts inactive from a date (sold properties, finished schools: out of later reports and planning) — PLANNED
+# CR101 — Accounts inactive from a date (sold properties, finished schools: out of later reports and planning) — IN-PROGRESS
 
-**Status:** PLANNED rev 3 (2026-11-05).
+**Status:** IN-PROGRESS rev 4 (2026-11-06). **P0 live v3.86.0:** the date on the Chart of Accounts, and the budget builder hiding lines (§10). The owner moved the builder part forward (D7).
+
+Rev 3 (2026-11-05):
 - Pass 1 `cr-technical-reviewer`: REVISE on rev 1, addressed in rev 2.
 - Pass 2 `cr-signoff-pm`: **GO** on rev 2, on four conditions, applied in rev 3 (§7, §8).
 - Owner decisions D1–D6 taken 2026-11-05 (§3).
@@ -68,6 +70,7 @@ tree and list walk (`getTree`, `SORT_PATH_CTE`, `/accounts/categories`). Turning
 | D3 | A transaction dated on or after the date | **Flagged, allowed.** |
 | D4 | An inactive account with nothing in a report period | **Hidden.** |
 | D5 | Inactive accounts on **filter** controls (searching past data) | **In place, muted**, with an *inactive* marker, keeping their tree position. |
+| D7 | When the builder hides inactive lines (owner, 2026-11-06) | **Now, for the 2027 budget being built**, not after the publish. Pulled forward as **P0**: the date and the builder hiding only. Reports, pickers and the flag stay as planned. |
 | D6 | Parent and child dates | **Parent wins**, with no override: a child is inactive from the earlier of its own date and any ancestor's. If one child must stay active, set the dates on its siblings instead of the parent. |
 
 ## 4. Design
@@ -272,7 +275,8 @@ P2. Only the old banks and cards with no 2026 activity could take an earlier dat
 
 | Phase | What | When |
 |---|---|---|
-| **P1a** | 089 and the view; `inactiveFromEffective` through `getTree`/`getNestedTree` and the report builders; COA own and inherited date, badge, D2 refusal, Last activity; `pruneInactive` on the **desktop** report pages (Cash Flow, Cash Flow Periods, the three Balance pages, the three Budget vs Actual pages). | **After the 2026-12-10 publish, by default.** Before the **2026-11-26 hard stop** only if already done. **No CR101 deploy between 11-26 and the publish.** |
+| **P0** ✅ | 089 and the view; the COA *Inactive from* field (own date, inherited badge, last activity in the form, D2 refusal); the budget builder hides lines inactive from the target year, and on a draft they read 0 and publish nothing (D7). | **v3.86.0, 2026-11-06**, before the freeze. Freeze gate: both prod 2027 drafts give an identical cell hash and USD total before and after. |
+| **P1a** | `inactiveFromEffective` through `getTree`/`getNestedTree` and the report builders; a *Last activity* column and the *Hide inactive* filter on the COA tree (the field, badge and D2 shipped in P0); `pruneInactive` on the **desktop** report pages (Cash Flow, Cash Flow Periods, the three Balance pages, the three Budget vs Actual pages). | **After the 2026-12-10 publish, by default.** Before the **2026-11-26 hard stop** only if already done. **No CR101 deploy between 11-26 and the publish.** |
 | **P1b** | `CategorySelector` picker and filter modes, and the picker call sites; the `categorySuggest` skip; the D3 flag, badge, attention count and `inactivePosting` filter. | Before the first 2027 month-end. It shares no surface with CR098 P3c, so the two can run side by side. |
 | **P2a** | LE scope for future years, the FC line-mapping pool, add-from-actuals. | From January, **not in the days around CR064's annual-close run**. |
 | **P2b** | `createBuild` and the Itemised pointer. | Before the 2028 build (autumn 2027), after CR098 P3c. |
@@ -289,6 +293,47 @@ P2. Only the old banks and cards with no 2026 activity could take an earlier dat
 - **Deploy:** 089 applies at `deploy-to-production.sh` Step 2b, before the code. **Rollback:** clearing a date
   undoes it for data; dropping the view and the column undoes the schema.
 - **§9 line numbers drift.** Refresh them at build time; they are not a checklist.
+
+## 10. As built — P0 (2026-11-06, v3.86.0)
+
+- **Migration 089:** the `accounts.inactive_from` column, with a first-of-month CHECK, and the
+  `account_inactive_effective` view (parent wins), which walks every account.
+- **`services/accountInactive.js`:**
+  - `listInactive` gives each account's own date, inherited date and last posting
+    (`GET /util/coa/inactive`).
+  - `checkInactiveFrom` enforces the first-of-month rule and D2. D2 compares each leaf's native balance on the
+    day before the date, using `reports.nativeBalanceRows`. That query was extracted from
+    `fetchAccountBalances` with the same SQL plus an id filter, so the balance sheet and the check cannot
+    disagree. It makes no FX call.
+- **`/util/coa/update`** accepts `inactiveFrom`: absent leaves it, null clears it, and it is checked before
+  `update()`. `accountsRepo.update` whitelists the column.
+- **The COA page:**
+  - an *Inactive from* month field, multi-select capable, which also works on a category;
+  - an *inherited* hint and *Last activity* in the form;
+  - a muted *inactive from 2027-01 (inherited)* badge in the tree.
+- **Budget builder `getBuild`:** each line carries `inactive` and `inactiveFrom`, where `inactive` means
+  inactive from the target year's 1 January. On a draft the line reads 0, so it has no cells, no total and no
+  blocker. A missing rate in its currency is ignored. The page hides these lines (*N line(s) hidden … show
+  them*); shown, they are marked *inactive from … publishes nothing*. The done count excludes them.
+- **A defect found and fixed on the way.** Saving any *category* in the COA editor posted the placeholder
+  currency "—", and the server stored it. Prod had no such row, because no category had been saved there.
+  On dev it broke every balance-sheet read that converts by currency, and three suites caught it. The page no
+  longer sends a category's currency, and the route refuses anything that is not a 3-letter code (tested).
+- **Verification:**
+  - `accountInactive.test.js`: 5 tests. Inheritance and parent-wins; the first-of-month rule, in the service and
+    in the CHECK; D2 on a leaf and on a parent, naming the leaf and its EUR balance; a posting after the date
+    not counted; `listInactive`.
+  - Builder: an inactive line is flagged, reads 0, has an all-zero month split, and the USD total drops by
+    exactly its figure; a later date and a cleared date bring it back.
+  - Route tests: the currency refusal; the date round-trip; a refused date leaves a rename undone.
+  - The full server suite: 130 suites, 1,614 tests.
+- **Dev walk, in both themes:**
+  - `Property - SP - PM4` set from 2027-01 in the COA form;
+  - its six leaves show *(inherited)*;
+  - a new draft hides 6 lines and its USD total moves from −84,058 to −80,046;
+  - `SP - Panorama Mar 4` from 2026-04 is refused: *holds 347,535.00 EUR* on 2026-03-31. From 2027-01 it is
+    allowed, because the sale zeroed it in April;
+  - the currency stays USD after a category save.
 
 ## 8. Review log
 

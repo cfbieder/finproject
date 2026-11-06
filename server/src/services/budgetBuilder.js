@@ -642,12 +642,15 @@ async function getBuild(id, client = db) {
                       SELECT id FROM up)) AS on_forecast_line,
             COALESCE((SELECT SUM(be.amount) FROM budget_entries be
                        WHERE be.budget_year = $2 AND be.category_id = l.category_id
-                         AND be.currency = l.currency), 0) AS this_year_budget
+                         AND be.currency = l.currency), 0) AS this_year_budget,
+            (e.inactive_from_eff IS NOT NULL AND e.inactive_from_eff <= make_date($3, 1, 1)) AS inactive,
+            e.inactive_from_eff AS inactive_from
        FROM budget_build_lines l
        JOIN accounts c ON c.id = l.category_id
+       LEFT JOIN account_inactive_effective e ON e.id = l.category_id
        LEFT JOIN accounts p ON p.id = c.parent_id
       WHERE l.build_id = $1
-      ORDER BY p.name NULLS FIRST, c.name, l.currency`, [id, build.le_year]
+      ORDER BY p.name NULLS FIRST, c.name, l.currency`, [id, build.le_year, build.target_year]
   )).rows;
 
   // An itemised line's rows, all in one query; its months and annual are derived here, never stored.
@@ -666,7 +669,10 @@ async function getBuild(id, client = db) {
   const out = lines.map((l) => {
     const items = l.policy === 'itemised' ? itemsByLine.get(l.id) || [] : null;
     const months = items ? itemMonths(items, l.currency, rates.fx) : null;
-    const annual = stored ? round2(l.annual_amount) : annualFor(l, rates, months);
+    // CR101: a line whose account is inactive from the target year (or earlier) is hidden on the page
+    // and, on a draft, reads 0 — so it writes no cells, adds nothing to a total and blocks nothing.
+    // A stored build shows what it stored.
+    const annual = stored ? round2(l.annual_amount) : l.inactive ? 0 : annualFor(l, rates, months);
     const fx = rates.fx[l.currency];
     let usd = null;
     if (stored) usd = storedUsd.get(`${l.category_id}|${l.currency}`) ?? 0;
@@ -686,7 +692,7 @@ async function getBuild(id, client = db) {
       thisYearBudget: round2(l.this_year_budget),
       vsThisYear: annual == null ? null : round2(annual - Number(l.this_year_budget)),
       isParent: l.is_parent, onForecastLine: l.on_forecast_line, done: l.done,
-      accountType: l.account_type,
+      accountType: l.account_type, inactive: l.inactive, inactiveFrom: l.inactive_from,
       items, itemMonths: months,
       itemsUnconvertible: items ? unconvertible(items, l.currency, rates.fx) : null,
     };
@@ -835,7 +841,8 @@ async function computeCells(client, build, view) {
       : { split_method: l.splitMethod, split_month: l.splitMonth, split_weights: l.splitWeights };
     const { cells: lc, source, method } = splitLine(l.annual, rawLine, actual.get(key), budget.get(key));
     const fx = view.rates.fx[l.currency];
-    if (!fx?.rate) throw err(400, `No ${l.currency} rate in scenario '${view.build.scenario}'`);
+    // CR101: an inactive line has no cells (annual 0), so its currency's rate is not needed.
+    if (!fx?.rate && !l.inactive) throw err(400, `No ${l.currency} rate in scenario '${view.build.scenario}'`);
     for (const c of lc) {
       cells.push({
         category_id: l.categoryId, account_id: c.account_id, currency: l.currency, month: c.month,
@@ -1013,6 +1020,8 @@ async function previewPublish(id) {
     }
     // A restore re-writes stored cells, which were checked when they were first published.
     if (!isDraft) continue;
+    // CR101: an inactive line reads 0 and writes nothing, so nothing about it can block.
+    if (l.inactive) continue;
     if (l.isParent && l.annual) {
       blockers.add(`${l.category} (${l.currency}) is a parent category — the forecast's base year cannot see it. ` +
         'Set it to One-off and put its amount on a sub-category.');

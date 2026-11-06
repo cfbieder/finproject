@@ -164,6 +164,31 @@ d('routes/util.js', () => {
       expect(row.rows[0].account_type).toBe('expense'); // unchanged
     });
 
+    test("400s on the '—' a category row shows as its currency — it used to be stored (CR101)", async () => {
+      const r = await req('POST', '/coa/update', { oldName: PARENT, name: PARENT, currency: '\u2014' });
+      expect(r.status).toBe(400);
+      expect(r.body.error).toMatch(/3-letter code/);
+      const row = await db.query('SELECT currency FROM accounts WHERE id = $1', [parentId]);
+      expect(row.rows[0].currency).toBe('USD');
+    });
+
+    test('Inactive from round-trips; absent leaves it, null clears it; a refusal changes nothing (CR101)', async () => {
+      let r = await req('POST', '/coa/update', { oldName: PARENT, name: PARENT, inactiveFrom: '2091-01-01' });
+      expect(r.status).toBe(200);
+      expect(r.body.updated.inactiveFrom).toBe('2091-01-01');
+      r = await req('POST', '/coa/update', { oldName: PARENT, name: PARENT });        // absent: unchanged
+      expect(r.body.updated.inactiveFrom).toBe('2091-01-01');
+      // A mid-month date is refused, and the rename sent with it does not happen.
+      r = await req('POST', '/coa/update', { oldName: PARENT, name: `${PARENT}_x`, inactiveFrom: '2091-02-15' });
+      expect(r.status).toBe(400);
+      const row = await db.query('SELECT name, inactive_from::text AS d FROM accounts WHERE id = $1', [parentId]);
+      expect(row.rows[0]).toEqual({ name: PARENT, d: '2091-01-01' });
+      r = await req('POST', '/coa/update', { oldName: PARENT, name: PARENT, inactiveFrom: null });
+      expect(r.body.updated.inactiveFrom).toBeNull();
+      const inactive = await req('GET', '/coa/inactive');
+      expect(inactive.body.data.find((a) => a.id === parentId)).toMatchObject({ inactiveFrom: null, inactiveFromEffective: null });
+    });
+
     test('400s on a type that is neither blank nor real — loud, not silently dropped', async () => {
       const r = await req('POST', '/coa/update', {
         oldName: PARENT,

@@ -150,6 +150,7 @@ function BudgetBuilder() {
   const [itemsFor, setItemsFor] = useState(null);        // CR100: the line whose items modal is open
   const [itemsError, setItemsError] = useState("");
   const [confirmLeave, setConfirmLeave] = useState(null); // { line, policy } — leaving Itemised deletes the rows
+  const [showInactive, setShowInactive] = useState(false); // CR101: lines on accounts inactive from the target year
 
   const loadSources = useCallback(async () => {
     const data = Rest.unwrap(await Rest.get("/budget-builder"));
@@ -326,6 +327,19 @@ function BudgetBuilder() {
   const splitById = useMemo(() => new Map((split?.split || []).map((s) => [s.id, s])), [split]);
   const linesById = useMemo(() => new Map((view?.lines || []).map((l) => [l.id, l])), [view]);
   // CR100: which currency line of each category is itemised, for the notes on its siblings.
+  // CR101: a line whose account is inactive from the target year is hidden (it reads 0 and publishes
+  // nothing), and a group header with nothing visible under it goes too. "show" brings them back.
+  const visibleRows = useMemo(() => {
+    const rows = view?.rows || [];
+    const lineVisible = (row) => showInactive || !linesById.get(row.lineId)?.inactive;
+    return rows.filter((row, i) => {
+      if (row.kind !== "group") return lineVisible(row);
+      for (let j = i + 1; j < rows.length && rows[j].depth > row.depth; j++) {
+        if (rows[j].kind !== "group" && lineVisible(rows[j])) return true;
+      }
+      return false;
+    });
+  }, [view, linesById, showInactive]);
   const itemisedOn = useMemo(() => new Map((view?.lines || [])
     .filter((l) => l.policy === "itemised").map((l) => [l.categoryId, l.currency])), [view]);
   const hasPublished = (b) => b.status === "superseded" || b.status === "unpublished";
@@ -455,8 +469,18 @@ function BudgetBuilder() {
             <RateLine label="PLN per USD" rate={shown.rates.fx.PLN} targetYear={targetYear} />
             <RateLine label="EUR per USD" rate={shown.rates.fx.EUR} targetYear={targetYear} />
             <span className="bb-rate">
-              <strong>{shown.lines.filter((l) => l.done).length}</strong> of {shown.lines.length} lines done
+              <strong>{shown.lines.filter((l) => l.done && !l.inactive).length}</strong> of{" "}
+              {shown.lines.filter((l) => !l.inactive).length} lines done
             </span>
+            {shown.lines.some((l) => l.inactive) && (
+              <span className="bb-muted">
+                {shown.lines.filter((l) => l.inactive).length} line(s) {showInactive ? "shown" : "hidden"}: their accounts are
+                inactive from {targetYear} and publish nothing ·{" "}
+                <button type="button" className="bb-linkish" onClick={() => setShowInactive((v) => !v)}>
+                  {showInactive ? "hide them" : "show them"}
+                </button>
+              </span>
+            )}
             {isDraft && [shown.rates.inflation, shown.rates.fx.PLN, shown.rates.fx.EUR].some((r) => r && r.fromYear < targetYear) && (
               <span className="bb-muted">
                 Rates for {targetYear} are not set in {shown.build.scenario}; set them on Forecast Scenarios
@@ -489,7 +513,7 @@ function BudgetBuilder() {
                 </tr>
               </thead>
               <tbody>
-                {shown.rows.map((row, i) => {
+                {visibleRows.map((row, i) => {
                   if (row.kind === "group") {
                     return (
                       <tr key={`group-${row.categoryId ?? "other"}`} className={`bb-row--group bb-row--group-d${Math.min(row.depth, 2)}`}>
@@ -523,6 +547,7 @@ function BudgetBuilder() {
                           </span>
                           {l.isParent && <span className="bb-flag"> ⚠ parent — not in the forecast&apos;s base year</span>}
                           {!l.isParent && !l.onForecastLine && <span className="bb-muted"> · on no forecast line</span>}
+                          {l.inactive && <span className="bb-muted"> · inactive from {String(l.inactiveFrom).slice(0, 7)} — publishes nothing</span>}
                           {l.policy !== "itemised" && itemisedOn.has(l.categoryId) && (l.policy === "one_off"
                             ? <span className="bb-muted"> · itemised on the {itemisedOn.get(l.categoryId)} line</span>
                             : <span className="bb-flag"> ⚠ also itemised on the {itemisedOn.get(l.categoryId)} line — counted twice</span>)}

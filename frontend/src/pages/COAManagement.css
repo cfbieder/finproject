@@ -293,6 +293,14 @@
 }
 
 /* Bank-feed badge on leaf accounts linked to a live feed */
+.coa-tree-row__inactive {
+  /* CR101 — muted, never coloured: colour means sign. */
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
 .coa-tree-row__feed-icon {
   display: inline-flex;
   align-items: center;

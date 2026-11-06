@@ -60,23 +60,15 @@ async function buildBalanceSheetReport(asOfDate) {
 }
 
 /**
- * Fetch account balances from PostgreSQL transactions
+ * Each account's balance in its OWN currency as of `asOfDate`: opening balance + postings, or, for a
+ * balance_from_feed account (CR024), the latest feed balance on or before the date. Shared by the
+ * balance sheet and CR101's zero-balance check, so the two cannot disagree. `accountIds` narrows it;
+ * no FX, no network.
  */
-async function fetchAccountBalances(asOfDate) {
-  console.log('[v2/reports/balance] Fetching account balances for date:', asOfDate);
-
-  // Calculate balance as opening_balance + SUM(transaction amounts up to asOfDate).
-  // This replaces the old closing_balance approach which was prone to stale PS data.
-  //
-  // CR024 read-override: for a leaf account whose bank-feed mapping has
-  // balance_from_feed=TRUE (the Fidelity market-value accounts), use the latest
-  // reported feed balance with balance_date <= asOfDate instead — fin's additive
-  // model can't reconstruct mark-to-market. When no feed balance exists for that
-  // as-of date (pre-coverage history, < 2026-05-30), fb.balance is NULL and we
-  // fall back to the additive value unchanged. Parent category nodes hold no
-  // mapping, so they aggregate their (overridden) children via buildBalanceSheetNode.
+async function nativeBalanceRows(asOfDate, { accountIds = null } = {}) {
   const sql = `
     SELECT
+      a.id AS account_id,
       a.name AS account_name,
       a.currency AS account_currency,
       CASE WHEN fb.balance IS NOT NULL
@@ -101,10 +93,30 @@ async function fetchAccountBalances(asOfDate) {
       LIMIT 1
     ) fb ON TRUE
     WHERE a.is_active = TRUE
+      AND ($2::int[] IS NULL OR a.id = ANY($2::int[]))
     GROUP BY a.id, a.name, a.currency, a.opening_balance, a.opening_balance_date, fb.balance
   `;
 
-  const result = await db.query(sql, [asOfDate]);
+  return (await db.query(sql, [asOfDate, accountIds])).rows;
+}
+
+/**
+ * Fetch account balances from PostgreSQL transactions
+ */
+async function fetchAccountBalances(asOfDate) {
+  console.log('[v2/reports/balance] Fetching account balances for date:', asOfDate);
+
+  // Calculate balance as opening_balance + SUM(transaction amounts up to asOfDate).
+  // This replaces the old closing_balance approach which was prone to stale PS data.
+  //
+  // CR024 read-override: for a leaf account whose bank-feed mapping has
+  // balance_from_feed=TRUE (the Fidelity market-value accounts), use the latest
+  // reported feed balance with balance_date <= asOfDate instead — fin's additive
+  // model can't reconstruct mark-to-market. When no feed balance exists for that
+  // as-of date (pre-coverage history, < 2026-05-30), fb.balance is NULL and we
+  // fall back to the additive value unchanged. Parent category nodes hold no
+  // mapping, so they aggregate their (overridden) children via buildBalanceSheetNode.
+  const result = { rows: await nativeBalanceRows(asOfDate) };
   console.log('[v2/reports/balance] Found', result.rows.length, 'accounts');
 
   // Collect unique non-USD currencies
@@ -601,6 +613,7 @@ module.exports = {
   isValidDateString,
   buildBalanceSheetReport,
   fetchAccountBalances,
+  nativeBalanceRows,
   buildCashFlowReport,
   getCashFlowTransactions,
   getCategoryTrend,
