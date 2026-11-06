@@ -1,6 +1,6 @@
-# CR101 — Accounts inactive from a date (sold properties, finished schools: out of later reports and planning) — IN-PROGRESS
+# CR101 — Accounts inactive from a date (sold properties, finished schools: out of later reports and planning) — COMPLETED
 
-**Status:** IN-PROGRESS rev 4 (2026-11-06). **P0 live v3.86.0:** the date on the Chart of Accounts, and the budget builder hiding lines (§10). The owner moved the builder part forward (D7).
+**Status:** COMPLETED 2026-11-06 (owner close). **P0 live v3.86.0:** the date on the Chart of Accounts and the budget builder hiding lines (§10); the owner confirmed it working on prod (the SP - SS and PM4 lines hidden). **P1a, P1b, P2a and P2b were not built; they are carried to [roadmap §2](../current/project-roadmap.md#2-open-backlog-non-cr-items)**, specified in §4 and §7 of this document.
 
 Rev 3 (2026-11-05):
 - Pass 1 `cr-technical-reviewer`: REVISE on rev 1, addressed in rev 2.
