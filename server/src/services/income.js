@@ -434,7 +434,7 @@ function budgetYear(positions, year, { today, reinvestRate = null } = {}) {
       if (p.maturity_date && p.maturity_date > today && p.maturity_date <= yEnd && b.face) {
         const r = rateFor(p.account_id);
         if (r && r.rate > 0) {
-          rates.set(p.account_id, r);
+          rates.set(p.account_id, { ...r, account_name: p.account_name });
           const startM = p.maturity_date < `${year}-01-01` ? 0 : Number(p.maturity_date.slice(5, 7));
           const m = Array(12).fill(0);
           for (let i = startM; i < 12; i += 1) m[i] = (b.face * r.rate) / 100 / 12;
@@ -515,7 +515,7 @@ async function buildIncome({ asOf, year, reinvestRate } = {}) {
        GROUP BY d.security_id)
     SELECT snap.account_id, a.name AS account_name,
            s.id, s.ticker, s.name, s.price_basis, s.asset_class,
-           s.dividends_as_of IS NOT NULL AS dividends_asked,
+           s.dividends_as_of IS NOT NULL AS dividends_asked, s.dividends_as_of::text AS dividends_as_of,
            SUM(p.quantity)::float AS quantity,
            SUM(p.market_value)::float AS market_value,
            MAX(p.price)::float AS price,
@@ -536,8 +536,10 @@ async function buildIncome({ asOf, year, reinvestRate } = {}) {
               d.income, d.pay_months, d.pay_amounts, c.rate, c.rate_kind, c.as_of`,
   [from]);
 
-  const { rows: [asof] } = await db.query(
-    'SELECT max(dividends_as_of)::text AS dividends_as_of FROM securities');
+  // The OLDEST load among held securities: a partial reload of a few tickers must
+  // not make the page say "loaded today" while other holdings' windows end months back.
+  const loads = positions.map((p) => p.dividends_as_of).filter(Boolean).sort();
+  const asof = { dividends_as_of: loads[0] || null };
 
   const mv = (rows) => rows.reduce((a, p) => a + (p.market_value || 0), 0);
   const all = mergeBySecurity(positions);
@@ -554,9 +556,9 @@ async function buildIncome({ asOf, year, reinvestRate } = {}) {
 
   return {
     ...summariseIncome(all, from, to, mv(all)),
-    dividends_as_of: asof?.dividends_as_of || null,
-    // Days between the last dividend load and the window start (the page warns past 35).
-    dividends_age_days: asof?.dividends_as_of
+    dividends_as_of: asof.dividends_as_of,
+    // Days between the oldest held load and the window start (the page warns past 35).
+    dividends_age_days: asof.dividends_as_of
       ? Math.round((Date.parse(from) - Date.parse(asof.dividends_as_of)) / 86400000) : null,
     accounts,
     budget: year ? budgetYear(positions, year, { today: from, reinvestRate }) : null,

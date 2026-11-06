@@ -34,16 +34,16 @@ import "./Investments.css";
 
 const pct = (n) => `${(Number(n) * 100).toFixed(2)}%`;
 const STALE_DAYS = 35;
-const thisYear = new Date().getFullYear();
-const YEARS = [thisYear, thisYear + 1, thisYear + 2];
 
 export default function InvestmentIncome() {
   const { accountId } = useParams();
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
-  const [year, setYear] = useState(thisYear + 1);
+  // UTC, as the server validates the year in UTC.
+  const [year, setYear] = useState(() => new Date().getUTCFullYear() + 1);
   const [rateInput, setRateInput] = useState("");
   const [rate, setRate] = useState("");
+  const [rateError, setRateError] = useState(null);
   const { theme } = useTheme();
   const chrome = chartChrome(theme);
   const colors = seriesColors(theme);
@@ -59,7 +59,8 @@ export default function InvestmentIncome() {
   }, [year, rate]);
   const applyRate = () => {
     const v = rateInput.trim();
-    if (v === "" || (/^\d+(\.\d+)?$/.test(v) && Number(v) <= 20)) setRate(v);
+    if (v === "" || (/^\d+(\.\d+)?$/.test(v) && Number(v) <= 20)) { setRate(v); setRateError(null); return; }
+    setRateError(`"${v}" is not a rate from 0 to 20 — still using ${rate === "" ? "each account's yield" : `${rate}%`}`);
   };
 
   if (error) {
@@ -73,9 +74,28 @@ export default function InvestmentIncome() {
 
   // CR103: the tab picks the view; All is the merged portfolio, exactly as before.
   const view = accountId ? data.accounts.find((a) => String(a.account_id) === String(accountId)) : data;
+  const baseYear = Number(String(data.window.from).slice(0, 4));
+  const years = [baseYear, baseYear + 1, baseYear + 2];
+  // Links, not buttons: each account has a URL, as on the positions page.
+  const tabs = (
+    <nav className="report-tabs" aria-label="Income by account">
+      <Link to="/investments/income" className={`report-tab${!accountId ? " report-tab--active" : ""}`}
+        aria-current={!accountId ? "page" : undefined}>All accounts</Link>
+      {data.accounts.map((a) => {
+        const on = String(a.account_id) === String(accountId);
+        return (
+          <Link key={a.account_id} to={`/investments/income/${a.account_id}`}
+            className={`report-tab${on ? " report-tab--active" : ""}`} aria-current={on ? "page" : undefined}>
+            {a.account_name}
+          </Link>
+        );
+      })}
+    </nav>
+  );
   if (!view) {
     return (
-      <div className="page-shell">
+      <div className="page-shell inv-page">
+        {tabs}
         <EmptyState message="No investment positions for that account." />
       </div>
     );
@@ -94,20 +114,7 @@ export default function InvestmentIncome() {
         </p>
       </header>
 
-      {/* Links, not buttons: each account has a URL, as on the positions page. */}
-      <nav className="report-tabs" aria-label="Income by account">
-        <Link to="/investments/income" className={`report-tab${!accountId ? " report-tab--active" : ""}`}
-          aria-current={!accountId ? "page" : undefined}>All accounts</Link>
-        {data.accounts.map((a) => {
-          const on = String(a.account_id) === String(accountId);
-          return (
-            <Link key={a.account_id} to={`/investments/income/${a.account_id}`}
-              className={`report-tab${on ? " report-tab--active" : ""}`} aria-current={on ? "page" : undefined}>
-              {a.account_name}
-            </Link>
-          );
-        })}
-      </nav>
+      {tabs}
 
       {ageDays !== null && (
         <p className="inv-history__caveat">
@@ -198,9 +205,10 @@ export default function InvestmentIncome() {
       </section>
 
       {data.budget && (
-        <IncomeBudgetYear budget={data.budget} accountId={accountId} years={YEARS} year={year} onYear={setYear}
-          rateInput={rateInput} onRateInput={setRateInput} onRateApply={applyRate}
-          defaultRate={data.budget.default_reinvest_rate} />
+        // Keyed so a copy box or "Copied" note never survives a change of tab, year or rate.
+        <IncomeBudgetYear key={`${accountId ?? "all"}-${data.budget.year}-${rate}`}
+          budget={data.budget} accountId={accountId} years={years} year={year} onYear={setYear}
+          rateInput={rateInput} onRateInput={setRateInput} onRateApply={applyRate} rateError={rateError} />
       )}
 
       {s.holdings.length > 0 && (

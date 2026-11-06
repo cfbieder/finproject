@@ -292,7 +292,7 @@ describe('budgetYear — CR103 P1: calendar year by account x basis', () => {
     const r = budgetYear([bond({ maturity_date: '2026-12-15' }), mmf], 2027, opts);
     expect(row(r, 'coupon')).toBeUndefined();
     expect(row(r, 'reinvestment').total).toBe(400); // 10,000 x 4% x 12/12
-    expect(r.reinvest_rates).toEqual([{ account_id: 1, rate: 4, as_of: '2026-06-30', source: 'MMF' }]);
+    expect(r.reinvest_rates).toEqual([{ account_id: 1, account_name: 'Acct A', rate: 4, as_of: '2026-06-30', source: 'MMF' }]);
   });
 
   test('D7: money-market income is Dividend, an FDIC deposit is Interest', () => {

@@ -22,10 +22,13 @@ function toTsv(rows) {
   return rows.map((r) => [r.description, "USD", ...r.months.map((v) => Number(v).toFixed(2))].join("\t")).join("\n");
 }
 
-export default function IncomeBudgetYear({ budget, accountId, years, year, onYear, rateInput, onRateInput, onRateApply, defaultRate }) {
+export default function IncomeBudgetYear({ budget, accountId, years, year, onYear, rateInput, onRateInput, onRateApply, rateError }) {
   const [fallback, setFallback] = useState(null);
   const [copied, setCopied] = useState(null);
   const rows = budget.rows.filter((r) => !accountId || String(r.account_id) === String(accountId));
+  // While a new year loads, the rows on screen are still the old year's: say so and don't copy them.
+  const loading = budget.year !== year;
+  const rates = budget.reinvest_rates.filter((r) => !accountId || String(r.account_id) === String(accountId));
   const noData = budget.no_data.filter((n) => !accountId || String(n.account_id) === String(accountId))
     .reduce((a, n) => a + n.value, 0);
 
@@ -45,9 +48,9 @@ export default function IncomeBudgetYear({ budget, accountId, years, year, onYea
 
   return (
     <section className="panel inv-account">
-      <h2>Budget year {year} — by account and month</h2>
+      <h2>Budget year {budget.year} — by account and month{loading ? ` (loading ${year}…)` : ""}</h2>
       <p className="inv-history__caveat">
-        Calendar {year} from <strong>today&apos;s holdings</strong>. Coupons on their due months; dividends in the months
+        Calendar {budget.year} from <strong>today&apos;s holdings</strong>. Coupons on their due months; dividends in the months
         they were paid last year (a shape, not announced dates); cash at today&apos;s rate, spread evenly. Bonds maturing
         before year-end are reinvested from the month after at the rate shown. Rows are split the way the ledger books
         them, so each block pastes into one budget line.
@@ -60,12 +63,16 @@ export default function IncomeBudgetYear({ budget, accountId, years, year, onYea
         </label>
         <label>Reinvestment rate %{" "}
           <input type="text" inputMode="decimal" className="inv-income-budget__rate" value={rateInput}
-            placeholder={defaultRate ? `${defaultRate.rate} (${defaultRate.source})` : "default"}
+            placeholder="account yield"
             onChange={(e) => onRateInput(e.target.value)} onBlur={onRateApply}
             onKeyDown={(e) => { if (e.key === "Enter") onRateApply(); }} />
         </label>
-        <span className="inv-history__caveat">Blank uses each account&apos;s money-market 7-day yield.</span>
+        <span className="inv-history__caveat">
+          Blank uses each account&apos;s money-market 7-day yield
+          {rates.length > 0 && <>: {rates.map((r) => `${r.account_name} ${r.rate}%${r.source && r.source !== "entered" ? ` (${r.source}${r.as_of ? `, ${r.as_of}` : ""})` : ""}`).join(" · ")}</>}.
+        </span>
       </div>
+      {rateError && <p className="inv-history__caveat" role="alert">⚠️ {rateError}</p>}
 
       {SECTIONS.map((section) => {
         const part = rows.filter((r) => r.category === section.key);
@@ -103,7 +110,7 @@ export default function IncomeBudgetYear({ budget, accountId, years, year, onYea
               </table>
             </div>
             <p className="inv-income-budget__actions">
-              <button type="button" className="btn btn--secondary btn--sm" onClick={() => copy(section)}>{section.button}</button>
+              <button type="button" className="btn btn--secondary btn--sm" disabled={loading} onClick={() => copy(section)}>{section.button}</button>
               {copied === section.key && <span className="inv-history__caveat"> Copied {part.length} rows.</span>}
             </p>
           </div>
