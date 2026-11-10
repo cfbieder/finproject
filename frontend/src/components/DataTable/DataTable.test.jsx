@@ -24,6 +24,15 @@ function rowOrder() {
 }
 
 describe("DataTable", () => {
+  it("adds rowClassName's class to each row's <tr>", () => {
+    render(
+      <DataTable columns={COLUMNS} rows={ROWS} rowKey={(r) => r.id}
+        rowClassName={(r) => (r.name === "Alice" ? "is-alice" : "")} />
+    );
+    const rows = screen.getAllByRole("row").slice(1);
+    expect(rows.map((tr) => tr.className)).toEqual(["", "is-alice", ""]);
+  });
+
   it("renders rows and cells in source order by default", () => {
     render(<DataTable columns={COLUMNS} rows={ROWS} rowKey={(r) => r.id} />);
     expect(rowOrder()).toEqual(["Charlie", "Alice", "Bob"]);

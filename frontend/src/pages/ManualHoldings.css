@@ -39,6 +39,11 @@
   width: 100%;
 }
 
+/* Cash sits below the investments, set apart by a gap. */
+.mh-group .data-table tbody tr.mh-row--cash-start td {
+  border-top: 1rem solid var(--surface-muted);
+}
+
 .mh-group .data-table-scroll,
 .mh-inputs-wrap {
   overflow-x: auto;

@@ -19,6 +19,8 @@ import "./DataTable.css";
  *   sortValue  (row) => comparable — overrides the default sort accessor
  *   className  extra class on <td>
  *
+ * rowClassName  optional (row, index) => string — extra class on a row's <tr>
+ *
  * Sorting is uncontrolled by default (internal state). Pass `sort` +
  * `onSortChange` to control it (e.g. to share sort state with a toolbar).
  */
@@ -32,6 +34,7 @@ export default function DataTable({
   hint,
   className = "",
   onRowClick,
+  rowClassName,
 }) {
   const [internalSort, setInternalSort] = useState(null);
   const controlled = onSortChange != null;
@@ -113,7 +116,11 @@ export default function DataTable({
               sortedRows.map((row, index) => (
                 <tr
                   key={rowKey ? rowKey(row, index) : index}
-                  className={onRowClick ? "data-table__row--clickable" : undefined}
+                  className={
+                    [onRowClick ? "data-table__row--clickable" : "", rowClassName?.(row, index) || ""]
+                      .filter(Boolean)
+                      .join(" ") || undefined
+                  }
                   onClick={onRowClick ? () => onRowClick(row, index) : undefined}
                 >
                   {columns.map((col) => (

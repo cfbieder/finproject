@@ -200,7 +200,9 @@ function HoldingsPanel({ holdings, ccy, onAdd, onEdit, onBuy }) {
       if (!m.has(k)) m.set(k, []);
       m.get(k).push(h);
     }
-    return [...m.entries()];
+    // Investments first, then cash — a stable sort, so each part keeps its own order.
+    const isCash = (h) => h.asset_class === "cash";
+    return [...m.entries()].map(([k, rows]) => [k, [...rows].sort((a, b) => isCash(a) - isCash(b))]);
   }, [holdings]);
 
   const columns = [
@@ -287,7 +289,18 @@ function HoldingsPanel({ holdings, ccy, onAdd, onEdit, onBuy }) {
                 )}
               </span>
             </div>
-            <DataTable columns={columns} rows={rows} rowKey={(h) => h.id} />
+            <DataTable
+              columns={columns}
+              rows={rows}
+              rowKey={(h) => h.id}
+              // A gap above the first cash row, when investments sit above it.
+              rowClassName={(h) => {
+                const i = rows.indexOf(h);
+                return i > 0 && h.asset_class === "cash" && rows[i - 1].asset_class !== "cash"
+                  ? "mh-row--cash-start"
+                  : "";
+              }}
+            />
           </div>
         );
       })}
