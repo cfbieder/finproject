@@ -14,12 +14,14 @@ const Summary = lazy(() => import("./BalanceV2"));
 const Periods = lazy(() => import("./BalanceSheetPeriods"));
 const Trends = lazy(() => import("./BalanceTrends"));
 const Chart = lazy(() => import("./BalanceChart"));
+const Forecast = lazy(() => import("./BalanceForecast"));
 
 const TABS = [
   { key: "summary", label: "Summary", Component: Summary },
   { key: "periods", label: "Periods", Component: Periods },
   { key: "trends", label: "Trends", Component: Trends },
   { key: "chart", label: "Net Worth", Component: Chart },
+  { key: "forecast", label: "Forecast", Component: Forecast },
 ];
 
 export default function Balances() {
