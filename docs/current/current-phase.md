@@ -62,7 +62,7 @@ everywhere), earns **no rent** against 45,000/yr, and sells at 7%. Financing is 
 and testing it is **DECLINED** (owner, 2026-08-23) — not needed.
 
 ### The recurring failure
-**[failure-patterns.md](failure-patterns.md) is the canonical list** — seven shapes, each found
+**[failure-patterns.md](failure-patterns.md) is the canonical list** — the recurring shapes, each found
 more than once, each having passed the gates meant to catch it. Read it before writing a rule, a
 warning sentence, or any figure that asserts what the engine does. The one that has cost most:
 **a restatement asserted as the engine's behaviour, found TEN times** — the ninth
