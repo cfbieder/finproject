@@ -21,6 +21,7 @@ import {
   ArrowLeftRight,
   Undo2,
   Layers,
+  Scissors,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { LEDGER_CONFIG } from "../features/Transaction/transactionConfig.js";
@@ -40,6 +41,7 @@ import TransactionEditModal from "../features/Transaction/TransactionEditModal.j
 import TransactionDeleteModal from "../features/Transaction/TransactionDeleteModal.jsx";
 import BookAtSourceModal from "../features/Transaction/BookAtSourceModal.jsx";
 import TransferToAccountModal from "../features/Transaction/TransferToAccountModal.jsx";
+import SplitTransactionDrawer from "../features/Transaction/SplitTransactionDrawer.jsx";
 import { postUnpair, summarizeUnpairs } from "../features/Transaction/pairing.js";
 import CategorySelector from "../components/CategorySelector/CategorySelector.jsx";
 import SearchableSelect from "../components/SearchableSelect/SearchableSelect.jsx";
@@ -563,6 +565,15 @@ export default function Ledger() {
     await handleSuccess();
   }, [clearSelection, showUndoable, undoPairings, handleSuccess]);
 
+  // ─── Split one row into 2–5 pieces that sum to it ───
+  const [splitEntry, setSplitEntry] = useState(null);
+  const handleSplitDone = useCallback(async (result) => {
+    const pieces = 1 + (result?.created?.length ?? 0);
+    setSplitEntry(null);
+    showSuccess(`Split into ${pieces} transactions`);
+    await handleSuccess();
+  }, [showSuccess, handleSuccess]);
+
   const selectedIds = [...selectedRows.values()].map((e) => e?.id).filter(Boolean);
   const allPaired = selectedIds.length > 0
     && [...selectedRows.values()].every((e) => e?.paired_with_id != null);
@@ -1003,6 +1014,19 @@ export default function Ledger() {
               Transfer…
             </button>
           )}
+          {/* Not on a paired row: the offset would keep the full amount and Unpair
+              would see an edited row. Unpair first, then split. */}
+          {selectedRow?.id && selectedRow.paired_with_id == null && (
+            <button
+              type="button"
+              className="btn btn--sm btn--outline"
+              onClick={() => setSplitEntry(selectedRow)}
+              title="Split: break this transaction into 2–5 pieces (each with its own category) that sum to the original"
+            >
+              <Scissors size={13} />
+              Split…
+            </button>
+          )}
           {allPaired && (
             <button
               type="button"
@@ -1219,6 +1243,16 @@ export default function Ledger() {
           entry={transferEntry}
           onClose={() => setTransferEntry(null)}
           onDone={handleTransferDone}
+          onError={showErrorToast}
+        />
+      )}
+
+      {splitEntry && (
+        <SplitTransactionDrawer
+          entry={splitEntry}
+          plTree={plTree}
+          onClose={() => setSplitEntry(null)}
+          onDone={handleSplitDone}
           onError={showErrorToast}
         />
       )}
