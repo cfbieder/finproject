@@ -41,7 +41,7 @@ import TransactionEditModal from "../features/Transaction/TransactionEditModal.j
 import TransactionDeleteModal from "../features/Transaction/TransactionDeleteModal.jsx";
 import BookAtSourceModal from "../features/Transaction/BookAtSourceModal.jsx";
 import TransferToAccountModal from "../features/Transaction/TransferToAccountModal.jsx";
-import SplitTransactionDrawer from "../features/Transaction/SplitTransactionDrawer.jsx";
+import SplitTransactionModal from "../features/Transaction/SplitTransactionModal.jsx";
 import { postUnpair, summarizeUnpairs } from "../features/Transaction/pairing.js";
 import CategorySelector from "../components/CategorySelector/CategorySelector.jsx";
 import SearchableSelect from "../components/SearchableSelect/SearchableSelect.jsx";
@@ -1248,7 +1248,7 @@ export default function Ledger() {
       )}
 
       {splitEntry && (
-        <SplitTransactionDrawer
+        <SplitTransactionModal
           entry={splitEntry}
           plTree={plTree}
           onClose={() => setSplitEntry(null)}
