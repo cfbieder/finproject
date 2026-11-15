@@ -1,6 +1,6 @@
 # CR104 — Budget builder: Cash Flow by currency (monthly roll-forward, with what-if transfers) — DRAFT
 
-**Status:** IN-PROGRESS 2026-11-15 — **P1 + P2 live v3.91.0** (§9); **§10 (what-is-this + item moves) built 2026-11-15**; closes on the owner's check. **rev 3**. Pass 1 (`cr-technical-reviewer`) REVISE on rev 1 → rev 2;
+**Status:** IN-PROGRESS 2026-11-15 — **P1 + P2 live v3.91.0** (§9); **§10 (what-is-this + item moves) live v3.92.0**; closes on the owner's check. **rev 3**. Pass 1 (`cr-technical-reviewer`) REVISE on rev 1 → rev 2;
 pass 2 (`cr-signoff-pm`) **GO** on rev 2, on four conditions, applied in rev 3 (§6, §8).
 **Hard stop: 2026-11-26** — P1 on prod by then, or it ships after the 12-10 publish.
 **Track:** v3 · **Migrations:** **090** `090_budget_build_cash_plan.sql` (P1; §3.4) · **091** `091_budget_build_cash_moves.sql` (§10)
