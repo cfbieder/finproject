@@ -7,7 +7,7 @@
 > Every budget cut has come from MOVING what changes on a different clock, never deleting what is true
 > (history in the 2026-11-03 log).
 
-**Last updated:** 2026-11-14 · **Live version:** **v3.90.3** (see `VERSION` / git tags) — release log: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
+**Last updated:** 2026-11-15 · **Live version:** **v3.91.0** (see `VERSION` / git tags) — release log: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
 
 ## Current phase
 **Moved to [current-phase.md](current-phase.md)** — it changes on a regenerate, not on a release.
@@ -43,7 +43,7 @@ Two things from it are worth carrying into every session:
 ## Next
 Statuses are canonical in the [CR index](../cr/README.md), the running version in `VERSION`; the release log is [the roadmap](project-roadmap.md).
 
-- ⚠️ **Publish the 2027 budget by 2026-12-10** (owner; builder code freeze 2026-12-03) — [roadmap §2](project-roadmap.md#2-open-backlog-non-cr-items): run Compare Forecast against `2026 Base`, manual prod backup, publish. Draft *V3* (2027 v6, from LE-11-26) is the one open 2027 build.
+- ⚠️ **Publish the 2027 budget by 2026-12-10** (owner; builder code freeze 2026-12-03) — [roadmap §2](project-roadmap.md#2-open-backlog-non-cr-items): run Compare Forecast against `2026 Base`, manual prod backup, publish. Draft *V3* (2027 v6, from LE-11-26) is the one open 2027 build. **New v3.91.0: *Cash flow*** on the builder ([CR104](../cr/cr-104-budget-builder-cash-by-currency.md), per-currency monthly cash with what-if transfers) — on dev's copy it shows USD cash short from February (USD income lands in Fidelity) and EUR from July; plan the moves before publishing, then confirm it so CR104 can close.
 - **January 2027: run *Annual close…*** on `2026 Base` → `2027 Base` ([CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md), the annual roll to a new base year); the [CR099](../cr/cr-099-forecast-module-return-path.md) annual-close check (per-year return paths on a module) is due before it — roadmap §2. `2026 Base` and `2026 Market Crash` were regenerated 2026-11-03 with the 2027 rates.
 - **[CR097](../cr/cr-097-manual-holdings-register.md)** (holdings register for manually valued accounts): the 2026-10-31 valuation is ⚠️ blocked by its cost gap until the owner says what two October transfers bought — [roadmap entry](project-roadmap.md#cr097).
 - Builder follow-ups (P3c hand-edit warning, CR101 report/picker/planning follow-ups) and [CR095](../cr/cr-095-forecast-spend-currency-share.md) (forecast spend that moves with the złoty): [roadmap §2](project-roadmap.md#2-open-backlog-non-cr-items) / [CR index](../cr/README.md).

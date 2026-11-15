@@ -1,6 +1,6 @@
 # CR104 — Budget builder: Cash Flow by currency (monthly roll-forward, with what-if transfers) — DRAFT
 
-**Status:** IN-PROGRESS 2026-11-15 — **P1 + P2 built** on branch `cr104` (§9), not yet deployed. **rev 3**. Pass 1 (`cr-technical-reviewer`) REVISE on rev 1 → rev 2;
+**Status:** IN-PROGRESS 2026-11-15 — **P1 + P2 live v3.91.0** (§9); closes on the owner's check. **rev 3**. Pass 1 (`cr-technical-reviewer`) REVISE on rev 1 → rev 2;
 pass 2 (`cr-signoff-pm`) **GO** on rev 2, on four conditions, applied in rev 3 (§6, §8).
 **Hard stop: 2026-11-26** — P1 on prod by then, or it ships after the 12-10 publish.
 **Track:** v3 · **Migration:** **090** `090_budget_build_cash_plan.sql` (P1; §3.4)
@@ -148,7 +148,7 @@ Shown as **± Transfers** in both tables touched. Nothing publishes.
 ## 7. Open questions
 None — rev 1's three are answered in §3.1 (Unassigned, roots) and §3.2 (ledger value).
 
-## 9. As built (2026-11-15, branch `cr104`, not deployed)
+## 9. As built (2026-11-15, released v3.91.0)
 P1 and P2 were built together — P2 was small, and the hard stop allowed it.
 - **Server:** `services/budgetCashFlow.js` (`cashFlow`, `savePlan`, the pure `rollForward`); the balance CTE lifted to
   `v2/repositories/accountBalances.js` (`treeBalancesAsOf`), which `getOpeningBankCash` now reads — its total checked
@@ -169,7 +169,7 @@ P1 and P2 were built together — P2 was small, and the hard stop allowed it.
   `balance_from_feed`, no `is_active`, an opening dated after the snapshot still counts) — no block account was
   affected on 2026-11-15, and changing it would move the forecast's opening cash. Open: an override copied from a
   parent built on an older LE is not labelled as such.
-- **Not yet:** migration 090 on prod, then the deploy (with the build-12 checksum gate, §6).
+- **Deploy:** v3.91.0, migration 090 applied to prod by deploy Step 2b before the code; build-12 checksum gate in §6.
 
 ## 8. Review log
 - **Pass 1 — `cr-technical-reviewer`, rev 1: REVISE** (2026-11-15). Blocking: (1) opening double-counted the
