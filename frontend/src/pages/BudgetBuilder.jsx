@@ -155,6 +155,7 @@ function BudgetBuilder() {
   const [itemsError, setItemsError] = useState("");
   const [confirmLeave, setConfirmLeave] = useState(null); // { line, policy } — leaving Itemised deletes the rows
   const [showInactive, setShowInactive] = useState(false); // CR101: lines on accounts inactive from the target year
+  const [filter, setFilter] = useState({ currency: "", policy: "", parent: "" }); // "" = all
 
   const loadSources = useCallback(async () => {
     const data = Rest.unwrap(await Rest.get("/budget-builder"));
@@ -333,17 +334,41 @@ function BudgetBuilder() {
   // CR100: which currency line of each category is itemised, for the notes on its siblings.
   // CR101: a line whose account is inactive from the target year is hidden (it reads 0 and publishes
   // nothing), and a group header with nothing visible under it goes too. "show" brings them back.
+  // The filters narrow the lines; "parent" is the second-level group (Financial Income, Travel…).
+  // While a filter is on, a group's subtotal is the sum of the lines it still shows.
+  const parentGroups = useMemo(() => (view?.rows || []).filter((r) => r.kind === "group" && r.depth === 1)
+    .map((r) => r.name), [view]);
+  const filtering = Boolean(filter.currency || filter.policy || filter.parent);
   const visibleRows = useMemo(() => {
     const rows = view?.rows || [];
-    const lineVisible = (row) => showInactive || !linesById.get(row.lineId)?.inactive;
-    return rows.filter((row, i) => {
-      if (row.kind !== "group") return lineVisible(row);
-      for (let j = i + 1; j < rows.length && rows[j].depth > row.depth; j++) {
-        if (rows[j].kind !== "group" && lineVisible(rows[j])) return true;
-      }
-      return false;
+    let parent = null;
+    const parentOf = rows.map((row) => {
+      if (row.kind === "group" && row.depth <= 1) parent = row.depth === 1 ? row.name : null;
+      return parent;
     });
-  }, [view, linesById, showInactive]);
+    const lineVisible = (row, i) => {
+      const l = linesById.get(row.lineId);
+      return (showInactive || !l?.inactive)
+        && (!filter.currency || l?.currency === filter.currency)
+        && (!filter.policy || l?.policy === filter.policy)
+        && (!filter.parent || parentOf[i] === filter.parent);
+    };
+    const out = [];
+    rows.forEach((row, i) => {
+      if (row.kind !== "group") { if (lineVisible(row, i)) out.push(row); return; }
+      const kept = [];
+      for (let j = i + 1; j < rows.length && rows[j].depth > row.depth; j++) {
+        if (rows[j].kind !== "group" && lineVisible(rows[j], j)) kept.push(linesById.get(rows[j].lineId));
+      }
+      if (!kept.length) return;
+      if (!filtering) { out.push(row); return; }
+      const usds = kept.map((l) => l?.annualUsd);
+      const usd = usds.some((u) => u == null) ? null : Math.round(usds.reduce((a, b) => a + b, 0) * 100) / 100;
+      out.push({ ...row, usd });
+    });
+    return out;
+  }, [view, linesById, showInactive, filter, filtering]);
+  const shownLineCount = visibleRows.filter((r) => r.kind !== "group").length;
   const itemisedOn = useMemo(() => new Map((view?.lines || [])
     .filter((l) => l.policy === "itemised").map((l) => [l.categoryId, l.currency])), [view]);
   const hasPublished = (b) => b.status === "superseded" || b.status === "unpublished";
@@ -505,6 +530,36 @@ function BudgetBuilder() {
               <span className="bb-flag">
                 {shown.build.scenario} has no inflation rate, so Recurring lines have no figure and this draft
                 cannot be published. Start a new draft from it with another scenario, or restore the rates.
+              </span>
+            )}
+          </section>
+
+          <section className="bb-filters" aria-label="Filter lines">
+            <label>Currency{" "}
+              <select value={filter.currency} onChange={(e) => setFilter((f) => ({ ...f, currency: e.target.value }))}>
+                <option value="">All</option>
+                {["USD", "PLN", "EUR"].filter((c) => shown.lines.some((l) => l.currency === c))
+                  .map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </label>
+            <label>Policy{" "}
+              <select value={filter.policy} onChange={(e) => setFilter((f) => ({ ...f, policy: e.target.value }))}>
+                <option value="">All</option>
+                {POLICIES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+              </select>
+            </label>
+            <label>Parent category{" "}
+              <select value={filter.parent} onChange={(e) => setFilter((f) => ({ ...f, parent: e.target.value }))}>
+                <option value="">All</option>
+                {parentGroups.map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </label>
+            {filtering && (
+              <span className="bb-muted">
+                {shownLineCount} line(s) shown; group totals are of these lines, the totals at the bottom are the whole build ·{" "}
+                <button type="button" className="bb-linkish" onClick={() => setFilter({ currency: "", policy: "", parent: "" })}>
+                  clear filters
+                </button>
               </span>
             )}
           </section>
