@@ -82,12 +82,13 @@ router.get('/:id/compare-forecast', handle(async (req, res) => {
 // GET /:id/cash-flow — CR104: per-currency monthly roll-forward of the build, Cash and Investments blocks
 router.get('/:id/cash-flow', handle(async (req, res) => res.json({ data: await cashSvc.cashFlow(id(req)) })));
 
-// PUT /:id/cash-plan — CR104: { openings?, transfers? } replaces those parts of a draft's plan; never publishes
+// PUT /:id/cash-plan — CR104: { openings?, transfers?, moves? } replaces those parts of a draft's plan; never publishes
 router.put('/:id/cash-plan', handle(async (req, res) => {
   const body = req.body || {};
   const clean = {};
   if ('openings' in body) clean.openings = body.openings;
   if ('transfers' in body) clean.transfers = body.transfers;
+  if ('moves' in body) clean.moves = body.moves;
   await cashSvc.savePlan(id(req), clean);
   res.json({ data: await cashSvc.cashFlow(id(req)) });
 }));

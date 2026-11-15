@@ -14,23 +14,38 @@ const fmt = (v, digits = 0) =>
 const neg = (v) => (v != null && Number(v) < 0 ? "bb-neg" : ""); // the same test as the short-cash flag
 const isZero = (arr) => !arr || arr.every((v) => !v);
 
-function BlockRows({ label, block, short }) {
+/** A figure that opens "what is this": a button when there is something behind it, plain text otherwise. */
+function Figure({ value, onPick, what }) {
+  if (!onPick || !Number(value)) return fmt(value);
+  return <button type="button" className="cfm-cell" onClick={onPick} aria-label={`What is ${what}: ${fmt(value)}`}>{fmt(value)}</button>;
+}
+
+const ROW_LABEL = { opening: "Opening", inflows: "Inflows", outflows: "Outflows", unassigned: "No account", other: "Other accounts" };
+
+function BlockRows({ label, block, short, onPick }) {
   const opens = [block.opening.value, ...block.ending.slice(0, 11)];
-  const row = (name, values, year, cls = "") => (
-    <tr className={cls}>
+  // `pickable(m)`: which months open the item list — every month, or (the opening) Jan and the year only.
+  const row = (name, key, values, year, pickable = () => true) => (
+    <tr>
       <th scope="row">{name}</th>
-      {values.map((v, m) => <td key={m} className={`num ${neg(v)}`}>{fmt(v)}</td>)}
-      <td className={`num cfm-year ${neg(year)}`}>{fmt(year)}</td>
+      {values.map((v, m) => (
+        <td key={m} className={`num ${neg(v)}`}>
+          <Figure value={v} what={`${name} ${MONTHS[m]}`} onPick={key && pickable(m) ? () => onPick(key, m + 1) : null} />
+        </td>
+      ))}
+      <td className={`num cfm-year ${neg(year)}`}>
+        <Figure value={year} what={`${name} for the year`} onPick={key ? () => onPick(key, null) : null} />
+      </td>
     </tr>
   );
   return (
     <>
       <tr className="cfm-block"><th colSpan={14} scope="colgroup">{label}</th></tr>
-      {row("Opening", opens, block.opening.value)}
-      {row("+ Inflows", block.inflows, block.year.inflows)}
-      {row("− Outflows", block.outflows, block.year.outflows)}
-      {block.unassigned && !isZero(block.unassigned) && row("No account", block.unassigned, block.year.unassigned)}
-      {!isZero(block.transfers) && row("± Transfers", block.transfers, block.year.transfers)}
+      {row("Opening", "opening", opens, block.opening.value, (m) => m === 0)}
+      {row("+ Inflows", "inflows", block.inflows, block.year.inflows)}
+      {row("− Outflows", "outflows", block.outflows, block.year.outflows)}
+      {block.unassigned && !isZero(block.unassigned) && row("No account", "unassigned", block.unassigned, block.year.unassigned)}
+      {!isZero(block.transfers) && row("± Transfers", null, block.transfers, block.year.transfers)}
       <tr className="cfm-ending">
         <th scope="row">= Ending</th>
         {block.ending.map((v, m) => (
@@ -51,6 +66,111 @@ function openingNote(o, asOf) {
   return `estimate: ${parts.join(" + ")}`;
 }
 
+/** Where an item sits before any move: its account's block and row. */
+const naturalRow = (i) => (i.accountId == null ? "unassigned" : i.natural == null ? "other" : i.amount >= 0 ? "inflows" : "outflows");
+
+/**
+ * §10 — what one figure is: the items behind it, each movable to the other block (a what-if, saved with
+ * the draft). Items moved OUT of this figure stay listed (muted ground), so the move can be undone from here.
+ */
+function FigureDetail({ pick, data, editable, saving, error, onMove, onClose }) {
+  const c = data.currencies.find((x) => x.currency === pick.currency);
+  const name = (id) => (id == null ? "No account" : data.names[id] || `#${id}`);
+  const when = pick.month ? MONTHS[pick.month - 1] : "the year";
+  const where = pick.block ? BLOCK_LABEL[pick.block] : "Other accounts";
+  const title = `${pick.currency} · ${where} · ${ROW_LABEL[pick.row]} · ${when}`;
+  const footer = <button type="button" className="btn btn--secondary" onClick={onClose}>Close</button>;
+
+  if (pick.row === "opening") {
+    const o = c[pick.block].opening;
+    const pieces = [...o.items].sort((a, b) => Math.abs(b.balance + b.remainder) - Math.abs(a.balance + a.remainder));
+    return (
+      <Modal open onClose={onClose} size="wide" title={title} footer={footer}
+        description={`Ledger balance on ${data.snapshot.asOf} plus ${data.snapshot.le.name}'s months after it, by account.`}>
+        {o.source === "override" && <p className="bb-flag">Your figure {fmt(o.value, 2)} replaces this estimate.</p>}
+        <div className="cfm-scroll">
+          <table className="bb-table cfm-dtable">
+            <thead><tr><th scope="col">Account</th><th scope="col" className="num">Balance</th>
+              <th scope="col" className="num">Rest of year</th><th scope="col" className="num">Estimate</th></tr></thead>
+            <tbody>
+              {pieces.map((p) => (
+                <tr key={p.accountId ?? 0}>
+                  <td>{name(p.accountId)}</td>
+                  <td className={`num ${neg(p.balance)}`}>{fmt(p.balance, 2)}</td>
+                  <td className={`num ${neg(p.remainder)}`}>{fmt(p.remainder, 2)}</td>
+                  <td className={`num ${neg(p.balance + p.remainder)}`}>{fmt(p.balance + p.remainder, 2)}</td>
+                </tr>
+              ))}
+              <tr className="cfm-ending"><th scope="row">Total</th><td className="num">{fmt(o.balance, 2)}</td>
+                <td className="num">{fmt(o.remainder + (o.remainderUnassigned || 0), 2)}</td>
+                <td className={`num ${neg(o.estimate)}`}>{fmt(o.estimate, 2)}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </Modal>
+    );
+  }
+
+  const inMonth = (i) => pick.month == null || i.month === pick.month;
+  const here = (i) => i.row === pick.row && (i.block ?? null) === (pick.block ?? null);
+  const movedOut = (i) => i.moved && naturalRow(i) === pick.row && (i.natural ?? null) === (pick.block ?? null);
+  let rows = c.items.filter((i) => inMonth(i) && (here(i) || movedOut(i)))
+    .map((i) => ({ ...i, out: !here(i), n: 1 }));
+  if (pick.month == null) { // the year: one row per item, summed over its months
+    const by = new Map();
+    for (const i of rows) {
+      const k = `${i.categoryId}|${i.accountId}|${i.out}|${i.block}`;
+      const r = by.get(k);
+      if (r) { r.amount += i.amount; r.n += 1; } else by.set(k, { ...i });
+    }
+    rows = [...by.values()];
+  }
+  rows.sort((a, b) => Number(a.out) - Number(b.out) || Math.abs(b.amount) - Math.abs(a.amount));
+  const total = rows.filter((r) => !r.out).reduce((s, r) => s + r.amount, 0);
+  // The other block; an Other-account item can go to either. A No-account item already counts in Cash.
+  const targets = (i) => (i.moved ? [] : ["cash", "investments"].filter((b) => b !== i.block));
+
+  return (
+    <Modal open onClose={onClose} size="wide" title={title} footer={footer}
+      description="The budget items behind this figure. A move is a what-if: saved with this draft, the budget keeps its account.">
+      {/* The parent's alert sits under this dialog, so a failed move must say so here too. */}
+      {error && <p className="bb-flag" role="alert">⚠ {error}</p>}
+      <div className="cfm-scroll">
+        <table className="bb-table cfm-dtable">
+          <thead><tr><th scope="col">Category</th><th scope="col">Account</th>
+            {pick.month == null && <th scope="col" className="num">Months</th>}
+            <th scope="col" className="num">Amount</th><th scope="col" /></tr></thead>
+          <tbody>
+            {rows.map((i) => (
+              <tr key={`${i.categoryId}|${i.accountId}|${i.month}|${i.out}`} className={i.out ? "cfm-out" : ""}>
+                <td>{name(i.categoryId)}</td>
+                <td>{name(i.accountId)}</td>
+                {pick.month == null && <td className="num">{i.n}</td>}
+                <td className={`num ${neg(i.amount)}`}>{fmt(i.amount, 2)}</td>
+                <td className="cfm-move">
+                  {i.out && <span className="bb-muted">moved to {BLOCK_LABEL[i.block]} </span>}
+                  {!i.out && i.moved && <span className="bb-muted">moved from {i.natural ? BLOCK_LABEL[i.natural] : "Other accounts"} </span>}
+                  {editable && pick.month != null && i.moved && (
+                    <button type="button" className="bb-linkish" disabled={saving} onClick={() => onMove(i, null)}>move back</button>
+                  )}
+                  {editable && pick.month != null && targets(i).map((b) => (
+                    <button key={b} type="button" className="bb-linkish" disabled={saving} onClick={() => onMove(i, b)}>
+                      move to {BLOCK_LABEL[b]}
+                    </button>
+                  ))}
+                </td>
+              </tr>
+            ))}
+            <tr className="cfm-ending"><th scope="row" colSpan={pick.month == null ? 3 : 2}>Total</th>
+              <td className={`num ${neg(total)}`}>{fmt(total, 2)}</td><td /></tr>
+          </tbody>
+        </table>
+      </div>
+      {pick.month == null && editable && <p className="bb-muted">Open a single month to move an item.</p>}
+    </Modal>
+  );
+}
+
 const blankTransfer = () => ({ month: 1, fromCurrency: "PLN", fromBlock: "cash", toCurrency: "USD", toBlock: "cash", amount: "", rate: "", note: "" });
 
 /**
@@ -65,6 +185,7 @@ export default function CashFlowModal({ buildId, buildLabel, onClose }) {
   const [openings, setOpenings] = useState({});      // "USD|cash" → typed text
   const [transfers, setTransfers] = useState([]);    // editable rows
   const [dirty, setDirty] = useState(false);
+  const [pick, setPick] = useState(null);            // { currency, block, row, month } — the figure being explained
 
   // `keepTransfers`: an openings save must not wipe transfer rows typed but not yet saved.
   const adopt = (d, { keepTransfers = false } = {}) => {
@@ -123,6 +244,18 @@ export default function CashFlowModal({ buildId, buildLabel, onClose }) {
     save({ transfers: list });
   };
 
+  // A move replaces the whole list (the server's shape); `toBlock` null takes the item's move away.
+  const moveItem = (item, toBlock) => {
+    const same = (v) => v.categoryId === item.categoryId && v.accountId === item.accountId
+      && v.currency === pick.currency && v.month === item.month;
+    const kept = data.plan.moves.filter((v) => !same(v))
+      .map(({ categoryId, accountId, currency, month, toBlock: tb }) => ({ categoryId, accountId, currency, month, toBlock: tb }));
+    if (toBlock) kept.push({ categoryId: item.categoryId, accountId: item.accountId, currency: pick.currency, month: item.month, toBlock });
+    save({ moves: kept });
+  };
+  const removeMove = (move) => save({ moves: data.plan.moves.filter((v) => v.id !== move.id)
+    .map(({ categoryId, accountId, currency, month, toBlock }) => ({ categoryId, accountId, currency, month, toBlock })) });
+
   const setT = (i, patch) => { setTransfers((rows) => rows.map((r, k) => (k === i ? { ...r, ...patch } : r))); setDirty(true); };
   const editable = data?.build.editable;
   const shortOnes = data ? data.currencies.filter((c) => c.short) : [];
@@ -139,6 +272,7 @@ export default function CashFlowModal({ buildId, buildLabel, onClose }) {
             <p className="cfm-scope">
               Budgeted income and expenses only. Excludes loan principal, card-payment timing, price moves and
               reinvestment. Investments are at ledger value — a transfer out of them is a sale.
+              Click a figure to see the items behind it.
             </p>
             <p className="bb-muted">
               Opening (Jan 1) = ledger balances at {data.snapshot.asOf} + {data.snapshot.le.name}&apos;s months after it.
@@ -181,13 +315,23 @@ export default function CashFlowModal({ buildId, buildLabel, onClose }) {
                       </tr>
                     </thead>
                     <tbody>
-                      <BlockRows label="Cash — bank accounts and cards" block={c.cash} short />
-                      <BlockRows label="Investments — brokerage" block={c.investments} />
+                      <BlockRows label="Cash — bank accounts and cards" block={c.cash} short
+                        onPick={(row, month) => setPick({ currency: c.currency, block: "cash", row, month })} />
+                      <BlockRows label="Investments — brokerage" block={c.investments}
+                        onPick={(row, month) => setPick({ currency: c.currency, block: "investments", row, month })} />
                       {(!isZero(c.other.months)) && (
                         <tr className="cfm-other">
                           <th scope="row">Other accounts (memo)</th>
-                          {c.other.months.map((v, m) => <td key={m} className={`num ${neg(v)}`}>{fmt(v)}</td>)}
-                          <td className={`num cfm-year ${neg(c.other.year)}`}>{fmt(c.other.year)}</td>
+                          {c.other.months.map((v, m) => (
+                            <td key={m} className={`num ${neg(v)}`}>
+                              <Figure value={v} what={`Other accounts ${MONTHS[m]}`}
+                                onPick={() => setPick({ currency: c.currency, block: null, row: "other", month: m + 1 })} />
+                            </td>
+                          ))}
+                          <td className={`num cfm-year ${neg(c.other.year)}`}>
+                            <Figure value={c.other.year} what="Other accounts for the year"
+                              onPick={() => setPick({ currency: c.currency, block: null, row: "other", month: null })} />
+                          </td>
                         </tr>
                       )}
                     </tbody>
@@ -225,6 +369,22 @@ export default function CashFlowModal({ buildId, buildLabel, onClose }) {
                 </div>
               </section>
             ))}
+
+            {data.plan.moves.length > 0 && (
+              <section className="cfm-transfers" aria-label="Moved items">
+                <h3 className="cfm-title">Moved items <span className="bb-muted">— counted in another block than their account&apos;s; never published</span></h3>
+                <ul className="cfm-moves">
+                  {data.plan.moves.map((v) => (
+                    <li key={v.id}>
+                      {data.names[v.categoryId] || `#${v.categoryId}`} · {v.accountId == null ? "No account" : data.names[v.accountId] || `#${v.accountId}`}
+                      {" "}· {v.currency} {MONTHS[v.month - 1]} → {BLOCK_LABEL[v.toBlock]}
+                      {!v.matched && <span className="bb-flag"> — moves nothing (the item is gone, or already counts there)</span>}
+                      {editable && <> <button type="button" className="bb-linkish" disabled={saving} onClick={() => removeMove(v)}>remove</button></>}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
 
             <section className="cfm-transfers" aria-label="What-if transfers">
               <h3 className="cfm-title">What-if transfers <span className="bb-muted">— saved with this draft, never published</span></h3>
@@ -307,6 +467,10 @@ export default function CashFlowModal({ buildId, buildLabel, onClose }) {
           </>
         )}
       </div>
+      {pick && data && (
+        <FigureDetail pick={pick} data={data} editable={editable} saving={saving} error={error}
+          onMove={moveItem} onClose={() => setPick(null)} />
+      )}
     </Modal>
   );
 }

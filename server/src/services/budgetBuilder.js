@@ -247,6 +247,11 @@ async function createBuild({ targetYear, sourceLeId, scenarioName, parentBuildId
          SELECT $1, kind, currency, block, month, to_currency, to_block, amount, rate, to_amount, note
            FROM budget_build_cash_plan WHERE build_id = $2 ORDER BY id`, [build.id, parentBuildId]
       );
+      await client.query(
+        `INSERT INTO budget_build_cash_moves (build_id, category_id, account_id, currency, month, to_block)
+         SELECT $1, category_id, account_id, currency, month, to_block
+           FROM budget_build_cash_moves WHERE build_id = $2 ORDER BY id`, [build.id, parentBuildId]
+      );
     }
 
     const policies = new Map((await client.query('SELECT * FROM budget_category_policy')).rows

@@ -23,3 +23,14 @@
 .cfm-ttable { min-width: 820px; }
 .cfm-ttable td, .cfm-ttable th { padding: 0.25rem 0.4rem; }
 .cfm-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+/* §10 — a figure that explains itself, and the item list it opens. */
+.cfm-cell { all: unset; cursor: pointer; border-bottom: 1px dotted var(--border); }
+.cfm-cell:hover, .cfm-cell:focus-visible { border-bottom-color: currentColor; }
+.cfm-cell:focus-visible { outline: 2px solid var(--accent, currentColor); outline-offset: 1px; }
+.cfm-dtable { width: 100%; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.cfm-dtable td, .cfm-dtable th { padding: 0.25rem 0.4rem; }
+.cfm-dtable .num { text-align: right; white-space: nowrap; }
+.cfm-out td { background: var(--surface-muted); } /* told apart by ground, never by fading the figure */
+.cfm-move { white-space: nowrap; }
+.cfm-move .bb-linkish + .bb-linkish { margin-left: 0.5rem; }
+.cfm-moves { margin: 0; padding-left: 1.1rem; font-size: 0.8rem; }

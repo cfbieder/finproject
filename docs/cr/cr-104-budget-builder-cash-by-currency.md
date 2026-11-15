@@ -1,9 +1,9 @@
 # CR104 — Budget builder: Cash Flow by currency (monthly roll-forward, with what-if transfers) — DRAFT
 
-**Status:** IN-PROGRESS 2026-11-15 — **P1 + P2 live v3.91.0** (§9); closes on the owner's check. **rev 3**. Pass 1 (`cr-technical-reviewer`) REVISE on rev 1 → rev 2;
+**Status:** IN-PROGRESS 2026-11-15 — **P1 + P2 live v3.91.0** (§9); **§10 (what-is-this + item moves) built 2026-11-15**; closes on the owner's check. **rev 3**. Pass 1 (`cr-technical-reviewer`) REVISE on rev 1 → rev 2;
 pass 2 (`cr-signoff-pm`) **GO** on rev 2, on four conditions, applied in rev 3 (§6, §8).
 **Hard stop: 2026-11-26** — P1 on prod by then, or it ships after the 12-10 publish.
-**Track:** v3 · **Migration:** **090** `090_budget_build_cash_plan.sql` (P1; §3.4)
+**Track:** v3 · **Migrations:** **090** `090_budget_build_cash_plan.sql` (P1; §3.4) · **091** `091_budget_build_cash_moves.sql` (§10)
 **Depends on:** CR098 (the builder, `computeCells`, `loadGrids`/`allocate`), CR100 (itemised lines), CR101
 (inactive lines), CR083 (the Latest Estimate, per month × currency), CR075 (the base year is the budget — why
 transfers stay out of `budget_entries`).
@@ -170,6 +170,37 @@ P1 and P2 were built together — P2 was small, and the hard stop allowed it.
   affected on 2026-11-15, and changing it would move the forecast's opening cash. Open: an override copied from a
   parent built on an older LE is not labelled as such.
 - **Deploy:** v3.91.0, migration 090 applied to prod by deploy Step 2b before the code; build-12 checksum gate in §6.
+
+## 10. What is this figure, and moving an item (owner ask 2026-11-15, after v3.91.0)
+The owner asked to see what a figure is (PLN Oct inflows 83,800) and to reclassify an amount between Cash and
+Investments. Measured on prod 2026-11-15 first: the 83,800 is the Barkeria dividend on PKO (82,800) plus salary; the
+same dividend in May (132,568) and the UB dividend in August (500,000) sit on the holdings under PL Investments,
+**only because the builder splits a line across accounts by the last 12 months' history** — nobody chose them.
+- **D6 (owner, via /question):** a move is a **what-if placement**, saved with the draft like transfers, never
+  published — not a pre-filled transfer (an amount frozen at press time, which goes stale when the line changes)
+  and not a change to the budget's own account (the builder has no per-line account choice; its own CR).
+- **Click, not right-click** (proposed, not objected to): right-click does not exist on a phone, and one figure
+  can hold several items (the 83,800 is two), so the move is per item inside the list a click opens.
+- **Data:** `budget_build_cash_moves` (migration **091**): build × category × account (NULL = no account) ×
+  currency × month → `to_block`. No amount, so a move follows the line. One per item (unique, `COALESCE` on the
+  account). Copied with the plan into a same-year child build. A move whose item is gone is listed as "no longer
+  in the budget" and moves nothing — never applied to something else; so is a move to the block the item already
+  counts in (a No-account item counts in Cash). Deleting an account or category drops its moves (FK cascade) —
+  the one case a move goes silently, acceptable because the item goes with it.
+- **Server:** `rollForward` places each cell once and returns it as an item (`row`, `block`, `natural`, `moved`)
+  per currency, plus each block's opening by account (`opening.items`); `cashFlow` adds a `names` map and
+  `plan.moves` (with `matched`). `PUT /:id/cash-plan { moves }` replaces the list (draft only; ids checked to
+  exist; month an integer 1–12; at most 500). A move never changes a currency's total, so the reconciliation holds.
+- **Frontend:** every non-zero Opening (Jan, Year), Inflows, Outflows, No account and Other figure is a button
+  opening a nested dialog: the items, their total (= the figure), and *move to Cash / Investments* or *move back*
+  on a single month. Items moved out of a figure stay listed on a muted ground. A *Moved items* list sits above the
+  transfers, with *remove*.
+- **Code review** (`code-quality-reviewer`, 2026-11-15): no money-logic defect; items sum to the clicked figure.
+  Fixed: a failed move's error was hidden under the nested dialog; a move to the item's own block read as applied;
+  a move's category/account are checked to be a category and an account. Kept: a figure of 0 is not clickable, so
+  an all-moved-out month is undone from *Moved items*.
+- **Verified:** 14 server tests (2 pure + 2 DB new), 7 modal tests (2 new); in the browser on dev's 2027 v6, moving
+  May's Barkeria dividend took PLN Investments May inflows 132,568 → 0 and Cash 1,211 → 133,779.
 
 ## 8. Review log
 - **Pass 1 — `cr-technical-reviewer`, rev 1: REVISE** (2026-11-15). Blocking: (1) opening double-counted the

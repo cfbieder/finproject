@@ -11,7 +11,7 @@ import { monthRanges, parseAmount } from "../cashFlow.js";
 /** CR104 — the summary line, the short-cash flags, the opening's stated source, the GBP line. */
 const z = () => Array(12).fill(0);
 const block = (opening, ending, extra = {}) => ({
-  opening: { value: opening, source: "estimate", estimate: opening, balance: opening, remainder: 0, ...extra.opening },
+  opening: { value: opening, source: "estimate", estimate: opening, balance: opening, remainder: 0, items: [], ...extra.opening },
   inflows: z(), outflows: z(), transfers: z(), ending,
   year: { inflows: 0, outflows: 0, transfers: 0, closing: ending[11], unassigned: 0 },
   ...(extra.cash ? { unassigned: z() } : {}),
@@ -35,8 +35,10 @@ const DATA = {
   notModelled: [{ currency: "GBP", cash: 3.68, investments: 0 }],
   currencyMismatches: [],
   unassignedLines: 0,
-  plan: { openings: [{ currency: "PLN", block: "cash", amount: 500 }], transfers: [] },
+  plan: { openings: [{ currency: "PLN", block: "cash", amount: 500 }], transfers: [], moves: [] },
+  names: {},
 };
+for (const c of DATA.currencies) c.items = [];
 
 describe("CashFlowModal", () => {
   afterEach(cleanup);
@@ -82,6 +84,50 @@ describe("CashFlowModal saving", () => {
     await waitFor(() => expect(screen.getByLabelText("USD Cash opening").value).toBe("900"));
     expect(screen.getByLabelText("Transfer 1 amount").value).toBe("5000");
     expect(screen.getByText(/Unsaved/)).toBeTruthy();
+  });
+});
+
+/** §10 — a figure opens the items behind it; an item moves to the other block. */
+describe("CashFlowModal what-is-this and moves", () => {
+  afterEach(cleanup);
+  const pln = DATA.currencies[1];
+  const inflows = z(); inflows[4] = 132567.58; inflows[9] = 83800;
+  const WITH_ITEMS = {
+    ...DATA,
+    names: { 7: "Dividend B", 8: "Salary", 21: "Holding B", 22: "Bank P" },
+    currencies: [DATA.currencies[0], {
+      ...pln,
+      cash: { ...pln.cash, inflows: (() => { const a = z(); a[9] = 83800; return a; })() },
+      investments: { ...pln.investments, inflows: (() => { const a = z(); a[4] = 132567.58; return a; })() },
+      items: [
+        { categoryId: 7, accountId: 21, month: 5, amount: 132567.58, block: "investments", row: "inflows", natural: "investments", moved: false },
+        { categoryId: 7, accountId: 22, month: 10, amount: 82800, block: "cash", row: "inflows", natural: "cash", moved: false },
+        { categoryId: 8, accountId: 22, month: 10, amount: 1000, block: "cash", row: "inflows", natural: "cash", moved: false },
+      ],
+    }, DATA.currencies[2]],
+  };
+
+  it("clicking a figure lists its items with a total", async () => {
+    Rest.get.mockResolvedValue({ data: WITH_ITEMS });
+    render(<CashFlowModal buildId={12} buildLabel="2027 v6" onClose={() => {}} />);
+    await screen.findByTestId("cfm-summary");
+    fireEvent.click(screen.getByRole("button", { name: "What is + Inflows Oct: 83,800" }));
+    const dlg = await screen.findByRole("dialog", { name: "PLN · Cash · Inflows · Oct" });
+    expect(within(dlg).getByText("Dividend B")).toBeTruthy();
+    expect(within(dlg).getByText("Salary")).toBeTruthy();
+    expect(within(dlg).getByText("83,800.00")).toBeTruthy(); // the total
+  });
+
+  it("moving an item sends the whole move list", async () => {
+    Rest.get.mockResolvedValue({ data: WITH_ITEMS });
+    Rest.put.mockResolvedValue({ data: WITH_ITEMS });
+    render(<CashFlowModal buildId={12} buildLabel="2027 v6" onClose={() => {}} />);
+    await screen.findByTestId("cfm-summary");
+    fireEvent.click(screen.getByRole("button", { name: "What is + Inflows May: 132,568" }));
+    const dlg = await screen.findByRole("dialog", { name: "PLN · Investments · Inflows · May" });
+    fireEvent.click(within(dlg).getByRole("button", { name: "move to Cash" }));
+    await waitFor(() => expect(Rest.put).toHaveBeenCalledWith("/budget-builder/12/cash-plan",
+      { moves: [{ categoryId: 7, accountId: 21, currency: "PLN", month: 5, toBlock: "cash" }] }));
   });
 });
 

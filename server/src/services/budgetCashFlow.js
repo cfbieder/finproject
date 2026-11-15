@@ -16,6 +16,11 @@
  * carry no account). One snapshot, so nothing is counted twice; an override per currency × block
  * (stored in `budget_build_cash_plan`) replaces the estimate.
  *
+ * Items and moves (§10): every figure is returned with the items behind it, so the modal can say
+ * what a number is. A MOVE (`budget_build_cash_moves`) puts one item — category × account × currency
+ * × month — in the other block than its account's: where the money lands, never an amount, so a move
+ * follows the line when the budget changes.
+ *
  * Read-only on the budget: the plan never publishes (D1). Design: docs/cr/cr-104-budget-builder-cash-by-currency.md.
  */
 
@@ -31,6 +36,7 @@ const BLOCK_ROOTS = Object.freeze({
 const BLOCKS = ['cash', 'investments'];
 const MODELLED = ['USD', 'PLN', 'EUR'];
 const TRANSFER_MAX = 100;
+const MOVE_MAX = 500;
 
 const err = (status, message) => Object.assign(new Error(message), { status });
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
@@ -46,26 +52,40 @@ const isoDate = (d) => String(d).slice(0, 10);
  * @param balances   [{ id, currency, balance }] — block accounts at the snapshot date
  * @param blockOf    Map account id → 'cash' | 'investments'
  * @param remainder  [{ account_id, currency, amount }] — the LE's months after the snapshot, split
- * @param cells      [{ account_id, currency, month, amount }] — the build's cells
+ * @param cells      [{ category_id, account_id, currency, month, amount }] — the build's cells
  * @param accountCurrency Map account id → its currency (for the mismatch list)
  * @param plan       [{ kind, currency, block, month, to_currency, to_block, amount, to_amount }]
+ * @param moves      [{ category_id, account_id, currency, month, to_block }] — items placed in a block
  */
-function rollForward({ balances, blockOf, remainder, cells, accountCurrency = new Map(), plan = [] }) {
+function rollForward({ balances, blockOf, remainder, cells, accountCurrency = new Map(), plan = [], moves = [] }) {
   const cur = new Map();
   const get = (c) => {
     if (!cur.has(c)) {
       const block = () => ({ balance: 0, remainder: 0, inflows: zeros(), outflows: zeros(), transfers: zeros() });
       cur.set(c, { cash: { ...block(), remainderUnassigned: 0, unassigned: zeros() }, investments: block(),
+        items: [], openingItems: { cash: new Map(), investments: new Map() },
         other: zeros(), remainderOther: 0 });
     }
     return cur.get(c);
   };
   const place = (accountId) => (accountId == null ? 'unassigned' : blockOf.get(Number(accountId)) || 'other');
+  const moveKey = (cat, acct, c, m) => `${Number(cat)}|${acct == null ? 0 : Number(acct)}|${c}|${Number(m)}`;
+  const moved = new Map(moves.map((v) => [moveKey(v.category_id, v.account_id, v.currency, v.month), v.to_block]));
+  const matchedMoves = new Set();
+  // The opening's per-account pieces, for the modal's "what is this" on the Jan opening.
+  const openingItem = (c, block, accountId) => {
+    const byAcct = get(c).openingItems[block];
+    const k = accountId == null ? 0 : Number(accountId);
+    if (!byAcct.has(k)) byAcct.set(k, { accountId: accountId == null ? null : Number(accountId), balance: 0, remainder: 0 });
+    return byAcct.get(k);
+  };
 
   for (const b of balances) {
     if (!b.balance) continue;
     const block = blockOf.get(Number(b.id));
     get(b.currency)[block].balance = round2(get(b.currency)[block].balance + b.balance);
+    const it = openingItem(b.currency, block, b.id);
+    it.balance = round2(it.balance + b.balance);
   }
   for (const r of remainder) {
     const c = get(r.currency);
@@ -73,6 +93,10 @@ function rollForward({ balances, blockOf, remainder, cells, accountCurrency = ne
     if (where === 'unassigned') c.cash.remainderUnassigned = round2(c.cash.remainderUnassigned + r.amount);
     else if (where === 'other') c.remainderOther = round2(c.remainderOther + r.amount);
     else c[where].remainder = round2(c[where].remainder + r.amount);
+    if (where !== 'other') {
+      const it = openingItem(r.currency, where === 'unassigned' ? 'cash' : where, r.account_id);
+      it.remainder = round2(it.remainder + r.amount);
+    }
   }
 
   const mismatch = new Map();
@@ -80,11 +104,23 @@ function rollForward({ balances, blockOf, remainder, cells, accountCurrency = ne
     const amount = Number(cell.amount);
     const c = get(cell.currency);
     const m = Number(cell.month) - 1;
-    const where = place(cell.account_id);
-    if (where === 'unassigned') c.cash.unassigned[m] = round2(c.cash.unassigned[m] + amount);
-    else if (where === 'other') c.other[m] = round2(c.other[m] + amount);
-    else if (amount >= 0) c[where].inflows[m] = round2(c[where].inflows[m] + amount);
-    else c[where].outflows[m] = round2(c[where].outflows[m] + amount);
+    const natural = place(cell.account_id);
+    const key = moveKey(cell.category_id, cell.account_id, cell.currency, cell.month);
+    // A No-account item already counts in Cash, so a move there is a move to its own block: it moves
+    // nothing, and is listed as such rather than shown as applied.
+    const own = natural === 'unassigned' ? 'cash' : natural;
+    const movedTo = moved.has(key) && moved.get(key) !== own ? moved.get(key) : null;
+    if (movedTo) matchedMoves.add(key);
+    const where = movedTo || natural;
+    let row;
+    if (where === 'unassigned') { row = 'unassigned'; c.cash.unassigned[m] = round2(c.cash.unassigned[m] + amount); }
+    else if (where === 'other') { row = 'other'; c.other[m] = round2(c.other[m] + amount); }
+    else if (amount >= 0) { row = 'inflows'; c[where].inflows[m] = round2(c[where].inflows[m] + amount); }
+    else { row = 'outflows'; c[where].outflows[m] = round2(c[where].outflows[m] + amount); }
+    c.items.push({ categoryId: cell.category_id == null ? null : Number(cell.category_id),
+      accountId: cell.account_id == null ? null : Number(cell.account_id), month: m + 1, amount: round2(amount),
+      block: where === 'unassigned' ? 'cash' : (where === 'other' ? null : where), row,
+      natural: natural === 'unassigned' ? 'cash' : (natural === 'other' ? null : natural), moved: !!movedTo });
     const acctCur = cell.account_id == null ? null : accountCurrency.get(Number(cell.account_id));
     if (acctCur && acctCur !== cell.currency) {
       const key = `${cell.currency}|${acctCur}`;
@@ -136,8 +172,11 @@ function rollForward({ balances, blockOf, remainder, cells, accountCurrency = ne
     const cash = finish(c, 'cash', raw.cash);
     const investments = finish(c, 'investments', raw.investments);
     const shortMonths = cash.ending.map((v, m) => (v < 0 ? m + 1 : null)).filter(Boolean);
+    const pieces = (block) => [...raw.openingItems[block].values()].filter((i) => i.balance || i.remainder);
+    cash.opening.items = pieces('cash');
+    investments.opening.items = pieces('investments');
     return {
-      currency: c, cash, investments,
+      currency: c, cash, investments, items: raw.items,
       other: { months: raw.other, year: sum(raw.other), remainder: raw.remainderOther },
       short: shortMonths.length ? { months: shortMonths, lowest: Math.min(...cash.ending) } : null,
       flowTotal: round2(sum(cash.inflows) + sum(cash.outflows) + sum(cash.unassigned)
@@ -148,7 +187,8 @@ function rollForward({ balances, blockOf, remainder, cells, accountCurrency = ne
     const raw = cur.get(c);
     return { currency: c, cash: raw.cash.balance, investments: raw.investments.balance };
   }).filter((r) => r.cash || r.investments);
-  return { currencies, notModelled, currencyMismatches: [...mismatch.values()] };
+  const unmatchedMoves = moves.filter((v) => !matchedMoves.has(moveKey(v.category_id, v.account_id, v.currency, v.month)));
+  return { currencies, notModelled, currencyMismatches: [...mismatch.values()], unmatchedMoves };
 }
 
 // ---------------------------------------------------------------------------
@@ -214,6 +254,13 @@ async function loadPlan(client, buildId) {
     to_amount: p.to_amount == null ? null : Number(p.to_amount) }));
 }
 
+async function loadMoves(client, buildId) {
+  return (await client.query(
+    `SELECT id, category_id, account_id, TRIM(currency) AS currency, month, to_block
+       FROM budget_build_cash_moves WHERE build_id = $1 ORDER BY id`, [buildId]
+  )).rows;
+}
+
 /** The modal's data for one build. `roots` is injectable for tests; production uses BLOCK_ROOTS. */
 async function cashFlow(buildId, { roots = BLOCK_ROOTS } = {}) {
   const client = db;
@@ -223,15 +270,27 @@ async function cashFlow(buildId, { roots = BLOCK_ROOTS } = {}) {
   const { blockOf, balances } = await loadBlocks(client, roots, asOf);
   const remainder = await loadRemainder(client, build);
   const { cells: rawCells } = await builder.cellsFor(client, build, view);
-  const cells = rawCells.map((c) => ({ account_id: c.account_id, currency: String(c.currency).trim(),
+  const cells = rawCells.map((c) => ({ category_id: c.category_id, account_id: c.account_id, currency: String(c.currency).trim(),
     month: Number(c.month), amount: Number(c.amount) }));
   const ids = [...new Set(cells.map((c) => c.account_id).filter((a) => a != null))];
   const accountCurrency = new Map((await client.query(
     'SELECT id, TRIM(currency) AS currency FROM accounts WHERE id = ANY($1::int[])', [ids]
   )).rows.map((r) => [r.id, r.currency]));
   const plan = await loadPlan(client, buildId);
+  const moves = await loadMoves(client, buildId);
 
-  const result = rollForward({ balances, blockOf, remainder, cells, accountCurrency, plan });
+  const { unmatchedMoves, ...result } = rollForward({ balances, blockOf, remainder, cells, accountCurrency, plan, moves });
+  // Names for every category and account the items, openings and moves refer to.
+  const nameIds = new Set();
+  for (const c of result.currencies) {
+    for (const i of c.items) { if (i.categoryId != null) nameIds.add(i.categoryId); if (i.accountId != null) nameIds.add(i.accountId); }
+    for (const b of ['cash', 'investments']) for (const i of c[b].opening.items) if (i.accountId != null) nameIds.add(i.accountId);
+  }
+  for (const v of moves) { nameIds.add(Number(v.category_id)); if (v.account_id != null) nameIds.add(Number(v.account_id)); }
+  const names = Object.fromEntries((await client.query(
+    'SELECT id, name FROM accounts WHERE id = ANY($1::int[])', [[...nameIds]]
+  )).rows.map((r) => [r.id, r.name]));
+  const unmatched = new Set(unmatchedMoves.map((v) => v.id));
   // The reconciliation the page can see: each currency's cells against the build's own total
   // (computed separately, line by line). A mismatch means a cell was dropped or double-placed.
   for (const c of result.currencies) {
@@ -248,11 +307,16 @@ async function cashFlow(buildId, { roots = BLOCK_ROOTS } = {}) {
     roots,
     ...result,
     unassignedLines: cells.filter((c) => c.account_id == null).length,
+    names,
     plan: {
       openings: plan.filter((p) => p.kind === 'opening').map((p) => ({ currency: p.currency, block: p.block, amount: p.amount })),
       transfers: plan.filter((p) => p.kind === 'transfer').map((p) => ({
         id: p.id, month: p.month, fromCurrency: p.currency, fromBlock: p.block, toCurrency: p.to_currency,
         toBlock: p.to_block, amount: p.amount, rate: p.rate, toAmount: p.to_amount, note: p.note })),
+      // A move whose item is gone (the line changed or lost that account) is listed, never silently kept.
+      moves: moves.map((v) => ({ id: v.id, categoryId: Number(v.category_id),
+        accountId: v.account_id == null ? null : Number(v.account_id), currency: v.currency, month: v.month,
+        toBlock: v.to_block, matched: !unmatched.has(v.id) })),
     },
   };
 }
@@ -284,11 +348,13 @@ const pick = (v, allowed, what) => {
  *     toCurrency, toBlock, amount, rate?, note? }] }
  * A transfer's rate is to-per-from; omitted, it is the build's FX (local per USD) ratio, 1 within a
  * currency. `to_amount` is stored rounded to cents, so both sides reconcile with no residual.
+ * `moves?: [{ categoryId, accountId (null = no account), currency, month, toBlock }]` replaces the
+ * item moves (§10).
  */
 async function savePlan(buildId, body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw err(400, 'Body must be an object');
   const has = (k) => Object.prototype.hasOwnProperty.call(body, k);
-  if (!has('openings') && !has('transfers')) throw err(400, 'Nothing to save: send openings and/or transfers');
+  if (!has('openings') && !has('transfers') && !has('moves')) throw err(400, 'Nothing to save: send openings, transfers and/or moves');
 
   return db.transaction(async (client) => {
     const build = await builder.getBuildRow(client, buildId, { lock: true });
@@ -358,6 +424,43 @@ async function savePlan(buildId, body) {
              (build_id, kind, currency, block, month, to_currency, to_block, amount, rate, to_amount, note)
            VALUES ($1, 'transfer', $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
           [buildId, r.fromCurrency, r.fromBlock, r.month, r.toCurrency, r.toBlock, r.amount, r.rate, r.toAmount, r.note]
+        );
+      }
+    }
+
+    if (has('moves')) {
+      if (!Array.isArray(body.moves)) throw err(400, 'moves must be a list');
+      if (body.moves.length > MOVE_MAX) throw err(400, `At most ${MOVE_MAX} moves`);
+      const id = (v) => (Number.isInteger(v) && v > 0 ? v : NaN);
+      const seen = new Set();
+      const rows = body.moves.map((v, i) => {
+        const what = `Move ${i + 1}`;
+        if (!v || typeof v !== 'object') throw err(400, `${what} must be an object`);
+        const categoryId = id(v.categoryId);
+        if (Number.isNaN(categoryId)) throw err(400, `${what}: category must be an account id`);
+        const accountId = v.accountId == null ? null : id(v.accountId);
+        if (Number.isNaN(accountId)) throw err(400, `${what}: account must be an account id or null`);
+        const currency = pick(v.currency, MODELLED, `${what}: currency`);
+        const month = v.month;
+        if (!Number.isInteger(month) || month < 1 || month > 12) throw err(400, `${what}: month must be 1–12`);
+        const toBlock = pick(v.toBlock, BLOCKS, `${what}: to`);
+        const key = `${categoryId}|${accountId ?? 0}|${currency}|${month}`;
+        if (seen.has(key)) throw err(400, `${what}: that item is moved twice`);
+        seen.add(key);
+        return { categoryId, accountId, currency, month, toBlock };
+      });
+      const ids = [...new Set(rows.flatMap((r) => (r.accountId == null ? [r.categoryId] : [r.categoryId, r.accountId])))];
+      const section = new Map((await client.query('SELECT id, section FROM accounts WHERE id = ANY($1::int[])', [ids]))
+        .rows.map((r) => [r.id, r.section]));
+      for (const r of rows) {
+        if (section.get(r.categoryId) !== 'profit_loss') throw err(400, `Move: ${r.categoryId} is not a category`);
+        if (r.accountId != null && section.get(r.accountId) !== 'balance_sheet') throw err(400, `Move: ${r.accountId} is not an account`);
+      }
+      await client.query('DELETE FROM budget_build_cash_moves WHERE build_id = $1', [buildId]);
+      for (const r of rows) {
+        await client.query(
+          `INSERT INTO budget_build_cash_moves (build_id, category_id, account_id, currency, month, to_block)
+           VALUES ($1, $2, $3, $4, $5, $6)`, [buildId, r.categoryId, r.accountId, r.currency, r.month, r.toBlock]
         );
       }
     }

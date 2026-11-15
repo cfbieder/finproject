@@ -72,6 +72,37 @@ describe('rollForward (pure)', () => {
     expect(eur.cash.transfers[1]).toBe(89);
     expect(eur.cash.ending[11]).toBe(88);
   });
+
+  // §10: the items behind each figure, and moving one item to the other block.
+  const withCats = { ...base, cells: base.cells.map((c, i) => ({ ...c, category_id: 100 + i })) };
+
+  test('every figure carries its items, and they add up to it', () => {
+    const usd = svc.rollForward(withCats).currencies.find((c) => c.currency === 'USD');
+    const total = (row, block, m) => usd.items.filter((i) => i.row === row && i.block === block && i.month === m)
+      .reduce((s, i) => s + i.amount, 0);
+    expect(total('inflows', 'investments', 3)).toBe(usd.investments.inflows[2]);
+    expect(total('outflows', 'cash', 2)).toBe(usd.cash.outflows[1]);
+    expect(total('unassigned', 'cash', 4)).toBe(usd.cash.unassigned[3]);
+    expect(usd.items.find((i) => i.row === 'other')).toMatchObject({ accountId: 9, block: null, amount: -5 });
+    expect(usd.cash.opening.items).toEqual([{ accountId: 1, balance: 100, remainder: 0 }, { accountId: 2, balance: -30, remainder: 0 }]);
+  });
+
+  test('a move puts an item in the other block; a move to its own block or of a missing item changes nothing', () => {
+    const r = svc.rollForward({ ...withCats, moves: [
+      { id: 1, category_id: 102, account_id: 3, currency: 'USD', month: 3, to_block: 'cash' },        // broker coupon
+      { id: 2, category_id: 100, account_id: 1, currency: 'USD', month: 1, to_block: 'cash' },        // already cash
+      { id: 3, category_id: 999, account_id: 3, currency: 'USD', month: 3, to_block: 'cash' },        // no such item
+      { id: 4, category_id: 103, account_id: null, currency: 'USD', month: 4, to_block: 'investments' }, // no account
+    ] });
+    const usd = r.currencies.find((c) => c.currency === 'USD');
+    expect(usd.investments.inflows[2]).toBe(0);
+    expect(usd.cash.inflows[2]).toBe(25);
+    expect(usd.cash.unassigned[3]).toBe(0);
+    expect(usd.investments.outflows[3]).toBe(-10);
+    expect(usd.items.filter((i) => i.moved).map((i) => i.categoryId)).toEqual([102, 103]);
+    expect(usd.flowTotal).toBe(-140); // a move never changes the total
+    expect(r.unmatchedMoves.map((v) => v.id)).toEqual([2, 3]); // own block, and no such item: both move nothing
+  });
 });
 
 dbDescribe('Cash flow by currency (DB)', () => {
@@ -230,6 +261,36 @@ dbDescribe('Cash flow by currency (DB)', () => {
       .rejects.toMatchObject({ status: 500, message: expect.stringContaining(`'${P} Nowhere' not found`) });
   });
 
+  test('a move takes an item to the other block and keeps the reconciliation', async () => {
+    const before = cur(await flow(), 'USD');
+    const coupon = before.items.find((i) => i.categoryId === ids.coupon);
+    expect(coupon).toMatchObject({ accountId: ids.broker, month: 5, row: 'inflows', block: 'investments', moved: false });
+    const r = await svc.savePlan(ids.build, { moves: [
+      { categoryId: ids.coupon, accountId: ids.broker, currency: 'USD', month: 5, toBlock: 'cash' },
+    ] }).then(flow);
+    const usd = cur(r, 'USD');
+    expect(usd.investments.inflows[4]).toBe(before.investments.inflows[4] - coupon.amount);
+    expect(usd.cash.inflows[4]).toBe(before.cash.inflows[4] + coupon.amount);
+    expect(usd.reconciled).toBe(true);
+    expect(r.plan.moves).toEqual([expect.objectContaining({ categoryId: ids.coupon, toBlock: 'cash', matched: true })]);
+    expect(r.names[ids.coupon]).toBe(`${P} Coupon`);
+    expect(r.names[ids.broker]).toBe(`${P} Broker USD`);
+    expect(r.plan.transfers).toHaveLength(2); // untouched
+  });
+
+  test('bad moves are refused', async () => {
+    const bad = (moves) => svc.savePlan(ids.build, { moves }).catch((e) => e.status);
+    const ok = { categoryId: ids.coupon, accountId: ids.broker, currency: 'USD', month: 5, toBlock: 'cash' };
+    expect(await bad([{ ...ok, month: 0 }])).toBe(400);
+    expect(await bad([{ ...ok, month: '5' }])).toBe(400);
+    expect(await bad([{ ...ok, toBlock: 'other' }])).toBe(400);
+    expect(await bad([{ ...ok, accountId: 2147480000 }])).toBe(400);
+    expect(await bad([{ ...ok, categoryId: ids.broker }])).toBe(400);   // an account as the category
+    expect(await bad([{ ...ok, accountId: ids.coupon }])).toBe(400);    // a category as the account
+    expect(await bad([ok, { ...ok, toBlock: 'investments' }])).toBe(400);
+    expect((await flow()).plan.moves).toHaveLength(1); // a refused save leaves the moves as they were
+  });
+
   test('a stored build’s plan is read-only; a same-year build started from it copies the plan', async () => {
     await db.query(`UPDATE budget_builds SET status = 'published' WHERE id = $1`, [ids.build]);
     expect(await svc.savePlan(ids.build, { openings: [] }).catch((e) => e.status)).toBe(409);
@@ -237,6 +298,7 @@ dbDescribe('Cash flow by currency (DB)', () => {
     const r = await svc.cashFlow(build.id, { roots: ROOTS });
     expect(r.plan.openings).toEqual([{ currency: 'USD', block: 'cash', amount: 0 }]);
     expect(r.plan.transfers).toHaveLength(2);
+    expect(r.plan.moves).toHaveLength(1);
     expect(r.build.editable).toBe(true);
   });
 });
