@@ -13,6 +13,9 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 Only what is still open. Closed CRs and resolved investigations are kept as records in
 [§1.1b](#11b-closed--kept-as-records), unchanged and with their anchors.
 
+<a id="cr104"></a>
+- **CR104 — [Budget builder: Cash Flow by currency](../cr/cr-104-budget-builder-cash-by-currency.md). 📋 *PLANNED 2026-11-15 — rev 3, pass 2 GO*.** A *Cash flow* modal on the builder showing, per currency (USD/PLN/EUR), the open build's monthly roll-forward (opening at the LE cut-off, overridable; + in − out = ending) in Cash (bank + cards) and Investments blocks, flagging months where cash goes short — the 2026 budget nets PLN +148k vs USD −252k. **P1** (migration 090 + modal): **hard stop 2026-11-26**, ahead of CR098 P3c, freeze gate on build 12. **P2** (what-if transfers, never published): by 11-26 or backlog for the 2028 draft.
+
 <a id="cr095"></a>
 - **CR095 — Forecast spend that moves with the złoty. 📋 *DRAFT 2026-09-28 — not yet reviewed*.** Successor to CR052 (superseded the same day): about half of discretionary spend is PLN but every forecast expense module is USD, so FX stress moves assets and never costs. Spec: [cr-095-forecast-spend-currency-share.md](../cr/cr-095-forecast-spend-currency-share.md).
 
