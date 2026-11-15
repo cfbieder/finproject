@@ -4,6 +4,7 @@ import Modal from "../components/Modal/Modal.jsx";
 import BuildCompare from "../features/Budgets/BuildCompare.jsx";
 import ItemsModal from "../features/Budgets/ItemsModal.jsx";
 import CompareForecastModal from "../features/Budgets/CompareForecastModal.jsx";
+import CashFlowModal from "../features/Budgets/CashFlowModal.jsx";
 import ConfirmModal from "../components/ConfirmModal/ConfirmModal.jsx";
 import "./PageLayout.css";
 import "./BudgetBuilder.css";
@@ -149,6 +150,7 @@ function BudgetBuilder() {
   const [rev, setRev] = useState(0);              // remounts the number inputs after every save, kept or refused
   const [comparing, setComparing] = useState(false);
   const [comparingForecast, setComparingForecast] = useState(false); // CR102
+  const [cashFlowOpen, setCashFlowOpen] = useState(false); // CR104
   const [itemsFor, setItemsFor] = useState(null);        // CR100: the line whose items modal is open
   const [itemsError, setItemsError] = useState("");
   const [confirmLeave, setConfirmLeave] = useState(null); // { line, policy } — leaving Itemised deletes the rows
@@ -410,6 +412,11 @@ function BudgetBuilder() {
           {shown && (
             <button type="button" className="btn btn--outline" onClick={() => setComparingForecast(true)}>
               Compare forecast
+            </button>
+          )}
+          {shown && (
+            <button type="button" className="btn btn--outline" onClick={() => setCashFlowOpen(true)}>
+              Cash flow
             </button>
           )}
         </div>
@@ -819,6 +826,11 @@ function BudgetBuilder() {
         <CompareForecastModal buildId={shown.build.id} buildLabel={buildLabel({ target_year: shown.build.targetYear,
           build_no: shown.build.buildNo, status: shown.build.status, note: shown.build.note })}
           onClose={() => setComparingForecast(false)} />
+      )}
+      {cashFlowOpen && shown && (
+        <CashFlowModal buildId={shown.build.id} buildLabel={buildLabel({ target_year: shown.build.targetYear,
+          build_no: shown.build.buildNo, status: shown.build.status, note: shown.build.note })}
+          onClose={() => setCashFlowOpen(false)} />
       )}
       {itemsFor != null && shown && linesById.get(itemsFor) && (
         <ItemsModal key={`${itemsFor}-${rev}`} line={linesById.get(itemsFor)}

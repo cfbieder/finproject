@@ -17,6 +17,7 @@ const variants = require('../../v2/services/forecastVariants'); // CR050
 const { baseYearFxRate } = require('./fcbuilder-setup'); // CR064 P8 — base-year FX
 const validate = require('../../v2/utils/validate'); // CR069 P2 — 400s from the write path
 const { normalizeReturns } = require('../../v2/utils/forecastReturns'); // CR099
+const { treeBalancesAsOf } = require('../../v2/repositories/accountBalances'); // CR104 — shared balances
 
 /**
  * Resolve an account name to its id (null when absent/not found).
@@ -535,38 +536,22 @@ async function getBaseYearLeValues(le, client = db) {
  * carry it. Currency comes from the ACCOUNT, matching `reports.js`.
  */
 async function getOpeningBankCash(client, asOfDate) {
-  const result = await client.query(`
-    WITH RECURSIVE bank_tree AS (
-      SELECT id, currency, opening_balance, opening_balance_date
-      FROM accounts WHERE name = 'Bank Accounts'
-      UNION ALL
-      SELECT a.id, a.currency, a.opening_balance, a.opening_balance_date
-      FROM accounts a JOIN bank_tree bt ON a.parent_id = bt.id
-    ),
-    account_balances AS (
-      SELECT bt.id,
-             COALESCE(bt.currency, 'USD') AS currency,
-             bt.opening_balance + COALESCE(SUM(t.amount), 0) AS closing_balance
-      FROM bank_tree bt
-      LEFT JOIN transactions t
-        ON t.account_id = bt.id
-       AND t.transaction_date >= bt.opening_balance_date
-       AND t.transaction_date <= $1
-      GROUP BY bt.id, bt.currency, bt.opening_balance
-    )
-    SELECT ab.closing_balance, ab.currency,
-      COALESCE(
-        (SELECT er.rate FROM exchange_rates er
-         WHERE er.from_currency = ab.currency AND er.to_currency = 'USD'
-         ORDER BY ABS(er.rate_date - $1::date) ASC LIMIT 1),
-        1.0
-      ) AS fx_rate
-    FROM account_balances ab
-  `, [asOfDate]);
+  // The balances are the shared definition (CR104 lifted it, unchanged); the USD conversion and the
+  // USD default for a currency-less account stay here, as they were.
+  const rows = await treeBalancesAsOf(client, ['Bank Accounts'], asOfDate);
+  const rateFor = new Map();
+  for (const cur of new Set(rows.map((r) => r.currency || 'USD'))) {
+    const res = await client.query(
+      `SELECT er.rate FROM exchange_rates er
+        WHERE er.from_currency = $1 AND er.to_currency = 'USD'
+        ORDER BY ABS(er.rate_date - $2::date) ASC LIMIT 1`, [cur, asOfDate]
+    );
+    rateFor.set(cur, res.rows[0] ? parseFloat(res.rows[0].rate) : 1.0);
+  }
 
   let total = 0;
-  for (const row of result.rows) {
-    total += (parseFloat(row.closing_balance) || 0) * (parseFloat(row.fx_rate) || 1);
+  for (const row of rows) {
+    total += (parseFloat(row.balance) || 0) * (rateFor.get(row.currency || 'USD') || 1);
   }
   return total;
 }

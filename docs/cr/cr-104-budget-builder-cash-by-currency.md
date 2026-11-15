@@ -1,6 +1,6 @@
 # CR104 — Budget builder: Cash Flow by currency (monthly roll-forward, with what-if transfers) — DRAFT
 
-**Status:** PLANNED 2026-11-15 — **rev 3**. Pass 1 (`cr-technical-reviewer`) REVISE on rev 1 → rev 2;
+**Status:** IN-PROGRESS 2026-11-15 — **P1 + P2 built** on branch `cr104` (§9), not yet deployed. **rev 3**. Pass 1 (`cr-technical-reviewer`) REVISE on rev 1 → rev 2;
 pass 2 (`cr-signoff-pm`) **GO** on rev 2, on four conditions, applied in rev 3 (§6, §8).
 **Hard stop: 2026-11-26** — P1 on prod by then, or it ships after the 12-10 publish.
 **Track:** v3 · **Migration:** **090** `090_budget_build_cash_plan.sql` (P1; §3.4)
@@ -147,6 +147,29 @@ Shown as **± Transfers** in both tables touched. Nothing publishes.
 
 ## 7. Open questions
 None — rev 1's three are answered in §3.1 (Unassigned, roots) and §3.2 (ledger value).
+
+## 9. As built (2026-11-15, branch `cr104`, not deployed)
+P1 and P2 were built together — P2 was small, and the hard stop allowed it.
+- **Server:** `services/budgetCashFlow.js` (`cashFlow`, `savePlan`, the pure `rollForward`); the balance CTE lifted to
+  `v2/repositories/accountBalances.js` (`treeBalancesAsOf`), which `getOpeningBankCash` now reads — its total checked
+  identical to 1e-6 on dev for 2025-12-31, 2026-10-31 and 2026-11-15. `budgetBuilder.createBuild` copies the plan from a
+  same-year parent. Routes `GET /:id/cash-flow`, `PUT /:id/cash-plan`.
+- **Frontend:** `features/Budgets/CashFlowModal.jsx` (+ `cashFlow.js`, CSS), button *Cash flow* after Compare forecast.
+- **Tests:** `budgetCashFlow.test.js` (pure roll-forward + self-seeded DB fixture with injected roots: opening at the
+  cut-off, remainder split, Other, reconciliation, override, transfers, bad input, missing root, 409 + same-year copy);
+  `CashFlowModal.test.jsx` (summary, flags, sources, GBP, read-only).
+- **Rendered both themes** on dev's copy of 2027 v6. What it shows: USD cash short Feb–Dec (lowest −159k) because USD
+  income lands in the Fidelity block; EUR short Jul–Dec (−6.7k); PLN cash stays positive (572k → 36k) while PL
+  dividends land in investments. A PLN 300k → USD transfer in February moves USD's first short month to July and
+  makes PLN short from May — the trade-off the modal exists to show.
+- **Code review** (`code-quality-reviewer`, 2026-11-15): opening confirmed free of double count or gap. Fixed: an
+  openings save wiped unsaved transfer rows (regression test added); a null build total read as 0; the LE remainder
+  is now bounded to the LE's year; rate/amount bounds give a 400 instead of a DB overflow; one sign test for red and ⚠.
+  Kept as is, documented in `accountBalances.js`: the lifted balance is narrower than the balance sheet (no
+  `balance_from_feed`, no `is_active`, an opening dated after the snapshot still counts) — no block account was
+  affected on 2026-11-15, and changing it would move the forecast's opening cash. Open: an override copied from a
+  parent built on an older LE is not labelled as such.
+- **Not yet:** migration 090 on prod, then the deploy (with the build-12 checksum gate, §6).
 
 ## 8. Review log
 - **Pass 1 — `cr-technical-reviewer`, rev 1: REVISE** (2026-11-15). Blocking: (1) opening double-counted the

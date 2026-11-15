@@ -7,6 +7,7 @@
 const express = require('express');
 const svc = require('../../services/budgetBuilder');
 const compareSvc = require('../../services/budgetCompareForecast'); // CR102
+const cashSvc = require('../../services/budgetCashFlow'); // CR104
 
 const router = express.Router();
 
@@ -76,6 +77,19 @@ router.patch('/:id/lines/:lineId/done', handle(async (req, res) => {
 router.get('/:id/compare-forecast', handle(async (req, res) => {
   const scenario = typeof req.query.scenario === 'string' && req.query.scenario.trim() ? req.query.scenario.trim() : undefined;
   res.json({ data: await compareSvc.compareForecast(id(req), { scenario }) });
+}));
+
+// GET /:id/cash-flow — CR104: per-currency monthly roll-forward of the build, Cash and Investments blocks
+router.get('/:id/cash-flow', handle(async (req, res) => res.json({ data: await cashSvc.cashFlow(id(req)) })));
+
+// PUT /:id/cash-plan — CR104: { openings?, transfers? } replaces those parts of a draft's plan; never publishes
+router.put('/:id/cash-plan', handle(async (req, res) => {
+  const body = req.body || {};
+  const clean = {};
+  if ('openings' in body) clean.openings = body.openings;
+  if ('transfers' in body) clean.transfers = body.transfers;
+  await cashSvc.savePlan(id(req), clean);
+  res.json({ data: await cashSvc.cashFlow(id(req)) });
 }));
 
 // GET /:id/preview — the month split, what Publish deletes and writes, blockers, checksum

@@ -1,0 +1,25 @@
+/* CR104 — Cash Flow by currency. Builder classes (bb-*) do the type and sign colours; tokens only. */
+.cfm { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.6rem; }
+.cfm-scope { margin: 0; font-size: 0.85rem; color: var(--ink); background: var(--surface-muted); padding: 0.4rem 0.6rem; border-radius: 4px; }
+.cfm-summary { margin: 0; font-weight: 600; color: var(--ink); }
+.cfm-title { margin: 0.4rem 0 0.2rem; font-size: 1rem; }
+.cfm-scroll { overflow-x: auto; }
+.cfm-table { width: 100%; min-width: 980px; font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.cfm-table td, .cfm-table th { padding: 0.2rem 0.25rem; }
+.cfm-table thead th { font-size: 0.7rem; }
+.cfm-table .num { text-align: right; white-space: nowrap; }
+.cfm-table tbody th { text-align: left; font-weight: 400; white-space: nowrap; text-transform: none; letter-spacing: normal; font-size: 0.75rem; color: var(--ink); }
+.cfm-table th:first-child { position: sticky; left: 0; background: var(--surface); z-index: 1; }
+.cfm-table .cfm-block th { font-weight: 700; padding-top: 0.5rem; border-bottom: 1px solid var(--border); }
+.cfm-table .cfm-ending th, .cfm-ending td { font-weight: 700; border-top: 1px solid var(--border); }
+.cfm-other th, .cfm-other td { font-size: 0.85rem; background: var(--surface-muted); }
+.cfm-year { border-left: 1px solid var(--border); }
+.cfm-openings { display: grid; gap: 0.3rem; font-size: 0.8rem; }
+.cfm-opening { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: baseline; }
+.cfm-amount { width: 9rem; text-align: right; }
+.cfm-rate { width: 7rem; text-align: right; }
+.cfm-side { white-space: nowrap; }
+.cfm-side select + select { margin-left: 0.25rem; }
+.cfm-ttable { min-width: 820px; }
+.cfm-ttable td, .cfm-ttable th { padding: 0.25rem 0.4rem; }
+.cfm-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }

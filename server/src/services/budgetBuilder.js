@@ -202,9 +202,11 @@ async function createBuild({ targetYear, sourceLeId, scenarioName, parentBuildId
 
     let parentLines = new Map();
     const parentItems = new Map(); // parent line id → its items
+    let parentYear = null;
     if (parentBuildId) {
       const parent = (await client.query('SELECT target_year FROM budget_builds WHERE id = $1', [parentBuildId])).rows[0];
       if (!parent) throw err(404, 'Build to start from not found');
+      parentYear = Number(parent.target_year);
       for (const r of (await client.query('SELECT * FROM budget_build_lines WHERE build_id = $1', [parentBuildId])).rows) {
         parentLines.set(`${r.category_id}|${r.currency}`, r);
       }
@@ -236,6 +238,16 @@ async function createBuild({ targetYear, sourceLeId, scenarioName, parentBuildId
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
       [year, buildNo, le.id, scenarioName, parentBuildId, note]
     )).rows[0];
+    // CR104: the cash plan (opening overrides, what-if transfers) belongs to one year — copied only
+    // from a parent build of the same year.
+    if (parentBuildId && parentYear === year) {
+      await client.query(
+        `INSERT INTO budget_build_cash_plan
+           (build_id, kind, currency, block, month, to_currency, to_block, amount, rate, to_amount, note)
+         SELECT $1, kind, currency, block, month, to_currency, to_block, amount, rate, to_amount, note
+           FROM budget_build_cash_plan WHERE build_id = $2 ORDER BY id`, [build.id, parentBuildId]
+      );
+    }
 
     const policies = new Map((await client.query('SELECT * FROM budget_category_policy')).rows
       .map((p) => [p.category_id, p]));
@@ -1260,6 +1272,7 @@ async function compareYear(year) {
 module.exports = {
   listSources, createBuild, deleteDraft, setNote, updateLine, setLineItems, setLineDone, getBuild, previewPublish,
   publish, unpublish, scenariosReading, compareYear, scenarioRates, // scenarioRates: CR102 (read-only)
+  getBuildRow, cellsFor, loadGrids, CURRENCIES, // CR104 (read-only): the Cash Flow modal
   // exported for tests
   splitLine, allocate, groupLines, sourceYear, policyLines, itemMonths, LUMP_SHARE,
 };
