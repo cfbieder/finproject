@@ -620,11 +620,29 @@ function BudgetBuilder() {
                           {l.policy !== "itemised" && itemisedOn.has(l.categoryId) && (l.policy === "one_off"
                             ? <span className="bb-muted"> · itemised on the {itemisedOn.get(l.categoryId)} line</span>
                             : <span className="bb-flag"> ⚠ also itemised on the {itemisedOn.get(l.categoryId)} line — counted twice</span>)}
+                          {l.rolledIntoUsd && <span className="bb-muted"> · rolled into the USD line</span>}
+                          {l.rolledInUsd != null && <span className="bb-muted"> · includes {fmt(l.rolledInUsd)} rolled in</span>}
                         </td>
-                        <td>{l.currency}</td>
-                        <td className={`num ${neg(l.leFy) || ""}`}>{fmt(l.leFy)}</td>
                         <td>
-                          {isDraft ? (
+                          {l.currency}
+                          {/* Roll a non-USD line into the category's USD line: budgeted once, in USD. */}
+                          {isDraft && l.currency !== "USD" && l.policy !== "itemised" && !l.inactive && (
+                            <button type="button" className="bb-linkish bb-roll" disabled={busy} aria-pressed={l.rolledIntoUsd}
+                              aria-label={`${l.category} (${l.currency}) ${l.rolledIntoUsd ? "budget on its own again" : "roll into the USD line"}`}
+                              title={l.rolledIntoUsd ? "Rolled into the USD line — click to budget it on its own again"
+                                : "Roll into the category's USD line: its estimate joins the USD line's, at the build's rate"}
+                              onClick={() => patchLine(l.id, { rolledIntoUsd: !l.rolledIntoUsd })}>
+                              {l.rolledIntoUsd ? "↩ unroll" : "→ USD"}
+                            </button>
+                          )}
+                        </td>
+                        {/* A USD line with lines rolled in shows the combined estimate its figure grows from. */}
+                        <td className={`num ${neg(l.rolledInUsd != null ? l.baseLe : l.leFy) || ""} ${l.rolledIntoUsd ? "bb-muted" : ""}`}
+                          title={l.rolledInUsd != null ? `Own ${fmt(l.leFy)} + rolled in ${fmt(l.rolledInUsd)}` : undefined}>
+                          {fmt(l.rolledInUsd != null ? l.baseLe : l.leFy)}
+                        </td>
+                        <td>
+                          {l.rolledIntoUsd ? <span className="bb-muted">Rolled → USD</span> : isDraft ? (
                             <select value={l.policy} aria-label={`${l.category} policy`} disabled={busy}
                               onChange={(e) => {
                                 const policy = e.target.value;
@@ -641,7 +659,7 @@ function BudgetBuilder() {
                           ) : POLICIES.find((p) => p.value === l.policy)?.label}
                         </td>
                         <td className="num">
-                          {l.policy === "recurring" && isDraft ? (
+                          {l.rolledIntoUsd ? "" : l.policy === "recurring" && isDraft ? (
                             <input key={`i${l.id}-${l.inflationPct}-${rev}`} type="number" step="0.1" className="bb-num-input"
                               aria-label={`${l.category} inflation override`} defaultValue={l.inflationPct ?? ""}
                               placeholder={fmt(shown.rates.inflation?.rate, 1)} disabled={busy}
@@ -653,7 +671,7 @@ function BudgetBuilder() {
                           ) : l.policy === "recurring" ? fmt(l.effectiveInflationPct, 1) : ""}
                         </td>
                         <td className="num">
-                          {l.policy === "fixed" && isDraft ? (
+                          {l.rolledIntoUsd ? "" : l.policy === "fixed" && isDraft ? (
                             <input key={`f${l.id}-${l.fixedAmount}-${rev}`} type="number" step="1" className="bb-num-input"
                               aria-label={`${l.category} fixed amount, ${l.currency}, signed`} defaultValue={l.fixedAmount ?? ""}
                               disabled={busy} onKeyDown={commitOnEnter} onWheel={blurOnWheel}

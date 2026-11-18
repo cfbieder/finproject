@@ -54,7 +54,7 @@ router.delete('/:id', handle(async (req, res) => {
   res.json({ data: { deleted: true } });
 }));
 
-// PATCH /:id/lines/:lineId — { policy?, fixedAmount?, inflationPct?, splitMethod?, splitMonth?, splitWeights? }
+// PATCH /:id/lines/:lineId — { policy?, fixedAmount?, inflationPct?, splitMethod?, splitMonth?, splitWeights?, rolledIntoUsd? }
 router.patch('/:id/lines/:lineId', handle(async (req, res) => {
   await svc.updateLine(id(req), positiveInt(req.params.lineId, 'line'), req.body || {});
   res.json({ data: await svc.getBuild(id(req)) });

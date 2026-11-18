@@ -115,6 +115,8 @@
 .bb-neg { color: var(--danger); }
 .bb-strong { font-weight: 600; }
 .bb-muted { color: var(--muted); font-size: 0.8rem; }
+.bb-roll { display: block; font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
+.bb-roll[aria-pressed="true"] { color: var(--ink); }
 .bb-flag { color: var(--ink); font-size: 0.8rem; }
 .bb-error { color: var(--danger); }
 .bb-notice { color: var(--ink); }

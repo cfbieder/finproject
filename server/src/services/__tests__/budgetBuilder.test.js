@@ -570,6 +570,66 @@ dbDescribe('budget builder — the cycle (DB)', () => {
     expect(await remembered(ids.mixed)).toBe('recurring');
   });
 
+  test('roll into USD: the USD line budgets both, moves no USD total, and is remembered at publish', async () => {
+    const roll = async (categoryId) => (await db.query(
+      'SELECT roll_into_usd FROM budget_category_policy WHERE category_id = $1', [categoryId]
+    )).rows[0]?.roll_into_usd;
+    const line = (view, categoryId, currency) => view.lines.find((l) => l.categoryId === categoryId && l.currency === currency);
+    const catUsd = (view, categoryId) => round(view.lines.filter((l) => l.categoryId === categoryId)
+      .reduce((s, l) => s + l.annualUsd, 0));
+    const round = (n) => Math.round(n * 100) / 100;
+
+    const { build } = await svc.createBuild({ sourceLeId: ids.le, scenarioName: SCEN, parentBuildId: ids.v1 });
+    let view = await svc.getBuild(build.id);
+    const before = catUsd(view, ids.mixed);
+    await expect(svc.updateLine(build.id, line(view, ids.mixed, 'USD').id, { rolledIntoUsd: true }))
+      .rejects.toThrow(/nothing to roll into/);
+    await expect(svc.updateLine(build.id, line(view, ids.mixed, 'PLN').id, { rolledIntoUsd: 'yes' }))
+      .rejects.toThrow(/true or false/);
+
+    // Mixed: USD −100 and PLN −1000 (−250 USD at 4). Rolled, the USD line budgets −350 × 1.03.
+    await svc.updateLine(build.id, line(view, ids.mixed, 'PLN').id, { rolledIntoUsd: true });
+    view = await svc.getBuild(build.id);
+    const pln = line(view, ids.mixed, 'PLN');
+    const usd = line(view, ids.mixed, 'USD');
+    expect(pln).toMatchObject({ rolledIntoUsd: true, annual: 0, annualUsd: 0, vsLe: 0, leFy: -1000 });
+    expect(usd).toMatchObject({ rolledInUsd: -250, baseLe: -350, annual: -360.5, vsLe: -10.5 });
+    expect(catUsd(view, ids.mixed)).toBe(before);
+
+    // Rent PLN has no USD line: rolling it creates one at estimate 0.
+    await svc.updateLine(build.id, line(view, ids.rent, 'PLN').id, { rolledIntoUsd: true });
+    view = await svc.getBuild(build.id);
+    expect(line(view, ids.rent, 'USD')).toMatchObject({ leFy: 0, rolledInUsd: -300, baseLe: -300, policy: 'recurring' });
+
+    // The preview writes the rolled money as USD cells only.
+    const p = await svc.previewPublish(build.id);
+    expect(p.blockers).toEqual([]);
+    await svc.publish(build.id, { checksum: p.checksum });
+    const cells = await rows();
+    expect(cells.filter((r) => r.category_id === ids.mixed && r.currency === 'PLN')).toEqual([]);
+    expect(round(cells.filter((r) => r.category_id === ids.mixed).reduce((s, r) => s + Number(r.amount), 0))).toBe(-360.5);
+    expect(await roll(ids.mixed)).toEqual(['PLN']);
+    expect(await roll(ids.food)).toEqual([]);
+
+    // Next build from scratch starts rolled.
+    const { build: fresh } = await svc.createBuild({ sourceLeId: ids.le, scenarioName: SCEN });
+    const freshView = await svc.getBuild(fresh.id);
+    expect(line(freshView, ids.mixed, 'PLN').rolledIntoUsd).toBe(true);
+    expect(line(freshView, ids.mixed, 'USD').baseLe).toBe(-350);
+
+    // Un-rolling puts the PLN line back on its own figure.
+    await svc.updateLine(fresh.id, line(freshView, ids.mixed, 'PLN').id, { rolledIntoUsd: false });
+    const back = await svc.getBuild(fresh.id);
+    expect(line(back, ids.mixed, 'PLN').rolledIntoUsd).toBe(false);
+    expect(line(back, ids.mixed, 'USD').rolledInUsd).toBeNull();
+    await svc.deleteDraft(fresh.id);
+
+    // Leave the year as the later tests expect it: v1 live.
+    const p1 = await svc.previewPublish(ids.v1);
+    await svc.publish(ids.v1, { checksum: p1.checksum });
+    expect(await roll(ids.mixed)).toEqual([]);
+  });
+
   test('a stored build keeps its published USD and rates when the scenario moves or goes', async () => {
     const before = await svc.getBuild(ids.oneOff);
     expect(before.rates.fx.PLN.rate).toBe(4);
