@@ -28,7 +28,7 @@ although that CR's row reads DRAFT.*
 | DEFERRED | 0 | — |
 | SUPERSEDED | 3 | CR014, CR052 *(→ CR095)*, CR081 *(→ CR084)* |
 | OBSOLETE | 5 | CR015, CR020, CR027 *(v4)*, CR029, CR094 |
-| **Total** | **104** | |
+| **Total** | **105** | |
 
 ## All CRs
 
