@@ -8,6 +8,8 @@
  *
  * `period: true` marks a tab whose page follows the header month (CR105 S2);
  * the header shows the month picker only on those tabs.
+ *
+ * `go` is the section's keyboard jump (CR105 S5): g, then that letter.
  */
 import {
   Home,
@@ -22,15 +24,15 @@ import {
 } from "lucide-react";
 
 export const WORKBENCH_SECTIONS = [
-  { key: "today", label: "Today", icon: Home, tabs: [{ path: "/", label: "Today" }] },
+  { key: "today", go: "d", label: "Today", icon: Home, tabs: [{ path: "/", label: "Today" }] },
   {
-    key: "inbox",
+    key: "inbox", go: "i",
     label: "Inbox",
     icon: Inbox,
     tabs: [{ path: "/refresh-feeds", label: "Refresh & review" }],
   },
   {
-    key: "tx",
+    key: "tx", go: "t",
     label: "Transactions",
     icon: Receipt,
     tabs: [
@@ -45,7 +47,7 @@ export const WORKBENCH_SECTIONS = [
     ],
   },
   {
-    key: "budget",
+    key: "budget", go: "b",
     label: "Budget",
     icon: Calculator,
     tabs: [
@@ -57,7 +59,7 @@ export const WORKBENCH_SECTIONS = [
     ],
   },
   {
-    key: "forecast",
+    key: "forecast", go: "f",
     label: "Forecast",
     icon: TrendingUp,
     tabs: [
@@ -73,7 +75,7 @@ export const WORKBENCH_SECTIONS = [
     ],
   },
   {
-    key: "wealth",
+    key: "wealth", go: "w",
     label: "Wealth",
     icon: BarChart3,
     tabs: [
@@ -84,7 +86,7 @@ export const WORKBENCH_SECTIONS = [
     ],
   },
   {
-    key: "investments",
+    key: "investments", go: "p",
     label: "Investments",
     icon: PieChart,
     tabs: [
@@ -98,7 +100,7 @@ export const WORKBENCH_SECTIONS = [
     ],
   },
   {
-    key: "taxes",
+    key: "taxes", go: "x",
     label: "Taxes",
     icon: Landmark,
     tabs: [
@@ -107,7 +109,7 @@ export const WORKBENCH_SECTIONS = [
     ],
   },
   {
-    key: "setup",
+    key: "setup", go: "s",
     label: "Setup",
     icon: Settings2,
     foot: true,

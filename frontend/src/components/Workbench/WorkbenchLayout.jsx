@@ -5,7 +5,7 @@
  * Pages render unchanged inside .page-shell.
  */
 import { useEffect, useRef, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { HelpCircle, Moon, Search, Sun, PanelLeft } from "lucide-react";
 import CommandPalette from "../CommandPalette/CommandPalette";
 import HelpPanel from "../HelpPanel/HelpPanel";
@@ -16,6 +16,8 @@ import finMark from "../../assets/fin-mark.svg";
 import { WORKBENCH_SECTIONS, findWorkbenchTab } from "./sections";
 import { setNavLayout } from "./navLayout";
 import HeaderPeriodPicker from "./HeaderPeriodPicker";
+import ShortcutsSheet from "./ShortcutsSheet";
+import { isTypingTarget, useGoChords } from "./keys";
 import { HeaderPeriodProvider } from "../../contexts/HeaderPeriodContext";
 import { InspectorPanel, InspectorProvider } from "../../contexts/InspectorContext.jsx";
 import "./Workbench.css";
@@ -44,7 +46,7 @@ function RailLink({ section, active, badge }) {
     <Link
       to={section.tabs[0].path}
       className={`wb-rail__item${active ? " is-active" : ""}`}
-      title={section.label}
+      title={`${section.label} (g ${section.go})`}
       aria-label={badge > 0 ? `${section.label}, ${badge} to review` : section.label}
       // The tab, not the rail link, is the current page; the rail marks the section.
       aria-current={active ? "true" : undefined}
@@ -62,6 +64,20 @@ export default function WorkbenchLayout({ children }) {
   const review = useReviewCount(pathname);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [keysOpen, setKeysOpen] = useState(false);
+  const navigate = useNavigate();
+  useGoChords(WORKBENCH_SECTIONS, navigate);
+
+  // "?" lists the shortcuts.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== "?" || e.defaultPrevented || isTypingTarget(e)) return;
+      e.preventDefault();
+      setKeysOpen(true);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const activeTabRef = useRef(null);
 
   // Keep the current tab in view when a section's tabs overflow a narrow window.
@@ -176,6 +192,7 @@ export default function WorkbenchLayout({ children }) {
       </div>
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       <HelpPanel open={helpOpen} onClose={() => setHelpOpen(false)} />
+      <ShortcutsSheet open={keysOpen} onClose={() => setKeysOpen(false)} />
     </div>
     </InspectorProvider>
     </HeaderPeriodProvider>

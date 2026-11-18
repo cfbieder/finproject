@@ -24,6 +24,7 @@ import DataTable from "../components/DataTable/DataTable.jsx";
 import "./PageLayout.css";
 import EmptyState from "../components/EmptyState.jsx";
 import "./RefreshFeeds.css";
+import useReviewInbox from "../features/Transaction/hooks/useReviewInbox.js";
 
 const reviewConfig = REVIEW_CONFIG;
 
@@ -538,9 +539,9 @@ export default function RefreshFeeds() {
     const id = entry?.id ?? entry?._id;
     if (!id || typeof id !== "number") {
       showErrorToast("Cannot accept: transaction not yet synced to database");
-      return;
+      return false;
     }
-    if (!(await confirmUnpairedAccept([id]))) return;
+    if (!(await confirmUnpairedAccept([id]))) return false;
     setAcceptingId(id);
     try {
       const response = await fetch(
@@ -557,8 +558,10 @@ export default function RefreshFeeds() {
       }
       showSuccess("Transaction accepted");
       await loadReviewTransactions();
+      return true;
     } catch (err) {
       showErrorToast(err?.message ?? "Failed to accept transaction");
+      return false;
     } finally {
       setAcceptingId(null);
     }
@@ -939,6 +942,16 @@ export default function RefreshFeeds() {
   ];
   const txnRowKey = (t, i) => t.ID ?? t.ps_id ?? t._id ?? i;
 
+
+  // CR105 S5 — the keyboard inbox (Workbench layout only).
+  const inbox = useReviewInbox({
+    rows: sortedReviewTransactions,
+    active: activeView === "review",
+    onAccept: handleAcceptClick,
+    onCategory: handleCategoryClick,
+    busy: acceptingId != null,
+  });
+
   return (
     <>
       <main className="page-main refresh-ps-layout">
@@ -1118,18 +1131,44 @@ export default function RefreshFeeds() {
                 </div>
               )}
             </div>
+            {inbox.enabled && reviewTransactions.length > 0 && (
+              <div className="inbox-bar">
+                <input
+                  ref={inbox.searchRef}
+                  className="inbox-bar__search"
+                  type="search"
+                  placeholder="Search description, account, category…"
+                  value={inbox.search}
+                  onChange={(e) => inbox.setSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape" || e.key === "Enter") e.currentTarget.blur();
+                  }}
+                  aria-label="Search the review list"
+                />
+                <span className="inbox-bar__hint" aria-hidden="true">
+                  <kbd className="wb-kbd">j</kbd><kbd className="wb-kbd">k</kbd> move ·{" "}
+                  <kbd className="wb-kbd">a</kbd> accept · <kbd className="wb-kbd">c</kbd> category ·{" "}
+                  <kbd className="wb-kbd">/</kbd> search · <kbd className="wb-kbd">?</kbd> all keys
+                </span>
+              </div>
+            )}
+            <div ref={inbox.tableRef}>
             <TransactionTable
               config={reviewConfig}
               isLoading={isLoadingReview}
               error={reviewError}
               hasTransactions={reviewTransactions.length > 0}
-              hasFilteredTransactions={reviewTransactions.length > 0}
-              sortedTransactions={sortedReviewTransactions}
+              hasFilteredTransactions={inbox.rows.length > 0}
+              sortedTransactions={inbox.rows}
+              cursorRowId={inbox.cursorId}
               sortConfig={sortConfig}
               onSort={handleSort}
               groupByKey={groupByAccount ? "Account" : null}
               showSelection={true}
-              onRowToggle={toggleRowSelection}
+              onRowToggle={(rowId, entry) => {
+                inbox.point(rowId);
+                toggleRowSelection(rowId, entry);
+              }}
               onDateClick={handleDateClick}
               onDescriptionClick={handleDescriptionClick}
               onDescriptionContextMenu={handleDescriptionContextMenu}
@@ -1141,6 +1180,7 @@ export default function RefreshFeeds() {
               neutralizingId={neutralizingId}
               acceptingId={acceptingId}
             />
+            </div>
             {transferEntry && (
               <TransferToAccountModal
                 entry={transferEntry}

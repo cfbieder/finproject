@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
 import { X } from "lucide-react";
 import { InspectorContext, useInspector } from "./inspector.js";
+import { dialogOpen } from "../components/Workbench/keys.js";
 
 const EDITABLE = "input, textarea, select, [contenteditable='true']";
 
@@ -78,7 +79,7 @@ export function InspectorProvider({ children }) {
     if (!active) return undefined;
     const onKey = (e) => {
       if (e.key !== "Escape" || e.defaultPrevented) return;
-      if (document.querySelector("[role='dialog'][aria-modal='true']")) return;
+      if (dialogOpen()) return; // the dialog on top owns Esc
       const t = e.target;
       if (t instanceof Element && t.closest(".wb-insp") && t.matches(EDITABLE)) return;
       // A live form (portal) is closed by its own Cancel, never by a stray Esc on a button or list.

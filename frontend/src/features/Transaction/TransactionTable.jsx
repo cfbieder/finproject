@@ -146,6 +146,7 @@ export default function TransactionTable({
   neutralizingId = null,
   acceptingId = null,
   groupByKey = null,
+  cursorRowId = null,
 }) {
   const hasRowActions = !!(onAcceptClick || onSplitClick || onNeutralizeClick || onTransferClick);
   const label = config.logPrefix === "TransActual" ? "Actual"
@@ -270,7 +271,9 @@ export default function TransactionTable({
                   return (
                   <tr
                     key={rowId}
-                    className={`trans-budget-table__row${showSelection ? "" : " trans-budget-table__row--no-select"}`}
+                    data-row-id={rowId}
+                    aria-current={cursorRowId === rowId ? "true" : undefined}
+                    className={`trans-budget-table__row${showSelection ? "" : " trans-budget-table__row--no-select"}${cursorRowId === rowId ? " is-cursor" : ""}`}
                     onClick={showSelection ? () => onRowToggle?.(rowId, entry) : undefined}
                   >
                     {(showSelection || hasRowActions) && (

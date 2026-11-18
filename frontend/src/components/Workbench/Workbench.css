@@ -358,3 +358,42 @@
 /* the transaction edit form, one column in the panel */
 .wb-insp .trans-budget-edit-modal--inspector { box-shadow: none; border: none; padding: 0; width: auto; max-width: none; background: transparent; }
 .wb-insp .trans-budget-edit-modal--inspector .trans-budget-edit-modal__grid { grid-template-columns: 1fr; }
+
+/* ---- S5: keyboard shortcuts sheet ---- */
+.wb-keys { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.wb-keys th { text-align: left; padding: 12px 0 4px; font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.wb-keys td { padding: 4px 0; color: var(--ink); border-bottom: 1px solid var(--border); }
+.wb-keys__k { width: 110px; white-space: nowrap; }
+.wb-keys kbd, .wb-kbd {
+  display: inline-block;
+  min-width: 20px;
+  padding: 1px 6px;
+  margin-right: 3px;
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-align: center;
+  color: var(--ink);
+}
+
+/* ---- S5: the review inbox ---- */
+.inbox-bar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 4px 0 10px; }
+.inbox-bar__search {
+  flex: 0 1 340px;
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: 6px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+}
+.inbox-bar__search:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.inbox-bar__hint { color: var(--muted); font-size: var(--text-xs); }
+.inbox-bar__hint .wb-kbd { margin-right: 2px; }
+/* the row cursor: a brand bar on the left, a light tint — no text colour (colour means sign) */
+.trans-budget-table__row.is-cursor td { background: color-mix(in srgb, var(--primary) 7%, var(--surface)); }
+.trans-budget-table__row.is-cursor td:first-child { box-shadow: inset 3px 0 0 var(--primary); }
