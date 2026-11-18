@@ -11,6 +11,7 @@ import CategorySelector from "../../components/CategorySelector/CategorySelector
 export default function TransactionEditModal({
   config,
   isOpen,
+  variant = "modal",
   selectedCount,
   isEditing,
   error,
@@ -121,17 +122,9 @@ export default function TransactionEditModal({
     );
   };
 
-  return (
-    <div
-      className="trans-budget-edit-modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Edit ${selectedCount} selected transaction${
-        selectedCount === 1 ? "" : "s"
-      }`}
-    >
-      <div className="trans-budget-edit-modal">
-        <h3>Edit selected transactions</h3>
+  // CR105 S4 — in the Workbench inspector the same form renders without its overlay.
+  const body = (
+    <>
         <p className="trans-budget-edit-modal__count">
           Updating {selectedCount} transaction
           {selectedCount === 1 ? "" : "s"}.
@@ -195,6 +188,24 @@ export default function TransactionEditModal({
             </button>
           </div>
         </form>
+    </>
+  );
+  if (variant === "inspector") {
+    return <div className="trans-budget-edit-modal trans-budget-edit-modal--inspector">{body}</div>;
+  }
+
+  return (
+    <div
+      className="trans-budget-edit-modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Edit ${selectedCount} selected transaction${
+        selectedCount === 1 ? "" : "s"
+      }`}
+    >
+      <div className="trans-budget-edit-modal">
+        <h3>Edit selected transactions</h3>
+        {body}
       </div>
     </div>
   );

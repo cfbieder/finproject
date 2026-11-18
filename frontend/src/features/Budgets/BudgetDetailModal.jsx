@@ -12,7 +12,11 @@ const formatDateParam = (value) => {
   return `${year}-${month}-${day}`;
 };
 
-const BudgetDetailModal = ({ detail, onClose }) => {
+/**
+ * `variant="inspector"` (CR105 S4) renders the same entries as a compact list
+ * for the Workbench side panel — same fetch, same sort — with no overlay.
+ */
+const BudgetDetailModal = ({ detail, onClose, variant = "modal" }) => {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -219,6 +223,66 @@ const BudgetDetailModal = ({ detail, onClose }) => {
 
   if (!detail) {
     return null;
+  }
+
+  if (variant === "inspector") {
+    return (
+      <div className="insp-drill">
+        <dl className="insp-facts">
+          <dt>{type === "actual" ? "Actual" : "Budget"}</dt>
+          <dd>{categoryPath}</dd>
+          <dt>Period</dt>
+          <dd>{periodLabel}</dd>
+        </dl>
+        {loading && <p className="insp-muted">Loading transactions…</p>}
+        {!loading && error && <p className="insp-error">{error}</p>}
+        {!loading && !error && entries.length === 0 && (
+          <EmptyState variant="wallet" message="No transactions found for this selection." />
+        )}
+        {!loading && !error && entries.length > 0 && (
+          <>
+            <div className="insp-summary">
+              <span>
+                {entries.length} entr{entries.length === 1 ? "y" : "ies"}
+              </span>
+            </div>
+            <div className="insp-tools">
+              <select
+                value={`${sortState.key}:${sortState.direction}`}
+                onChange={(e) => {
+                  const [key, direction] = e.target.value.split(":");
+                  setSortState({ key, direction });
+                }}
+                aria-label="Sort entries"
+              >
+                <option value="Date:desc">Newest first</option>
+                <option value="Date:asc">Oldest first</option>
+                <option value="Amount:asc">Largest outflow first</option>
+                <option value="Amount:desc">Largest inflow first</option>
+              </select>
+            </div>
+            <ul className="insp-list">
+              {sortedEntries.map((entry, index) => {
+                const amt = formatEntryAmount(entry.Amount, entry.Currency);
+                return (
+                  <li key={entry._id ?? `${index}-${entry.Date ?? "row"}`} className="insp-item">
+                    <div className="insp-item__top">
+                      <span className="insp-item__desc">
+                        {entry.Description1 || entry.Description2 || entry.Note || "—"}
+                      </span>
+                      <span className={`insp-amt${amt.negative ? " insp-amt--neg" : ""}`}>{amt.text}</span>
+                    </div>
+                    <div className="insp-item__meta">
+                      {entry.Date ? entry.Date.split("T")[0] : "—"} · {entry.Account || "—"} · {entry.Category || "—"}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
+      </div>
+    );
   }
 
   return (

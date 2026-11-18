@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState, useEffect } from "react";
 import PeriodSelector from "../components/PeriodSelector/PeriodSelector.jsx";
 import BudgetDetailModal from "../features/Budgets/BudgetDetailModal.jsx";
+import { useInspector } from "../contexts/inspector.js";
 import Rest from "../js/rest.js";
 import { COMPARE_MODES, useLatestEstimate } from "../features/Budgets/latestEstimate.js";
 import { LeCompareControl, LeCompareNotes } from "../features/Budgets/LeCompare.jsx";
@@ -132,6 +133,20 @@ export default function BudgetVariances() {
   const [actualsError, setActualsError] = useState(false);
   const [budgetsError, setBudgetsError] = useState(false);
   const [entryDetail, setEntryDetail] = useState(null);
+  // CR105 S4 — in the Workbench layout a figure's entries open in the side inspector.
+  const inspOpen = useInspector()?.open;
+  const showEntryDetail = useCallback((d) => {
+    if (!inspOpen) {
+      setEntryDetail(d);
+      return;
+    }
+    const range = [d.period?.start, d.period?.end].map((x) => (x instanceof Date ? x.toDateString() : String(x)));
+    inspOpen({
+      key: `bd:${d.type}:${(d.categories || [d.name]).join("|")}:${range.join("-")}`,
+      title: `${d.type === "actual" ? "Actual" : "Budget"} · ${d.pathLabel || d.name || "Category"}`,
+      content: <BudgetDetailModal detail={d} variant="inspector" />,
+    });
+  }, [inspOpen]);
 
   const handlePeriodChange = useCallback((values) => {
     setPeriodValues(values);
@@ -320,14 +335,14 @@ export default function BudgetVariances() {
   const handleValueDoubleClick = useCallback(
     (name, type) => {
       if (!periodRange) return;
-      setEntryDetail({
+      showEntryDetail({
         name,
         categories: [name],
         period: periodRange,
         type,
       });
     },
-    [periodRange]
+    [periodRange, showEntryDetail]
   );
 
   // ========== Computed: Totals ==========

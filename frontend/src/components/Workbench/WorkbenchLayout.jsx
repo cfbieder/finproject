@@ -17,6 +17,7 @@ import { WORKBENCH_SECTIONS, findWorkbenchTab } from "./sections";
 import { setNavLayout } from "./navLayout";
 import HeaderPeriodPicker from "./HeaderPeriodPicker";
 import { HeaderPeriodProvider } from "../../contexts/HeaderPeriodContext";
+import { InspectorPanel, InspectorProvider } from "../../contexts/InspectorContext.jsx";
 import "./Workbench.css";
 
 const isDev = import.meta.env.DEV || import.meta.env.VITE_APP_MODE === "dev";
@@ -85,6 +86,7 @@ export default function WorkbenchLayout({ children }) {
 
   return (
     <HeaderPeriodProvider>
+    <InspectorProvider>
     <div className="app-layout wb">
       <nav className={`wb-rail${isDev ? " wb-rail--dev" : ""}`} aria-label="Sections">
         <Link className="wb-rail__brand" to="/" title={`Fin v${version}${isDev ? " DEV" : ""}`}>
@@ -164,14 +166,18 @@ export default function WorkbenchLayout({ children }) {
             </button>
           </div>
         </header>
-        <div className="page-content-area" key={pathname}>
-          <div className="page-shell">{children}</div>
+        <div className="wb-work">
+          <div className="page-content-area" key={pathname}>
+            <div className="page-shell">{children}</div>
+          </div>
+          <InspectorPanel />
         </div>
         <Footer />
       </div>
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       <HelpPanel open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
+    </InspectorProvider>
     </HeaderPeriodProvider>
   );
 }

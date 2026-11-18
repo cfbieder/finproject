@@ -50,6 +50,7 @@ import Rest from "../js/rest.js";
 import FCStepNav from "../features/Forecast/FCStepNav.jsx";
 import FCAnchorBadge from "../features/Forecast/FCAnchorBadge.jsx"; // CR064 §3.3
 import "./PageLayout.css";
+import { useInspector } from "../contexts/inspector.js";
 import "./FCReview.css";   // CR079 — the real-terms control and banner
 
 const GRAPH_COLORS = [
@@ -1207,6 +1208,18 @@ export default function FCReview() {
     ]
   );
 
+  const inspector = useInspector();
+  const inspOpen = inspector?.open;
+  const inspClose = inspector?.close;
+  const inspItemKey = inspector?.item?.key;
+  // A forecast drill-down is a snapshot of one scenario's entries: close it when
+  // the scenario changes or the forecast reloads, rather than show old figures.
+  useEffect(() => {
+    if (inspItemKey?.startsWith("fc:")) inspClose?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedScenario, entries]);
+  // handleTransferComplete is declared further down; the inspector reads it at call time.
+  const transferCompleteRef = useRef(null);
   const handleCellDoubleClick = useCallback(
     (row, year, isCashSection) => {
       const entryList = collectBreakdownEntries(row, year, isCashSection);
@@ -1232,15 +1245,38 @@ export default function FCReview() {
               getCellValue(row, year, false);
       }
 
-      setBreakdownModal({
+      const next = {
         isOpen: true,
         title: `${row.label} • ${year}`,
         amount: displayValue,
         entryTotal,
         entries: sortedList,
-      });
+      };
+      // CR105 S4 — the Workbench layout shows the line in the side inspector.
+      if (inspOpen) {
+        inspOpen({
+          key: `fc:${selectedScenario}:${row.label}:${year}:${isCashSection ? "c" : "b"}`,
+          title: `${next.title} · ${selectedScenario}`,
+          content: (
+            <FCReviewBreakdownModal
+              breakdownModal={next}
+              variant="inspector"
+              scenarioName={selectedScenario}
+              onTransferComplete={() => {
+                transferCompleteRef.current?.();
+                inspClose(); // its entries are stale once the forecast regenerates
+              }}
+            />
+          ),
+        });
+        return;
+      }
+      setBreakdownModal(next);
     },
     [
+      inspOpen,
+      inspClose,
+      selectedScenario,
       collectBreakdownEntries,
       sortedYears,
       getCellValue,
@@ -1272,6 +1308,9 @@ export default function FCReview() {
     // Reload forecast data after transfer
     reloadForecastData();
   }, [reloadForecastData]);
+  useEffect(() => {
+    transferCompleteRef.current = handleTransferComplete;
+  }, [handleTransferComplete]);
 
   const scrollTableByYears = useCallback((direction) => {
     const wrapper = tableWrapperRef.current;

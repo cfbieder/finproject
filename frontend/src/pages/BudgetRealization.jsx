@@ -6,6 +6,7 @@ import {
 } from "../features/BudgetEntry/utils/budgetInputUtils.js";
 import BudgetRealizationContent from "../features/Budgets/BudgetRealizationContent.jsx";
 import BudgetDetailModal from "../features/Budgets/BudgetDetailModal.jsx";
+import { useInspector } from "../contexts/inspector.js";
 import Rest from "../js/rest.js";
 import { useCoa } from "../hooks/useCoa.js";
 import { exportBudgetRealization } from "../utils/excelExporter.js";
@@ -671,6 +672,20 @@ export default function BudgetRealization() {
   // not re-imposed, and your expansions survive a reload.
   const [expandedPaths, setExpandedPaths] = useState(new Set());
   const [entryDetail, setEntryDetail] = useState(null);
+  // CR105 S4 — in the Workbench layout a figure's entries open in the side inspector.
+  const inspOpen = useInspector()?.open;
+  const showEntryDetail = useCallback((d) => {
+    if (!inspOpen) {
+      setEntryDetail(d);
+      return;
+    }
+    const range = [d.period?.start, d.period?.end].map((x) => (x instanceof Date ? x.toDateString() : String(x)));
+    inspOpen({
+      key: `bd:${d.type}:${(d.categories || [d.name]).join("|")}:${range.join("-")}`,
+      title: `${d.type === "actual" ? "Actual" : "Budget"} · ${d.pathLabel || d.name || "Category"}`,
+      content: <BudgetDetailModal detail={d} variant="inspector" />,
+    });
+  }, [inspOpen]);
 
   // ========== Computed Values: Date Range ==========
   const budgetPeriodRange = useMemo(
@@ -1090,7 +1105,7 @@ export default function BudgetRealization() {
         : detail.name
         ? [detail.name]
         : [];
-    setEntryDetail({
+    showEntryDetail({
       ...detail,
       categories,
       period: budgetPeriodRange,
@@ -1108,7 +1123,7 @@ export default function BudgetRealization() {
         : detail.name
         ? [detail.name]
         : [];
-    setEntryDetail({
+    showEntryDetail({
       ...detail,
       categories,
       period: actualPeriodRange,

@@ -49,6 +49,8 @@ import { useFilterOptions } from "../features/BudgetEntry/hooks/useFilterOptions
 import { exportTransactions } from "../utils/excelExporter.js";
 import EmptyState from "../components/EmptyState.jsx";
 import { useHeaderPeriod, useOnHeaderPeriodChange } from "../contexts/headerPeriod.js";
+import { useInspector } from "../contexts/inspector.js";
+import { InspectorPortal } from "../contexts/InspectorContext.jsx";
 import "./TransactionExplorer.css";
 import { parseDisplayDate } from "../utils/dateHelpers.js";
 
@@ -103,6 +105,7 @@ export default function TransActual() {
   const { showSuccess, showError: showErrorToast } = useToast();
   // CR105 S2 — in the Workbench layout the header month sets the period.
   const hp = useHeaderPeriod();
+  const inspector = useInspector();
   const [filters, setFilters] = useState(() =>
     hp
       ? { ...config.defaultFilters, ...periodToFilterFields(headerPeriodValues(hp)) }
@@ -356,6 +359,7 @@ export default function TransActual() {
   );
 
   const edit = useTransactionEdit(config, selectedRows, rates, computeBase, handleSuccess);
+  const editingInPanel = Boolean(inspector && edit.showEditModal);
   const del = useTransactionDelete(config, selectedRows, handleSuccess);
 
   // ─── Split state ───
@@ -962,7 +966,7 @@ export default function TransActual() {
 
       {/* ── Selection Action Bar ── */}
       {selectedRows.size > 0 && (
-        <div className="txv2-selection-bar">
+        <div className="txv2-selection-bar" inert={editingInPanel || undefined}>
           <input
             type="checkbox"
             className="txv2-checkbox"
@@ -1045,7 +1049,11 @@ export default function TransActual() {
       )}
 
       {/* ── Data Table ── */}
-      <div className="txv2-table-wrap">
+      {/* CR105 S4 — the modal overlay used to block the table while editing. In the
+          panel it does not, and a row ticked mid-edit would be saved with the first
+          row's values (the form's consensus fields), so the table is inert until
+          the edit is saved or cancelled. */}
+      <div className="txv2-table-wrap" inert={editingInPanel || undefined}>
         {isLoading && !isRefreshing && (
           <div className="txv2-state">
             <Loader2 size={28} className="txv2-state__icon" style={{ animation: "spin 1s linear infinite" }} />
@@ -1197,24 +1205,36 @@ export default function TransActual() {
       </div>
 
       {/* ── Edit Modal (reuse existing) ── */}
-      <TransactionEditModal
-        config={config}
-        isOpen={edit.showEditModal}
-        selectedCount={selectedRows.size}
-        isEditing={edit.isEditing}
-        error={edit.editError}
-        formValues={edit.editFormValues}
-        categoryOptions={categoryOptions}
-        accountOptions={accountOptions}
-        currencyOptions={currencyOptions}
-        safeCategoryOptions={safeCategoryOptions}
-        safeAccountOptions={safeAccountOptions}
-        safeCurrencyOptions={safeCurrencyOptions}
-        onFieldChange={edit.handleEditFieldChange}
-        onCancel={edit.handleEditCancel}
-        onSubmit={edit.handleEditSubmit}
-        plTree={plTree}
-      />
+      {(() => {
+        const editProps = {
+          config,
+          isOpen: edit.showEditModal,
+          selectedCount: selectedRows.size,
+          isEditing: edit.isEditing,
+          error: edit.editError,
+          formValues: edit.editFormValues,
+          categoryOptions,
+          accountOptions,
+          currencyOptions,
+          safeCategoryOptions,
+          safeAccountOptions,
+          safeCurrencyOptions,
+          onFieldChange: edit.handleEditFieldChange,
+          onCancel: edit.handleEditCancel,
+          onSubmit: edit.handleEditSubmit,
+          plTree,
+        };
+        // CR105 S4 — in the Workbench layout the edit form opens in the side inspector.
+        if (editingInPanel) {
+          const n = selectedRows.size;
+          return (
+            <InspectorPortal title={`Edit ${n} transaction${n === 1 ? "" : "s"}`} onClose={edit.handleEditCancel}>
+              <TransactionEditModal {...editProps} variant="inspector" />
+            </InspectorPortal>
+          );
+        }
+        return <TransactionEditModal {...editProps} />;
+      })()}
 
       {/* ── Delete Modal (reuse existing) ── */}
       <TransactionDeleteModal

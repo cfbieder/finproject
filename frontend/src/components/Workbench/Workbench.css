@@ -231,3 +231,130 @@
   border-radius: var(--radius-full);
   cursor: pointer;
 }
+
+/* ---- S4: the inspector ---- */
+.wb-work { flex: 1; display: flex; align-items: stretch; min-width: 0; }
+.wb-work > .page-content-area { flex: 1; min-width: 0; }
+.wb-insp {
+  width: 340px;
+  flex: none;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  /* The header above is not sticky (S1), so at the top of the page the panel starts
+     52px down: size it to what is left, or its foot (a form's Save) sits off-screen. */
+  height: calc(100vh - 52px);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  z-index: 30;
+}
+.wb-insp__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 0 10px 0 16px;
+  border-bottom: 1px solid var(--border);
+}
+.wb-insp__title {
+  flex: 1;
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Focused on open so a screen reader lands on it; not a control, so no ring. */
+.wb-insp__title:focus, .wb-insp__title:focus-visible { outline: none; }
+.wb-insp__close {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--ink-secondary);
+  cursor: pointer;
+}
+.wb-insp__close:hover { background: var(--surface-muted); color: var(--ink); }
+.wb-insp__body { flex: 1; overflow-y: auto; padding: 14px 16px 24px; font-size: var(--text-sm); }
+
+/* Narrow windows: the panel overlays the page instead of squeezing it. */
+@media (max-width: 1100px) {
+  .wb-insp {
+    position: fixed;
+    right: 0;
+    top: 0;
+    height: 100vh;
+    box-shadow: var(--shadow-lg);
+  }
+}
+
+@media print {
+  .wb-insp { display: none !important; }
+}
+
+/* ---- S4: drill-down content inside the inspector ---- */
+.insp-drill { display: flex; flex-direction: column; gap: 10px; }
+.insp-muted { color: var(--muted); margin: 0; }
+.insp-error { color: var(--danger); margin: 0; }
+.insp-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 0;
+}
+.insp-facts dt { color: var(--muted); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.04em; align-self: center; }
+.insp-facts dd { margin: 0; color: var(--ink); font-weight: 500; overflow-wrap: anywhere; }
+.insp-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+  color: var(--ink-secondary);
+  font-weight: 500;
+}
+.insp-tools { display: flex; gap: 8px; align-items: center; }
+.insp-tools select {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: 4px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+}
+.insp-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border); }
+.insp-item { padding: 8px 2px; border-bottom: 1px solid var(--border); }
+.insp-item__top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.insp-item__desc { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-weight: 500; }
+.insp-item__meta { margin-top: 2px; color: var(--muted); font-size: var(--text-xs); overflow-wrap: anywhere; }
+/* colour means sign: only negatives are coloured */
+.insp-amt { flex: none; font-family: var(--font-num); font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+.insp-amt--neg { color: var(--danger); }
+.insp-link {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 500;
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.insp-link.insp-amt--neg { color: var(--danger); }
+.insp-link:disabled { color: var(--ink); text-decoration: none; cursor: default; }
+
+/* the transaction edit form, one column in the panel */
+.wb-insp .trans-budget-edit-modal--inspector { box-shadow: none; border: none; padding: 0; width: auto; max-width: none; background: transparent; }
+.wb-insp .trans-budget-edit-modal--inspector .trans-budget-edit-modal__grid { grid-template-columns: 1fr; }

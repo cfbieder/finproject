@@ -1,7 +1,7 @@
 # CR105 — UI theme B ("Workbench" palette, Inter, flat, compact) — IN-PROGRESS (P1 live v3.94.0)
 
 **Status:** IN-PROGRESS 2026-11-18 — **P1 (tokens) LIVE v3.94.0.** Owner D3 (2026-11-18): build the
-full Workbench structure in **stages S1–S6 (§5)**, each gated by an owner walkthrough. **S1 (shell) LIVE v3.95.0, walked through — no comments (2026-11-18). S2 (one period) LIVE v3.96.0, walked through. S3 (B's Balances) LIVE v3.97.0, awaiting the owner's walkthrough.** Roadmap: [§1.1 CR105](../current/project-roadmap.md#cr105).
+full Workbench structure in **stages S1–S6 (§5)**, each gated by an owner walkthrough. **S1 (shell) LIVE v3.95.0, walked through — no comments (2026-11-18). S2 (one period) LIVE v3.96.0, walked through. S3 (B's Balances) LIVE v3.97.0, walked through. S4 (inspector) built.** Roadmap: [§1.1 CR105](../current/project-roadmap.md#cr105).
 **Track:** v3 · **Migrations:** none · **Depends on:** CR042 (tokens, self-hosted font), CR086 (money
 contrast values), CR087 (the money format).
 
@@ -83,7 +83,7 @@ default and retires the sidebar. Desktop only: phones keep `mobile/`.
 | **S1 — shell** | 56px dark icon rail (Today · Inbox · Transactions · Budget · Forecast · Wealth · Investments · Taxes; Setup at the foot). The current section's pages become **header tabs**. ⌘K search, help and theme stay in the header / rail. Breadcrumbs go. | Pages themselves are unchanged. The tabs reuse the route table. |
 | **S2 — one period** ✅ v3.96.0 | A month picker in the header (*Nov 2026 ▾*) that Balances, Cash Flow, Budget Analysis, Actuals, Net Worth Drivers and Category Trend read. A page can still override it. | The budget builder has no period, so the 12-03 → 12-10 freeze is not touched. |
 | **S3 — Balances** ✅ v3.97.0 | B's Balances: net-worth hero with a 12-month line and change, inline totals, a **12-month sparkline** per row, a **reconcile column** (✓ / drift chip), loads on open (no *Generate*), title-case header. | Rows keep the chart-of-accounts groups; the mock's groups were invented. Negatives stay `(1,234)` (D2). |
-| **S4 — inspector** | A 340px right-hand panel replaces drill-down modals: a transaction, a cash-flow figure, a forecast line. Esc closes it. | The builder's item drill-down joins after 12-10. |
+| **S4 — inspector** ✅ built | A 340px right-hand panel replaces drill-down modals: a transaction, a cash-flow figure, a forecast line. Esc closes it. | The builder's item drill-down joins after 12-10. |
 | **S5 — inbox** | Refresh Feeds becomes a keyboard inbox: `j`/`k` move, `a` accepts, `c` categorises, `/` searches, `g`+letter jumps. | |
 | **S6 — pages + cut-over** | The rest of the pages in B's header style (Today, Transactions views, Budget Analysis, Investments, Forecast), the builder after 12-10, then Workbench becomes the default and the sidebar is retired. | Builder work only after the 2026-12-10 publish. |
 
@@ -126,3 +126,30 @@ effect pass read the old period (found by the live test: Balances asked for toda
   and accrual accounts are `false` by design. Group rows roll up (*n of m to reconcile*); chips open the reconcile page.
 - Not done here: the in-page view tabs (Summary · Periods · …) keep the shared `ReportTabs` style, used by Cash Flow
   and Budget Analysis too — that is S6's page-header pass.
+
+### S4 as built — the inspector
+
+`contexts/inspector.js` (hook) + `InspectorContext.jsx` (provider, panel, `InspectorPortal`), mounted only by
+`WorkbenchLayout`; outside it `useInspector()` is null and every page opens its modal exactly as before.
+- **Two ways in:** `open({ key, title, content })` for a read-only snapshot (the same key again closes it; it shows
+  only on the page it was opened on), and `<InspectorPortal>` for content the page keeps live (a form). ✕ and Esc
+  close; Esc inside a field in the panel, or with a dialog on top, is left alone. Focus goes to the panel title and
+  back to the opener. ≤1100px it overlays the page; it never prints.
+- **Wired (double-click, as before):** a **Cash Flow** figure (`CashFlowDrill`, its own fetch), a **Budget Analysis**
+  figure (`BudgetDetailModal variant="inspector"`), a **Forecast Review** cell (`FCReviewBreakdownModal
+  variant="inspector"`; its audit-trail and Modify Transfer dialogs still open on top, and the panel closes after a
+  transfer), and the **Actuals Edit** form (`TransactionEditModal variant="inspector"` through the portal; the form
+  body is now one piece shared by modal and panel).
+- **No totals in the drill lists:** a sum of the rows can disagree with the figure (the report can exclude
+  transfers / unrealized G/L the rows include), so the panel shows a count only.
+- **Found on the way — the drill-down was silently truncated:** `GET /reports/cash-flow/transactions` defaults to
+  **100** rows and the classic modal never asks for more. November 2026's Income figure has **186**; the modal showed
+  100 with no sign of the rest. The inspector asks for 2,000 and says so if it hits that. The classic modal is
+  unchanged — roadmap §3.
+- **The UI review caught a data-loss path before release:** with the edit form in the panel the table stayed
+  clickable, and a row ticked mid-edit would have been saved with the first row's values (every field the opening
+  rows agreed on is sent). The table and selection bar are now `inert` while the form is open (live-checked: a
+  second tick does not register). Also from it: the forecast panel closes on a scenario change or reload and names
+  its scenario; *Summarize* renders over the page, not trapped in the panel; Esc no longer discards the form from
+  its buttons; the panel fits under the header at the top of the page.
+- Builder drill-downs join after the 2026-12-10 publish (S6).

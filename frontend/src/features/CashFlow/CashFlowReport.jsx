@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import PropTypes from "prop-types";
 import Rest from "../../js/rest.js";
 import TransactionModal from "./TransactionModal.jsx";
+import CashFlowDrill from "./CashFlowDrill.jsx";
+import { useInspector } from "../../contexts/inspector.js";
 import "../../components/ReportTable.css";
 
 // Build a currency/decimal formatter. A currency code (e.g. "USD", "PLN")
@@ -258,6 +260,8 @@ export default function CashFlowReport({
     };
   }, []);
 
+  const inspector = useInspector();
+
   const closeTransactionModal = () => {
     setTransactionModal((prev) => ({ ...prev, isOpen: false }));
   };
@@ -293,12 +297,32 @@ export default function CashFlowReport({
         ? `${period.fromDate} to ${period.toDate}`
         : `Period ${periodIndex + 1}`);
 
+    const title = `${pathLabel} - ${periodLabel}`;
+    const query = {
+      categories,
+      accounts: filterAccounts,
+      fromDate: period.fromDate,
+      toDate: period.toDate,
+    };
+
+    // CR105 S4 — the Workbench layout shows the figure in the side inspector.
+    if (inspector) {
+      inspector.open({
+        key: `cf:${currencyMode}:${JSON.stringify(query)}`,
+        title,
+        content: (
+          <CashFlowDrill query={query} title={title} formatCurrency={formatValue} currencyMode={currencyMode} />
+        ),
+      });
+      return;
+    }
+
     setTransactionModal({
       isOpen: true,
       isLoading: true,
       transactions: [],
       error: "",
-      title: `${pathLabel} - ${periodLabel}`,
+      title,
     });
 
     try {
