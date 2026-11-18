@@ -31,7 +31,7 @@ was sitting inside what looked like a −107,830.71 "MTM gap"; only $804.50 of i
 
 ## 1. Promote and clear the review queue
 
-**Refresh Feeds** → *Refresh bank feed*, then work the review queue.
+**Refresh Feeds** → *Refresh Feed Data*, then work the review queue.
 
 ⚠️ **An empty queue at month-end is suspicious, not quiet.** Month-end posting volume is what
 tripped bank-feed's insert guard on 2026-10-01 and blocked every sync for ~30 hours. If the queue is
