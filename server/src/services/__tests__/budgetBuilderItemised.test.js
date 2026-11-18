@@ -82,9 +82,11 @@ dbDescribe('itemised lines — the cycle (DB)', () => {
     `INSERT INTO transactions (transaction_date, description1, amount, currency, base_amount, base_currency, account_id, category_id, source, accepted)
      VALUES ($1, 't', $2, $3, $2, 'USD', $4, $5, 'manual', TRUE)`, [date, amount, currency, accountId, categoryId]
   );
+  // March is on the actual side of every cut below, so these are actual rows: the LE editor refuses a
+  // typed month there, and a typed (manual USD) row would be folded into the category's main currency.
   const leLine = (categoryId, currency, amount) => db.query(
     `INSERT INTO budget_le_lines (le_id, period_month, category_id, currency, source, method, amount, base_amount)
-     VALUES ($1, '2093-03-01', $2, $3, 'manual', 'MANUAL', $4, $4)`, [ids.le, categoryId, currency, amount]
+     VALUES ($1, '2093-03-01', $2, $3, 'actual', 'ACTUAL', $4, $4)`, [ids.le, categoryId, currency, amount]
   );
   const lineOf = (view, categoryId, currency) =>
     view.lines.find((l) => l.categoryId === categoryId && l.currency === currency);
@@ -130,7 +132,7 @@ dbDescribe('itemised lines — the cycle (DB)', () => {
       for (const [cat, cur, amt] of rows) {
         await db.query(
           `INSERT INTO budget_le_lines (le_id, period_month, category_id, currency, source, method, amount, base_amount)
-           VALUES ($1, '2093-03-01', $2, $3, 'manual', 'MANUAL', $4, $4)`, [id, cat, cur, amt]
+           VALUES ($1, '2093-03-01', $2, $3, 'actual', 'ACTUAL', $4, $4)`, [id, cat, cur, amt]
         );
       }
       return id;

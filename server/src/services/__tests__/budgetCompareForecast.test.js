@@ -47,9 +47,10 @@ dbDescribe('Compare Forecast (DB)', () => {
     'INSERT INTO fc_lines (name, line_type, display_order) VALUES ($1, $2, $3) RETURNING id', [`${P} ${name}`, type, order]
   )).rows[0].id;
   const map = (lineId, categoryId) => db.query('INSERT INTO fc_line_categories (fc_line_id, category_id) VALUES ($1, $2)', [lineId, categoryId]);
+  // March is before the June cut: actual rows (a typed USD row would fold into the main currency).
   const leLine = (categoryId, currency, amount) => db.query(
     `INSERT INTO budget_le_lines (le_id, period_month, category_id, currency, source, method, amount, base_amount)
-     VALUES ($1, '2096-03-01', $2, $3, 'manual', 'MANUAL', $4, $4)`, [ids.le, categoryId, currency, amount]
+     VALUES ($1, '2096-03-01', $2, $3, 'actual', 'ACTUAL', $4, $4)`, [ids.le, categoryId, currency, amount]
   );
   const entry = (scenarioId, account, amount) => db.query(
     'INSERT INTO forecast_entries (scenario_id, forecast_year, account, amount) VALUES ($1, $2, $3, $4)', [scenarioId, TARGET, account, amount]

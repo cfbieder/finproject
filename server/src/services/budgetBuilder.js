@@ -145,6 +145,53 @@ async function ratesFor(client, build) {
   return { inflation: null, fx };
 }
 
+/**
+ * The LE editor stores every typed month in USD (`budgetLe.setManual`), so a category paid in PLN
+ * with typed Nov/Dec figures would otherwise become two builder lines: PLN (actual months) and USD
+ * (the typed months alone). Fold each category's typed USD into its MAIN currency — the one carrying
+ * the most USD value among its other LE rows — at the scenario's LE-year rate (owner decisions
+ * 2026-11-18). Only a category with no USD of its own folds: where a USD line exists anyway (Car -
+ * Insurance: USD actuals beside PLN), the typed USD may well be a USD cost and stays on it. A category
+ * with nothing but typed months is left as it is.
+ *
+ * `rows`: { category_id, currency, typed, amount, base }, `typed` = a manual USD row.
+ * Returns the per-(category, currency) LE figure and one record per fold.
+ */
+function foldTypedUsd(rows, fx) {
+  const byCat = new Map();
+  for (const r of rows) {
+    if (!byCat.has(r.category_id)) byCat.set(r.category_id, []);
+    byCat.get(r.category_id).push(r);
+  }
+  const lines = [];
+  const folds = [];
+  const unfolded = [];
+  for (const [categoryId, rs] of byCat) {
+    const typed = rs.filter((r) => r.typed);
+    const typedUsd = round2(typed.reduce((s, r) => s + Number(r.amount), 0));
+    const weight = new Map();
+    for (const r of rs) {
+      if (r.typed) continue;
+      weight.set(r.currency, (weight.get(r.currency) || 0) + Math.abs(Number(r.base)));
+    }
+    let main = null;
+    for (const [cur, w] of weight) if (main == null || w > weight.get(main)) main = cur;
+    const fold = typed.length > 0 && main != null && !weight.has('USD');
+    const rate = fold ? fx?.[main]?.rate : null;
+    // A typed zero moves nothing, so it is folded quietly (no notice).
+    if (fold && !rate && typedUsd) unfolded.push({ category_id: categoryId, currency: main, typedUsd });
+    const sums = new Map();
+    for (const r of rs) {
+      const moved = fold && rate && r.typed;
+      const into = moved ? main : r.currency;
+      sums.set(into, (sums.get(into) || 0) + Number(r.amount) * (moved ? rate : 1));
+    }
+    if (fold && rate && typedUsd) folds.push({ category_id: categoryId, currency: main, typedUsd, rate, amount: round2(typedUsd * rate) });
+    for (const [currency, s] of sums) lines.push({ category_id: categoryId, currency, le_fy: round2(s) });
+  }
+  return { lines, folds, unfolded };
+}
+
 // ---------------------------------------------------------------------------
 // Builds — create, read, edit
 // ---------------------------------------------------------------------------
@@ -219,16 +266,20 @@ async function createBuild({ targetYear, sourceLeId, scenarioName, parentBuildId
       }
     }
 
-    const leLines = (await client.query(
-      `SELECT category_id, currency, SUM(amount) AS le_fy
+    const leRows = (await client.query(
+      `SELECT category_id, TRIM(currency) AS currency, (source = 'manual' AND TRIM(currency) = 'USD') AS typed,
+              SUM(amount) AS amount, SUM(base_amount) AS base
          FROM budget_le_lines
         WHERE le_id = $1 AND NOT (category_id = ANY($2::int[]))
-        GROUP BY 1, 2`, [le.id, le.excluded_category_ids || []]
+        GROUP BY 1, 2, 3`, [le.id, le.excluded_category_ids || []]
     )).rows;
-    const bad = leLines.filter((l) => !CURRENCIES.has(l.currency));
+    const bad = leRows.filter((l) => !CURRENCIES.has(l.currency));
     if (bad.length) {
       throw err(400, `The forecast has no FX rate for ${[...new Set(bad.map((l) => l.currency))].join(', ')} — refusing to value it 1:1`);
     }
+    // Typed months are a USD figure for the LE's own year, so they convert at that year's rate.
+    const leYearFx = (await scenarioRates(scenarioName, le.budget_year)).fx;
+    const { lines: leLines, folds, unfolded } = foldTypedUsd(leRows, leYearFx);
 
     const buildNo = Number((await client.query(
       'SELECT COALESCE(MAX(build_no), 0) + 1 AS n FROM budget_builds WHERE target_year = $1', [year]
@@ -276,6 +327,15 @@ async function createBuild({ targetYear, sourceLeId, scenarioName, parentBuildId
       'SELECT DISTINCT parent_id FROM accounts WHERE parent_id = ANY($1::int[])', [[...remembered.keys()]]
     )).rows.map((r) => r.parent_id));
     const notices = [];
+    const catName = async (id) => (await client.query('SELECT name FROM accounts WHERE id = $1', [id])).rows[0]?.name;
+    for (const f of folds) {
+      notices.push(`${await catName(f.category_id)}: the estimate's typed USD months (${f.typedUsd.toFixed(2)}) ` +
+        `were folded into its ${f.currency} line at ${f.rate} (${f.amount.toFixed(2)} ${f.currency})`);
+    }
+    for (const u of unfolded) {
+      notices.push(`${await catName(u.category_id)}: its typed USD months stay a separate USD line — ` +
+        `scenario '${scenarioName}' has no ${u.currency} rate for ${le.budget_year}`);
+    }
     for (const cat of [...remembered.keys()]) {
       if (parentCats.has(cat) || !(excluded.has(cat) || nowParent.has(cat))) continue;
       remembered.delete(cat);
@@ -1020,6 +1080,48 @@ async function priorYearActuals(client, build) {
   return { year: build.le_year, through, months };
 }
 
+/**
+ * The LE's own figures for the months after its cut, per line — what the line's LE figure holds
+ * beyond the actual months, so the panel can show it (null through the cut). Typed USD months land
+ * on the line `foldTypedUsd` put them on: whether a build folded is read from its stored `le_fy`
+ * (a build made before the fold keeps its separate USD line), so no rate is re-applied here.
+ */
+async function leEstimateMonths(client, build, lines) {
+  const lastMonth = Number(String(build.actual_through).slice(5, 7));
+  const rows = (await client.query(
+    `SELECT category_id, TRIM(currency) AS currency, (source = 'manual' AND TRIM(currency) = 'USD') AS typed,
+            EXTRACT(MONTH FROM period_month)::int AS m, SUM(amount) AS amount
+       FROM budget_le_lines WHERE le_id = $1 GROUP BY 1, 2, 3, 4`, [build.source_le_id]
+  )).rows;
+  const all = (cat, cur, typed) => rows.filter((r) => r.category_id === cat && r.currency === cur
+    && (typed == null || r.typed === typed));
+  const sum = (rs) => rs.reduce((s, r) => s + Number(r.amount), 0);
+  const near = (a, b) => Math.abs(a - b) < 0.01;
+  const out = new Map();
+  for (const l of lines) {
+    const cur = String(l.currency).trim();
+    const leFy = Number(l.leFy);
+    const months = Array(12).fill(0);
+    const add = (rs, k = 1) => rs.forEach((r) => { months[r.m - 1] += Number(r.amount) * k; });
+    const own = all(l.categoryId, cur);
+    const typed = all(l.categoryId, 'USD', true);
+    let folded = null;
+    if (cur === 'USD') {
+      // Folded away: the stored figure is the line without its typed months.
+      add(near(leFy, sum(own)) ? own : near(leFy, sum(own) - sum(typed)) ? all(l.categoryId, cur, false) : own);
+    } else {
+      add(own);
+      const rest = leFy - sum(own);
+      if (!near(rest, 0) && sum(typed) && !near(sum(typed), 0)) {
+        add(typed, rest / sum(typed));
+        folded = { typedUsd: round2(sum(typed)), amount: round2(rest) };
+      }
+    }
+    out.set(l.id, { months: months.map((v, i) => (i < lastMonth ? null : round2(v))), folded });
+  }
+  return out;
+}
+
 /** The publish preview: what goes, what comes, and anything that blocks it. */
 async function previewPublish(id) {
   const view = await getBuild(id);
@@ -1061,7 +1163,8 @@ async function previewPublish(id) {
   };
   const prior = await priorYearActuals(db, build);
   const lineKey = new Map(view.lines.map((l) => [l.id, `${l.categoryId}|${l.currency}`]));
-  const split = computed.lines.map((s) => ({ ...s, priorActual: prior.months(lineKey.get(s.id)) }));
+  const estimate = await leEstimateMonths(db, build, view.lines);
+  const split = computed.lines.map((s) => ({ ...s, priorActual: prior.months(lineKey.get(s.id)), estimate: estimate.get(s.id) }));
   // Reference rows for every line, outside the rate check, so they survive a missing rate (CR100 §4.3).
   const thisYear = new Map();
   for (const r of (await db.query(
@@ -1279,5 +1382,5 @@ module.exports = {
   publish, unpublish, scenariosReading, compareYear, scenarioRates, // scenarioRates: CR102 (read-only)
   getBuildRow, cellsFor, loadGrids, CURRENCIES, // CR104 (read-only): the Cash Flow modal
   // exported for tests
-  splitLine, allocate, groupLines, sourceYear, policyLines, itemMonths, LUMP_SHARE,
+  splitLine, allocate, groupLines, sourceYear, policyLines, itemMonths, LUMP_SHARE, foldTypedUsd,
 };

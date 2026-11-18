@@ -757,8 +757,14 @@ function BudgetBuilder() {
                                     </tr>
                                     {s.priorActual && (
                                       <tr className="bb-months__ref">
-                                        <th scope="row" className="bb-months__lbl">Actual {split.priorYear.year}</th>
-                                        {s.priorActual.map((v, i) => <td key={i} className={`num ${neg(v) || ""}`}>{fmt(v)}</td>)}
+                                        <th scope="row" className="bb-months__lbl">{s.estimate ? "Actual + estimate" : "Actual"} {split.priorYear.year}</th>
+                                        {/* After the cut, the LE's own figures — what its full-year figure holds beyond the actuals. */}
+                                        {s.priorActual.map((v, i) => {
+                                          const est = v == null ? s.estimate?.months[i] : null;
+                                          return est != null
+                                            ? <td key={i} className={`num bb-months__est ${neg(est) || ""}`} title="From the estimate">{fmt(est)}</td>
+                                            : <td key={i} className={`num ${neg(v) || ""}`}>{fmt(v)}</td>;
+                                        })}
                                       </tr>
                                     )}
                                   </tbody>
@@ -773,6 +779,8 @@ function BudgetBuilder() {
                                   )}
                                   {" "}· {s.accounts.length} account(s)
                                   {s.priorActual && <> · actual {split.priorYear.year} through {split.priorYear.through}</>}
+                                  {s.estimate && s.priorActual && <>, then the estimate (in italics)</>}
+                                  {s.estimate?.folded && <> · includes the estimate&apos;s typed USD months ({fmt(s.estimate.folded.typedUsd)} USD = {fmt(s.estimate.folded.amount)} {l.currency})</>}
                                 </span>
                               </>
                             ) : split ? (

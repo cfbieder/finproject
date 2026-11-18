@@ -179,9 +179,10 @@ dbDescribe('budget builder — the cycle (DB)', () => {
     `INSERT INTO transactions (transaction_date, description1, amount, currency, base_amount, base_currency, account_id, category_id, source, accepted)
      VALUES ($1, 't', $2, $3, $2, 'USD', $4, $5, 'manual', TRUE)`, [date, amount, currency, accountId, categoryId]
   );
-  const leLine = (month, categoryId, currency, amount) => db.query(
+  const leLine = (month, categoryId, currency, amount, { source = 'manual', le = ids.le, base = amount } = {}) => db.query(
     `INSERT INTO budget_le_lines (le_id, period_month, category_id, currency, source, method, amount, base_amount)
-     VALUES ($1, $2, $3, $4, 'manual', 'MANUAL', $5, $5)`, [ids.le, month, categoryId, currency, amount]
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [le, month, categoryId, currency, source, source === 'actual' ? 'ACTUAL' : 'MANUAL', amount, base]
   );
   const rows = async () => (await db.query(
     `SELECT * FROM budget_entries WHERE budget_year = $1 ORDER BY id`, [TARGET]
@@ -214,8 +215,9 @@ dbDescribe('budget builder — the cycle (DB)', () => {
     await leLine('2090-07-01', ids.food, 'USD', -500);
     await leLine('2090-12-01', ids.rent, 'PLN', -1200);
     await leLine('2090-05-01', ids.parent, 'USD', -50);
-    await leLine('2090-05-01', ids.mixed, 'USD', -100);
-    await leLine('2090-05-01', ids.mixed, 'PLN', -1000); // 250 USD at 4: this line sets what is remembered
+    // Actual months (May ≤ the June cut): a USD and a PLN line, neither typed, so nothing folds.
+    await leLine('2090-05-01', ids.mixed, 'USD', -100, { source: 'actual' });
+    await leLine('2090-05-01', ids.mixed, 'PLN', -1000, { source: 'actual' }); // 250 USD at 4: this line sets what is remembered
 
     // An all-USD estimate, so a missing inflation rate cannot hide behind a missing FX rate.
     ids.leUsd = (await db.query(
@@ -257,6 +259,51 @@ dbDescribe('budget builder — the cycle (DB)', () => {
     const food = view.lines.find((l) => l.categoryId === ids.food);
     expect(food.leFy).toBe(-1500);
     expect(food.annual).toBe(-1545); // Recurring: −1,500 × 1.03
+  });
+
+  test('typed USD months fold into the category\'s main currency; the panel shows them after the cut', async () => {
+    // The LE editor types every month in USD. Gas is paid in PLN; Phone in PLN plus one small EUR charge.
+    const gas = await account('Gas', { currency: 'PLN' });
+    const phone = await account('Phone', { currency: 'PLN' });
+    const insurance = await account('Insurance', { currency: 'PLN' }); // mostly PLN, but a USD line of its own
+    const le = (await db.query(
+      `INSERT INTO budget_le (budget_year, actual_through, name, status, finalized_at)
+       VALUES ($1, '2090-10-31', $2, 'final', NOW()) RETURNING id`, [YEAR, `${P} LE fold`]
+    )).rows[0].id;
+    await leLine('2090-03-01', gas, 'PLN', -2000, { source: 'actual', le, base: -500 });
+    await leLine('2090-11-01', gas, 'USD', -100, { le });
+    await leLine('2090-12-01', gas, 'USD', -150, { le });
+    await leLine('2090-04-01', phone, 'PLN', -1000, { source: 'actual', le, base: -250 });
+    await leLine('2090-09-01', phone, 'EUR', -10, { source: 'actual', le, base: -10 });
+    await leLine('2090-12-01', phone, 'USD', -50, { le });
+    await leLine('2090-01-01', insurance, 'PLN', -4000, { source: 'actual', le, base: -1000 });
+    await leLine('2090-07-01', insurance, 'USD', -500, { source: 'actual', le });
+    await leLine('2090-11-01', insurance, 'USD', -200, { le });
+
+    const { build, notices } = await svc.createBuild({ sourceLeId: le, scenarioName: SCEN });
+    try {
+      const view = await svc.getBuild(build.id);
+      const lines = (cat) => view.lines.filter((l) => l.categoryId === cat).map((l) => [l.currency, l.leFy]);
+      expect(lines(gas)).toEqual([['PLN', -3000]]);                     // −2,000 + (−250 × 4)
+      expect(lines(phone).sort()).toEqual([['EUR', -10], ['PLN', -1200]]); // main currency only
+      // A USD line exists anyway, so its typed USD stays on it.
+      expect(lines(insurance).sort()).toEqual([['PLN', -4000], ['USD', -700]]);
+      expect(notices.filter((n) => n.includes('folded'))).toHaveLength(2);
+
+      const p = await svc.previewPublish(build.id);
+      const gasLine = view.lines.find((l) => l.categoryId === gas);
+      const est = p.split.find((s) => s.id === gasLine.id).estimate;
+      expect(est.months.slice(0, 10).every((v) => v === null)).toBe(true); // through the cut: actuals' row
+      expect(est.months.slice(10)).toEqual([-400, -600]);
+      expect(est.folded).toEqual({ typedUsd: -250, amount: -1000 });
+      const insUsd = view.lines.find((l) => l.categoryId === insurance && l.currency === 'USD');
+      const insEst = p.split.find((s) => s.id === insUsd.id).estimate;
+      expect(insEst.months.slice(10)).toEqual([-200, 0]);
+      expect(insEst.folded).toBeNull();
+    } finally {
+      await svc.deleteDraft(build.id);
+      await db.query('DELETE FROM budget_le WHERE id = $1', [le]);
+    }
   });
 
   test('a year can hold several open drafts, numbered apart', async () => {

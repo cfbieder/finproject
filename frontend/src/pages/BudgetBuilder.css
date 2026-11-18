@@ -70,6 +70,7 @@
 /* The reference row is told apart by its background; text colour stays sign only. */
 .bb-months-row .bb-months__ref td,
 .bb-months-row .bb-months__ref th { background: var(--surface-muted); }
+.bb-months-row .bb-months__est { font-style: italic; }
 .bb-months { width: 100%; table-layout: fixed; border-collapse: collapse; margin-bottom: 0.35rem; }
 .bb-weights .bb-num-input { width: 100%; box-sizing: border-box; }
 /* The done mark stays beside the name when an open month table narrows the column. */
