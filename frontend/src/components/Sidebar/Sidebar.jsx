@@ -20,9 +20,10 @@ import {
   getCategoryPath,
   getRoutesByCategory,
 } from "../../config/routes";
-import { ChevronDown, PanelLeftClose, PanelLeftOpen, Contrast } from "lucide-react";
+import { ChevronDown, PanelLeftClose, PanelLeftOpen, Contrast, PanelsTopLeft } from "lucide-react";
 import useTheme from "../../hooks/useTheme";
 import finMark from "../../assets/fin-mark.svg";
+import { setNavLayout } from "../Workbench/navLayout";
 import "./Sidebar.css";
 
 const isDev = import.meta.env.DEV || import.meta.env.VITE_APP_MODE === "dev";
@@ -199,6 +200,17 @@ export default function Sidebar() {
       </nav>
 
       <div className="sidebar__footer">
+        {/* CR105 S1 — opt this browser into the Workbench shell (reversible from its rail). */}
+        <button
+          type="button"
+          className="sidebar__railtoggle"
+          onClick={() => setNavLayout("workbench")}
+          title="Try the Workbench layout"
+          aria-label="Switch to the Workbench layout"
+        >
+          <PanelsTopLeft size={16} />
+          {!collapsed && <span>Try Workbench</span>}
+        </button>
         <button
           type="button"
           className="sidebar__railtoggle"

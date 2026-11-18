@@ -1,7 +1,7 @@
 # CR105 — UI theme B ("Workbench" palette, Inter, flat, compact) — IN-PROGRESS (P1 live v3.94.0)
 
-**Status:** IN-PROGRESS 2026-11-18 — **P1 (tokens) LIVE v3.94.0.** P2+ (the
-Workbench shell) not decided. Roadmap: [§1.1 CR105](../current/project-roadmap.md#cr105).
+**Status:** IN-PROGRESS 2026-11-18 — **P1 (tokens) LIVE v3.94.0.** Owner D3 (2026-11-18): build the
+full Workbench structure in **stages S1–S6 (§5)**, each gated by an owner walkthrough. **S1 (shell) in build.** Roadmap: [§1.1 CR105](../current/project-roadmap.md#cr105).
 **Track:** v3 · **Migrations:** none · **Depends on:** CR042 (tokens, self-hosted font), CR086 (money
 contrast values), CR087 (the money format).
 
@@ -36,7 +36,7 @@ Two owner decisions, 2026-11-18:
 
 - 795/795 frontend tests pass; ESLint is clean.
 - Rendered 15 routes in **both themes** against prod data (read-only page loads, worktree Vite server on :5199).
-- **Contrast**, measured on the same 8,925 text elements across 15 routes, prod v3.92.2 against this branch:
+- **Contrast**, measured on the same 8,925 text elements across 15 routes, prod v3.92.2 against the v3.94.0 build:
   light **487 → 61** below AA, dark **78 → 62**. Every remaining failure is `--muted-light` (60 in each theme),
   an existing class that P1 did not touch. (The CR086 rig was never committed, so this was a fresh
   in-page pass: computed colour against the composited background, 4.5:1 or 3:1 for large text.)
@@ -67,7 +67,24 @@ proposals: a capital F drawn as a horizontal bar chart, white on `#3442C4`, rect
 - The Outfit files stay in `public/fonts/` (no longer loaded) until P1 is accepted, so a revert is one line.
 - `--muted-light` contrast (above).
 
-## 5. Next
+## 5. P2 — the Workbench structure, in stages
 
-Owner trial of P1 on prod (v3.94.0), then decide on the shell (B's P2: rail, header tabs, global period, inspector).
-**The budget builder is frozen 2026-12-03 → 12-10**, so no builder layout work before the 2027 publish.
+**D3 (owner, 2026-11-18), after comparing the live P1 Balances page with B's mock:** build the whole
+structure, one stage at a time. After each stage the owner walks through it; with no comments the next
+stage starts, with comments they are fixed first. Nothing is built ahead of its gate.
+
+**How it ships:** a third layout, `navLayout = "workbench"`, beside CR026's `legacy` and `sidebar`. It is
+switched per browser from the sidebar footer (*Try Workbench*) and back from the rail (*Classic layout*), so
+a stage can be walked through on prod data while the current layout stays the default. S6 makes it the
+default and retires the sidebar. Desktop only: phones keep `mobile/`.
+
+| Stage | What | Notes |
+|---|---|---|
+| **S1 — shell** | 56px dark icon rail (Today · Inbox · Transactions · Budget · Forecast · Wealth · Investments · Taxes; Setup at the foot). The current section's pages become **header tabs**. ⌘K search, help and theme stay in the header / rail. Breadcrumbs go. | Pages themselves are unchanged. The tabs reuse the route table. |
+| **S2 — one period** | A month picker in the header (*Nov 2026 ▾*) that Balances, Cash Flow, Budget Analysis, Actuals, Net Worth Drivers and Category Trend read. A page can still override it. | The budget builder has no period, so the 12-03 → 12-10 freeze is not touched. |
+| **S3 — Balances** | B's Balances: net-worth hero with a 12-month line and change, inline totals, a **12-month sparkline** per row, a **reconcile column** (✓ / drift chip), loads on open (no *Generate*), title-case header. | Rows keep the chart-of-accounts groups; the mock's groups were invented. Negatives stay `(1,234)` (D2). |
+| **S4 — inspector** | A 340px right-hand panel replaces drill-down modals: a transaction, a cash-flow figure, a forecast line. Esc closes it. | The builder's item drill-down joins after 12-10. |
+| **S5 — inbox** | Refresh Feeds becomes a keyboard inbox: `j`/`k` move, `a` accepts, `c` categorises, `/` searches, `g`+letter jumps. | |
+| **S6 — pages + cut-over** | The rest of the pages in B's header style (Today, Transactions views, Budget Analysis, Investments, Forecast), the builder after 12-10, then Workbench becomes the default and the sidebar is retired. | Builder work only after the 2026-12-10 publish. |
+
+**The budget builder is frozen 2026-12-03 → 12-10**: no stage touches builder files before the 2027 publish.

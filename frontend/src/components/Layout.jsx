@@ -7,6 +7,7 @@ import TopStrip from "./TopStrip";
 import CommandPalette from "./CommandPalette/CommandPalette";
 import HelpPanel from "./HelpPanel/HelpPanel";
 import Footer from "./Footer";
+import WorkbenchLayout from "./Workbench/WorkbenchLayout";
 import "./Layout.css";
 import "./DataTable.css";
 import "./buttons.css";
@@ -15,12 +16,15 @@ import "./buttons.css";
  * CR026 navigation layout flag. Defaults to the legacy top bar so prod is
  * unaffected. Opt in per-browser with `localStorage.navLayout = "sidebar"`
  * (then reload), or globally via the VITE_NAV_LAYOUT build env.
+ * CR105 S1 adds "workbench" (icon rail + header tabs), switched per browser
+ * from the sidebar footer and back from the rail.
  */
 const navLayout =
   (typeof localStorage !== "undefined" && localStorage.getItem("navLayout")) ||
   import.meta.env.VITE_NAV_LAYOUT ||
   "legacy";
 const useSidebar = navLayout === "sidebar";
+const useWorkbench = navLayout === "workbench";
 
 /** CR026 P1+P3 — sidebar shell with the ⌘K palette + help drawer. */
 function SidebarLayout({ children }) {
@@ -75,6 +79,7 @@ function LegacyLayout({ children }) {
 }
 
 export default function Layout({ children }) {
+  if (useWorkbench) return <WorkbenchLayout>{children}</WorkbenchLayout>;
   return useSidebar ? (
     <SidebarLayout>{children}</SidebarLayout>
   ) : (

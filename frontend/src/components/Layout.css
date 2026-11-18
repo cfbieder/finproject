@@ -75,12 +75,15 @@
 @media print {
   .sidebar,
   .topstrip,
+  .wb-rail,
+  .wb-top,
   .app-footer {
     display: none !important;
   }
 
   .app-layout,
-  .app-layout--sidebar {
+  .app-layout--sidebar,
+  .app-layout.wb {
     display: block;
     min-height: 0;
     background: #fff;
