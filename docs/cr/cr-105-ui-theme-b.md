@@ -54,7 +54,7 @@ proposals: a capital F drawn as a horizontal bar chart, white on `#3442C4`, rect
   the navbars previously showed a crop of the 1536×1024 `assets/banner.png`, which is now unreferenced.
 - Manifest `theme_color` / `background_color` moved from the pre-B cream `#FDFCF8` to B's `--bg` `#F5F6F8`
   (Android title bar and splash screen).
-- Not removed: the old v1/v2 icon PNGs and `banner.png` (unused now).
+- The old v1/v2 icon PNGs and `banner.png` were deleted 2026-11-18 (nothing referenced them).
 
 ## 4. Not in P1 (known, deliberate)
 
