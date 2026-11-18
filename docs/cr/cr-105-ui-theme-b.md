@@ -41,7 +41,7 @@ Two owner decisions, 2026-11-18:
   an existing class that P1 did not touch. (The CR086 rig was never committed, so this was a fresh
   in-page pass: computed colour against the composited background, 4.5:1 or 3:1 for large text.)
 
-## 3a. App icon v3 (2026-11-18)
+## 3a. App icon v3 (v3.94.1, 2026-11-18)
 
 The sage `f` icon predated B, and its green tile now reads as the gains colour. Owner picked **"Chart F"** of three
 proposals: a capital F drawn as a horizontal bar chart, white on `#3442C4`, rectangles only so it holds at 16px.
