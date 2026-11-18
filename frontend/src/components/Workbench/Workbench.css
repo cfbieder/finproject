@@ -397,3 +397,58 @@
 /* the row cursor: a brand bar on the left, a light tint — no text colour (colour means sign) */
 .trans-budget-table__row.is-cursor td { background: color-mix(in srgb, var(--primary) 7%, var(--surface)); }
 .trans-budget-table__row.is-cursor td:first-child { box-shadow: inset 3px 0 0 var(--primary); }
+
+/* ---- S6a: B's page headers, for every page in the Workbench layout ----
+   About 30 pages title themselves 30 ways (13 share .report-toolbar-header__title,
+   the uppercase brand-coloured title). One rule, scoped to the page area, gives
+   them all B's title: sentence case, ink, 22px. Classic layout untouched. */
+.app-layout.wb .page-content-area h1 {
+  font-family: var(--font-sans);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
+  background: none;
+  -webkit-text-fill-color: currentColor;
+}
+
+/* In-page views (Summary · Periods · Trends …): a compact segmented control. */
+.app-layout.wb .report-tabs {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 2px;
+  padding: 2px;
+  margin: 14px 0 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+  max-width: 100%;
+}
+.app-layout.wb .report-tab {
+  padding: 4px 12px;
+  margin: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--ink-secondary);
+}
+.app-layout.wb .report-tab:hover { color: var(--ink); background: var(--surface); }
+.app-layout.wb .report-tab--active {
+  color: var(--ink);
+  font-weight: 600;
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+/* The three section headings that outsize B's scale (measured over 18 pages):
+   Investments' plain h2 (30px), Today's section titles and the Scenarios header (24px). */
+.app-layout.wb .page-content-area h2:not([class]),
+.app-layout.wb .page-content-area .home-section__title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.app-layout.wb .page-content-area .fc-scenarios-header__title { font-size: var(--text-xl); }

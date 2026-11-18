@@ -1,7 +1,7 @@
 # CR105 — UI theme B ("Workbench" palette, Inter, flat, compact) — IN-PROGRESS (P1 live v3.94.0)
 
 **Status:** IN-PROGRESS 2026-11-18 — **P1 (tokens) LIVE v3.94.0.** Owner D3 (2026-11-18): build the
-full Workbench structure in **stages S1–S6 (§5)**, each gated by an owner walkthrough. **S1 (shell) LIVE v3.95.0, walked through — no comments (2026-11-18). S2 (one period) LIVE v3.96.0, walked through. S3 (B's Balances) LIVE v3.97.0, walked through. S4 (inspector) LIVE v3.98.0, walked through. S5 (keyboard) LIVE v3.99.0, awaiting the owner's walkthrough.** Roadmap: [§1.1 CR105](../current/project-roadmap.md#cr105).
+full Workbench structure in **stages S1–S6 (§5)**, each gated by an owner walkthrough. **S1 (shell) LIVE v3.95.0, walked through — no comments (2026-11-18). S2 (one period) LIVE v3.96.0, walked through. S3 (B's Balances) LIVE v3.97.0, walked through. S4 (inspector) LIVE v3.98.0, walked through. S5 (keyboard) LIVE v3.99.0. S6 split (D4): **S6a (page headers) built**; S6b (builder) after 12-10; S6c (cut-over) last.** Roadmap: [§1.1 CR105](../current/project-roadmap.md#cr105).
 **Track:** v3 · **Migrations:** none · **Depends on:** CR042 (tokens, self-hosted font), CR086 (money
 contrast values), CR087 (the money format).
 
@@ -85,7 +85,7 @@ default and retires the sidebar. Desktop only: phones keep `mobile/`.
 | **S3 — Balances** ✅ v3.97.0 | B's Balances: net-worth hero with a 12-month line and change, inline totals, a **12-month sparkline** per row, a **reconcile column** (✓ / drift chip), loads on open (no *Generate*), title-case header. | Rows keep the chart-of-accounts groups; the mock's groups were invented. Negatives stay `(1,234)` (D2). |
 | **S4 — inspector** ✅ v3.98.0 | A 340px right-hand panel replaces drill-down modals: a transaction, a cash-flow figure, a forecast line. Esc closes it. | The builder's item drill-down joins after 12-10. |
 | **S5 — inbox** ✅ v3.99.0 | Refresh Feeds becomes a keyboard inbox: `j`/`k` move, `a` accepts, `c` categorises, `/` searches, `g`+letter jumps. | |
-| **S6 — pages + cut-over** | The rest of the pages in B's header style (Today, Transactions views, Budget Analysis, Investments, Forecast), the builder after 12-10, then Workbench becomes the default and the sidebar is retired. | Builder work only after the 2026-12-10 publish. |
+| **S6 — pages + cut-over** (D4: S6a now · S6b builder after 12-10 · S6c cut-over last) | The rest of the pages in B's header style (Today, Transactions views, Budget Analysis, Investments, Forecast), the builder after 12-10, then Workbench becomes the default and the sidebar is retired. | Builder work only after the 2026-12-10 publish. |
 
 **The budget builder is frozen 2026-12-03 → 12-10**: no stage touches builder files before the 2027 publish.
 
@@ -173,3 +173,19 @@ Workbench layout only; the classic layout has no new keys.
   accept. Each now has a test that would have caught it; a second accept is also blocked while the first runs.
 - **Verified on the dev stack, not prod:** prod's review queue was empty, so 5 dev rows were set unaccepted for the
   run (accept tested there: 5 → 4, cursor moved on) and restored afterwards.
+
+### S6a as built — B's page headers (D4, 2026-11-18)
+
+**D4 (owner):** split S6 — **S6a** page headers now; **S6b** the budget builder after the 2026-12-10 publish;
+**S6c** make Workbench the default and retire the sidebar, last, after the owner has used it day to day.
+
+S6a is CSS scoped to the Workbench page area (`.app-layout.wb .page-content-area`), so no page's code changed and
+the classic layout is untouched:
+- **Every page title** reads B's way — sentence case, ink, 22px. Measured over 14 pages: Workbench now 22px on all;
+  the classic layout still runs 21.6–44px, three of them uppercase in the brand colour.
+- **In-page views** (Summary · Periods · …, the shared `ReportTabs`) become a compact segmented control.
+- **The three oversized section headings** (Investments' plain `h2` 30px; Today's and the Scenarios header 24px —
+  measured over 18 pages) come down to the scale.
+- **Fixed in both layouts — a P1 defect:** the Investments bars' track read `--accent-lighter`, which theme B made a
+  strong indigo, so track and fill were hard to tell apart; it now reads `--accent-subtle`.
+- Forecast pages title themselves with the scenario bar (no `h1`) and are unchanged.
