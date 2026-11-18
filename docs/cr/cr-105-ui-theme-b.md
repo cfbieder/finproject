@@ -41,6 +41,21 @@ Two owner decisions, 2026-11-18:
   an existing class that P1 did not touch. (The CR086 rig was never committed, so this was a fresh
   in-page pass: computed colour against the composited background, 4.5:1 or 3:1 for large text.)
 
+## 3a. App icon v3 (2026-11-18)
+
+The sage `f` icon predated B, and its green tile now reads as the gains colour. Owner picked **"Chart F"** of three
+proposals: a capital F drawn as a horizontal bar chart, white on `#3442C4`, rectangles only so it holds at 16px.
+- Masters: `frontend/src/assets/fin-mark.svg` (rounded tile) and `fin-mark-fullbleed.svg` (iOS + maskable; the mark's
+  corners sit 184px from centre, inside the 205px maskable safe radius).
+- Exported to `public/`: `favicon-v3.ico` (16/32/48, also copied over `favicon.ico` for root requests), `favicon-v3.svg`,
+  `apple-touch-icon-180x180-v3.png`, `pwa-192x192-v3.png`, `pwa-512x512-v3.png`, `pwa-512x512-maskable-v3.png`.
+  New filenames so browsers and the service worker fetch them instead of cached v2 copies.
+- `index.html`, the PWA manifest (`vite.config.js`), the sidebar brand square and the mobile navbar now use the mark;
+  the navbars previously showed a crop of the 1536×1024 `assets/banner.png`, which is now unreferenced.
+- Manifest `theme_color` / `background_color` moved from the pre-B cream `#FDFCF8` to B's `--bg` `#F5F6F8`
+  (Android title bar and splash screen).
+- Not removed: the old v1/v2 icon PNGs and `banner.png` (unused now).
+
 ## 4. Not in P1 (known, deliberate)
 
 - **Chart and category palettes**, which are hardcoded per chart (`chartColor="#5B8C5B"` on the KPI tiles,

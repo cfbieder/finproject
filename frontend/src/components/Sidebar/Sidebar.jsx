@@ -22,7 +22,7 @@ import {
 } from "../../config/routes";
 import { ChevronDown, PanelLeftClose, PanelLeftOpen, Contrast } from "lucide-react";
 import useTheme from "../../hooks/useTheme";
-import banner from "../../assets/banner.png";
+import finMark from "../../assets/fin-mark.svg";
 import "./Sidebar.css";
 
 const isDev = import.meta.env.DEV || import.meta.env.VITE_APP_MODE === "dev";
@@ -75,7 +75,7 @@ export default function Sidebar() {
     <aside className={`sidebar${collapsed ? " sidebar--rail" : ""}${isDev ? " sidebar--dev" : ""}`}>
       <Link className="sidebar__brand" to="/" title={collapsed ? "Fin — Home" : undefined}>
         <span className="sidebar__brand-mark">
-          <img src={banner} alt="Fin" />
+          <img src={finMark} alt="Fin" />
         </span>
         {!collapsed && (
           <span className="sidebar__brand-meta">

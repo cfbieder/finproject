@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { getCategories, getCategoryPath, routes } from "../config/routes";
 import { Menu, X, Download } from "lucide-react";
 import useInstallPrompt from "../hooks/useInstallPrompt";
-import banner from "../assets/banner.png";
+import finMark from "../assets/fin-mark.svg";
 import "./NavigationMenu.css";
 
 const isDev = import.meta.env.DEV || import.meta.env.VITE_APP_MODE === 'dev';
@@ -34,7 +34,7 @@ export default function NavigationMenu() {
         <div className="navbar__left">
           <Link className="navbar__brand" to="/" onClick={closeMobile}>
             <div className="navbar__brand-image">
-              <img src={banner} alt="Fin" />
+              <img src={finMark} alt="Fin" />
             </div>
             <span className="navbar__title">Fin</span>
             <span className="navbar__version-badge">v{import.meta.env.VITE_APP_VERSION || '2.0.0'}{isDev ? ' DEV' : ''}</span>
