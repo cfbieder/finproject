@@ -1,0 +1,110 @@
+/* CR105 S3 — Balances Summary in Proposal B's layout (Workbench only). */
+.bw { display: flex; flex-direction: column; gap: 16px; padding: 18px 0 32px; }
+
+.bw-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.bw-title { margin: 0; font-size: var(--text-xl); font-weight: 600; color: var(--ink); letter-spacing: 0; text-transform: none; }
+.bw-sub { color: var(--muted); font-size: var(--text-base); }
+.bw-export { margin-left: auto; align-self: center; }
+
+.bw-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.bw-error {
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: var(--danger-subtle, var(--surface-muted));
+  color: var(--danger);
+  font-size: 0.875rem;
+}
+
+/* hero */
+.bw-hero { padding: 16px 20px 10px; }
+.bw-kpis { display: flex; gap: 40px; flex-wrap: wrap; align-items: flex-end; }
+.bw-kpi { display: flex; flex-direction: column; gap: 4px; }
+.bw-lbl { font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+.bw-kpi__big { font-size: var(--text-2xl); font-weight: 600; line-height: 1.1; }
+.bw-kpi__mid { font-size: 1.25rem; font-weight: 600; line-height: 1.1; }
+.bw-delta { font-size: var(--text-sm); font-weight: 500; color: var(--ink); } /* colour means sign: only a fall is coloured */
+.bw-delta--neg { color: var(--danger); }
+.bw-delta__over { color: var(--muted); font-weight: 400; }
+.bw-chart { margin-top: 10px; }
+.bw-chart__wait { height: 150px; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: var(--text-sm); gap: 8px; }
+
+/* amounts: only negatives are coloured */
+.bw-amt { font-family: var(--font-num); font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+.bw-amt--neg { color: var(--danger); }
+.bw-amt--strong { font-weight: 600; }
+
+/* table */
+.bw-table { overflow-x: auto; }
+.bw-table table { width: 100%; border-collapse: collapse; font-size: var(--text-base); }
+.bw-table th {
+  height: 32px;
+  padding: 0 12px;
+  text-align: left;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.bw-table td { height: 34px; padding: 0 12px; border-bottom: 1px solid var(--border); color: var(--ink); }
+.bw-table tbody tr:hover td { background: color-mix(in srgb, var(--primary) 6%, var(--surface)); }
+.bw-row--grp td { background: var(--surface-muted); font-weight: 600; }
+.bw-row--tot td { font-weight: 600; border-top: 2px solid var(--border-strong); border-bottom: none; }
+.bw-num { text-align: right !important; }
+.bw-sparkcol { width: 150px; }
+.bw-reconcol { width: 190px; }
+.bw-loading { color: var(--muted); text-align: center; height: 80px !important; }
+
+.bw-name { display: inline-flex; align-items: center; gap: 4px; }
+.bw-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  padding: 0;
+  flex: none;
+}
+.bw-toggle:hover { background: var(--border); color: var(--ink); }
+.bw-toggle--leaf { cursor: default; }
+.bw-toggle--leaf:hover { background: transparent; }
+
+.bw-spark { display: block; }
+.bw-spark polyline { stroke: var(--ink-tertiary); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.bw-spark circle { fill: var(--ink-secondary); }
+
+.bw-ok {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-strong);
+  color: var(--success);
+}
+.bw-drift {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: var(--radius-full);
+  background: var(--warning-subtle, var(--surface-muted));
+  color: var(--warning);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.bw-drift:hover { text-decoration: underline; }
+
+.bw-note { margin: 0; padding: 8px 12px; color: var(--muted); font-size: var(--text-xs); }
+.bw-wait { color: var(--muted); }

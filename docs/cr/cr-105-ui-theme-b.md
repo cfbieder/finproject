@@ -1,7 +1,7 @@
 # CR105 — UI theme B ("Workbench" palette, Inter, flat, compact) — IN-PROGRESS (P1 live v3.94.0)
 
 **Status:** IN-PROGRESS 2026-11-18 — **P1 (tokens) LIVE v3.94.0.** Owner D3 (2026-11-18): build the
-full Workbench structure in **stages S1–S6 (§5)**, each gated by an owner walkthrough. **S1 (shell) LIVE v3.95.0, walked through — no comments (2026-11-18). S2 (one period) LIVE v3.96.0, awaiting the owner's walkthrough.** Roadmap: [§1.1 CR105](../current/project-roadmap.md#cr105).
+full Workbench structure in **stages S1–S6 (§5)**, each gated by an owner walkthrough. **S1 (shell) LIVE v3.95.0, walked through — no comments (2026-11-18). S2 (one period) LIVE v3.96.0, walked through. S3 (B's Balances) built.** Roadmap: [§1.1 CR105](../current/project-roadmap.md#cr105).
 **Track:** v3 · **Migrations:** none · **Depends on:** CR042 (tokens, self-hosted font), CR086 (money
 contrast values), CR087 (the money format).
 
@@ -82,7 +82,7 @@ default and retires the sidebar. Desktop only: phones keep `mobile/`.
 |---|---|---|
 | **S1 — shell** | 56px dark icon rail (Today · Inbox · Transactions · Budget · Forecast · Wealth · Investments · Taxes; Setup at the foot). The current section's pages become **header tabs**. ⌘K search, help and theme stay in the header / rail. Breadcrumbs go. | Pages themselves are unchanged. The tabs reuse the route table. |
 | **S2 — one period** ✅ v3.96.0 | A month picker in the header (*Nov 2026 ▾*) that Balances, Cash Flow, Budget Analysis, Actuals, Net Worth Drivers and Category Trend read. A page can still override it. | The budget builder has no period, so the 12-03 → 12-10 freeze is not touched. |
-| **S3 — Balances** | B's Balances: net-worth hero with a 12-month line and change, inline totals, a **12-month sparkline** per row, a **reconcile column** (✓ / drift chip), loads on open (no *Generate*), title-case header. | Rows keep the chart-of-accounts groups; the mock's groups were invented. Negatives stay `(1,234)` (D2). |
+| **S3 — Balances** ✅ built | B's Balances: net-worth hero with a 12-month line and change, inline totals, a **12-month sparkline** per row, a **reconcile column** (✓ / drift chip), loads on open (no *Generate*), title-case header. | Rows keep the chart-of-accounts groups; the mock's groups were invented. Negatives stay `(1,234)` (D2). |
 | **S4 — inspector** | A 340px right-hand panel replaces drill-down modals: a transaction, a cash-flow figure, a forecast line. Esc closes it. | The builder's item drill-down joins after 12-10. |
 | **S5 — inbox** | Refresh Feeds becomes a keyboard inbox: `j`/`k` move, `a` accepts, `c` categorises, `/` searches, `g`+letter jumps. | |
 | **S6 — pages + cut-over** | The rest of the pages in B's header style (Today, Transactions views, Budget Analysis, Investments, Forecast), the builder after 12-10, then Workbench becomes the default and the sidebar is retired. | Builder work only after the 2026-12-10 publish. |
@@ -110,3 +110,19 @@ effect pass read the old period (found by the live test: Balances asked for toda
   September's figures would mislabel them.
 - Verified: a live pass on prod data set the header to Sep 2026 on all 14 views; each requested September
   (e.g. `balance?asOfDate=2026-09-30`; Periods 9 requests, Jan–Sep), no page errors.
+
+### S3 as built — Balances Summary in B's layout
+
+`pages/BalanceWorkbench.jsx` (Workbench layout only; `Balances.jsx` keeps `BalanceV2` for the classic layout).
+- **Twelve month-end balance reports** ending at the header month (TanStack `["balanceReport", date]`, shared with
+  Home and the other balance views) drive the hero line and every row's sparkline. Loads on open; no *Generate*.
+- **Hero:** net worth, its change and % since the same month a year earlier (13 month-ends — the UI review caught that 12 points span only 11 months), assets and liabilities, and the line in `--primary`; axis ticks in compact dollars with parentheses for a negative.
+- **Rows:** the chart-of-accounts tree, collapsible (Assets / Liabilities open), joined across months by name path.
+  `(1,234)` negatives (D2); only negatives are red.
+- **Reconcile column** (current month only — the feed reports today's balance): `balance-recon`, joined by account
+  name where the name is unique, **with the reconcile page's own rule** — an account needs work only when it is
+  unreconciled *and* not marked current to the latest month-end. A first cut counted every `reconciled=false` row and
+  showed **7** accounts drifting where the endpoint's `total_unreconciled` and the page say **2**: the mark-to-market
+  and accrual accounts are `false` by design. Group rows roll up (*n of m to reconcile*); chips open the reconcile page.
+- Not done here: the in-page view tabs (Summary · Periods · …) keep the shared `ReportTabs` style, used by Cash Flow
+  and Budget Analysis too — that is S6's page-header pass.
