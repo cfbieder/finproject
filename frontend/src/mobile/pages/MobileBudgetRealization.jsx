@@ -126,8 +126,9 @@ export default function MobileBudgetRealization() {
         findTopLevel(budgetReport, "expenses"))?.total ?? 0;
     const netActual = incomeActual + expenseActual;
     const netBudget = incomeBudget + expenseBudget;
+    // null when income ≤ 0: the ratio is meaningless there, and 0% would read as a real figure.
     const savingsRate =
-      incomeActual > 0 ? (netActual / incomeActual) * 100 : 0;
+      incomeActual > 0 ? (netActual / incomeActual) * 100 : null;
     return {
       incomeActual,
       incomeBudget,
@@ -244,12 +245,14 @@ export default function MobileBudgetRealization() {
             <span
               className={
                 "m-kpi__value" +
-                (kpis.savingsRate < 0 ? " m-kpi__value--negative" : "")
+                (kpis.savingsRate != null && kpis.savingsRate < 0 ? " m-kpi__value--negative" : "")
               }
             >
-              {kpis.savingsRate.toFixed(0)}%
+              {kpis.savingsRate == null ? "—" : `${kpis.savingsRate.toFixed(0)}%`}
             </span>
-            <span className="m-kpi__sub">of income</span>
+            <span className="m-kpi__sub">
+              {kpis.savingsRate == null ? "income ≤ 0 this period" : "of income"}
+            </span>
           </div>
         </div>
       )}
