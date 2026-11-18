@@ -143,16 +143,18 @@ function BudgetRealizationContent({
           <KpiCard
             title="Savings Rate"
             value={0}
+            // A ratio over zero or negative income is meaningless: two negatives
+            // once rendered as "1316.6%" (Nov 2026: net −33,797 / income −2,567).
             formattedValue={
-              kpiData.incomeActual !== 0
+              kpiData.incomeActual > 0
                 ? `${((kpiData.netActualValue / kpiData.incomeActual) * 100).toFixed(1)}%`
-                : "N/A"
+                : "—"
             }
             icon={<Target size={16} />}
             subtitle={
-              kpiData.incomeActual !== 0
+              kpiData.incomeActual > 0
                 ? `${((kpiData.netActualValue / kpiData.incomeActual) * 100).toFixed(1)}% of income saved`
-                : ""
+                : "Not meaningful: income is zero or negative this period"
             }
             chartType="area"
             chartColor="#8b5cf6"
