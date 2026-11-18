@@ -1,8 +1,8 @@
 .input-area {
   min-height: 500px;
   background: linear-gradient(135deg, var(--surface-elevated) 0%, var(--surface-muted) 100%);
-  border: 1px solid rgba(107, 142, 107, 0.12);
-  box-shadow: 0 4px 12px -4px rgba(45, 52, 54, 0.1), 0 2px 6px -2px rgba(107, 142, 107, 0.08);
+  border: 1px solid color-mix(in srgb, var(--primary) 12%, transparent);
+  box-shadow: 0 4px 12px -4px rgba(45, 52, 54, 0.1), 0 2px 6px -2px color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .budget-entry-form {
@@ -52,13 +52,13 @@
 }
 
 .budget-entry-form__input:hover {
-  border-color: rgba(107, 142, 107, 0.3);
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
 }
 
 .budget-entry-form__input:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 4px rgba(107, 142, 107, 0.12), 0 1px 3px 0 rgba(45, 52, 54, 0.1);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 12%, transparent), 0 1px 3px 0 rgba(45, 52, 54, 0.1);
   transform: translateY(-1px);
 }
 
@@ -80,8 +80,8 @@
 }
 
 .budget-entry-form__input--shaded {
-  background: linear-gradient(135deg, rgba(107, 142, 107, 0.08) 0%, rgba(127, 163, 127, 0.12) 100%);
-  font-family: "Outfit", "Outfit", monospace;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 8%, transparent) 0%, rgba(127, 163, 127, 0.12) 100%);
+  font-family: var(--font-num);
 }
 
 .budget-entry-form__input--negative {
@@ -92,14 +92,14 @@
 .budget-entry-form__derived-value {
   min-height: 4.8rem;
   border-radius: var(--radius-md);
-  border: 2px dashed rgba(107, 142, 107, 0.3);
-  background: linear-gradient(135deg, rgba(107, 142, 107, 0.06) 0%, rgba(127, 163, 127, 0.08) 100%);
+  border: 2px dashed color-mix(in srgb, var(--primary) 30%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 6%, transparent) 0%, rgba(127, 163, 127, 0.08) 100%);
   padding: 0.85rem 1rem;
   font-weight: 600;
   color: var(--primary);
   display: flex;
   align-items: center;
-  box-shadow: inset 0 1px 3px 0 rgba(107, 142, 107, 0.1);
+  box-shadow: inset 0 1px 3px 0 color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
 .budget-entry-form__account-selector .account-selector__list {
@@ -124,7 +124,7 @@
   padding: 0.75rem 1rem;
   border-radius: var(--radius-md);
   color: var(--primary);
-  background: rgba(107, 142, 107, 0.08);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
   border-left: 3px solid var(--primary);
   font-weight: 600;
 }
@@ -186,12 +186,12 @@
   text-transform: uppercase;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 12px -2px rgba(107, 142, 107, 0.4), 0 2px 6px -2px rgba(107, 142, 107, 0.3);
+  box-shadow: 0 4px 12px -2px color-mix(in srgb, var(--primary) 40%, transparent), 0 2px 6px -2px color-mix(in srgb, var(--primary) 30%, transparent);
 }
 
 .budget-entry-form__submit:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px -4px rgba(107, 142, 107, 0.5), 0 4px 8px -2px rgba(107, 142, 107, 0.4);
+  box-shadow: 0 8px 20px -4px color-mix(in srgb, var(--primary) 50%, transparent), 0 4px 8px -2px color-mix(in srgb, var(--primary) 40%, transparent);
 }
 
 .budget-entry-form__submit:active:not(:disabled) {
@@ -206,9 +206,9 @@
 }
 
 .budget-entry-form--disabled {
-  border: 2px dashed rgba(107, 142, 107, 0.2);
+  border: 2px dashed color-mix(in srgb, var(--primary) 20%, transparent);
   padding: 2rem;
-  background: linear-gradient(135deg, rgba(107, 142, 107, 0.04) 0%, rgba(127, 163, 127, 0.06) 100%);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 4%, transparent) 0%, rgba(127, 163, 127, 0.06) 100%);
   border-radius: var(--radius-md);
 }
 

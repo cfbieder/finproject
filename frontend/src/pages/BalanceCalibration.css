@@ -54,7 +54,7 @@
   text-transform: uppercase;
   font-size: 0.75rem;
   letter-spacing: 0.04em;
-  border-bottom: 2px solid rgba(107, 142, 107, 0.15);
+  border-bottom: 2px solid color-mix(in srgb, var(--primary) 15%, transparent);
   white-space: nowrap;
 }
 
@@ -64,7 +64,7 @@
 
 .calibration-td {
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid rgba(107, 142, 107, 0.08);
+  border-bottom: 1px solid color-mix(in srgb, var(--primary) 8%, transparent);
   color: var(--ink);
   white-space: nowrap;
 }

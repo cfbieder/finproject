@@ -51,7 +51,7 @@
 
 /* ---- Value ---- */
 .kpi-card__value {
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
   font-size: 1.35rem;
   font-weight: 700;
   color: var(--ink);

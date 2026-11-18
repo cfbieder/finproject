@@ -9,12 +9,12 @@
 .ct-chart-panel {
   width: 100%;
   background: linear-gradient(135deg, var(--surface-elevated) 0%, var(--surface-muted) 100%);
-  border: 1px solid rgba(107, 142, 107, 0.15);
+  border: 1px solid color-mix(in srgb, var(--primary) 15%, transparent);
   border-radius: var(--radius-lg);
   padding: 2rem;
   box-shadow:
     0 4px 6px -1px rgba(0, 0, 0, 0.05),
-    0 10px 15px -3px rgba(107, 142, 107, 0.08),
+    0 10px 15px -3px color-mix(in srgb, var(--primary) 8%, transparent),
     0 0 0 1px rgba(255, 255, 255, 0.5) inset;
   display: flex;
   flex-direction: column;
@@ -42,7 +42,7 @@
   gap: 1.5rem;
   align-items: flex-start;
   padding-bottom: 0.5rem;
-  border-bottom: 2px solid rgba(107, 142, 107, 0.08);
+  border-bottom: 2px solid color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .ct-chart-title {
@@ -132,7 +132,7 @@
 }
 
 .ct-toolbar__dropdown-trigger:hover {
-  border-color: rgba(107, 142, 107, 0.3);
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
 }
 
 .ct-toolbar__dropdown-trigger--open {
@@ -164,7 +164,7 @@
   z-index: 50;
   margin-top: 4px;
   background: var(--surface);
-  border: 1px solid rgba(107, 142, 107, 0.2);
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
   border-radius: var(--radius-md);
   box-shadow:
     0 10px 25px -3px rgba(0, 0, 0, 0.12),
@@ -241,7 +241,7 @@
 
 .ct-chart-graph {
   border-radius: 1rem;
-  border: 1px solid rgba(107, 142, 107, 0.12);
+  border: 1px solid color-mix(in srgb, var(--primary) 12%, transparent);
   background: linear-gradient(135deg, var(--surface) 0%, var(--bg-secondary) 100%);
   padding: 1.5rem;
   position: relative;
@@ -261,7 +261,7 @@
 }
 
 .ct-grid-line {
-  stroke: rgba(107, 142, 107, 0.12);
+  stroke: color-mix(in srgb, var(--primary) 12%, transparent);
   stroke-width: 1;
   stroke-dasharray: 4 6;
 }
@@ -280,7 +280,7 @@
 }
 
 .ct-zero-line {
-  stroke: rgba(107, 142, 107, 0.3);
+  stroke: color-mix(in srgb, var(--primary) 30%, transparent);
   stroke-dasharray: 4 4;
   stroke-width: 1.5;
 }
@@ -349,7 +349,7 @@
 .ct-tooltip {
   position: absolute;
   background: linear-gradient(135deg, var(--surface) 0%, var(--bg-secondary) 100%);
-  border: 1px solid rgba(107, 142, 107, 0.2);
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
   box-shadow:
     0 10px 15px -3px rgba(0, 0, 0, 0.1),
     0 4px 6px -2px rgba(0, 0, 0, 0.05),
@@ -372,7 +372,7 @@
   color: var(--primary);
   font-size: 0.85rem;
   padding-bottom: 0.3rem;
-  border-bottom: 1px solid rgba(107, 142, 107, 0.15);
+  border-bottom: 1px solid color-mix(in srgb, var(--primary) 15%, transparent);
   margin-bottom: 0.15rem;
 }
 
@@ -386,7 +386,7 @@
   flex-wrap: wrap;
   justify-content: center;
   padding-top: 0.75rem;
-  border-top: 1px solid rgba(107, 142, 107, 0.08);
+  border-top: 1px solid color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .ct-legend__item {

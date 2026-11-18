@@ -490,8 +490,8 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
                   style={{
                     padding: "0.4rem 1rem", borderRadius: "0.375rem", fontSize: "0.85rem",
                     fontWeight: 600, border: "none", cursor: "pointer",
-                    background: input.trim() ? "#7FA37F" : "var(--border)",
-                    color: input.trim() ? "white" : "var(--muted-light)",
+                    background: input.trim() ? "var(--primary)" : "var(--border)",
+                    color: input.trim() ? "var(--on-accent)" : "var(--muted-light)",
                   }}
                 >
                   Send

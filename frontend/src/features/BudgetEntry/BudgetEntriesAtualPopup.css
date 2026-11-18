@@ -80,7 +80,7 @@
 }
 
 .budget-entries-modal__header h1 {
-  font-family: "Outfit", "Outfit", sans-serif;
+  font-family: var(--font-sans);
   margin: 0;
   font-size: 1.5rem;
   font-weight: 600;
@@ -169,12 +169,12 @@
 }
 
 .budget-entries-popup__sort-button:hover {
-  background: rgba(107, 142, 107, 0.08);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
   color: var(--popup-primary);
 }
 
 .budget-entries-popup__sort-button:active {
-  background: rgba(107, 142, 107, 0.12);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
 }
 
 .budget-entries-popup__table td {
@@ -188,15 +188,15 @@
 }
 
 .budget-entries-popup__table tbody tr:hover {
-  background: rgba(107, 142, 107, 0.03);
+  background: color-mix(in srgb, var(--primary) 3%, transparent);
 }
 
 .budget-entries-popup__table tbody tr:nth-child(even) {
-  background: rgba(107, 142, 107, 0.02);
+  background: color-mix(in srgb, var(--primary) 2%, transparent);
 }
 
 .budget-entries-popup__table tbody tr:nth-child(even):hover {
-  background: rgba(107, 142, 107, 0.05);
+  background: color-mix(in srgb, var(--primary) 5%, transparent);
 }
 
 .budget-entries-popup__table tbody tr:last-child td {
@@ -210,12 +210,12 @@
 .budget-entries-popup__table td:nth-child(5),
 .budget-entries-popup__table td:nth-child(6) {
   text-align: right;
-  font-family: "Outfit", "Outfit", sans-serif;
+  font-family: var(--font-sans);
   font-weight: 600;
 }
 
 .budget-entries-popup__table td:nth-child(6) {
-  background: rgba(107, 142, 107, 0.04);
+  background: color-mix(in srgb, var(--primary) 4%, transparent);
 }
 
 /* ============================================================================

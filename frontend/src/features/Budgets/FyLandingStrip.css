@@ -41,7 +41,7 @@
 }
 
 .fy-landing__value {
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
   font-variant-numeric: tabular-nums;
   font-size: 1.05rem;
   font-weight: 600;

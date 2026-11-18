@@ -72,13 +72,13 @@
   white-space: nowrap;
   background: var(--primary);
   color: var(--on-accent);
-  box-shadow: 0 2px 8px -2px rgba(107, 142, 107, 0.45);
+  box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--primary) 45%, transparent);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .refresh-ps-btn--action:hover:not(:disabled) {
-  box-shadow: 0 4px 14px -3px rgba(107, 142, 107, 0.6);
+  box-shadow: 0 4px 14px -3px color-mix(in srgb, var(--primary) 60%, transparent);
   transform: translateY(-1px);
 }
 
@@ -133,7 +133,7 @@
   color: var(--on-accent);
   border-color: var(--primary, var(--primary));
   font-weight: 600;
-  box-shadow: 0 2px 8px -2px rgba(107, 142, 107, 0.4);
+  box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--primary) 40%, transparent);
 }
 
 /* ── Content sections (tables below toolbar) ───── */

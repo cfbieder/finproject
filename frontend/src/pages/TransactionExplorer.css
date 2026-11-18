@@ -86,11 +86,13 @@
   font-weight: 700;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
 }
 
 .txv2-kpi__value--positive {
-  color: var(--success);
+  /* CR105 P1: colour means sign — a positive amount is ink, only a negative is red.
+     Green is kept for "up / reconciled" states, never for a balance or an amount. */
+  color: var(--ink);
 }
 
 .txv2-kpi__value--negative {
@@ -376,7 +378,7 @@
 }
 
 .txv2-table thead th {
-  padding: 0.6rem 0.75rem;
+  padding: 0.45rem 0.75rem;
   text-align: left;
   font-size: 0.68rem;
   font-weight: 700;
@@ -448,7 +450,7 @@
 }
 
 .txv2-table tbody td {
-  padding: 0.55rem 0.75rem;
+  padding: 0.3rem 0.75rem; /* CR105 P1: compact rows (was 0.55rem) */
   border-bottom: 1px solid var(--border-subtle);
   color: var(--ink-secondary);
   vertical-align: middle;
@@ -461,7 +463,7 @@
 .txv2-td--right {
   text-align: right;
   font-variant-numeric: tabular-nums;
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
 }
 
 .txv2-td--center {
@@ -511,7 +513,7 @@
 }
 
 .txv2-amount--positive {
-  color: var(--success);
+  color: var(--ink); /* CR105 P1: colour means sign (see .txv2-kpi__value--positive) */
 }
 
 /* Row inline actions */

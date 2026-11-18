@@ -6,13 +6,13 @@
 /* Main filter container */
 .section-filters {
   background: linear-gradient(135deg, var(--surface-elevated) 0%, var(--surface-muted) 100%);
-  border: 1px solid rgba(107, 142, 107, 0.12);
+  border: 1px solid color-mix(in srgb, var(--primary) 12%, transparent);
   border-radius: 1rem;
   padding: 1.25rem 1.5rem 1.5rem;
   margin-top: 0;
   margin-bottom: 1.5rem;
   box-shadow: 0 2px 12px -4px rgba(45, 52, 54, 0.08),
-              0 4px 16px -6px rgba(107, 142, 107, 0.08);
+              0 4px 16px -6px color-mix(in srgb, var(--primary) 8%, transparent);
   min-height: fit-content;
   height: auto;
   overflow: visible;
@@ -91,14 +91,14 @@
 }
 
 .filter-field .form-input:hover:not(:disabled) {
-  border-color: rgba(107, 142, 107, 0.3);
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
 }
 
 .filter-field .form-input:focus,
 .filter-field .form-input:focus-visible {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 4px rgba(107, 142, 107, 0.12), 0 1px 3px 0 rgba(45, 52, 54, 0.1);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 12%, transparent), 0 1px 3px 0 rgba(45, 52, 54, 0.1);
   transform: translateY(-1px);
 }
 
@@ -121,7 +121,7 @@
   grid-template-columns: 1fr 1fr 1.5fr;
   gap: 0.875rem;
   padding-top: 1rem;
-  border-top: 1px solid rgba(107, 142, 107, 0.1);
+  border-top: 1px solid color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
 .range-input-group {
@@ -185,7 +185,7 @@
   background: var(--primary);
   color: white;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px -2px rgba(107, 142, 107, 0.3);
+  box-shadow: 0 4px 12px -2px color-mix(in srgb, var(--primary) 30%, transparent);
 }
 
 .range-input-actions .generate-report-button:active:not(:disabled) {

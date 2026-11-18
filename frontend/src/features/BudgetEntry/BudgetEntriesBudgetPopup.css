@@ -80,7 +80,7 @@
 }
 
 .budget-entries-modal__header h1 {
-  font-family: "Outfit", "Outfit", sans-serif;
+  font-family: var(--font-sans);
   margin: 0;
   font-size: 1.5rem;
   font-weight: 600;
@@ -118,7 +118,7 @@
 }
 
 h2 {
-  font-family: "Outfit", "Outfit", sans-serif;
+  font-family: var(--font-sans);
   margin: 0 0 1rem;
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -189,12 +189,12 @@ h2 {
 }
 
 .budget-entries-popup__sort-button:hover {
-  background: rgba(107, 142, 107, 0.08);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
   color: var(--popup-primary);
 }
 
 .budget-entries-popup__sort-button:active {
-  background: rgba(107, 142, 107, 0.12);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
 }
 
 .budget-entries-popup__table td {
@@ -204,15 +204,15 @@ h2 {
 }
 
 .budget-entries-popup__table tbody tr:hover {
-  background: rgba(107, 142, 107, 0.03);
+  background: color-mix(in srgb, var(--primary) 3%, transparent);
 }
 
 .budget-entries-popup__table tbody tr:nth-child(even) {
-  background: rgba(107, 142, 107, 0.02);
+  background: color-mix(in srgb, var(--primary) 2%, transparent);
 }
 
 .budget-entries-popup__table tbody tr:nth-child(even):hover {
-  background: rgba(107, 142, 107, 0.05);
+  background: color-mix(in srgb, var(--primary) 5%, transparent);
 }
 
 .budget-entries-popup__table tbody tr:last-child td:first-child {
@@ -230,11 +230,11 @@ h2 {
 .budget-entries-popup__amount-cell,
 .budget-entries-popup__base-amount-cell {
   text-align: right;
-  font-family: "Outfit", "Outfit", sans-serif;
+  font-family: var(--font-sans);
 }
 
 .budget-entries-popup__base-amount-cell {
-  background: rgba(107, 142, 107, 0.04);
+  background: color-mix(in srgb, var(--primary) 4%, transparent);
   font-weight: 600;
 }
 
@@ -359,7 +359,7 @@ h2 {
   outline: none;
   border-color: var(--popup-primary);
   background: var(--popup-surface);
-  box-shadow: 0 0 0 3px rgba(107, 142, 107, 0.12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent);
 }
 
 .budget-entries-popup__editor-input--negative {
@@ -368,7 +368,7 @@ h2 {
 }
 
 .budget-entries-popup__editor-input[data-budget-entry-base-amount] {
-  background: rgba(107, 142, 107, 0.05);
+  background: color-mix(in srgb, var(--primary) 5%, transparent);
   font-weight: 600;
   cursor: not-allowed;
 }
@@ -400,12 +400,12 @@ h2 {
 .budget-entries-popup__editor button[type="submit"] {
   background: var(--primary);
   color: var(--on-accent);
-  box-shadow: 0 4px 6px -1px rgba(107, 142, 107, 0.3);
+  box-shadow: 0 4px 6px -1px color-mix(in srgb, var(--primary) 30%, transparent);
 }
 
 .budget-entries-popup__editor button[type="submit"]:hover {
   transform: translateY(-1px);
-  box-shadow: 0 10px 15px -3px rgba(107, 142, 107, 0.3);
+  box-shadow: 0 10px 15px -3px color-mix(in srgb, var(--primary) 30%, transparent);
 }
 
 .budget-entries-popup__editor button[type="submit"]:active {

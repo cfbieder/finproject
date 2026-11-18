@@ -30,7 +30,7 @@
 }
 
 .fc-modules-panel {
-  border: 1px solid rgba(107, 142, 107, 0.12);
+  border: 1px solid color-mix(in srgb, var(--primary) 12%, transparent);
   border-radius: 1rem;
   background: linear-gradient(
     135deg,
@@ -48,7 +48,7 @@
 }
 
 .fc-modules-panel:hover {
-  box-shadow: 0 4px 16px -4px rgba(107, 142, 107, 0.15),
+  box-shadow: 0 4px 16px -4px color-mix(in srgb, var(--primary) 15%, transparent),
     0 2px 8px -2px rgba(45, 52, 54, 0.1);
 }
 
@@ -58,7 +58,7 @@
   justify-content: space-between;
   gap: 1rem;
   padding-bottom: 0.75rem;
-  border-bottom: 2px solid rgba(107, 142, 107, 0.15);
+  border-bottom: 2px solid color-mix(in srgb, var(--primary) 15%, transparent);
 }
 
 .fc-modules-panel__title {
@@ -71,7 +71,7 @@
 
 .fc-modules-panel__count {
   padding: 0.35rem 0.75rem;
-  background: rgba(107, 142, 107, 0.1);
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
   color: var(--primary);
   border-radius: var(--radius-md);
   font-size: 0.85rem;
@@ -127,7 +127,7 @@
     rgba(226, 232, 240, 0.3) 100%
   );
   border-radius: var(--radius-md);
-  border: 2px dashed rgba(107, 142, 107, 0.2);
+  border: 2px dashed color-mix(in srgb, var(--primary) 20%, transparent);
 }
 
 .fc-modules-table__empty-icon {
@@ -184,16 +184,16 @@
 }
 
 .fc-modules-table__row:hover {
-  background: rgba(107, 142, 107, 0.05);
+  background: color-mix(in srgb, var(--primary) 5%, transparent);
 }
 
 .fc-modules-table__row--selected {
-  background: rgba(107, 142, 107, 0.12);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
   box-shadow: inset 3px 0 0 var(--primary);
 }
 
 .fc-modules-table__row--selected:hover {
-  background: rgba(107, 142, 107, 0.15);
+  background: color-mix(in srgb, var(--primary) 15%, transparent);
 }
 
 .fc-modules-table__td {
@@ -227,7 +227,7 @@
 .fc-modules-table__type-badge {
   display: inline-block;
   padding: 0.25rem 0.65rem;
-  background: rgba(107, 142, 107, 0.1);
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
   color: var(--primary);
   border-radius: var(--radius-md);
   font-size: 0.85rem;
@@ -281,7 +281,7 @@
     rgba(241, 245, 249, 0.4) 0%,
     rgba(226, 232, 240, 0.3) 100%
   );
-  border: 2px dashed rgba(107, 142, 107, 0.2);
+  border: 2px dashed color-mix(in srgb, var(--primary) 20%, transparent);
 }
 
 .fc-modules-panel__placeholder-icon {
@@ -314,14 +314,14 @@
   gap: 0.35rem;
   padding: 0.85rem 1rem;
   background: var(--surface);
-  border: 1px solid rgba(107, 142, 107, 0.1);
+  border: 1px solid color-mix(in srgb, var(--primary) 10%, transparent);
   border-radius: 0.65rem;
   transition: all 0.2s ease;
 }
 
 .fc-modules-details__field:hover {
-  border-color: rgba(107, 142, 107, 0.25);
-  box-shadow: 0 2px 8px -2px rgba(107, 142, 107, 0.15);
+  border-color: color-mix(in srgb, var(--primary) 25%, transparent);
+  box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--primary) 15%, transparent);
   transform: translateY(-1px);
 }
 
@@ -477,7 +477,7 @@
   border-radius: 1.5rem;
   padding: 0;
   box-shadow: 0 32px 80px -16px rgba(45, 52, 54, 0.12),
-    0 12px 32px -8px rgba(107, 142, 107, 0.25), 0 0 0 1px rgba(107, 142, 107, 0.12);
+    0 12px 32px -8px color-mix(in srgb, var(--primary) 25%, transparent), 0 0 0 1px color-mix(in srgb, var(--primary) 12%, transparent);
   display: flex;
   flex-direction: column;
   animation: fc-modal-slide-up 0.35s cubic-bezier(0.34, 1.25, 0.64, 1);
@@ -510,7 +510,7 @@
   position: sticky;
   top: 0;
   z-index: 10;
-  box-shadow: 0 2px 12px -4px rgba(107, 142, 107, 0.15);
+  box-shadow: 0 2px 12px -4px color-mix(in srgb, var(--primary) 15%, transparent);
 }
 
 .fc-scenarios-modal__title::after {
@@ -523,7 +523,7 @@
   background: linear-gradient(
     90deg,
     var(--primary) 0%,
-    rgba(107, 142, 107, 0.5) 50%,
+    color-mix(in srgb, var(--primary) 50%, transparent) 50%,
     var(--primary) 100%
   );
   border-radius: 8px 3px 0 0;
@@ -552,7 +552,7 @@
   letter-spacing: 0.1em;
   color: var(--primary);
   font-weight: 700;
-  text-shadow: 0 1px 2px rgba(107, 142, 107, 0.1);
+  text-shadow: 0 1px 2px color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
 /* Grouped Account & Matched section */
@@ -563,13 +563,13 @@
   position: relative;
   background: linear-gradient(
     135deg,
-    rgba(107, 142, 107, 0.03) 0%,
+    color-mix(in srgb, var(--primary) 3%, transparent) 0%,
     rgba(255, 255, 255, 0.6) 100%
   );
   padding: 1.5rem;
   border-radius: 1.25rem;
-  border: 2px solid rgba(107, 142, 107, 0.1);
-  box-shadow: 0 4px 16px -4px rgba(107, 142, 107, 0.08),
+  border: 2px solid color-mix(in srgb, var(--primary) 10%, transparent);
+  box-shadow: 0 4px 16px -4px color-mix(in srgb, var(--primary) 8%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
@@ -586,7 +586,7 @@
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  box-shadow: 0 4px 12px -2px rgba(107, 142, 107, 0.4);
+  box-shadow: 0 4px 12px -2px color-mix(in srgb, var(--primary) 40%, transparent);
 }
 
 /* Matched checkbox - visually connected */
@@ -639,7 +639,7 @@
 
 .fc-scenarios-modal__field .form-input {
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  border: 2px solid rgba(107, 142, 107, 0.15);
+  border: 2px solid color-mix(in srgb, var(--primary) 15%, transparent);
   border-radius: var(--radius-md);
   padding: 0.85rem 1.1rem;
   font-weight: 600;
@@ -649,16 +649,16 @@
 }
 
 .fc-scenarios-modal__field .form-input:hover:not(:disabled):not(:read-only) {
-  border-color: rgba(107, 142, 107, 0.4);
+  border-color: color-mix(in srgb, var(--primary) 40%, transparent);
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px -4px rgba(107, 142, 107, 0.2);
+  box-shadow: 0 6px 16px -4px color-mix(in srgb, var(--primary) 20%, transparent);
 }
 
 .fc-scenarios-modal__field .form-input:focus {
   border-color: var(--primary);
   outline: none;
-  box-shadow: 0 0 0 4px rgba(107, 142, 107, 0.15),
-    0 8px 20px -6px rgba(107, 142, 107, 0.3);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 15%, transparent),
+    0 8px 20px -6px color-mix(in srgb, var(--primary) 30%, transparent);
   transform: translateY(-2px);
 }
 
@@ -705,7 +705,7 @@
 }
 
 .fc-scenarios-modal form > div[style*="margin-top"] > div {
-  border: 2px solid rgba(107, 142, 107, 0.15) !important;
+  border: 2px solid color-mix(in srgb, var(--primary) 15%, transparent) !important;
   border-radius: 1.25rem !important;
   padding: 1.5rem !important;
   background: linear-gradient(
@@ -713,16 +713,16 @@
     var(--surface-elevated) 0%,
     var(--surface-muted) 100%
   ) !important;
-  box-shadow: 0 4px 16px -4px rgba(107, 142, 107, 0.1),
+  box-shadow: 0 4px 16px -4px color-mix(in srgb, var(--primary) 10%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
   transition: all 0.25s ease !important;
   position: relative;
 }
 
 .fc-scenarios-modal form > div[style*="margin-top"] > div:hover {
-  border-color: rgba(107, 142, 107, 0.25) !important;
-  box-shadow: 0 8px 24px -8px rgba(107, 142, 107, 0.2),
-    0 0 0 3px rgba(107, 142, 107, 0.08) !important;
+  border-color: color-mix(in srgb, var(--primary) 25%, transparent) !important;
+  box-shadow: 0 8px 24px -8px color-mix(in srgb, var(--primary) 20%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--primary) 8%, transparent) !important;
   transform: translateY(-2px);
 }
 
@@ -756,7 +756,7 @@
   color: white !important;
   border: none !important;
   font-weight: 700 !important;
-  box-shadow: 0 4px 12px -4px rgba(107, 142, 107, 0.5) !important;
+  box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--primary) 50%, transparent) !important;
   transition: all 0.2s ease !important;
 }
 
@@ -766,7 +766,7 @@
   > div
   > div:first-child
   button:hover {
-  box-shadow: 0 6px 20px -6px rgba(107, 142, 107, 0.6) !important;
+  box-shadow: 0 6px 20px -6px color-mix(in srgb, var(--primary) 60%, transparent) !important;
   transform: translateY(-2px) !important;
 }
 
@@ -778,9 +778,9 @@
   background: var(--surface);
   padding: 0.85rem 1rem !important;
   border-radius: 0.85rem;
-  border: 1px solid rgba(107, 142, 107, 0.1);
+  border: 1px solid color-mix(in srgb, var(--primary) 10%, transparent);
   margin-top: 0.75rem !important;
-  box-shadow: 0 2px 8px -2px rgba(107, 142, 107, 0.08);
+  box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--primary) 8%, transparent);
   transition: all 0.2s ease;
 }
 
@@ -789,8 +789,8 @@
   > div[style*="margin-top"]
   > div
   > div[style*="grid-template-columns"]:not(:first-child):hover {
-  border-color: rgba(107, 142, 107, 0.2);
-  box-shadow: 0 4px 12px -4px rgba(107, 142, 107, 0.15);
+  border-color: color-mix(in srgb, var(--primary) 20%, transparent);
+  box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--primary) 15%, transparent);
   transform: translateX(4px);
 }
 
@@ -832,7 +832,7 @@
   justify-content: flex-end;
   padding-top: 2rem;
   margin-top: 0.5rem;
-  border-top: 2px solid rgba(107, 142, 107, 0.1);
+  border-top: 2px solid color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
 .fc-scenarios-modal__actions .generate-report-button {
@@ -862,25 +862,25 @@
   border-color: var(--primary);
   background: linear-gradient(
     135deg,
-    rgba(107, 142, 107, 0.1) 0%,
-    rgba(107, 142, 107, 0.05) 100%
+    color-mix(in srgb, var(--primary) 10%, transparent) 0%,
+    color-mix(in srgb, var(--primary) 5%, transparent) 100%
   );
   transform: translateY(-3px);
-  box-shadow: 0 8px 20px -8px rgba(107, 142, 107, 0.3);
+  box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--primary) 30%, transparent);
 }
 
 .fc-scenarios-modal__actions .generate-report-button:last-child {
   background: var(--primary);
   color: var(--on-accent);
   border-color: transparent;
-  box-shadow: 0 6px 20px -6px rgba(107, 142, 107, 0.5),
-    0 0 0 1px rgba(107, 142, 107, 0.2);
+  box-shadow: 0 6px 20px -6px color-mix(in srgb, var(--primary) 50%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent);
 }
 
 .fc-scenarios-modal__actions
   .generate-report-button:last-child:hover:not(:disabled) {
-  box-shadow: 0 12px 32px -10px rgba(107, 142, 107, 0.6),
-    0 4px 12px -4px rgba(45, 52, 54, 0.2), 0 0 0 1px rgba(107, 142, 107, 0.3);
+  box-shadow: 0 12px 32px -10px color-mix(in srgb, var(--primary) 60%, transparent),
+    0 4px 12px -4px rgba(45, 52, 54, 0.2), 0 0 0 1px color-mix(in srgb, var(--primary) 30%, transparent);
   transform: translateY(-3px);
 }
 
@@ -945,8 +945,8 @@
 .fc-scenarios-modal::-webkit-scrollbar-thumb {
   background: linear-gradient(
     to bottom,
-    rgba(107, 142, 107, 0.4),
-    rgba(107, 142, 107, 0.6)
+    color-mix(in srgb, var(--primary) 40%, transparent),
+    color-mix(in srgb, var(--primary) 60%, transparent)
   );
   border-radius: var(--radius-sm);
   border: 3px solid transparent;
@@ -957,8 +957,8 @@
 .fc-scenarios-modal::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(
     to bottom,
-    rgba(107, 142, 107, 0.6),
-    rgba(107, 142, 107, 0.8)
+    color-mix(in srgb, var(--primary) 60%, transparent),
+    color-mix(in srgb, var(--primary) 80%, transparent)
   );
   background-clip: content-box;
 }
@@ -1131,7 +1131,7 @@
 }
 
 .fc-modules-edit__transfer-section {
-  border: 2px solid rgba(107, 142, 107, 0.15);
+  border: 2px solid color-mix(in srgb, var(--primary) 15%, transparent);
   border-radius: 1.25rem;
   padding: 1.5rem;
   background: linear-gradient(
@@ -1139,16 +1139,16 @@
     var(--surface-elevated) 0%,
     var(--surface-muted) 100%
   );
-  box-shadow: 0 4px 16px -4px rgba(107, 142, 107, 0.1),
+  box-shadow: 0 4px 16px -4px color-mix(in srgb, var(--primary) 10%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.8);
   transition: all 0.25s ease;
   position: relative;
 }
 
 .fc-modules-edit__transfer-section:hover {
-  border-color: rgba(107, 142, 107, 0.25);
-  box-shadow: 0 8px 24px -8px rgba(107, 142, 107, 0.2),
-    0 0 0 3px rgba(107, 142, 107, 0.08);
+  border-color: color-mix(in srgb, var(--primary) 25%, transparent);
+  box-shadow: 0 8px 24px -8px color-mix(in srgb, var(--primary) 20%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--primary) 8%, transparent);
   transform: translateY(-2px);
 }
 
@@ -1176,12 +1176,12 @@
   color: white;
   border: none;
   font-weight: 700;
-  box-shadow: 0 4px 12px -4px rgba(107, 142, 107, 0.5);
+  box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--primary) 50%, transparent);
   transition: all 0.2s ease;
 }
 
 .fc-modules-edit__add-button:hover {
-  box-shadow: 0 6px 20px -6px rgba(107, 142, 107, 0.6);
+  box-shadow: 0 6px 20px -6px color-mix(in srgb, var(--primary) 60%, transparent);
   transform: translateY(-2px);
 }
 
@@ -1215,14 +1215,14 @@
   background: var(--surface);
   padding: 0.85rem 1rem;
   border-radius: 0.85rem;
-  border: 1px solid rgba(107, 142, 107, 0.1);
-  box-shadow: 0 2px 8px -2px rgba(107, 142, 107, 0.08);
+  border: 1px solid color-mix(in srgb, var(--primary) 10%, transparent);
+  box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--primary) 8%, transparent);
   transition: all 0.2s ease;
 }
 
 .fc-modules-edit__transfer-row:hover {
-  border-color: rgba(107, 142, 107, 0.2);
-  box-shadow: 0 4px 12px -4px rgba(107, 142, 107, 0.15);
+  border-color: color-mix(in srgb, var(--primary) 20%, transparent);
+  box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--primary) 15%, transparent);
   transform: translateX(4px);
 }
 
@@ -1260,7 +1260,7 @@
    the owner even where the DOM distinguishes disabled from read-only. */
 .fc-modules-edit__input--readonly {
   background: linear-gradient(135deg, var(--surface-muted) 0%, var(--bg-secondary) 100%);
-  border-color: rgba(107, 142, 107, 0.1);
+  border-color: color-mix(in srgb, var(--primary) 10%, transparent);
   color: var(--ink-secondary);
   cursor: not-allowed;
 }
@@ -1299,9 +1299,9 @@
   background: var(--surface);
   border-radius: 1.25rem;
   box-shadow:
-    0 20px 60px -12px rgba(107, 142, 107, 0.25),
+    0 20px 60px -12px color-mix(in srgb, var(--primary) 25%, transparent),
     0 8px 24px -8px rgba(45, 52, 54, 0.15),
-    0 0 0 1px rgba(107, 142, 107, 0.1);
+    0 0 0 1px color-mix(in srgb, var(--primary) 10%, transparent);
   animation: modulesModalSlideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   display: flex;
   flex-direction: column;
@@ -1326,7 +1326,7 @@
   justify-content: space-between;
   padding: 1.75rem 2rem;
   background: linear-gradient(135deg, var(--surface-muted) 0%, var(--bg-secondary) 100%);
-  border-bottom: 2px solid rgba(107, 142, 107, 0.12);
+  border-bottom: 2px solid color-mix(in srgb, var(--primary) 12%, transparent);
   position: relative;
 }
 
@@ -1350,7 +1350,7 @@
   width: 48px;
   height: 48px;
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, rgba(107, 142, 107, 0.1) 0%, rgba(127, 163, 127, 0.15) 100%);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 10%, transparent) 0%, rgba(127, 163, 127, 0.15) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1378,7 +1378,7 @@
   width: 40px;
   height: 40px;
   border-radius: 0.65rem;
-  border: 1px solid rgba(107, 142, 107, 0.15);
+  border: 1px solid color-mix(in srgb, var(--primary) 15%, transparent);
   background: var(--surface);
   display: flex;
   align-items: center;
@@ -1433,8 +1433,8 @@
 .fc-modules-modal__body::-webkit-scrollbar-thumb {
   background: linear-gradient(
     to bottom,
-    rgba(107, 142, 107, 0.3),
-    rgba(107, 142, 107, 0.5)
+    color-mix(in srgb, var(--primary) 30%, transparent),
+    color-mix(in srgb, var(--primary) 50%, transparent)
   );
   border-radius: 8px;
 }
@@ -1442,15 +1442,15 @@
 .fc-modules-modal__body::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(
     to bottom,
-    rgba(107, 142, 107, 0.5),
-    rgba(107, 142, 107, 0.7)
+    color-mix(in srgb, var(--primary) 50%, transparent),
+    color-mix(in srgb, var(--primary) 70%, transparent)
   );
 }
 
 /* Sections */
 .fc-modules-modal__section {
   background: var(--surface);
-  border: 1px solid rgba(107, 142, 107, 0.12);
+  border: 1px solid color-mix(in srgb, var(--primary) 12%, transparent);
   border-radius: 1rem;
   padding: 1.5rem;
   box-shadow: 0 2px 8px -2px rgba(45, 52, 54, 0.08);
@@ -1458,8 +1458,8 @@
 }
 
 .fc-modules-modal__section:hover {
-  box-shadow: 0 4px 12px -4px rgba(107, 142, 107, 0.15);
-  border-color: rgba(107, 142, 107, 0.2);
+  box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--primary) 15%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 20%, transparent);
 }
 
 .fc-modules-modal__section-header {
@@ -1468,7 +1468,7 @@
   justify-content: space-between;
   margin-bottom: 1.25rem;
   padding-bottom: 1rem;
-  border-bottom: 2px solid rgba(107, 142, 107, 0.1);
+  border-bottom: 2px solid color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
 .fc-modules-modal__section-title {
@@ -1516,7 +1516,7 @@
 .fc-modules-modal__group-title {
   margin: 0 0 0.75rem;
   padding-bottom: 0.35rem;
-  border-bottom: 1px solid rgba(107, 142, 107, 0.12);
+  border-bottom: 1px solid color-mix(in srgb, var(--primary) 12%, transparent);
   font-size: 0.8rem;
   font-weight: 700;
   color: var(--ink);
@@ -1536,7 +1536,7 @@
   margin: 0 0 0.75rem;
   padding: 0.35rem 0;
   border: none;
-  border-bottom: 1px dashed rgba(107, 142, 107, 0.25);
+  border-bottom: 1px dashed color-mix(in srgb, var(--primary) 25%, transparent);
   background: none;
   font-family: inherit;
   font-size: 0.8rem;
@@ -1550,7 +1550,7 @@
 .fc-modules-modal__group-toggle:hover,
 .fc-modules-modal__group-toggle:focus-visible {
   color: var(--ink);
-  border-bottom-color: var(--accent, rgba(107, 142, 107, 0.6));
+  border-bottom-color: var(--accent, color-mix(in srgb, var(--primary) 60%, transparent));
 }
 
 /* Fields */
@@ -1576,7 +1576,7 @@
 
 .fc-modules-modal__input {
   padding: 0.85rem 1rem;
-  border: 1.5px solid rgba(107, 142, 107, 0.2);
+  border: 1.5px solid color-mix(in srgb, var(--primary) 20%, transparent);
   border-radius: 0.65rem;
   font-size: 0.95rem;
   font-weight: 500;
@@ -1587,15 +1587,15 @@
 }
 
 .fc-modules-modal__input:hover:not(:disabled):not(:read-only) {
-  border-color: rgba(107, 142, 107, 0.35);
-  box-shadow: 0 2px 8px -2px rgba(107, 142, 107, 0.15);
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+  box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--primary) 15%, transparent);
 }
 
 .fc-modules-modal__input:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(107, 142, 107, 0.1),
-              0 2px 8px -2px rgba(107, 142, 107, 0.25);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 10%, transparent),
+              0 2px 8px -2px color-mix(in srgb, var(--primary) 25%, transparent);
 }
 
 /* Select specific styles - MUST come before disabled/readonly to ensure proper specificity */
@@ -1615,21 +1615,21 @@ select.fc-modules-modal__input:disabled {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath fill='%2394a3b8' d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
   color: var(--ink-secondary);
   cursor: not-allowed;
-  border-color: rgba(107, 142, 107, 0.1);
+  border-color: color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
 input.fc-modules-modal__input:disabled {
   background: linear-gradient(135deg, var(--surface-muted) 0%, var(--bg-secondary) 100%);
   color: var(--ink-secondary);
   cursor: not-allowed;
-  border-color: rgba(107, 142, 107, 0.1);
+  border-color: color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
 input.fc-modules-modal__input:read-only {
   background: linear-gradient(135deg, var(--surface-muted) 0%, var(--bg-secondary) 100%);
   color: var(--ink-secondary);
   cursor: not-allowed;
-  border-color: rgba(107, 142, 107, 0.1);
+  border-color: color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
 .fc-modules-modal__input--small {
@@ -1848,7 +1848,7 @@ input.fc-modules-modal__input:read-only {
   gap: 0.75rem;
   padding: 1.5rem 2rem;
   background: linear-gradient(135deg, var(--surface-muted) 0%, var(--bg-secondary) 100%);
-  border-top: 2px solid rgba(107, 142, 107, 0.12);
+  border-top: 2px solid color-mix(in srgb, var(--primary) 12%, transparent);
 }
 
 .fc-modules-modal__button {
@@ -1907,14 +1907,14 @@ input.fc-modules-modal__input:read-only {
   background: var(--primary);
   color: white;
   border-color: transparent;
-  box-shadow: 0 4px 12px -4px rgba(107, 142, 107, 0.5);
+  box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--primary) 50%, transparent);
 }
 
 .fc-modules-modal__button--save:hover:not(:disabled) {
   background: var(--primary-hover);
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px -6px rgba(107, 142, 107, 0.6),
-    0 0 0 3px rgba(107, 142, 107, 0.2);
+  box-shadow: 0 8px 20px -6px color-mix(in srgb, var(--primary) 60%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--primary) 20%, transparent);
 }
 
 .fc-modules-modal__button--save svg {

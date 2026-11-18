@@ -193,13 +193,13 @@
    doesn't compete with the primary "Reconcile to feed". */
 .recon-panel .recon-actions .generate-report-button.recon-btn--secondary {
   background: transparent;
-  color: var(--primary, #567856);
+  color: var(--primary, var(--primary-strong));
   border-color: var(--border, #cfd4dd);
   font-weight: 500;
 }
 .recon-panel .recon-actions .generate-report-button.recon-btn--secondary:not(:disabled):hover {
   background: var(--surface-muted, #eef2f7);
-  border-color: var(--primary, #567856);
+  border-color: var(--primary, var(--primary-strong));
 }
 
 /* CR038 P3 — pointer to the non-fed twin page */

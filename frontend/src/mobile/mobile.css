@@ -272,7 +272,7 @@
 }
 
 .m-kpi__value--positive {
-  color: var(--success-strong);
+  color: var(--ink); /* CR105 P1: colour means sign — a positive amount is ink */
 }
 
 /* ── Collapsible groups (Balance Summary) ── */

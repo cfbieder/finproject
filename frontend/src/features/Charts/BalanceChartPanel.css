@@ -118,7 +118,7 @@
   font-size: 0.75rem;
   fill: var(--muted);
   font-weight: 500;
-  font-family: "Outfit", system-ui, sans-serif;
+  font-family: var(--font-sans);
 }
 
 .balance-chart-graph__xlabel {

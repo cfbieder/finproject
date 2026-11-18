@@ -160,7 +160,7 @@
   color: var(--primary, var(--primary));
   margin: 0;
   padding-bottom: 0.25rem;
-  border-bottom: 2px solid var(--primary-light, #E8F0E9);
+  border-bottom: 2px solid var(--primary-light, var(--primary-subtle));
 }
 
 .transfer-analysis-section-title--warning {

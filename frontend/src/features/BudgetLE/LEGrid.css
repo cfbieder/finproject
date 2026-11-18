@@ -148,7 +148,7 @@
 .le-dev__itemhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; }
 
 .le-dev__effect {
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
   font-variant-numeric: tabular-nums;
   font-size: 0.82rem;
   font-weight: 600;
@@ -239,7 +239,7 @@
 .le-grid tbody tr:hover th { background: var(--surface-muted); }
 
 .le-grid__money {
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
   font-variant-numeric: tabular-nums;
   color: var(--ink);
 }
@@ -353,7 +353,7 @@
 .le-sheet__input {
   width: 8.5rem;
   padding: 0.2rem 0.4rem;
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
   font-variant-numeric: tabular-nums;
   font-size: 0.82rem;
   text-align: right;

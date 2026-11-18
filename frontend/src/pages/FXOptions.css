@@ -35,12 +35,12 @@
 /* Exchange rates section */
 .fx-options-section {
   background: var(--surface);
-  border: 1px solid rgba(107, 142, 107, 0.12);
+  border: 1px solid color-mix(in srgb, var(--primary) 12%, transparent);
   border-radius: 1rem;
   padding: 1.5rem;
   margin-bottom: 1.5rem;
   box-shadow: 0 2px 12px -4px rgba(45, 52, 54, 0.08),
-              0 4px 16px -6px rgba(107, 142, 107, 0.08);
+              0 4px 16px -6px color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .fx-options-section__title {
@@ -49,7 +49,7 @@
   font-weight: 700;
   color: var(--primary);
   padding-bottom: 0.75rem;
-  border-bottom: 2px solid rgba(107, 142, 107, 0.15);
+  border-bottom: 2px solid color-mix(in srgb, var(--primary) 15%, transparent);
 }
 
 .fx-options-section__description {

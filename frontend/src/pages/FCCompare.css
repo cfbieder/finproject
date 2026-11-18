@@ -235,7 +235,7 @@
 }
 
 .fc-compare-ai__msg--user .fc-compare-ai__msg-body {
-  background: var(--primary-subtle, rgba(107, 142, 107, 0.1));
+  background: var(--primary-subtle, color-mix(in srgb, var(--primary) 10%, transparent));
   border-radius: 8px;
   padding: 0.4rem 0.7rem;
   font-size: 0.82rem;

@@ -29,7 +29,7 @@
 }
 
 .data-table thead th {
-  padding: 0.6rem 0.875rem;
+  padding: 0.45rem 0.875rem;
   text-align: left;
   font-size: 0.68rem;
   font-weight: 700;
@@ -74,7 +74,7 @@
 }
 
 .data-table tbody td {
-  padding: 0.6rem 0.875rem;
+  padding: 0.35rem 0.875rem; /* CR105 P1: compact rows (was 0.6rem) */
   border-bottom: 1px solid var(--border-subtle);
   color: var(--ink-secondary);
   vertical-align: middle;
@@ -87,7 +87,7 @@
 .data-table__td--numeric {
   text-align: right;
   font-variant-numeric: tabular-nums;
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
   font-weight: 500;
   white-space: nowrap;
 }

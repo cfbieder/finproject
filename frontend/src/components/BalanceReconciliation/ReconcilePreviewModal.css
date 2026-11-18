@@ -58,7 +58,7 @@
 
 /* Money lines up or it cannot be compared by eye — which is the whole job here. */
 .rpm__num {
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
   font-variant-numeric: tabular-nums;
   color: var(--ink);
 }

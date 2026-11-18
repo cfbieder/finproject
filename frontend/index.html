@@ -6,23 +6,23 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192-v2.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon-180x180-v2.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#FDFCF8" id="theme-color-meta" />
+    <meta name="theme-color" content="#F5F6F8" id="theme-color-meta" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Fin" />
     <meta name="description" content="Personal finance management and forecasting" />
-    <!-- Outfit, self-hosted (CR042). Was the Google Fonts CDN: a third-party request on
-         every load, no font at all when the PWA ran offline, and a FOUT. Outfit v15 is a
-         variable font, so all five weights come from these two files (~47KB). Preloading
-         the latin file kills the swap flash for everything but extended glyphs. -->
+    <!-- Inter, self-hosted (CR105 P1; replaces Outfit, which was self-hosted by CR042 for the
+         same reasons: no third-party request, works offline in the PWA, no FOUT). Inter v20 is
+         a variable font, so all weights come from two files. Preloading latin kills the swap
+         flash for everything but extended glyphs. -->
     <link
       rel="preload"
-      href="/fonts/outfit-QGYvz_MVcBeNP4NJtEtq.woff2"
+      href="/fonts/inter-UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2"
       as="font"
       type="font/woff2"
       crossorigin
     />
-    <link rel="stylesheet" href="/fonts/outfit.css" />
+    <link rel="stylesheet" href="/fonts/inter.css" />
     <title>FI</title>
     <script>
       /* CR026 P2 — apply saved theme before paint to avoid a flash.

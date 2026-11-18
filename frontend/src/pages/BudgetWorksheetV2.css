@@ -76,11 +76,11 @@
   font-weight: 700;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
 }
 
 .bwv2-kpi__value--positive {
-  color: var(--success);
+  color: var(--ink); /* CR105 P1: colour means sign — a positive amount is ink */
 }
 
 .bwv2-kpi__value--negative {
@@ -283,7 +283,7 @@
 .bwv2-td--numeric {
   text-align: right;
   font-variant-numeric: tabular-nums;
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
   font-weight: 500;
 }
 

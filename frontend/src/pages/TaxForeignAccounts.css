@@ -98,7 +98,7 @@
 }
 
 .tfa-num {
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
   font-size: 0.82rem;
 }
 
@@ -251,7 +251,7 @@
 
 .tfa-cands__amt {
   margin-left: auto;
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
   font-size: 0.8rem;
   color: var(--ink-secondary);
 }

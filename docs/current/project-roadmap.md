@@ -13,6 +13,9 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 Only what is still open. Closed CRs and resolved investigations are kept as records in
 [§1.1b](#11b-closed--kept-as-records), unchanged and with their anchors.
 
+<a id="cr105"></a>
+- **CR105 — [UI theme B: indigo, Inter, flat, compact](../cr/cr-105-ui-theme-b.md). 🔨 *P1 built 2026-11-18 on branch `cr105-theme`, unreleased.*** The owner picked Proposal B's theme from the four-way UI review (D1: theme first, shell later; D2: negatives stay `(1,234)`). P1: palette + Inter + `--font-num` + 4–8px radii + compact tables + positive amounts in ink, ~360 hardcoded sage values onto tokens; light contrast failures 487 → 61, dark 78 → 62. **Next:** release, owner trial, then the decision on B's shell (rail, header tabs, global period, inspector) — after the 2026-12-10 budget publish for anything touching the builder. Open tails: chart/category palettes still hardcoded; `--muted-light` contrast (60 per theme).
+
 <a id="cr104"></a>
 - **CR104 — [Budget builder: Cash Flow by currency](../cr/cr-104-budget-builder-cash-by-currency.md). 🚀 *LIVE v3.91.0 (2026-11-15) — P1 + P2 shipped; §10 (click a figure for its items; move an item between Cash and Investments, migration 091) LIVE v3.92.0; closes on the owner's check of the 2027 draft*.** Open tail: an opening override copied from a build on an older LE is not labelled as such. A *Cash flow* modal on the builder showing, per currency (USD/PLN/EUR), the open build's monthly roll-forward (opening at the LE cut-off, overridable; + in − out = ending) in Cash (bank + cards) and Investments blocks, flagging months where cash goes short — the 2026 budget nets PLN +148k vs USD −252k. **P1** (migration 090 + modal): **hard stop 2026-11-26**, ahead of CR098 P3c, freeze gate on build 12. **P2** (what-if transfers, never published): by 11-26 or backlog for the 2028 draft.
 

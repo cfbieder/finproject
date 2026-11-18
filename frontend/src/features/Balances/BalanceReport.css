@@ -36,7 +36,7 @@
   justify-content: center;
   padding: 2rem;
   background: linear-gradient(135deg, var(--surface-elevated) 0%, var(--surface-muted) 100%);
-  border: 1px solid rgba(107, 142, 107, 0.12);
+  border: 1px solid color-mix(in srgb, var(--primary) 12%, transparent);
   border-radius: var(--radius-lg);
   box-shadow: 0 4px 12px -4px rgba(45, 52, 54, 0.1);
 }

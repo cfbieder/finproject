@@ -76,7 +76,7 @@
 }
 
 .balance-trends-toolbar__interval-pill:hover {
-  background: rgba(107, 142, 107, 0.08);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
   color: var(--ink);
 }
 
@@ -264,10 +264,11 @@
 /* ⚠️ The figures were rendering in the BODY font — measured `Outfit` at 15.2px —
    while all seven other report tables set `--font-mono`. `tabular-nums` was
    already on the table, so the columns did line up; they simply did not look
-   like money anywhere else in the app. */
+   like money anywhere else in the app. CR105 P1: every report table now sets
+   `--font-num` (Inter, tabular), so this one matches them again. */
 .balance-trends-table__td-value {
   text-align: right;
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
 }

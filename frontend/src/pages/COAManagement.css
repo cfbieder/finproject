@@ -40,7 +40,7 @@
   gap: 0.75rem;
   padding: 0.75rem 1rem;
   background: linear-gradient(135deg, var(--surface-elevated) 0%, var(--surface-muted) 100%);
-  border: 1px solid rgba(107, 142, 107, 0.12);
+  border: 1px solid color-mix(in srgb, var(--primary) 12%, transparent);
   border-radius: var(--radius-md);
   margin-bottom: 1rem;
   box-shadow: 0 1px 4px -2px rgba(45, 52, 54, 0.06);
@@ -127,7 +127,7 @@
 .coa-toolbar-btn:hover:not(:disabled) {
   border-color: var(--primary);
   color: var(--primary);
-  box-shadow: 0 1px 3px rgba(107, 142, 107, 0.1);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
 .coa-toolbar-btn:disabled {
@@ -185,11 +185,11 @@
 /* ─── Tree Section ─── */
 .coa-tree-section {
   background: var(--surface);
-  border: 1px solid rgba(107, 142, 107, 0.12);
+  border: 1px solid color-mix(in srgb, var(--primary) 12%, transparent);
   border-radius: var(--radius-md);
   padding: 1.25rem;
   box-shadow: 0 2px 12px -4px rgba(45, 52, 54, 0.08),
-              0 4px 16px -6px rgba(107, 142, 107, 0.06);
+              0 4px 16px -6px color-mix(in srgb, var(--primary) 6%, transparent);
 }
 
 .coa-tree-section__header {
@@ -254,12 +254,12 @@
 }
 
 .coa-tree-row:hover {
-  background: rgba(107, 142, 107, 0.03);
+  background: color-mix(in srgb, var(--primary) 3%, transparent);
 }
 
 /* Category rows */
 .coa-tree-row--category {
-  background: rgba(107, 142, 107, 0.03);
+  background: color-mix(in srgb, var(--primary) 3%, transparent);
 }
 
 .coa-tree-row--category td:first-child {
@@ -268,7 +268,7 @@
 }
 
 .coa-tree-row--category:hover {
-  background: rgba(107, 142, 107, 0.06);
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
 }
 
 /* Selected rows */
@@ -327,7 +327,7 @@
 
 .coa-chevron:hover {
   color: var(--primary);
-  background: rgba(107, 142, 107, 0.08);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .coa-chevron--expanded {
@@ -374,7 +374,7 @@
 
 .coa-row-action-btn:hover:not(:disabled) {
   color: var(--primary);
-  background: rgba(107, 142, 107, 0.08);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 /* A disabled arrow keeps its slot so the action cluster does not reflow between
