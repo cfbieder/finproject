@@ -29,9 +29,7 @@ const reviewConfig = REVIEW_CONFIG;
 
 export default function RefreshFeeds() {
   const { showSuccess, showError: showErrorToast, showUndoable } = useToast();
-  const [lastIngestStatus, setLastIngestStatus] = useState(null);
-  const [lastRefreshStatus, setLastRefreshStatus] = useState(null);
-  const [psDataCountStatus, setPsDataCountStatus] = useState(null);
+  const [feedStatus, setFeedStatus] = useState([]);
   const [refreshStatus, setRefreshStatus] = useState(null);
   const [isRefreshingFeed, setIsRefreshingFeed] = useState(false);
   // CR022 transfer-to-account action (review queue)
@@ -64,84 +62,50 @@ export default function RefreshFeeds() {
   const { plTree } = useCoa();
 
   /***************************
-   * Fetch last ingest and refresh timestamps
+   * Feed status — the real bank-feed health (the same source as Home's
+   * "Needs attention" strip). This replaced three PocketSmith-era lines
+   * (last ingest / last refresh / legacy record count) that only the PS CSV
+   * import ever wrote, so they sat frozen at June 2026 while reading as feed
+   * status. Those facts still show on Upload PS.
    **************************/
 
-  const fetchLastIngest = useCallback(async () => {
+  const fetchFeedStatus = useCallback(async () => {
+    const ago = (hours) =>
+      hours < 1 ? "less than an hour ago" : hours < 48 ? `${hours}h ago` : `${Math.floor(hours / 24)} days ago`;
     try {
-      // Using v2 API (PostgreSQL)
-      const appdata = await Rest.fetchJson("/api/v2/util/appdata");
-      const records = Array.isArray(appdata) ? appdata : [];
-      const parseDates = (field) =>
-        records
-          .map((item) => item?.[field])
-          .map((date) => (date ? new Date(date) : null))
-          .filter(
-            (date) => date instanceof Date && !Number.isNaN(date.getTime())
-          );
-      const latestDate = (dates) =>
-        dates.length === 0
-          ? null
-          : dates.reduce(
-              (latest, current) => (current > latest ? current : latest),
-              dates[0]
-            );
-
-      const latestIngest = latestDate(parseDates("lastIngest"));
-      const latestRefresh = latestDate(parseDates("lastRefresh"));
-
-      setLastIngestStatus(
-        latestIngest
-          ? {
-              type: "info",
-              message: `Last ingest: ${latestIngest.toLocaleString()}`,
-            }
-          : {
-              type: "info",
-              message: "No ingest has been recorded yet.",
-            }
-      );
-      setLastRefreshStatus(
-        latestRefresh
-          ? {
-              type: "info",
-              message: `Last refresh: ${latestRefresh.toLocaleString()}`,
-            }
-          : {
-              type: "info",
-              message: "No refresh has been recorded yet.",
-            }
-      );
+      const s = await Rest.fetchJson("/api/v2/util/attention-summary");
+      const items = [];
+      const svc = s?.feedService;
+      if (!svc) {
+        items.push({ type: "warning", message: "Feed service status unavailable — bank-feed could not be asked." });
+      } else if (svc.stalled) {
+        items.push({
+          type: "error",
+          message: `Feeds stalled: last successful sync ${ago(svc.hoursSinceSync)}${svc.lastError ? ` — ${svc.lastError}` : ""}`,
+        });
+      } else {
+        items.push({
+          type: "info",
+          message: `Feeds last synced ${ago(svc.hoursSinceSync)} (${new Date(svc.lastSyncAt).toLocaleString()})`,
+        });
+      }
+      const stale = s?.staleFeeds?.count ?? 0;
+      if (stale > 0) {
+        items.push({
+          type: "warning",
+          message: `${stale} account${stale === 1 ? "" : "s"} not synced by the bank in 3+ days (oldest ${s.staleFeeds.worstDays} days)`,
+        });
+      }
+      const reconnect = s?.needsReconnect?.count ?? 0;
+      if (reconnect > 0) {
+        items.push({
+          type: "error",
+          message: `${reconnect} bank connection${reconnect === 1 ? " needs" : "s need"} reconnecting (consent expired)`,
+        });
+      }
+      setFeedStatus(items);
     } catch (error) {
-      const message = error?.message ?? "Unable to load app data.";
-      setLastIngestStatus({
-        type: "error",
-        message,
-      });
-      setLastRefreshStatus({
-        type: "error",
-        message,
-      });
-    }
-
-    try {
-      const countResult = await Rest.fetchJson("/api/v2/ingest-ps/psdata/count");
-      const count =
-        Number.isFinite(countResult?.count) && countResult.count >= 0
-          ? countResult.count
-          : null;
-      setPsDataCountStatus({
-        type: "info",
-        message:
-          count !== null
-            ? `Legacy PocketSmith records: ${count}`
-            : "Legacy PocketSmith record count unavailable.",
-      });
-    } catch (countError) {
-      setPsDataCountStatus({
-        type: "error",
-        message: countError?.message ?? "Unable to load legacy PocketSmith record count.",
-      });
+      setFeedStatus([{ type: "error", message: error?.message ?? "Unable to load feed status." }]);
     }
   }, []);
 
@@ -150,8 +114,8 @@ export default function RefreshFeeds() {
    **************************/
 
   useEffect(() => {
-    fetchLastIngest();
-  }, [fetchLastIngest]);
+    fetchFeedStatus();
+  }, [fetchFeedStatus]);
 
   /**************************
    * Handle the change of refresh date
@@ -189,6 +153,7 @@ export default function RefreshFeeds() {
         message: `Bank feed refreshed: ${syn.inserted ?? 0} new, ${syn.linked ?? 0} linked to PS, ${ing.staged ?? 0} staged, ${(syn.ignoredAccounts ?? []).length} account(s) ignored.`,
       });
       await loadReviewTransactions();
+      fetchFeedStatus();
     } catch (err) {
       setRefreshStatus({
         type: "error",
@@ -1008,10 +973,12 @@ export default function RefreshFeeds() {
             </div>
           </div>
           <ul className="upload-guidance">
+            {feedStatus.map((item) => (
+              <li key={item.message}>
+                <p className={`upload-feedback upload-feedback_${item.type}`}>{item.message}</p>
+              </li>
+            ))}
             <UploadFeedback
-              lastIngestStatus={lastIngestStatus}
-              lastRefreshStatus={lastRefreshStatus}
-              psDataCountStatus={psDataCountStatus}
               uploadStatus={refreshStatus}
               clearStatus={null}
               ingestStatus={null}
