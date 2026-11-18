@@ -1,6 +1,6 @@
-# CR105 — UI theme B ("Workbench" palette, Inter, flat, compact) — IN-PROGRESS
+# CR105 — UI theme B ("Workbench" palette, Inter, flat, compact) — IN-PROGRESS (P1 live v3.94.0)
 
-**Status:** IN-PROGRESS 2026-11-18 — **P1 (tokens) built on branch `cr105-theme`, unreleased.** P2+ (the
+**Status:** IN-PROGRESS 2026-11-18 — **P1 (tokens) LIVE v3.94.0.** P2+ (the
 Workbench shell) not decided. Roadmap: [§1.1 CR105](../current/project-roadmap.md#cr105).
 **Track:** v3 · **Migrations:** none · **Depends on:** CR042 (tokens, self-hosted font), CR086 (money
 contrast values), CR087 (the money format).
@@ -20,7 +20,7 @@ Two owner decisions, 2026-11-18:
   to miss on a long figure, and balances are not coloured red, so on a balance sheet the parentheses are the
   only sign cue. About 130 places format numbers by hand, so a switch would have mixed formats for a long time.
 
-## 2. P1 — what changed (branch `cr105-theme`)
+## 2. P1 — what changed (v3.94.0)
 
 | Area | Change |
 |---|---|
@@ -54,5 +54,5 @@ Two owner decisions, 2026-11-18:
 
 ## 5. Next
 
-Owner trial of P1 on prod, then decide on the shell (B's P2: rail, header tabs, global period, inspector).
+Owner trial of P1 on prod (v3.94.0), then decide on the shell (B's P2: rail, header tabs, global period, inspector).
 **The budget builder is frozen 2026-12-03 → 12-10**, so no builder layout work before the 2027 publish.
