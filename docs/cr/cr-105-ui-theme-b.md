@@ -1,7 +1,7 @@
 # CR105 — UI theme B ("Workbench" palette, Inter, flat, compact) — IN-PROGRESS (P1 live v3.94.0)
 
 **Status:** IN-PROGRESS 2026-11-18 — **P1 (tokens) LIVE v3.94.0.** Owner D3 (2026-11-18): build the
-full Workbench structure in **stages S1–S6 (§5)**, each gated by an owner walkthrough. **S1 (shell) in build.** Roadmap: [§1.1 CR105](../current/project-roadmap.md#cr105).
+full Workbench structure in **stages S1–S6 (§5)**, each gated by an owner walkthrough. **S1 (shell) LIVE v3.95.0, awaiting the owner's walkthrough.** Roadmap: [§1.1 CR105](../current/project-roadmap.md#cr105).
 **Track:** v3 · **Migrations:** none · **Depends on:** CR042 (tokens, self-hosted font), CR086 (money
 contrast values), CR087 (the money format).
 
