@@ -7,7 +7,7 @@
 > Every budget cut has come from MOVING what changes on a different clock, never deleting what is true
 > (history in the 2026-11-03 log).
 
-**Last updated:** 2026-11-18 · **Live version:** **v3.95.0** (see `VERSION` / git tags) — release log: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
+**Last updated:** 2026-11-18 · **Live version:** **v3.96.0** (see `VERSION` / git tags) — release log: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
 
 ## Current phase
 **Moved to [current-phase.md](current-phase.md)** — it changes on a regenerate, not on a release.
@@ -44,7 +44,7 @@ Two things from it are worth carrying into every session:
 Statuses are canonical in the [CR index](../cr/README.md), the running version in `VERSION`; the release log is [the roadmap](project-roadmap.md).
 
 - ⚠️ **Publish the 2027 budget by 2026-12-10** (owner; builder code freeze 2026-12-03) — draft *V3* (2027 v6, from LE-11-26) is the open build: plan its *Cash flow* moves and confirm them so [CR104](../cr/cr-104-budget-builder-cash-by-currency.md) can close, run Compare Forecast against `2026 Base`, manual prod backup, publish. Steps in [roadmap §2](project-roadmap.md#2-open-backlog-non-cr-items); what v3.91–v3.93 added to the builder is in [§1.2](project-roadmap.md#12-completed-chronological-latest-first).
-- **v3.94–v3.95: UI theme B** — [CR105](../cr/cr-105-ui-theme-b.md) P1 (theme) + the indigo app icon, and **S1 of the Workbench structure (v3.95.0): icon rail + header tabs, opt-in via *Try Workbench*.** **Owner: walk through S1** — S2 (one header period) starts after it (D3, stages in CR105 §5; builder untouched before 12-10). Open tails in [roadmap §3](project-roadmap.md#3-known-issues) (the phone's Refresh Feeds, November's negative income).
+- **v3.94–v3.95: UI theme B** — [CR105](../cr/cr-105-ui-theme-b.md) P1 (theme) + the indigo app icon, and the Workbench structure, opt-in via *Try Workbench*: **S1 icon rail + header tabs (v3.95.0, walked through), S2 one header period (v3.96.0).** **Owner: walk through S2** — S3 (B's Balances page) starts after it (D3, stages in CR105 §5; builder untouched before 12-10). Open tails in [roadmap §3](project-roadmap.md#3-known-issues) (the phone's Refresh Feeds, November's negative income).
 - **January 2027: run *Annual close…*** on `2026 Base` → `2027 Base` ([CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md), the annual roll to a new base year); the [CR099](../cr/cr-099-forecast-module-return-path.md) annual-close check (per-year return paths on a module) is due before it — roadmap §2. `2026 Base` and `2026 Market Crash` were regenerated 2026-11-03 with the 2027 rates.
 - **[CR097](../cr/cr-097-manual-holdings-register.md)** (holdings register for manually valued accounts): the 2026-10-31 valuation is ⚠️ blocked by its cost gap until the owner says what two October transfers bought — [roadmap entry](project-roadmap.md#cr097).
 - Builder follow-ups (P3c hand-edit warning, CR101 report/picker/planning follow-ups) and [CR095](../cr/cr-095-forecast-spend-currency-share.md) (forecast spend that moves with the złoty): [roadmap §2](project-roadmap.md#2-open-backlog-non-cr-items) / [CR index](../cr/README.md).
