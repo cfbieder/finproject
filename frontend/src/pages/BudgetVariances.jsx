@@ -6,6 +6,7 @@ import { COMPARE_MODES, useLatestEstimate } from "../features/Budgets/latestEsti
 import { LeCompareControl, LeCompareNotes } from "../features/Budgets/LeCompare.jsx";
 import "../components/ReportTable.css";
 import "./PageLayout.css";
+import { useHeaderPeriod, useOnHeaderPeriodChange } from "../contexts/headerPeriod.js";
 
 // ============================================================================
 // CURRENCY FORMATTING
@@ -111,12 +112,17 @@ const CURRENT_YEAR = new Date().getFullYear();
 
 export default function BudgetVariances() {
   // ========== State ==========
-  const [periodValues, setPeriodValues] = useState({
-    fromMonth: CURRENT_MONTH,
-    toMonth: CURRENT_MONTH,
-    actualYear: CURRENT_YEAR,
-    budgetYear: CURRENT_YEAR,
-  });
+  // CR105 S2 — in the Workbench layout the header month sets the period.
+  const hp = useHeaderPeriod();
+  const [periodValues, setPeriodValues] = useState(() => ({
+    fromMonth: hp ? hp.mm : CURRENT_MONTH,
+    toMonth: hp ? hp.mm : CURRENT_MONTH,
+    actualYear: hp ? hp.year : CURRENT_YEAR,
+    budgetYear: hp ? hp.year : CURRENT_YEAR,
+  }));
+  useOnHeaderPeriodChange((p) =>
+    setPeriodValues({ fromMonth: p.mm, toMonth: p.mm, actualYear: p.year, budgetYear: p.year })
+  );
   const [leafActualTotals, setLeafActualTotals] = useState(null);
   const [leafBudgetTotals, setLeafBudgetTotals] = useState(null);
   // CR087 §4c. ⚠️ `null` on the two maps above is OVERLOADED — it is set both

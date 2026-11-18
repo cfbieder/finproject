@@ -6,6 +6,7 @@ import Rest from "../js/rest.js";
 import { formatLocalDate } from "../utils/dateHelpers.js";
 import "./PageLayout.css";
 import "./CategoryTrend.css";
+import { useHeaderPeriod } from "../contexts/headerPeriod.js";
 
 // ============================================================================
 // CONSTANTS
@@ -19,45 +20,47 @@ const MONTH_NAMES = [
 const currentYear = new Date().getFullYear();
 const currentMonth = new Date().getMonth();
 
+// Each range counts back from an anchor month (y, m0 = 0-based month): today,
+// or the Workbench header month (CR105 S2).
 const PERIODS = [
   {
     label: "Year to Date",
     key: "ytd",
-    range: () => ({
-      startDate: `${currentYear}-01-01`,
-      endDate: formatMonthEnd(currentYear, currentMonth),
+    range: (y = currentYear, m0 = currentMonth) => ({
+      startDate: `${y}-01-01`,
+      endDate: formatMonthEnd(y, m0),
     }),
   },
   {
     label: "This Year",
     key: "this-year",
-    range: () => ({
-      startDate: `${currentYear}-01-01`,
-      endDate: `${currentYear}-12-31`,
+    range: (y = currentYear) => ({
+      startDate: `${y}-01-01`,
+      endDate: `${y}-12-31`,
     }),
   },
   {
     label: "Last Year",
     key: "last-year",
-    range: () => ({
-      startDate: `${currentYear - 1}-01-01`,
-      endDate: `${currentYear - 1}-12-31`,
+    range: (y = currentYear) => ({
+      startDate: `${y - 1}-01-01`,
+      endDate: `${y - 1}-12-31`,
     }),
   },
   {
     label: "Last 6 Months",
     key: "last-6m",
-    range: () => monthsAgo(6),
+    range: (y, m0) => monthsAgo(6, y, m0),
   },
   {
     label: "Last 12 Months",
     key: "last-12m",
-    range: () => monthsAgo(12),
+    range: (y, m0) => monthsAgo(12, y, m0),
   },
   {
     label: "Last 24 Months",
     key: "last-24m",
-    range: () => monthsAgo(24),
+    range: (y, m0) => monthsAgo(24, y, m0),
   },
 ];
 
@@ -70,10 +73,10 @@ function formatMonthEnd(year, month) {
   return formatLocalDate(new Date(year, month + 1, 0));
 }
 
-function monthsAgo(n) {
+function monthsAgo(n, y, m0) {
   const now = new Date();
-  const endYear = now.getFullYear();
-  const endMonth = now.getMonth();
+  const endYear = y ?? now.getFullYear();
+  const endMonth = m0 ?? now.getMonth();
   return {
     startDate: formatLocalDate(new Date(endYear, endMonth - n + 1, 1)),
     endDate: formatMonthEnd(endYear, endMonth),
@@ -161,6 +164,14 @@ export default function CategoryTrend() {
   // State
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [selectedPeriod, setSelectedPeriod] = useState("ytd");
+  // CR105 S2 — in the Workbench layout the presets count back from the header month.
+  const hp = useHeaderPeriod();
+  const hpYear = hp?.year;
+  const hpMonth = hp?.month;
+  const anchor = useMemo(
+    () => (hpYear ? { year: hpYear, month: hpMonth } : null),
+    [hpYear, hpMonth]
+  );
   const [trendData, setTrendData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -219,8 +230,10 @@ export default function CategoryTrend() {
     }
     setError("");
     setIsLoading(true);
-    const period = PERIODS.find((p) => p.key === selectedPeriod);
-    const { startDate, endDate } = period ? period.range() : PERIODS[0].range();
+    const period = PERIODS.find((p) => p.key === selectedPeriod) || PERIODS[0];
+    const { startDate, endDate } = anchor
+      ? period.range(anchor.year, anchor.month - 1)
+      : period.range();
     try {
       const result = await Rest.fetchCategoryTrend({
         startDate,
@@ -235,7 +248,7 @@ export default function CategoryTrend() {
     } finally {
       setIsLoading(false);
     }
-  }, [resolvedCategories, selectedPeriod]);
+  }, [resolvedCategories, selectedPeriod, anchor]);
 
   // Auto-fetch when parameters change
   useEffect(() => {

@@ -1,7 +1,7 @@
 # CR105 — UI theme B ("Workbench" palette, Inter, flat, compact) — IN-PROGRESS (P1 live v3.94.0)
 
 **Status:** IN-PROGRESS 2026-11-18 — **P1 (tokens) LIVE v3.94.0.** Owner D3 (2026-11-18): build the
-full Workbench structure in **stages S1–S6 (§5)**, each gated by an owner walkthrough. **S1 (shell) LIVE v3.95.0, awaiting the owner's walkthrough.** Roadmap: [§1.1 CR105](../current/project-roadmap.md#cr105).
+full Workbench structure in **stages S1–S6 (§5)**, each gated by an owner walkthrough. **S1 (shell) LIVE v3.95.0, walked through — no comments (2026-11-18). S2 (one period) built.** Roadmap: [§1.1 CR105](../current/project-roadmap.md#cr105).
 **Track:** v3 · **Migrations:** none · **Depends on:** CR042 (tokens, self-hosted font), CR086 (money
 contrast values), CR087 (the money format).
 
@@ -81,10 +81,32 @@ default and retires the sidebar. Desktop only: phones keep `mobile/`.
 | Stage | What | Notes |
 |---|---|---|
 | **S1 — shell** | 56px dark icon rail (Today · Inbox · Transactions · Budget · Forecast · Wealth · Investments · Taxes; Setup at the foot). The current section's pages become **header tabs**. ⌘K search, help and theme stay in the header / rail. Breadcrumbs go. | Pages themselves are unchanged. The tabs reuse the route table. |
-| **S2 — one period** | A month picker in the header (*Nov 2026 ▾*) that Balances, Cash Flow, Budget Analysis, Actuals, Net Worth Drivers and Category Trend read. A page can still override it. | The budget builder has no period, so the 12-03 → 12-10 freeze is not touched. |
+| **S2 — one period** ✅ built | A month picker in the header (*Nov 2026 ▾*) that Balances, Cash Flow, Budget Analysis, Actuals, Net Worth Drivers and Category Trend read. A page can still override it. | The budget builder has no period, so the 12-03 → 12-10 freeze is not touched. |
 | **S3 — Balances** | B's Balances: net-worth hero with a 12-month line and change, inline totals, a **12-month sparkline** per row, a **reconcile column** (✓ / drift chip), loads on open (no *Generate*), title-case header. | Rows keep the chart-of-accounts groups; the mock's groups were invented. Negatives stay `(1,234)` (D2). |
 | **S4 — inspector** | A 340px right-hand panel replaces drill-down modals: a transaction, a cash-flow figure, a forecast line. Esc closes it. | The builder's item drill-down joins after 12-10. |
 | **S5 — inbox** | Refresh Feeds becomes a keyboard inbox: `j`/`k` move, `a` accepts, `c` categorises, `/` searches, `g`+letter jumps. | |
 | **S6 — pages + cut-over** | The rest of the pages in B's header style (Today, Transactions views, Budget Analysis, Investments, Forecast), the builder after 12-10, then Workbench becomes the default and the sidebar is retired. | Builder work only after the 2026-12-10 publish. |
 
 **The budget builder is frozen 2026-12-03 → 12-10**: no stage touches builder files before the 2027 publish.
+
+### S2 as built — how each page reads the header month
+
+The month lives in `contexts/headerPeriod.js` (hooks + `describePeriod`) and `HeaderPeriodContext.jsx` (the
+provider, mounted only by `WorkbenchLayout`). Outside the Workbench layout the hooks return null and every page
+keeps its own default. A page **initialises** its controls from the month (so the first load is already right)
+and **follows** later changes; its own controls stay live as a local override. *Generate*-only pages reload
+through `useHeaderPeriodReload`, which loads on the render *after* the new values are state — loading in the same
+effect pass read the old period (found by the live test: Balances asked for today after Sep was picked).
+
+| Reading | Pages |
+|---|---|
+| **The month** | Budget Analysis (Realization, Chart, Variances), Actuals (also what *clear filters* returns to), Cash Flow summary (period 1) |
+| **January → the month** | Balances Periods, Trends, Net Worth chart; Cash Flow By Period, By Account; Net Worth Drivers; Category Trend's presets count back from it |
+| **As of** — today for the current month, else the month-end | Balances Summary (period 1), Balances Forecast |
+
+- The picker caps at the **current month** (reports read actuals; the year lists stop at this year) and shows only on
+  tabs that follow it (`period: true` in `sections.js`). Kept in **sessionStorage**, so a new visit starts on this month.
+- `PeriodSelector` now shows *Custom* when its values no longer match the chosen preset — a "This Month" chip over
+  September's figures would mislabel them.
+- Verified: a live pass on prod data set the header to Sep 2026 on all 14 views; each requested September
+  (e.g. `balance?asOfDate=2026-09-30`; Periods 9 requests, Jan–Sep), no page errors.

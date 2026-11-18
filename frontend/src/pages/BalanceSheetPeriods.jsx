@@ -13,6 +13,7 @@ import MonthYearPicker from "../components/MonthYearPicker";
 import BalanceReport from "../features/Balances/BalanceReport.jsx";
 import "./PageLayout.css";
 import "../features/Balances/BalanceDateSelector.css";
+import { useHeaderPeriod, useHeaderPeriodReload } from "../contexts/headerPeriod.js";
 
 const monthOptions = [
   { value: 1, label: "January" },
@@ -46,10 +47,12 @@ const CURRENT_YEAR = new Date().getFullYear();
 const CURRENT_MONTH = new Date().getMonth() + 1;
 
 export default function BalanceSheetPeriods() {
+  // CR105 S2 — in the Workbench layout the header month sets the period.
+  const hp = useHeaderPeriod();
   const [fromMonth, setFromMonth] = useState(1);
-  const [fromYear, setFromYear] = useState(CURRENT_YEAR);
-  const [toMonth, setToMonth] = useState(CURRENT_MONTH);
-  const [toYear, setToYear] = useState(CURRENT_YEAR);
+  const [fromYear, setFromYear] = useState(hp ? hp.year : CURRENT_YEAR);
+  const [toMonth, setToMonth] = useState(hp ? hp.month : CURRENT_MONTH);
+  const [toYear, setToYear] = useState(hp ? hp.year : CURRENT_YEAR);
   const [frequency, setFrequency] = useState("month");
 
   const [reports, setReports] = useState([]);
@@ -194,6 +197,13 @@ export default function BalanceSheetPeriods() {
     exportBalanceSheet(reports, periodLabels);
   };
 
+  // January to the header month.
+  useHeaderPeriodReload((p) => {
+    setFromMonth(1);
+    setFromYear(p.year);
+    setToMonth(p.month);
+    setToYear(p.year);
+  }, handleGenerate);
   return (
     <main className="page-main balance-grid balance-grid--single">
       <div className="report-toolbar-header">

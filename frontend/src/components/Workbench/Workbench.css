@@ -183,3 +183,51 @@
   .wb-top__cmd { min-width: 0; }
   .wb-top__cmd-label, .wb-top__cmd kbd { display: none; }
 }
+
+/* ---- S2: the header period ---- */
+.wb-period {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px 2px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.wb-period__icon { color: var(--muted); margin-right: 2px; }
+.wb-period__step {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--ink-secondary);
+  cursor: pointer;
+}
+.wb-period__step:hover:not(:disabled) { background: var(--surface-muted); color: var(--ink); }
+.wb-period__step:disabled { opacity: 0.35; cursor: default; }
+.wb-period__sel {
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 3px 2px;
+  cursor: pointer;
+}
+.wb-period__sel:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.wb-period__now {
+  margin-left: 4px;
+  border: none;
+  background: var(--primary-subtle);
+  color: var(--primary);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+}

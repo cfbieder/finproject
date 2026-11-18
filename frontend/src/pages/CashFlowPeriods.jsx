@@ -5,6 +5,7 @@ import "./PageLayout.css";
 import "../features/Balances/BalanceDateSelector.css";
 import CashFlowReport from "../features/CashFlow/CashFlowReport.jsx";
 import CashFlowDateSelectorMonthYearOne from "../features/CashFlow/CashFlowDateSelectorMonthYearOneP.jsx";
+import { useHeaderPeriod, useHeaderPeriodReload } from "../contexts/headerPeriod.js";
 
 // Recursively collect paths of collapsible nodes
 const collectCollapsiblePaths = (nodes, path = [], set = new Set()) => {
@@ -159,14 +160,10 @@ export default function CashFlowPeriods() {
     return formatLocalDate(lastOfMonth);
   };
 
-  const [fromDates, setFromDates] = useState(() => {
-    const start = getYearStart();
-    return [start];
-  });
-  const [toDates, setToDates] = useState(() => {
-    const end = getMonthEnd();
-    return [end];
-  });
+  // CR105 S2 — in the Workbench layout the header month sets the period.
+  const hp = useHeaderPeriod();
+  const [fromDates, setFromDates] = useState(() => [hp ? hp.yearStart : getYearStart()]);
+  const [toDates, setToDates] = useState(() => [hp ? hp.monthEnd : getMonthEnd()]);
   const [reports, setReports] = useState([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -316,6 +313,11 @@ export default function CashFlowPeriods() {
   const hasReport =
     Array.isArray(reports?.[0]) && (reports?.[0]?.length ?? 0) > 0;
 
+  // January to the end of the header month.
+  useHeaderPeriodReload((p) => {
+    setFromDates([p.yearStart]);
+    setToDates([p.monthEnd]);
+  }, handleGenerateReport);
   return (
     <>
       <main className="page-main balance-grid balance-grid--single">

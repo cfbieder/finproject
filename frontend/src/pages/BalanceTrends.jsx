@@ -14,6 +14,7 @@ import {
 } from "../utils/periodHelpers.js";
 import "./PageLayout.css";
 import "./BalanceTrends.css";
+import { useHeaderPeriod, useHeaderPeriodReload } from "../contexts/headerPeriod.js";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -79,10 +80,13 @@ export default function BalanceTrends() {
   const { bsTree } = useCoa();
 
   // Period — default to This Year (Jan–Dec current year)
+  // CR105 S2 — in the Workbench layout the header month sets the period.
+  const hp = useHeaderPeriod();
+  // (with a header month: January to that month)
   const [fromMonth, setFromMonth] = useState("01");
-  const [toMonth, setToMonth] = useState("12");
-  const [actualYear, setActualYear] = useState(CURRENT_YEAR);
-  const [toYear, setToYear] = useState(CURRENT_YEAR);
+  const [toMonth, setToMonth] = useState(hp ? hp.mm : "12");
+  const [actualYear, setActualYear] = useState(hp ? hp.year : CURRENT_YEAR);
+  const [toYear, setToYear] = useState(hp ? hp.year : CURRENT_YEAR);
 
   const [intervalKey, setIntervalKey] = useState("month");
   const [currencyKey, setCurrencyKey] = useState("usd"); // usd | local | both
@@ -240,6 +244,12 @@ export default function BalanceTrends() {
     URL.revokeObjectURL(url);
   }, [hasTable, columns, rows, totals, actualYear, fromMonth, toYear, toMonth, intervalKey, currencyKey]);
 
+  useHeaderPeriodReload((p) => {
+    setFromMonth("01");
+    setToMonth(p.mm);
+    setActualYear(p.year);
+    setToYear(p.year);
+  }, handleGenerate);
   return (
     <main className="page-main balance-grid balance-grid--single">
       <div className="report-toolbar-header">

@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { EARLIEST_ACTUAL_YEAR } from "../../utils/yearOptions";
 import "./PeriodSelector.css";
+import { useHeaderPeriod } from "../../contexts/headerPeriod.js";
 
 // ============================================================================
 // Constants
@@ -262,6 +263,27 @@ export default function PeriodSelector({
   const budgetYear = budgetYearProp ?? budgetYearState;
   const toYear = toYearProp ?? toYearState;
 
+  // ── The preset shown ──
+  // In the Workbench layout (CR105 S2) the header month sets the values from
+  // outside, and a "This Month" chip over September's figures would mislabel
+  // them: there the chosen preset shows only while the CONTROLLED values still
+  // match it. The classic layout (no header period) keeps the chosen preset as
+  // before — some pages pair a preset with other starting values on purpose.
+  const inWorkbench = useHeaderPeriod() !== null;
+  const shownPreset = useMemo(() => {
+    if (!inWorkbench) return preset;
+    const found = PERIOD_PRESETS.find((p) => p.id === preset);
+    if (!found?.compute) return preset;
+    const v = found.compute();
+    const same = (prop, want) => prop === undefined || String(prop) === String(want);
+    const match =
+      same(fromMonthProp, v.fromMonth) &&
+      same(toMonthProp, v.toMonth) &&
+      same(actualYearProp, v.actualYear) &&
+      (!enableYearRange || same(toYearProp, v.toYear ?? v.actualYear));
+    return match ? preset : "custom";
+  }, [inWorkbench, preset, fromMonthProp, toMonthProp, actualYearProp, toYearProp, enableYearRange]);
+
   // ── Summary text (for non-custom presets) ──
   const summaryText = useMemo(
     () =>
@@ -383,7 +405,7 @@ export default function PeriodSelector({
           <button
             key={p.id}
             type="button"
-            className={`period-selector__preset${preset === p.id ? " period-selector__preset--active" : ""}`}
+            className={`period-selector__preset${shownPreset === p.id ? " period-selector__preset--active" : ""}`}
             onClick={() => handlePresetChange(p.id)}
           >
             {p.label}
@@ -392,12 +414,12 @@ export default function PeriodSelector({
       </div>
 
       {/* Summary line for non-custom presets */}
-      {preset !== "custom" && (
+      {shownPreset !== "custom" && (
         <div className="period-selector__summary">{summaryText}</div>
       )}
 
       {/* Manual dropdowns for Custom mode */}
-      {preset === "custom" && (
+      {shownPreset === "custom" && (
         <div className="period-selector__custom">
           <div className="period-selector__field">
             <label

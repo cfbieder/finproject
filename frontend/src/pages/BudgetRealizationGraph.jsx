@@ -18,6 +18,7 @@ import {
 import { LeCompareControl, LeCompareNotes } from "../features/Budgets/LeCompare.jsx";
 import "./PageLayout.css";
 import "./BudgetRealizationGraph.css";
+import { useHeaderPeriod, useOnHeaderPeriodChange } from "../contexts/headerPeriod.js";
 
 // ============================================================================
 // CURRENCY FORMATTING
@@ -219,10 +220,24 @@ export default function BudgetRealizationGraph() {
   // The same preset period picker as the Realization and Variances tabs; it
   // replaced a sidebar of Report type / Budget year / Actual year / Month.
   const currentMonthValue = MONTH_OPTIONS[new Date().getMonth()].value;
-  const [fromMonth, setFromMonth] = useState(currentMonthValue);
-  const [toMonth, setToMonth] = useState(currentMonthValue);
-  const [actualYear, setActualYear] = useState(YEAR_OPTIONS[0]);
-  const [budgetYear, setBudgetYear] = useState(YEAR_OPTIONS[0]);
+  // CR105 S2 — in the Workbench layout the header month sets the period.
+  const hp = useHeaderPeriod();
+  const [fromMonth, setFromMonth] = useState(hp ? hp.mm : currentMonthValue);
+  const [toMonth, setToMonth] = useState(hp ? hp.mm : currentMonthValue);
+  const [actualYear, setActualYear] = useState(hp ? hp.year : YEAR_OPTIONS[0]);
+  const [budgetYear, setBudgetYear] = useState(hp ? hp.year : YEAR_OPTIONS[0]);
+  // The header can reach a year before the budget list starts; keep it selectable
+  // rather than showing one year while querying another.
+  const budgetYearOptions = useMemo(
+    () => [...new Set([Number(budgetYear), ...BUDGET_YEAR_OPTIONS])].sort((a, b) => a - b),
+    [budgetYear]
+  );
+  useOnHeaderPeriodChange((p) => {
+    setFromMonth(p.mm);
+    setToMonth(p.mm);
+    setActualYear(p.year);
+    setBudgetYear(p.year);
+  });
   const [includeUnrealized, setIncludeUnrealized] = useState(false);
   const [includeTransfers, setIncludeTransfers] = useState(false);
 
@@ -599,7 +614,7 @@ export default function BudgetRealizationGraph() {
                 budgetYear={budgetYear}
                 monthOptions={MONTH_OPTIONS}
                 yearOptions={YEAR_OPTIONS}
-                budgetYearOptions={BUDGET_YEAR_OPTIONS}
+                budgetYearOptions={budgetYearOptions}
                 onChange={handlePeriodChange}
                 defaultPreset="this-month"
                 id="chart-period"

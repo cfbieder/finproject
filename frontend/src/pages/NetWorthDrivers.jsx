@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import PeriodSelector from "../components/PeriodSelector/PeriodSelector.jsx";
+import { useHeaderPeriod, useOnHeaderPeriodChange } from "../contexts/headerPeriod.js";
 import { useNetWorthBridge, useNetWorthNarration } from "../hooks/useReports.js";
 import {
   Waterfall,
@@ -29,10 +30,12 @@ import "./NetWorthDrivers.css";
 
 export default function NetWorthDrivers() {
   const now = new Date();
+  // CR105 S2 — in the Workbench layout the window is January to the header month.
+  const hp = useHeaderPeriod();
   const [fromMonth, setFromMonth] = useState("01");
-  const [toMonth, setToMonth] = useState(String(now.getMonth() + 1).padStart(2, "0"));
-  const [actualYear, setActualYear] = useState(now.getFullYear());
-  const [toYear, setToYear] = useState(now.getFullYear());
+  const [toMonth, setToMonth] = useState(hp ? hp.mm : String(now.getMonth() + 1).padStart(2, "0"));
+  const [actualYear, setActualYear] = useState(hp ? hp.year : now.getFullYear());
+  const [toYear, setToYear] = useState(hp ? hp.year : now.getFullYear());
   const [granularity, setGranularity] = useState("month");
 
   // Plain function, deliberately not useCallback: the React Compiler infers the
@@ -45,6 +48,9 @@ export default function NetWorthDrivers() {
     if (next.actualYear !== undefined) setActualYear(Number(next.actualYear));
     if (next.toYear !== undefined) setToYear(Number(next.toYear));
   };
+  useOnHeaderPeriodChange((p) =>
+    handlePeriodChange({ fromMonth: "01", toMonth: p.mm, actualYear: p.year, toYear: p.year })
+  );
 
   const { fromDate, toDate } = useMemo(
     () => windowFor({ fromYear: actualYear, fromMonth, toYear, toMonth }),

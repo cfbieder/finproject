@@ -48,6 +48,7 @@ import { useCoa } from "../hooks/useCoa.js";
 import { useFilterOptions } from "../features/BudgetEntry/hooks/useFilterOptions.js";
 import { exportTransactions } from "../utils/excelExporter.js";
 import EmptyState from "../components/EmptyState.jsx";
+import { useHeaderPeriod, useOnHeaderPeriodChange } from "../contexts/headerPeriod.js";
 import "./TransactionExplorer.css";
 import { parseDisplayDate } from "../utils/dateHelpers.js";
 
@@ -89,9 +90,24 @@ const formatSplitAmount = (value) => {
     : "";
 };
 
+/** CR105 S2 — the header month as this page's period values. */
+const headerPeriodValues = (hp) => ({
+  fromMonth: hp.mm,
+  toMonth: hp.mm,
+  actualYear: hp.year,
+  toYear: hp.year,
+  budgetYear: hp.year,
+});
+
 export default function TransActual() {
   const { showSuccess, showError: showErrorToast } = useToast();
-  const [filters, setFilters] = useState(() => ({ ...config.defaultFilters }));
+  // CR105 S2 — in the Workbench layout the header month sets the period.
+  const hp = useHeaderPeriod();
+  const [filters, setFilters] = useState(() =>
+    hp
+      ? { ...config.defaultFilters, ...periodToFilterFields(headerPeriodValues(hp)) }
+      : { ...config.defaultFilters }
+  );
   const [totals, setTotals] = useState({
     byCurrency: [],
     income: 0,
@@ -103,13 +119,17 @@ export default function TransActual() {
   const [searchText, setSearchText] = useState("");
 
   // Period state for PeriodSelector
-  const [periodValues, setPeriodValues] = useState({
-    fromMonth: CURRENT_MONTH,
-    toMonth: CURRENT_MONTH,
-    actualYear: CURRENT_YEAR,
-    toYear: CURRENT_YEAR,
-    budgetYear: CURRENT_YEAR,
-  });
+  const [periodValues, setPeriodValues] = useState(() =>
+    hp
+      ? headerPeriodValues(hp)
+      : {
+          fromMonth: CURRENT_MONTH,
+          toMonth: CURRENT_MONTH,
+          actualYear: CURRENT_YEAR,
+          toYear: CURRENT_YEAR,
+          budgetYear: CURRENT_YEAR,
+        }
+  );
 
   // Value range
   const [valueFrom, setValueFrom] = useState("");
@@ -587,6 +607,7 @@ export default function TransActual() {
     },
     [setTransactionLimit]
   );
+  useOnHeaderPeriodChange((p) => handlePeriodChange(headerPeriodValues(p)));
 
   // ─── Account change handler (HierarchyFilter) ───
   const handleAccountSelection = useCallback(
@@ -648,7 +669,10 @@ export default function TransActual() {
   }, [valueFrom, valueTo, setTransactionLimit]);
 
   const clearAllFilters = useCallback(() => {
-    const defaults = { ...config.defaultFilters };
+    // In the Workbench layout "clear" returns to the header month, not to today.
+    const defaults = hp
+      ? { ...config.defaultFilters, ...periodToFilterFields(headerPeriodValues(hp)) }
+      : { ...config.defaultFilters };
     setFilters(defaults);
     setSelectedAccounts(["All"]);
     setSelectedCategories([]);
@@ -658,14 +682,18 @@ export default function TransActual() {
     setActiveCategoryGroup("__all__");
     setSearchText("");
     setMarkedIds(new Set());
-    setPeriodValues({
-      fromMonth: CURRENT_MONTH,
-      toMonth: CURRENT_MONTH,
-      actualYear: CURRENT_YEAR,
-      budgetYear: CURRENT_YEAR,
-    });
+    setPeriodValues(
+      hp
+        ? headerPeriodValues(hp)
+        : {
+            fromMonth: CURRENT_MONTH,
+            toMonth: CURRENT_MONTH,
+            actualYear: CURRENT_YEAR,
+            budgetYear: CURRENT_YEAR,
+          }
+    );
     setTransactionLimit(BATCH_SIZE);
-  }, [setTransactionLimit, setSelectedAccounts, setSelectedCategories]);
+  }, [hp, setTransactionLimit, setSelectedAccounts, setSelectedCategories]);
 
   const handleLoadMore = useCallback(() => {
     setTransactionLimit((prev) => prev + BATCH_SIZE);

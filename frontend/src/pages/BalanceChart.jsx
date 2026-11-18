@@ -10,6 +10,7 @@ import {
 } from "../utils/periodHelpers.js";
 import { getYearStart, getMonthEnd } from "../utils/dateHelpers.js";
 import "./PageLayout.css";
+import { useHeaderPeriod, useOnHeaderPeriodChange } from "../contexts/headerPeriod.js";
 
 /**
  * Recursively collects paths to all collapsible account nodes in the account tree.
@@ -256,9 +257,16 @@ const buildChartPoints = (reports, periods, period) => {
  * collapsible account hierarchy views.
  */
 export default function Balance() {
-  const [fromDates, setFromDates] = useState(() => [getYearStart()]);
-  const [toDates, setToDates] = useState(() => [getMonthEnd()]);
+  // CR105 S2 — in the Workbench layout the header month sets the period.
+  const hp = useHeaderPeriod();
+  const [fromDates, setFromDates] = useState(() => [hp ? hp.yearStart : getYearStart()]);
+  const [toDates, setToDates] = useState(() => [hp ? hp.asOf : getMonthEnd()]);
   const [period, setPeriod] = useState("month");
+  // Loads on its own when the dates change; the header sets January to the month.
+  useOnHeaderPeriodChange((p) => {
+    setFromDates((d) => [p.yearStart, ...d.slice(1)]);
+    setToDates((d) => [p.asOf, ...d.slice(1)]);
+  });
   const [periodCount, setPeriodCount] = useState(1);
   const [balanceReports, setBalanceReports] = useState([]);
   const [reportError, setReportError] = useState("");

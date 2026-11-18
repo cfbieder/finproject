@@ -12,6 +12,7 @@ import BalanceReport from "../features/Balances/BalanceReport.jsx";
 import Rest from "../js/rest.js";
 import { exportBalanceSheet } from "../utils/excelExporter.js";
 import "./BalanceV2.css";
+import { useHeaderPeriod, useHeaderPeriodReload } from "../contexts/headerPeriod.js";
 
 // ── Helpers ──
 
@@ -72,9 +73,12 @@ const getToday = () => {
 // ── Component ──
 
 export default function BalanceV2() {
+  // CR105 S2 — in the Workbench layout the header month sets the period.
+  const hp = useHeaderPeriod();
   const [periodDates, setPeriodDates] = useState(() => {
+    const first = hp ? hp.asOf : getToday();
     const today = getToday();
-    return [today, today, today];
+    return [first, today, today];
   });
   const [periodCount, setPeriodCount] = useState(1);
   const [balanceReports, setBalanceReports] = useState([]);
@@ -112,6 +116,11 @@ export default function BalanceV2() {
     initialRequested.current = true;
     handleGenerateReport();
   }, [handleGenerateReport]);
+
+  useHeaderPeriodReload(
+    (p) => setPeriodDates((d) => [p.asOf, ...d.slice(1)]),
+    handleGenerateReport
+  );
 
   // ── Collapse / Expand ──
   const collapsiblePaths = useMemo(

@@ -5,6 +5,7 @@ import "./PageLayout.css";
 import "../features/Balances/BalanceDateSelector.css";
 import CashFlowReport from "../features/CashFlow/CashFlowReport.jsx";
 import CashFlowDateSelectorMonthYear from "../features/CashFlow/CashFlowDateSelectorMonthYear.jsx";
+import { useHeaderPeriod, useOnHeaderPeriodChange } from "../contexts/headerPeriod.js";
 
 /**
  * Recursively collects paths to all collapsible nodes in the account tree.
@@ -115,13 +116,20 @@ const getMonthEnd = () => {
  */
 export default function CashFlow() {
 
+  // CR105 S2 — in the Workbench layout the header month sets the period.
+  const hp = useHeaderPeriod();
   const [fromDates, setFromDates] = useState(() => {
     const start = getMonthStart();
-    return [start, start, start];
+    return [hp ? hp.monthStart : start, start, start];
   });
   const [toDates, setToDates] = useState(() => {
     const end = getMonthEnd();
-    return [end, end, end];
+    return [hp ? hp.monthEnd : end, end, end];
+  });
+  // Loads on its own when the dates change; the header sets period 1 to its month.
+  useOnHeaderPeriodChange((p) => {
+    setFromDates((d) => [p.monthStart, ...d.slice(1)]);
+    setToDates((d) => [p.monthEnd, ...d.slice(1)]);
   });
   const [periodCount, setPeriodCount] = useState(1);
   const [reports, setReports] = useState([]);

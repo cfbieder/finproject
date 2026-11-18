@@ -8,6 +8,7 @@ import CashFlowReport from "../features/CashFlow/CashFlowReport.jsx";
 import CashFlowDateSelectorMonthYearOne from "../features/CashFlow/CashFlowDateSelectorMonthYearOneP.jsx";
 import HierarchyFilter from "../components/HierarchyFilter/HierarchyFilter.jsx";
 import { useCoa } from "../hooks/useCoa.js";
+import { useHeaderPeriod, useHeaderPeriodReload } from "../contexts/headerPeriod.js";
 import {
   buildCategoryFilterGroups,
   buildAccountFilterGroups,
@@ -181,8 +182,10 @@ export default function CashFlowByAccount() {
   );
   const accountGroups = useMemo(() => buildAccountFilterGroups(bsTree), [bsTree]);
 
-  const [fromDates, setFromDates] = useState(() => [getYearStart()]);
-  const [toDates, setToDates] = useState(() => [getMonthEnd()]);
+  // CR105 S2 — in the Workbench layout the header month sets the period.
+  const hp = useHeaderPeriod();
+  const [fromDates, setFromDates] = useState(() => [hp ? hp.yearStart : getYearStart()]);
+  const [toDates, setToDates] = useState(() => [hp ? hp.monthEnd : getMonthEnd()]);
   const [reports, setReports] = useState([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -372,6 +375,11 @@ export default function CashFlowByAccount() {
   const hasReport =
     Array.isArray(reports?.[0]) && (reports?.[0]?.length ?? 0) > 0;
 
+  // January to the end of the header month.
+  useHeaderPeriodReload((p) => {
+    setFromDates([p.yearStart]);
+    setToDates([p.monthEnd]);
+  }, handleGenerateReport);
   return (
     <>
       <main className="page-main balance-grid balance-grid--single">

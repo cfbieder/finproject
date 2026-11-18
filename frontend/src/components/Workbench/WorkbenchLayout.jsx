@@ -15,6 +15,8 @@ import Rest from "../../js/rest.js";
 import finMark from "../../assets/fin-mark.svg";
 import { WORKBENCH_SECTIONS, findWorkbenchTab } from "./sections";
 import { setNavLayout } from "./navLayout";
+import HeaderPeriodPicker from "./HeaderPeriodPicker";
+import { HeaderPeriodProvider } from "../../contexts/HeaderPeriodContext";
 import "./Workbench.css";
 
 const isDev = import.meta.env.DEV || import.meta.env.VITE_APP_MODE === "dev";
@@ -82,6 +84,7 @@ export default function WorkbenchLayout({ children }) {
   const isDark = theme === "dark";
 
   return (
+    <HeaderPeriodProvider>
     <div className="app-layout wb">
       <nav className={`wb-rail${isDev ? " wb-rail--dev" : ""}`} aria-label="Sections">
         <Link className="wb-rail__brand" to="/" title={`Fin v${version}${isDev ? " DEV" : ""}`}>
@@ -139,6 +142,7 @@ export default function WorkbenchLayout({ children }) {
             </nav>
           )}
           <div className="wb-top__right">
+            {tab?.period && <HeaderPeriodPicker />}
             <button
               type="button"
               className="wb-top__cmd"
@@ -168,5 +172,6 @@ export default function WorkbenchLayout({ children }) {
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       <HelpPanel open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
+    </HeaderPeriodProvider>
   );
 }

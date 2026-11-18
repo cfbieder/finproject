@@ -5,6 +5,9 @@
  * table (config/routes.jsx) stays the source of the pages themselves — this
  * file only groups them. sections.test.js fails if a nav route is missing here
  * or a tab points at a path the router does not have.
+ *
+ * `period: true` marks a tab whose page follows the header month (CR105 S2);
+ * the header shows the month picker only on those tabs.
  */
 import {
   Home,
@@ -31,7 +34,7 @@ export const WORKBENCH_SECTIONS = [
     label: "Transactions",
     icon: Receipt,
     tabs: [
-      { path: "/trans-actual", label: "Actuals" },
+      { path: "/trans-actual", label: "Actuals", period: true },
       { path: "/trans-budget", label: "Budget" },
       { path: "/ledger", label: "Ledger" },
       { path: "/transfer-analysis", label: "Transfers" },
@@ -49,7 +52,7 @@ export const WORKBENCH_SECTIONS = [
       { path: "/budget-worksheet", label: "Worksheet" },
       { path: "/budget-le", label: "Latest Estimate" },
       { path: "/budget-builder", label: "Builder" },
-      { path: "/budget-vs-actual", label: "Analysis" },
+      { path: "/budget-vs-actual", label: "Analysis", period: true },
       { path: "/budget-fx", label: "FX rates" },
     ],
   },
@@ -74,10 +77,10 @@ export const WORKBENCH_SECTIONS = [
     label: "Wealth",
     icon: BarChart3,
     tabs: [
-      { path: "/balances", label: "Balances" },
-      { path: "/cash-flow", label: "Cash flow" },
-      { path: "/net-worth-drivers", label: "Net worth drivers" },
-      { path: "/category-trend", label: "Category trend" },
+      { path: "/balances", label: "Balances", period: true },
+      { path: "/cash-flow", label: "Cash flow", period: true },
+      { path: "/net-worth-drivers", label: "Net worth drivers", period: true },
+      { path: "/category-trend", label: "Category trend", period: true },
     ],
   },
   {

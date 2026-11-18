@@ -12,6 +12,7 @@ import { buildForecastBalanceForYear } from "../features/Forecast/utils/fcBalanc
 import { scenarioOptions } from "../features/Forecast/utils/scenarioOptions.js";
 import "../components/ReportTable.css";
 import "./BalanceV2.css";
+import { useHeaderPeriod, useOnHeaderPeriodChange } from "../contexts/headerPeriod.js";
 
 /**
  * Balances → Forecast: today's actual balance sheet against a scenario's forecast balance sheet
@@ -37,7 +38,10 @@ const isEmptyRow = (a, f) => Math.abs(a ?? 0) < 0.5 && Math.abs(f ?? 0) < 0.5;
 export default function BalanceForecast() {
   const { scenarios, selectedScenario, setSelectedScenario, isLoading: scenariosLoading, loadError } =
     useScenarios();
-  const [asOfDate, setAsOfDate] = useState(getToday);
+  // CR105 S2 — in the Workbench layout the header month sets the period.
+  const hp = useHeaderPeriod();
+  const [asOfDate, setAsOfDate] = useState(() => (hp ? hp.asOf : getToday()));
+  useOnHeaderPeriodChange((p) => setAsOfDate(p.asOf));
 
   const scenarioObj = useMemo(
     () => scenarios.find((s) => s.Name === selectedScenario),
