@@ -21,6 +21,21 @@ const queryClient = new QueryClient({
   },
 })
 
+// A deploy replaces the hashed page chunks, and the auto-updating service worker
+// drops the old ones, so a tab left open across a deploy 404s on the first page
+// it had not loaded yet ("Failed to fetch dynamically imported module", seen
+// 2026-11-18 after v3.96.0). It is mid-navigation, so reload once onto the new
+// build. A second failure within a minute shows the error instead of looping.
+window.addEventListener('vite:preloadError', (event) => {
+  const KEY = 'chunkReloadAt'
+  let last = 0
+  try { last = Number(sessionStorage.getItem(KEY)) || 0 } catch { /* storage blocked */ }
+  if (Date.now() - last < 60_000) return
+  try { sessionStorage.setItem(KEY, String(Date.now())) } catch { /* storage blocked */ }
+  event.preventDefault()
+  window.location.reload()
+})
+
 // Set browser tab color based on environment
 const isDev = import.meta.env.VITE_APP_MODE === 'dev';
 const themeColor = isDev ? '#f59e0b' : '#1a1f36'; // Yellow/amber for dev, dark blue for prod
