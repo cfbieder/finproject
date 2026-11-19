@@ -159,7 +159,7 @@ describe("useGoChords", () => {
         <Nav />
         <Routes>
           <Route path="/" element={<p>home</p>} />
-          <Route path="/budget-worksheet" element={<p>budget</p>} />
+          <Route path="/budget-vs-actual" element={<p>budget</p>} />
         </Routes>
       </MemoryRouter>
     );
