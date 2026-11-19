@@ -10,6 +10,7 @@
  * the header shows the month picker only on those tabs.
  *
  * `go` is the section's keyboard jump (CR105 S5): g, then that letter.
+ * The FIRST tab is where the rail icon and the g-jump land, so order matters.
  */
 import {
   Home,
@@ -36,10 +37,9 @@ export const WORKBENCH_SECTIONS = [
     label: "Transactions",
     icon: Receipt,
     tabs: [
-      { path: "/trans-actual", label: "Actuals", period: true },
-      { path: "/trans-budget", label: "Budget" },
       { path: "/ledger", label: "Ledger" },
       { path: "/transfer-analysis", label: "Transfers" },
+      { path: "/trans-actual", label: "Actuals", period: true },
       { path: "/manual-entry", label: "Manual entry" },
       { path: "/balance-calibration", label: "Calibration" },
       { path: "/manual-calibration", label: "Manual calibration" },
@@ -51,10 +51,12 @@ export const WORKBENCH_SECTIONS = [
     label: "Budget",
     icon: Calculator,
     tabs: [
-      { path: "/budget-worksheet", label: "Worksheet" },
+      { path: "/budget-vs-actual", label: "Analysis", period: true },
       { path: "/budget-le", label: "Latest Estimate" },
       { path: "/budget-builder", label: "Builder" },
-      { path: "/budget-vs-actual", label: "Analysis", period: true },
+      { path: "/budget-worksheet", label: "Worksheet" },
+      // The budget rows the Builder publishes and the Worksheet edits.
+      { path: "/trans-budget", label: "Transactions" },
       { path: "/budget-fx", label: "FX rates" },
     ],
   },

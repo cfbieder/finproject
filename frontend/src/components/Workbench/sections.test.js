@@ -37,4 +37,11 @@ describe("Workbench sections (CR105 S1)", () => {
     expect(findWorkbenchTab("/budget").section).toBeNull();
     expect(findWorkbenchTab("/nowhere").section).toBeNull();
   });
+
+  it("lands each section on its first tab, and budget rows live under Budget", () => {
+    const first = (key) => WORKBENCH_SECTIONS.find((s) => s.key === key).tabs[0].path;
+    expect(first("budget")).toBe("/budget-vs-actual");
+    expect(first("tx")).toBe("/ledger");
+    expect(findWorkbenchTab("/trans-budget").section.key).toBe("budget");
+  });
 });
