@@ -371,6 +371,21 @@ function BudgetBuilder() {
   const shownLineCount = visibleRows.filter((r) => r.kind !== "group").length;
   const itemisedOn = useMemo(() => new Map((view?.lines || [])
     .filter((l) => l.policy === "itemised").map((l) => [l.categoryId, l.currency])), [view]);
+  // What a line can roll into: USD (created if missing) or another currency line of its category that
+  // neither rolls itself nor is itemised — the server refuses the rest.
+  const rollTargets = useMemo(() => {
+    const byCat = new Map();
+    for (const l of view?.lines || []) {
+      if (!byCat.has(l.categoryId)) byCat.set(l.categoryId, []);
+      byCat.get(l.categoryId).push(l);
+    }
+    return (l) => {
+      const sib = (byCat.get(l.categoryId) || []).filter((s) => s.id !== l.id);
+      const blocked = new Set(sib.filter((s) => s.rolledInto || s.policy === "itemised").map((s) => s.currency));
+      return [...new Set(["USD", ...sib.map((s) => s.currency)])]
+        .filter((c) => c !== l.currency && !blocked.has(c));
+    };
+  }, [view]);
   const hasPublished = (b) => b.status === "superseded" || b.status === "unpublished";
   const canPublish = shown && (isDraft || hasPublished(shown.build));
   const readersNote = (readers) =>
@@ -620,29 +635,32 @@ function BudgetBuilder() {
                           {l.policy !== "itemised" && itemisedOn.has(l.categoryId) && (l.policy === "one_off"
                             ? <span className="bb-muted"> · itemised on the {itemisedOn.get(l.categoryId)} line</span>
                             : <span className="bb-flag"> ⚠ also itemised on the {itemisedOn.get(l.categoryId)} line — counted twice</span>)}
-                          {l.rolledIntoUsd && <span className="bb-muted"> · rolled into the USD line</span>}
-                          {l.rolledInUsd != null && <span className="bb-muted"> · includes {fmt(l.rolledInUsd)} rolled in</span>}
+                          {l.rolledInto && <span className="bb-muted"> · rolled into the {l.rolledInto} line</span>}
+                          {l.rolledIn != null && <span className="bb-muted"> · includes {fmt(l.rolledIn)} rolled in</span>}
                         </td>
                         <td>
                           {l.currency}
-                          {/* Roll a non-USD line into the category's USD line: budgeted once, in USD. */}
-                          {isDraft && l.currency !== "USD" && l.policy !== "itemised" && !l.inactive && (
-                            <button type="button" className="bb-linkish bb-roll" disabled={busy} aria-pressed={l.rolledIntoUsd}
-                              aria-label={`${l.category} (${l.currency}) ${l.rolledIntoUsd ? "budget on its own again" : "roll into the USD line"}`}
-                              title={l.rolledIntoUsd ? "Rolled into the USD line — click to budget it on its own again"
-                                : "Roll into the category's USD line: its estimate joins the USD line's, at the build's rate"}
-                              onClick={() => patchLine(l.id, { rolledIntoUsd: !l.rolledIntoUsd })}>
-                              {l.rolledIntoUsd ? "↩ unroll" : "→ USD"}
-                            </button>
+                          {/* Roll a line into another currency line of its category: budgeted once, in that currency.
+                              A line that takes rolls in cannot itself roll. */}
+                          {isDraft && l.policy !== "itemised" && !l.inactive && l.rolledIn == null
+                            && (l.rolledInto || rollTargets(l).length > 0) && (
+                            <select className={`bb-roll${l.rolledInto ? " bb-rolled" : ""}`} value={l.rolledInto || ""} disabled={busy}
+                              aria-label={`${l.category} (${l.currency}) roll into`}
+                              title="Roll into another currency line of this category: its estimate joins that line's, at the build's rates"
+                              onChange={(e) => patchLine(l.id, { rolledInto: e.target.value || null })}>
+                              <option value="">{l.rolledInto ? "↩ unroll" : "roll…"}</option>
+                              {[...new Set([...(l.rolledInto ? [l.rolledInto] : []), ...rollTargets(l)])]
+                                .map((c) => <option key={c} value={c}>→ {c}</option>)}
+                            </select>
                           )}
                         </td>
-                        {/* A USD line with lines rolled in shows the combined estimate its figure grows from. */}
-                        <td className={`num ${neg(l.rolledInUsd != null ? l.baseLe : l.leFy) || ""} ${l.rolledIntoUsd ? "bb-muted" : ""}`}
-                          title={l.rolledInUsd != null ? `Own ${fmt(l.leFy)} + rolled in ${fmt(l.rolledInUsd)}` : undefined}>
-                          {fmt(l.rolledInUsd != null ? l.baseLe : l.leFy)}
+                        {/* A line with lines rolled in shows the combined estimate its figure grows from. */}
+                        <td className={`num ${neg(l.rolledIn != null ? l.baseLe : l.leFy) || ""} ${l.rolledInto ? "bb-muted" : ""}`}
+                          title={l.rolledIn != null ? `Own ${fmt(l.leFy)} + rolled in ${fmt(l.rolledIn)}` : undefined}>
+                          {fmt(l.rolledIn != null ? l.baseLe : l.leFy)}
                         </td>
                         <td>
-                          {l.rolledIntoUsd ? <span className="bb-muted">Rolled → USD</span> : isDraft ? (
+                          {l.rolledInto ? <span className="bb-muted">Rolled → {l.rolledInto}</span> : isDraft ? (
                             <select value={l.policy} aria-label={`${l.category} policy`} disabled={busy}
                               onChange={(e) => {
                                 const policy = e.target.value;
@@ -659,7 +677,7 @@ function BudgetBuilder() {
                           ) : POLICIES.find((p) => p.value === l.policy)?.label}
                         </td>
                         <td className="num">
-                          {l.rolledIntoUsd ? "" : l.policy === "recurring" && isDraft ? (
+                          {l.rolledInto ? "" : l.policy === "recurring" && isDraft ? (
                             <input key={`i${l.id}-${l.inflationPct}-${rev}`} type="number" step="0.1" className="bb-num-input"
                               aria-label={`${l.category} inflation override`} defaultValue={l.inflationPct ?? ""}
                               placeholder={fmt(shown.rates.inflation?.rate, 1)} disabled={busy}
@@ -671,7 +689,7 @@ function BudgetBuilder() {
                           ) : l.policy === "recurring" ? fmt(l.effectiveInflationPct, 1) : ""}
                         </td>
                         <td className="num">
-                          {l.rolledIntoUsd ? "" : l.policy === "fixed" && isDraft ? (
+                          {l.rolledInto ? "" : l.policy === "fixed" && isDraft ? (
                             <input key={`f${l.id}-${l.fixedAmount}-${rev}`} type="number" step="1" className="bb-num-input"
                               aria-label={`${l.category} fixed amount, ${l.currency}, signed`} defaultValue={l.fixedAmount ?? ""}
                               disabled={busy} onKeyDown={commitOnEnter} onWheel={blurOnWheel}

@@ -9,8 +9,9 @@
  *      remembered in `budget_category_policy` at publish, so next year's build starts from it;
  *   3. inflation and FX from a forecast scenario, resolved for the target year by the engine's own
  *      `rateAtYear`, so a carried-forward rate is the engine's and the grid can say where it came from;
- *   3b. a non-USD line may be ROLLED into the category's USD line: it contributes 0 and its estimate,
- *      at the build's rate, joins the USD line's base (remembered at publish, like the policy);
+ *   3b. a line may be ROLLED into another currency line of its category (USD, or e.g. PLN into EUR):
+ *      it contributes 0 and its estimate, at the build's rates, joins the target line's base
+ *      (remembered at publish, like the policy);
  *   4. an ACCOUNT and MONTH split from the last twelve actual months (the LE's `actual_through`
  *      is the window's end — the LE's own declaration of what is actual);
  *   5. PUBLISH replaces every budget row of the target year in one transaction, snapshots what it
@@ -347,10 +348,10 @@ async function createBuild({ targetYear, sourceLeId, scenarioName, parentBuildId
     const useMemory = (cat) => remembered.has(cat) && !parentCats.has(cat);
     const insertLine = async (l) => (await client.query(
       `INSERT INTO budget_build_lines
-         (build_id, category_id, currency, le_fy, policy, fixed_amount, inflation_pct, split_method, split_month, split_weights, done, rolled_into_usd)
+         (build_id, category_id, currency, le_fy, policy, fixed_amount, inflation_pct, split_method, split_month, split_weights, done, rolled_into)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::numeric[], $11, $12) RETURNING id`,
       [build.id, l.category_id, l.currency, l.le_fy, l.policy, l.fixed_amount, l.inflation_pct, l.split_method, l.split_month, l.split_weights, l.done ?? false,
-       Boolean(l.rolled_into_usd) && String(l.currency).trim() !== 'USD']
+       l.rolled_into && l.rolled_into.trim() !== String(l.currency).trim() ? l.rolled_into.trim() : null]
     )).rows[0].id;
     const copyItems = async (lineId, items) => {
       for (const [i, it] of items.entries()) {
@@ -416,8 +417,8 @@ async function createBuild({ targetYear, sourceLeId, scenarioName, parentBuildId
         split_month: from ? from.split_month : (pol?.split_month ?? null),
         split_weights: from ? from.split_weights : (pol?.split_weights ?? null),
         done: from?.done ?? false,
-        // Rolled into USD: the parent build decides; without one, what the category last published.
-        rolled_into_usd: cur !== 'USD' && (from ? from.rolled_into_usd : (pol?.roll_into_usd || []).includes(cur)),
+        // Rolled: the parent build decides; without one, what the category last published.
+        rolled_into: from ? from.rolled_into : (pol?.roll_into?.[cur] ?? null),
       });
     }
     for (const [key, from] of parentLines) {
@@ -439,19 +440,20 @@ async function createBuild({ targetYear, sourceLeId, scenarioName, parentBuildId
       meant.add(categoryId);
       await itemisedLine({ category_id: categoryId, currency: mem.currency, le_fy: 0, done: false }, mem.items);
     }
-    // A rolled line needs a USD line to roll into: one is created at estimate 0, Recurring.
-    const { rows: noUsd } = await client.query(
-      `SELECT DISTINCT ON (r.category_id) r.category_id, r.currency, r.policy, r.inflation_pct
+    // A rolled line needs a line to roll into: one is created at estimate 0, Recurring.
+    const { rows: noTarget } = await client.query(
+      `SELECT DISTINCT ON (r.category_id, r.rolled_into) r.category_id, r.currency, r.rolled_into, r.policy, r.inflation_pct
          FROM budget_build_lines r
-        WHERE r.build_id = $1 AND r.rolled_into_usd
+        WHERE r.build_id = $1 AND r.rolled_into IS NOT NULL
           AND NOT EXISTS (SELECT 1 FROM budget_build_lines u
-                           WHERE u.build_id = r.build_id AND u.category_id = r.category_id AND TRIM(u.currency) = 'USD')
-        ORDER BY r.category_id, r.id`, [build.id]
+                           WHERE u.build_id = r.build_id AND u.category_id = r.category_id AND u.currency = r.rolled_into)
+        ORDER BY r.category_id, r.rolled_into, r.id`, [build.id]
     );
-    for (const r of noUsd) {
-      await insertLine({ category_id: r.category_id, currency: 'USD', le_fy: 0, policy: 'recurring', fixed_amount: null,
+    for (const r of noTarget) {
+      const to = r.rolled_into.trim();
+      await insertLine({ category_id: r.category_id, currency: to, le_fy: 0, policy: 'recurring', fixed_amount: null,
         inflation_pct: r.policy === 'recurring' ? r.inflation_pct : null, split_method: 'auto', split_month: null, split_weights: null });
-      notices.push(`${await catName(r.category_id)}: a USD line was added for its ${r.currency.trim()} line to roll into`);
+      notices.push(`${await catName(r.category_id)}: a ${to} line was added for its ${r.currency.trim()} line to roll into`);
     }
     const lost = [...meant].filter((c) => !itemisedCats.has(c));
     if (lost.length) {
@@ -564,40 +566,55 @@ async function updateLine(buildId, lineId, patch) {
     if (patch.splitWeights !== undefined) next.split_weights = checkWeights(patch.splitWeights);
     if (next.split_method === 'custom' && !next.split_weights) throw err(400, 'Give at least one month a weight above zero');
     if (next.split_method !== 'custom') next.split_weights = null;
-    if (patch.rolledIntoUsd !== undefined) {
-      if (typeof patch.rolledIntoUsd !== 'boolean') throw err(400, 'rolledIntoUsd must be true or false');
-      next.rolled_into_usd = patch.rolledIntoUsd;
-      if (next.rolled_into_usd && !line.rolled_into_usd) await rollTarget(client, buildId, line, next);
+    if (patch.rolledInto !== undefined) {
+      if (patch.rolledInto !== null && !ROLL_CURRENCIES.has(patch.rolledInto)) {
+        throw err(400, `rolledInto must be null or one of ${[...ROLL_CURRENCIES].join(', ')}`);
+      }
+      next.rolled_into = patch.rolledInto;
+      if (next.rolled_into && next.rolled_into !== line.rolled_into?.trim()) await rollTarget(client, buildId, line, next);
     }
 
     await client.query(
       `UPDATE budget_build_lines SET policy = $2, fixed_amount = $3, inflation_pct = $4,
-              split_method = $5, split_month = $6, split_weights = $7::numeric[], rolled_into_usd = $8 WHERE id = $1`,
+              split_method = $5, split_month = $6, split_weights = $7::numeric[], rolled_into = $8 WHERE id = $1`,
       [lineId, next.policy, next.fixed_amount, next.inflation_pct, next.split_method, next.split_month, next.split_weights,
-       next.rolled_into_usd]
+       next.rolled_into?.trim() || null]
     );
     await client.query('UPDATE budget_builds SET updated_at = NOW() WHERE id = $1', [buildId]);
   });
 }
 
+/** The currencies a line can roll into — the builder's line currencies (migration 093's CHECK). */
+const ROLL_CURRENCIES = new Set(['USD', 'PLN', 'EUR']);
+
 /**
- * Check a line can roll into its category's USD line, creating that USD line (estimate 0, Recurring
- * at the rolled line's inflation override) when the category has none. An itemised line converts
- * its own items, and an itemised USD line takes no base — add the amount as an item there instead.
+ * Check a line can roll into another currency line of its category, creating that line (estimate 0,
+ * Recurring at the rolled line's inflation override) when the category has none. One level only: a
+ * line that takes rolls in cannot roll, and a rolled line cannot take them. An itemised line converts
+ * its own items, and an itemised target takes no base — add the amount as an item there instead.
  */
 async function rollTarget(client, buildId, line, next) {
-  if (String(line.currency).trim() === 'USD') throw err(400, 'A USD line has nothing to roll into');
+  const own = String(line.currency).trim();
+  const to = next.rolled_into;
+  if (to === own) throw err(400, `A ${own} line cannot roll into itself`);
   if (next.policy === 'itemised') throw err(400, 'An itemised line converts its own items — change its policy first');
-  const usd = (await client.query(
-    `SELECT id, policy FROM budget_build_lines WHERE build_id = $1 AND category_id = $2 AND TRIM(currency) = 'USD'`,
-    [buildId, line.category_id]
-  )).rows[0];
-  if (usd?.policy === 'itemised') throw err(400, 'The USD line is itemised — add this as an item there instead');
-  if (!usd) {
+  const { rows: siblings } = await client.query(
+    `SELECT id, TRIM(currency) AS currency, policy, TRIM(rolled_into) AS rolled_into
+       FROM budget_build_lines WHERE build_id = $1 AND category_id = $2 AND id <> $3`,
+    [buildId, line.category_id, line.id]
+  );
+  const into = siblings.filter((s) => s.rolled_into === own);
+  if (into.length) {
+    throw err(400, `The ${into.map((s) => s.currency).join(' and ')} line rolls into this one — unroll it first`);
+  }
+  const target = siblings.find((s) => s.currency === to);
+  if (target?.policy === 'itemised') throw err(400, `The ${to} line is itemised — add this as an item there instead`);
+  if (target?.rolled_into) throw err(400, `The ${to} line is itself rolled into ${target.rolled_into} — roll into that instead`);
+  if (!target) {
     await client.query(
       `INSERT INTO budget_build_lines (build_id, category_id, currency, le_fy, policy, inflation_pct, split_method)
-       VALUES ($1, $2, 'USD', 0, 'recurring', $3, 'auto')`,
-      [buildId, line.category_id, next.policy === 'recurring' ? next.inflation_pct : null]
+       VALUES ($1, $2, $3, 0, 'recurring', $4, 'auto')`,
+      [buildId, line.category_id, to, next.policy === 'recurring' ? next.inflation_pct : null]
     );
   }
 }
@@ -679,11 +696,11 @@ async function setLineItems(buildId, lineId, body) {
     }
     await client.query(
       `UPDATE budget_build_lines SET policy = 'itemised', fixed_amount = NULL, inflation_pct = NULL,
-              split_method = 'auto', split_month = NULL, split_weights = NULL, rolled_into_usd = FALSE WHERE id = $1`, [lineId]
+              split_method = 'auto', split_month = NULL, split_weights = NULL, rolled_into = NULL WHERE id = $1`, [lineId]
     );
     const setOneOff = (await client.query(
-      `UPDATE budget_build_lines SET policy = 'one_off', done = FALSE, rolled_into_usd = FALSE
-        WHERE build_id = $1 AND category_id = $2 AND id <> $3 AND (policy <> 'one_off' OR rolled_into_usd)
+      `UPDATE budget_build_lines SET policy = 'one_off', done = FALSE, rolled_into = NULL
+        WHERE build_id = $1 AND category_id = $2 AND id <> $3 AND (policy <> 'one_off' OR rolled_into IS NOT NULL)
         RETURNING id, currency`, [buildId, line.category_id, lineId]
     )).rows.map((r) => ({ lineId: r.id, currency: r.currency.trim() }));
     await client.query('UPDATE budget_builds SET updated_at = NOW() WHERE id = $1', [buildId]);
@@ -788,15 +805,17 @@ async function getBuild(id, client = db) {
     itemsByLine.get(it.line_id).push({ description: it.description, currency: it.currency.trim(), months: it.months.map(Number) });
   }
 
-  // A rolled line's estimate, at the build's rate, joins its category's USD line base — the same rate
-  // its own figure would have been valued at, so rolling a line with the USD line's policy moves no
-  // USD total. Null when a rate is missing: unknown, never 0.
-  const rolledIn = new Map(); // category_id → USD
+  // A rolled line's estimate, at the build's rates, joins its target line's base — the same rates its
+  // own figure would have been valued at, so rolling a line with the target's policy moves no USD
+  // total. Null when a rate is missing: unknown, never 0.
+  const rolledIn = new Map(); // `category_id|target currency` → amount in the target currency
   for (const l of lines) {
-    if (!l.rolled_into_usd || l.inactive) continue;
-    const rate = rates.fx[l.currency.trim()]?.rate;
-    const prev = rolledIn.has(l.category_id) ? rolledIn.get(l.category_id) : 0;
-    rolledIn.set(l.category_id, prev == null || !rate ? null : round2(prev + Number(l.le_fy) / rate));
+    if (!l.rolled_into || l.inactive) continue;
+    const key = `${l.category_id}|${l.rolled_into.trim()}`;
+    const from = rates.fx[l.currency.trim()]?.rate;
+    const to = rates.fx[l.rolled_into.trim()]?.rate;
+    const prev = rolledIn.has(key) ? rolledIn.get(key) : 0;
+    rolledIn.set(key, prev == null || !from || !to ? null : round2(prev + (Number(l.le_fy) / from) * to));
   }
 
   const tree = await accountsRepo.getNestedTree({ section: 'profit_loss' });
@@ -808,11 +827,12 @@ async function getBuild(id, client = db) {
     // CR101: a line whose account is inactive from the target year (or earlier) is hidden on the page
     // and, on a draft, reads 0 — so it writes no cells, adds nothing to a total and blocks nothing.
     // A stored build shows what it stored.
-    // A rolled line reads 0: its estimate is budgeted on the USD line.
-    const receives = l.currency.trim() === 'USD' && rolledIn.has(l.category_id);
-    const into = receives ? rolledIn.get(l.category_id) : 0; // null: a rolled line's rate is missing
-    const base = l.rolled_into_usd ? 0 : into == null ? null : round2(Number(l.le_fy) + into);
-    const annual = stored ? round2(l.annual_amount) : l.inactive || l.rolled_into_usd ? 0
+    // A rolled line reads 0: its estimate is budgeted on its target line.
+    const key = `${l.category_id}|${l.currency.trim()}`;
+    const receives = rolledIn.has(key);
+    const into = receives ? rolledIn.get(key) : 0; // null: a rolled line's rate is missing
+    const base = l.rolled_into ? 0 : into == null ? null : round2(Number(l.le_fy) + into);
+    const annual = stored ? round2(l.annual_amount) : l.inactive || l.rolled_into ? 0
       : base == null && l.policy === 'recurring' ? null : annualFor({ ...l, le_fy: base }, rates, months);
     const fx = rates.fx[l.currency];
     let usd = null;
@@ -829,7 +849,7 @@ async function getBuild(id, client = db) {
       inflationPct: num(l.inflation_pct), effectiveInflationPct: l.policy === 'recurring'
         ? (l.inflation_pct != null ? Number(l.inflation_pct) : rates.inflation?.rate ?? null) : null,
       splitMethod: l.split_method, splitMonth: l.split_month, splitWeights: l.split_weights?.map(Number) ?? null,
-      rolledIntoUsd: l.rolled_into_usd, rolledInUsd: receives ? into : null, baseLe: base,
+      rolledInto: l.rolled_into?.trim() ?? null, rolledIn: receives ? into : null, baseLe: base,
       annual, annualUsd: usd, vsLe: annual == null || base == null ? null : round2(annual - base),
       thisYearBudget: round2(l.this_year_budget),
       vsThisYear: annual == null ? null : round2(annual - Number(l.this_year_budget)),
@@ -1049,7 +1069,7 @@ function policyLines(lines, fx) {
     const isItem = (x) => x.policy === 'itemised';
     // An Itemised line speaks for its category whatever the siblings' estimates (CR100 §4.4):
     // its siblings are One-off, and remembering one of them would lose the itemisation.
-    const beats = !held || (Boolean(l.rolled_into_usd) !== Boolean(held.rolled_into_usd) ? !l.rolled_into_usd
+    const beats = !held || (Boolean(l.rolled_into) !== Boolean(held.rolled_into) ? !l.rolled_into
       : isItem(l) !== isItem(held) ? isItem(l)
       : usdLe(l) > usdLe(held) || (usdLe(l) === usdLe(held) && l.currency < held.currency));
     if (beats) best.set(l.category_id, l);
@@ -1060,21 +1080,21 @@ function policyLines(lines, fx) {
 /** What next year's build starts from: the build that was actually published, draft or restore. */
 async function rememberPolicies(client, buildId, fx) {
   const lines = (await client.query('SELECT * FROM budget_build_lines WHERE build_id = $1', [buildId])).rows;
-  const rolls = new Map(); // category_id → the currencies it rolls into USD
+  const rolls = new Map(); // category_id → { rolled currency: target currency }
   for (const l of lines) {
-    if (!rolls.has(l.category_id)) rolls.set(l.category_id, []);
-    if (l.rolled_into_usd) rolls.get(l.category_id).push(l.currency.trim());
+    if (!rolls.has(l.category_id)) rolls.set(l.category_id, {});
+    if (l.rolled_into) rolls.get(l.category_id)[l.currency.trim()] = l.rolled_into.trim();
   }
   for (const l of policyLines(lines, fx)) {
     await client.query(
-      `INSERT INTO budget_category_policy (category_id, policy, inflation_override_pct, split_override, split_month, split_weights, items_line_id, roll_into_usd, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6::numeric[], $7, $8::text[], NOW())
+      `INSERT INTO budget_category_policy (category_id, policy, inflation_override_pct, split_override, split_month, split_weights, items_line_id, roll_into, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6::numeric[], $7, $8::jsonb, NOW())
        ON CONFLICT (category_id) DO UPDATE SET policy = EXCLUDED.policy,
          inflation_override_pct = EXCLUDED.inflation_override_pct, split_override = EXCLUDED.split_override,
          split_month = EXCLUDED.split_month, split_weights = EXCLUDED.split_weights,
-         items_line_id = EXCLUDED.items_line_id, roll_into_usd = EXCLUDED.roll_into_usd, updated_at = NOW()`,
+         items_line_id = EXCLUDED.items_line_id, roll_into = EXCLUDED.roll_into, updated_at = NOW()`,
       [l.category_id, l.policy, l.inflation_pct, l.split_method, l.split_month, l.split_weights,
-       l.policy === 'itemised' ? l.id : null, rolls.get(l.category_id).sort()]
+       l.policy === 'itemised' ? l.id : null, JSON.stringify(rolls.get(l.category_id))]
     );
   }
 }
