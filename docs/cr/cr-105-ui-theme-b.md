@@ -209,7 +209,7 @@ The owner asked to finish both now rather than after the 2026-12-10 publish (D4'
 - **Left in place, deliberately:** each page's "no Workbench" fallback (its old modal, `BalanceV2` for the Summary).
   They are now unreachable on desktop; removing them is a cleanup, not part of the cut-over (roadmap §2).
 
-### Tails closed (v3.101.0, 2026-11-19)
+### Tails closed (v3.102.0, 2026-11-19)
 
 - **Classic fallbacks removed:** `BalanceV2`, the cash-flow `TransactionModal`, and the overlay variants of
   `BudgetDetailModal` / `FCReviewBreakdownModal`. The overlay `TransactionEditModal` stays (TransBudget, Ledger).
