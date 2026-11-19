@@ -10,7 +10,7 @@
  * them), read from the table's data-row-id attributes. Outside the Workbench
  * layout the hook is inert and the rows pass through unfiltered.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useInspector } from "../../../contexts/inspector.js";
 import { isTypingTarget } from "../../../components/Workbench/keys.js";
 
@@ -41,10 +41,13 @@ export default function useReviewInbox({ rows, active, onAccept, onCategory, bus
 
   const latest = useRef({});
   const cursorAt = useRef(null);
-  useEffect(() => {
+  // Layout effects, not passive ones: the key listener is a window listener, so a key can land
+  // after the cursor has been drawn but before a passive effect runs — and act on the old row
+  // (CI caught `a` accepting r1 twice, v3.101.0).
+  useLayoutEffect(() => {
     cursorAt.current = cursorId;
   }, [cursorId]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     latest.current = { filtered, shownCursor, onAccept, onCategory, busy };
   });
 
