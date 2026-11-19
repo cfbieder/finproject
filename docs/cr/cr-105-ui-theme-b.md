@@ -115,7 +115,7 @@ effect pass read the old period (found by the live test: Balances asked for toda
 
 ### S3 as built — Balances Summary in B's layout
 
-`pages/BalanceWorkbench.jsx` (Workbench layout only; `Balances.jsx` keeps `BalanceV2` for the classic layout).
+`pages/BalanceWorkbench.jsx` (Workbench layout only; `Balances.jsx` keeps `BalanceV2` for the classic layout — removed v3.102.0, see *Tails closed*).
 - **Twelve month-end balance reports** ending at the header month (TanStack `["balanceReport", date]`, shared with
   Home and the other balance views) drive the hero line and every row's sparkline. Loads on open; no *Generate*.
 - **Hero:** net worth, its change and % since the same month a year earlier (13 month-ends — the UI review caught that 12 points span only 11 months), assets and liabilities, and the line in `--primary`; axis ticks in compact dollars with parentheses for a negative.
@@ -132,7 +132,7 @@ effect pass read the old period (found by the live test: Balances asked for toda
 ### S4 as built — the inspector
 
 `contexts/inspector.js` (hook) + `InspectorContext.jsx` (provider, panel, `InspectorPortal`), mounted only by
-`WorkbenchLayout`; outside it `useInspector()` is null and every page opens its modal exactly as before.
+`WorkbenchLayout`; outside it `useInspector()` is null and every page opens its modal exactly as before (moot since v3.100.0; the modal paths were removed v3.102.0, see *Tails closed*).
 - **Two ways in:** `open({ key, title, content })` for a read-only snapshot (the same key again closes it; it shows
   only on the page it was opened on), and `<InspectorPortal>` for content the page keeps live (a form). ✕ and Esc
   close; Esc inside a field in the panel, or with a dialog on top, is left alone. Focus goes to the panel title and
@@ -206,10 +206,14 @@ The owner asked to finish both now rather than after the 2026-12-10 publish (D4'
   tabs and keys. The deleted sidebar took one `set-state-in-effect` violation with it (ratchet 31 → 30).
 - **e2e:** the full suite passes (10/10, twice). `real-terms.spec.js` failed once — a one-shot `innerText()` read
   raced the re-render — and now uses retrying assertions.
-- **Left in place, deliberately:** each page's "no Workbench" fallback (its old modal, `BalanceV2` for the Summary).
+- **Left in place, deliberately:** each page's "no Workbench" fallback (its old modal, `BalanceV2` for the Summary) — removed v3.102.0, see *Tails closed*.
   They are now unreachable on desktop; removing them is a cleanup, not part of the cut-over (roadmap §2).
 
 ### Tails closed (v3.102.0, 2026-11-19)
+
+- **Tab order (v3.102.2, owner request):** Budget opens on Analysis (Analysis · Latest Estimate · Builder · Worksheet ·
+  Transactions `/trans-budget` · FX rates — the budget rows moved here from the Transactions section); Transactions
+  opens on Ledger (Ledger · Transfers · Actuals · …). The rail and `g` jump land on a section's first tab.
 
 - **Classic fallbacks removed:** `BalanceV2`, the cash-flow `TransactionModal`, and the overlay variants of
   `BudgetDetailModal` / `FCReviewBreakdownModal`. The overlay `TransactionEditModal` stays (TransBudget, Ledger).
