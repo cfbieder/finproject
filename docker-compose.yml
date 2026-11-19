@@ -87,7 +87,6 @@ services:
         VITE_APP_VERSION: ${VITE_APP_VERSION:-2.0.0}
         VITE_APP_MODE: prod
         VITE_APP_API: ""
-        VITE_NAV_LAYOUT: sidebar
         # Build provenance (Known Issue #17) — see server above.
         GIT_SHA: ${GIT_SHA:-unknown}
         GIT_DIRTY: ${GIT_DIRTY:-unknown}

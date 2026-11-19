@@ -1,7 +1,9 @@
-# CR105 — UI theme B ("Workbench" palette, Inter, flat, compact) — IN-PROGRESS (P1 live v3.94.0)
+# CR105 — UI theme B ("Workbench" palette, Inter, flat, compact) — COMPLETED (v3.94.0–v3.100.0)
 
-**Status:** IN-PROGRESS 2026-11-18 — **P1 (tokens) LIVE v3.94.0.** Owner D3 (2026-11-18): build the
-full Workbench structure in **stages S1–S6 (§5)**, each gated by an owner walkthrough. **S1 (shell) LIVE v3.95.0, walked through — no comments (2026-11-18). S2 (one period) LIVE v3.96.0, walked through. S3 (B's Balances) LIVE v3.97.0, walked through. S4 (inspector) LIVE v3.98.0, walked through. S5 (keyboard) LIVE v3.99.0. S6 split (D4): **S6a (page headers) built**; S6b (builder) after 12-10; S6c (cut-over) last.** Roadmap: [§1.1 CR105](../current/project-roadmap.md#cr105).
+**Status:** ✅ **COMPLETED 2026-11-19** — theme B (P1, v3.94.0) and the whole Workbench structure, shipped in
+stages each walked through by the owner (D3): S1 shell v3.95.0 · S2 one period v3.96.0 · S3 Balances v3.97.0 · S4
+inspector v3.98.0 · S5 keyboard v3.99.0 · **S6a page headers, S6b builder, S6c cut-over v3.100.0** (owner, 2026-11-19:
+"finish S6b and S6c then close", superseding D4's timing). Workbench is now the only desktop layout. Roadmap: [§1.1 CR105](../current/project-roadmap.md#cr105).
 **Track:** v3 · **Migrations:** none · **Depends on:** CR042 (tokens, self-hosted font), CR086 (money
 contrast values), CR087 (the money format).
 
@@ -85,7 +87,7 @@ default and retires the sidebar. Desktop only: phones keep `mobile/`.
 | **S3 — Balances** ✅ v3.97.0 | B's Balances: net-worth hero with a 12-month line and change, inline totals, a **12-month sparkline** per row, a **reconcile column** (✓ / drift chip), loads on open (no *Generate*), title-case header. | Rows keep the chart-of-accounts groups; the mock's groups were invented. Negatives stay `(1,234)` (D2). |
 | **S4 — inspector** ✅ v3.98.0 | A 340px right-hand panel replaces drill-down modals: a transaction, a cash-flow figure, a forecast line. Esc closes it. | The builder's item drill-down joins after 12-10. |
 | **S5 — inbox** ✅ v3.99.0 | Refresh Feeds becomes a keyboard inbox: `j`/`k` move, `a` accepts, `c` categorises, `/` searches, `g`+letter jumps. | |
-| **S6 — pages + cut-over** (D4: S6a now · S6b builder after 12-10 · S6c cut-over last) | The rest of the pages in B's header style (Today, Transactions views, Budget Analysis, Investments, Forecast), the builder after 12-10, then Workbench becomes the default and the sidebar is retired. | Builder work only after the 2026-12-10 publish. |
+| **S6 — pages + cut-over** ✅ v3.100.0 | The rest of the pages in B's header style (Today, Transactions views, Budget Analysis, Investments, Forecast), the builder after 12-10, then Workbench becomes the default and the sidebar is retired. | Builder work only after the 2026-12-10 publish. |
 
 **The budget builder is frozen 2026-12-03 → 12-10**: no stage touches builder files before the 2027 publish.
 
@@ -189,3 +191,20 @@ the classic layout is untouched:
 - **Fixed in both layouts — a P1 defect:** the Investments bars' track read `--accent-lighter`, which theme B made a
   strong indigo, so track and fill were hard to tell apart; it now reads `--accent-subtle`.
 - Forecast pages title themselves with the scenario bar (no `h1`) and are unchanged.
+
+### S6b and S6c as built (v3.100.0, 2026-11-19)
+
+The owner asked to finish both now rather than after the 2026-12-10 publish (D4's timing).
+- **S6b — the builder in the Workbench:** **no builder code changed**, which is what made it safe two weeks before
+  the publish. The builder already renders in the shell (Budget section tabs, the S6a header, both themes — checked
+  read-only on prod data). Its three dialogs stay dialogs on purpose: *Items* is an editor, *Compare forecast* and
+  *Cash flow* (CR104's moves) are wide reports — none is a drill-down, and none fits a 340px panel.
+- **S6c — the cut-over:** `Layout.jsx` always renders `WorkbenchLayout` on desktop (phones keep `mobile/`). Deleted:
+  `Sidebar/`, `TopStrip`, `NavigationMenu`, `Breadcrumbs`, the `navLayout` switch and its *Try Workbench* /
+  *Classic layout* buttons, and the `VITE_NAV_LAYOUT` build argument (Dockerfile, compose, `.env-cmdrc.example`).
+  A browser still carrying `navLayout=sidebar` gets the Workbench (checked). The Help panel now describes the rail,
+  tabs and keys. The deleted sidebar took one `set-state-in-effect` violation with it (ratchet 31 → 30).
+- **e2e:** the full suite passes (10/10, twice). `real-terms.spec.js` failed once — a one-shot `innerText()` read
+  raced the re-render — and now uses retrying assertions.
+- **Left in place, deliberately:** each page's "no Workbench" fallback (its old modal, `BalanceV2` for the Summary).
+  They are now unreachable on desktop; removing them is a cleanup, not part of the cut-over (roadmap §2).

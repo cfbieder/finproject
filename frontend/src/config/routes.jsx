@@ -569,8 +569,8 @@ export const routes = [
   // register.
   //
   // Registered by `category` rather than hand-wired into the sidebar, so it
-  // appears in BOTH nav shells — the CR026 navLayout flag defaults to `legacy`
-  // on prod, and a sidebar-only entry would be invisible there.
+  // appears wherever the route table is read (the Workbench sections, the
+  // command palette, the phone's All Pages list).
   {
     path: "/investments",
     component: Investments,

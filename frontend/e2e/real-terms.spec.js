@@ -38,12 +38,13 @@ test.describe("CR079 — the plan in today's money", () => {
     // figures alone must still say what money it is in.
     await expect(page.getByText(/All figures on this page are in/i)).toBeVisible();
 
-    const after = await anyAmount.innerText();
-    expect(after).not.toBe(before);   // something actually happened
+    // Retrying assertions: a one-shot innerText() read raced the re-render (CR105 S6c —
+    // passed on a rerun, failed once reading "5,000" where the cell was briefly not yet back).
+    await expect(anyAmount).not.toHaveText(before);   // something actually happened
 
     // And it comes back: the toggle is not a one-way door.
     await toggle.uncheck();
     await expect(page.getByText(/All figures on this page are in/i)).toHaveCount(0);
-    expect(await anyAmount.innerText()).toBe(before);
+    await expect(anyAmount).toHaveText(before);
   });
 });

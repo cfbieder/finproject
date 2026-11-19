@@ -1,12 +1,12 @@
 /**
  * CR105 S1 — the Workbench shell: a 56px icon rail, the current section's
  * pages as header tabs, and the ⌘K palette / help drawer from CR026.
- * Selected per browser with localStorage.navLayout = "workbench" (Layout.jsx).
+ * The only desktop layout since S6c (Layout.jsx).
  * Pages render unchanged inside .page-shell.
  */
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { HelpCircle, Moon, Search, Sun, PanelLeft } from "lucide-react";
+import { HelpCircle, Moon, Search, Sun } from "lucide-react";
 import CommandPalette from "../CommandPalette/CommandPalette";
 import HelpPanel from "../HelpPanel/HelpPanel";
 import Footer from "../Footer";
@@ -14,7 +14,6 @@ import useTheme from "../../hooks/useTheme";
 import Rest from "../../js/rest.js";
 import finMark from "../../assets/fin-mark.svg";
 import { WORKBENCH_SECTIONS, findWorkbenchTab } from "./sections";
-import { setNavLayout } from "./navLayout";
 import HeaderPeriodPicker from "./HeaderPeriodPicker";
 import ShortcutsSheet from "./ShortcutsSheet";
 import { isTypingTarget, useGoChords } from "./keys";
@@ -128,15 +127,6 @@ export default function WorkbenchLayout({ children }) {
             aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
           >
             {isDark ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
-          <button
-            type="button"
-            className="wb-rail__item"
-            onClick={() => setNavLayout("sidebar")}
-            title="Classic layout"
-            aria-label="Switch to the classic layout"
-          >
-            <PanelLeft size={18} />
           </button>
         </div>
       </nav>

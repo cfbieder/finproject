@@ -6,13 +6,15 @@
  * Esc / scrim click. Mounted in the sidebar layout (live in prod since v3.0.0).
  */
 import { useEffect } from "react";
-import { X, Command, Moon, PanelLeftClose, HelpCircle } from "lucide-react";
+import { X, Command, Moon, HelpCircle } from "lucide-react";
 import "./HelpPanel.css";
 
 const SHORTCUTS = [
   { keys: ["⌘", "K"], label: "Open the command palette (jump to any page or action)" },
   { keys: ["↑", "↓"], label: "Move through palette results; Enter opens" },
-  { keys: ["Esc"], label: "Close the palette, this panel, or any dialog" },
+  { keys: ["Esc"], label: "Close the palette, this panel, any dialog, or the side panel" },
+  { keys: ["g", "…"], label: "Jump to a section (g b Budget, g w Wealth …)" },
+  { keys: ["?"], label: "Every keyboard shortcut" },
 ];
 
 const GLOSSARY = [
@@ -74,8 +76,10 @@ export default function HelpPanel({ open, onClose }) {
             <h3 className="help-panel__h">Getting around</h3>
             <p className="help-panel__p">
               Use the <Command size={13} /> command palette (<kbd className="help-panel__kbd">⌘K</kbd>) to
-              jump straight to any page or run a quick action. Toggle <Moon size={13} /> light/dark and
-              collapse the sidebar (<PanelLeftClose size={13} />) from its footer.
+              jump straight to any page or run a quick action. The rail on the left holds the sections;
+              each section's pages are the tabs along the top, and <kbd className="help-panel__kbd">g</kbd> then a
+              letter jumps between sections (<kbd className="help-panel__kbd">?</kbd> lists them). Toggle{" "}
+              <Moon size={13} /> light/dark from the foot of the rail.
             </p>
           </section>
 
