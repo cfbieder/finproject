@@ -1,6 +1,6 @@
 /**
- * CR105 S3 — Balances Summary in Proposal B's layout (Workbench layout only;
- * the classic layout keeps BalanceV2).
+ * CR105 S3 — Balances Summary in Proposal B's layout (the only Summary since
+ * S6c retired the classic layout and its BalanceV2).
  *
  * - Reads the header month (S2): the balance sheet as of it, and the 12
  *   month-ends ending there. Loads on open; there is no Generate.

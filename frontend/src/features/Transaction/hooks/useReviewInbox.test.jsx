@@ -42,6 +42,12 @@ function Inbox({ onAccept, onCategory, rows = ROWS }) {
 const wrap = (ui, workbench = true) =>
   render(<MemoryRouter>{workbench ? <InspectorProvider>{ui}</InspectorProvider> : ui}</MemoryRouter>);
 const press = (key) => act(() => fireEvent.keyDown(window, { key }));
+// An accept is async (the page's PATCH): fire it inside act and let its promise
+// settle there, rather than poll for the result under a loaded test run.
+const pressAsync = (key, init = {}) =>
+  act(async () => {
+    fireEvent.keyDown(window, { key, ...init });
+  });
 
 describe("useReviewInbox", () => {
   it("j / k move a cursor through the rows as drawn", async () => {
@@ -60,11 +66,10 @@ describe("useReviewInbox", () => {
     const onAccept = vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false);
     wrap(<Inbox onAccept={onAccept} onCategory={vi.fn()} />);
     press("j");
-    press("a");
+    await pressAsync("a");
     expect(onAccept).toHaveBeenCalledWith("r1", ROWS[0].entry);
     await waitFor(() => expect(screen.getByText("> r2")).toBeTruthy());
-    press("a"); // e.g. the no-offset warning was cancelled
-    await act(async () => {});
+    await pressAsync("a"); // e.g. the no-offset warning was cancelled
     expect(onAccept).toHaveBeenLastCalledWith("r2", ROWS[1].entry);
     expect(screen.getByText("> r2")).toBeTruthy();
   });
@@ -123,10 +128,9 @@ describe("inbox safety (the S5 review's must-fixes)", () => {
     const onAccept = vi.fn().mockResolvedValue(true);
     wrap(<Inbox onAccept={onAccept} onCategory={vi.fn()} />);
     press("j");
-    press("a");
+    await pressAsync("a");
     await waitFor(() => expect(screen.getByText("> r2")).toBeTruthy());
-    act(() => fireEvent.keyDown(window, { key: "a", repeat: true }));
-    await act(async () => {});
+    await pressAsync("a", { repeat: true });
     expect(onAccept).toHaveBeenCalledTimes(1);
   });
 

@@ -132,19 +132,15 @@ export default function BudgetVariances() {
   // a full table of 100%-favourable variances with no error anywhere.
   const [actualsError, setActualsError] = useState(false);
   const [budgetsError, setBudgetsError] = useState(false);
-  const [entryDetail, setEntryDetail] = useState(null);
-  // CR105 S4 — in the Workbench layout a figure's entries open in the side inspector.
+  // A figure's entries open in the Workbench's side inspector (CR105 S4).
   const inspOpen = useInspector()?.open;
   const showEntryDetail = useCallback((d) => {
-    if (!inspOpen) {
-      setEntryDetail(d);
-      return;
-    }
+    if (!inspOpen) return;
     const range = [d.period?.start, d.period?.end].map((x) => (x instanceof Date ? x.toDateString() : String(x)));
     inspOpen({
       key: `bd:${d.type}:${(d.categories || [d.name]).join("|")}:${range.join("-")}`,
       title: `${d.type === "actual" ? "Actual" : "Budget"} · ${d.pathLabel || d.name || "Category"}`,
-      content: <BudgetDetailModal detail={d} variant="inspector" />,
+      content: <BudgetDetailModal detail={d} />,
     });
   }, [inspOpen]);
 
@@ -551,10 +547,6 @@ export default function BudgetVariances() {
           </section>
         </div>
       </div>
-      <BudgetDetailModal
-        detail={entryDetail}
-        onClose={() => setEntryDetail(null)}
-      />
     </main>
   );
 }

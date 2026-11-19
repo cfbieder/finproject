@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import PropTypes from "prop-types";
-import Rest from "../../js/rest.js";
-import TransactionModal from "./TransactionModal.jsx";
 import CashFlowDrill from "./CashFlowDrill.jsx";
 import { useInspector } from "../../contexts/inspector.js";
 import "../../components/ReportTable.css";
@@ -228,13 +226,6 @@ export default function CashFlowReport({
     ? periodLabels.slice(0, activeReports.length)
     : [];
   const [categoryColumnWidth, setCategoryColumnWidth] = useState(260);
-  const [transactionModal, setTransactionModal] = useState({
-    isOpen: false,
-    isLoading: false,
-    transactions: [],
-    error: "",
-    title: "",
-  });
   const [highlightedRows, setHighlightedRows] = useState(new Set());
   const tableRef = useRef(null);
   const dragCleanup = useRef(() => {});
@@ -262,12 +253,9 @@ export default function CashFlowReport({
 
   const inspector = useInspector();
 
-  const closeTransactionModal = () => {
-    setTransactionModal((prev) => ({ ...prev, isOpen: false }));
-  };
 
   // Handle double-click on value cells to load transactions
-  const handleValueDoubleClick = async (node, pathKey, periodIndex) => {
+  const handleValueDoubleClick = (node, pathKey, periodIndex) => {
     const period = activePeriods[periodIndex];
     if (!period || !period.fromDate || !period.toDate) {
       return;
@@ -305,50 +293,15 @@ export default function CashFlowReport({
       toDate: period.toDate,
     };
 
-    // CR105 S4 — the Workbench layout shows the figure in the side inspector.
-    if (inspector) {
-      inspector.open({
-        key: `cf:${currencyMode}:${JSON.stringify(query)}`,
-        title,
-        content: (
-          <CashFlowDrill query={query} title={title} formatCurrency={formatValue} currencyMode={currencyMode} />
-        ),
-      });
-      return;
-    }
-
-    setTransactionModal({
-      isOpen: true,
-      isLoading: true,
-      transactions: [],
-      error: "",
+    // A figure's transactions open in the Workbench's side inspector (CR105 S4; the
+    // classic modal went with the classic layout in S6c).
+    inspector?.open({
+      key: `cf:${currencyMode}:${JSON.stringify(query)}`,
       title,
+      content: (
+        <CashFlowDrill query={query} title={title} formatCurrency={formatValue} currencyMode={currencyMode} />
+      ),
     });
-
-    try {
-      const data = await Rest.fetchCashFlowTransactions({
-        categories,
-        accounts: filterAccounts,
-        fromDate: period.fromDate,
-        toDate: period.toDate,
-      });
-      const transactions = Array.isArray(data?.transactions)
-        ? data.transactions
-        : Array.isArray(data)
-        ? data
-        : [];
-      setTransactionModal((prev) => ({
-        ...prev,
-        isLoading: false,
-        transactions,
-      }));
-    } catch (error) {
-      setTransactionModal((prev) => ({
-        ...prev,
-        isLoading: false,
-        error: error?.message ?? "Failed to load transactions",
-      }));
-    }
   };
 
   // Handle column resizing
@@ -518,14 +471,6 @@ export default function CashFlowReport({
         <p className="balance-report-empty">
           Generate a report to view the cash flow details.
         </p>
-      )}
-      {transactionModal.isOpen && (
-        <TransactionModal
-          transactionModal={transactionModal}
-          onClose={closeTransactionModal}
-          formatCurrency={formatValue}
-          currencyMode={currencyMode}
-        />
       )}
     </section>
   );

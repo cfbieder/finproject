@@ -6,14 +6,15 @@ import "./PageLayout.css";
 import "../features/Forecast/FCModulesFilter.css";
 
 const LINE_TYPES = [
-  { value: "unassigned", label: "Unassigned", color: "#A0AEB9" },
-  { value: "bs_module_expense", label: "BS Module - Expense", color: "#C0504D" },
-  { value: "bs_module_income", label: "BS Module - Income", color: "#5B8C5B" },
-  { value: "forecast_expense", label: "Forecast Expense", color: "#f97316" },
-  { value: "forecast_income", label: "Forecast Income", color: "#7FA37F" },
+  // Theme tokens, so the type stripes follow light and dark (CR105 tail).
+  { value: "unassigned", label: "Unassigned", color: "var(--border-strong)" },
+  { value: "bs_module_expense", label: "BS Module - Expense", color: "var(--chart-rose)" },
+  { value: "bs_module_income", label: "BS Module - Income", color: "var(--chart-emerald)" },
+  { value: "forecast_expense", label: "Forecast Expense", color: "var(--chart-amber)" },
+  { value: "forecast_income", label: "Forecast Income", color: "var(--chart-teal)" },
 ];
 
-const typeColor = (t) => LINE_TYPES.find((lt) => lt.value === t)?.color || "#A0AEB9";
+const typeColor = (t) => LINE_TYPES.find((lt) => lt.value === t)?.color || "var(--border-strong)";
 
 const fmt = (v) =>
   v != null

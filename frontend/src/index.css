@@ -17,7 +17,7 @@
   --ink-secondary: #334155;
   --ink-tertiary: #475569;
   --muted: #5E6A7D;
-  --muted-light: #94A3B8;
+  --muted-light: #5F6D82; /* CR105 tail: was #94A3B8 (2.2:1); AA on every ground leaves no room below --muted */
 
   /* Primary Brand — indigo (CR105 P1, Proposal B). The brand moved OFF green so green
      means only "up / reconciled" (--success); it was sage #6B8E6B until v3.92. */
@@ -238,7 +238,7 @@
   --ink-secondary: #AAB3C0;
   --ink-tertiary: #8F99A8;
   --muted: #858FA0;
-  --muted-light: #5B6573;
+  --muted-light: #828B99; /* CR105 tail: was #5B6573 (2.7:1) */
 
   /* Primary — lifted so it reads on dark */
   --primary: #8C98FF;

@@ -203,6 +203,10 @@
   font-size: 13px;
   color: var(--ink-secondary);
 }
+/* Feed status: a problem reads as one (both classes were used, neither was defined). */
+.m-pill--error { background: var(--danger-subtle); border-color: transparent; color: var(--danger); }
+.m-pill--warn { background: var(--warning-subtle); border-color: transparent; color: var(--warning); }
+.m-page-meta--status { flex-wrap: wrap; justify-content: flex-start; gap: 8px; }
 
 /* Full-width native select (e.g. Ledger account picker). 16px avoids iOS zoom. */
 .m-select {

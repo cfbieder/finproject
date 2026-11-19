@@ -1,4 +1,4 @@
-/** Shared by the cash-flow drill-down modal and its Workbench inspector view (CR105 S4). */
+/** Row formatting for the cash-flow drill-down in the Workbench inspector (CR105 S4). */
 
 // Per-currency formatter cache — the drill-down can mix currencies in original
 // mode, so each row formats in its own currency (a null code ⇒ plain decimal).

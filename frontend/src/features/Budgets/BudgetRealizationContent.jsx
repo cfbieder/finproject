@@ -2,6 +2,7 @@ import { memo } from "react";
 import { DollarSign, TrendingUp, TrendingDown, Target, ChevronDown, ChevronUp } from "lucide-react";
 import PeriodSelector from "../../components/PeriodSelector/PeriodSelector.jsx";
 import { KpiCard, KpiCardRow } from "../../components/KpiCards.jsx";
+import { useChartTheme } from "../../utils/chartTheme.jsx";
 import FyLandingStrip from "./FyLandingStrip.jsx";
 import { LeCompareControl, LeCompareNotes } from "./LeCompare.jsx";
 import "../../components/ReportTable.css";
@@ -32,6 +33,8 @@ function BudgetRealizationContent({
   kpiData,
   fyLanding,
 }) {
+  // KPI mini-charts follow the theme (they were four fixed hex, one not even a token).
+  const chart = useChartTheme();
   const { showBudget, showActual, showLe, varActBud, varLeBud, varActLe } = rowContext;
   const leLabel = compareProps && compareProps.leName ? compareProps.leName : "LE";
   // The seam between SUBJECT and VARIANCE columns hangs off whichever variance
@@ -110,7 +113,7 @@ function BudgetRealizationContent({
               { value: kpiData.incomeActual },
             ]}
             chartType="bar"
-            chartColor="#5B8C5B"
+            chartColor={chart.positive}
           />
           <KpiCard
             title="Expenses"
@@ -124,7 +127,7 @@ function BudgetRealizationContent({
               { value: Math.abs(kpiData.expenseActual) },
             ]}
             chartType="bar"
-            chartColor="#C0504D"
+            chartColor={chart.negative}
           />
           <KpiCard
             title="Net Cash Flow"
@@ -138,7 +141,7 @@ function BudgetRealizationContent({
               { value: kpiData.netActualValue },
             ]}
             chartType="bar"
-            chartColor="#567856"
+            chartColor={chart.seriesAt(0)}
           />
           <KpiCard
             title="Savings Rate"
@@ -157,7 +160,7 @@ function BudgetRealizationContent({
                 : "Not meaningful: income is zero or negative this period"
             }
             chartType="area"
-            chartColor="#8b5cf6"
+            chartColor={chart.seriesAt(4)}
           />
         </KpiCardRow>
       )}

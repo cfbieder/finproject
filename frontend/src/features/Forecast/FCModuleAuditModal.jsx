@@ -80,8 +80,8 @@ function AuditTable({ title, data, preHorizon = {}, periodStart = null, isLocal 
                   if (isAction) {
                     if (cell === "sweep_in") actionColor = "#5B9E9E";
                     else if (cell === "sweep_out") actionColor = "#d97706";
-                    else if (cell === "shortfall") actionColor = "#C0504D";
-                    else if (cell === "deposit") actionColor = "#6B8E6B";
+                    else if (cell === "shortfall") actionColor = "var(--danger)";
+                    else if (cell === "deposit") actionColor = "var(--success)";
                   }
 
                   return (

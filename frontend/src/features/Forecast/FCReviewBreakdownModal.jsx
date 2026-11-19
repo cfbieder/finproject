@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatAmount } from "./utils/fcReviewUtils.js";
-import Modal from "../../components/Modal/Modal.jsx";
 import FCReviewAuditTrailModal from "./FCReviewAuditTrailModal.jsx";
 import FCReviewAdjustTransferModal from "./FCReviewAdjustTransferModal.jsx";
 
@@ -31,16 +30,14 @@ const isSyntheticModule = (name) =>
   typeof name === "string" && name.startsWith("_");
 
 /**
- * `variant="inspector"` (CR105 S4) renders the same entries as a compact list in
- * the Workbench side panel. Its module links and the Modify Transfer editor still
- * open as dialogs on top.
+ * A forecast cell's entries, as a compact list in the Workbench side inspector
+ * (CR105 S4; the overlay version went with the classic layout in S6c). Its module
+ * links and the Modify Transfer editor still open as dialogs on top.
  */
 export default function FCReviewBreakdownModal({
   breakdownModal,
-  onClose,
   scenarioName,
   onTransferComplete,
-  variant = "modal",
 }) {
   const { title, amount, entryTotal, entries = [] } = breakdownModal || {};
   const hasEntries = entries.length > 0;
@@ -172,274 +169,67 @@ export default function FCReviewBreakdownModal({
     </>
   );
 
-  if (variant === "inspector") {
-    const neg = (v) => (Number(v) < 0 ? " insp-amt--neg" : "");
-    return (
-      <div className="insp-drill">
-        <dl className="insp-facts">
-          <dt>Amount</dt>
-          <dd className={`insp-amt${neg(amount)}`}>{formatAmount(amount)}</dd>
-          {hasEntries && (
-            <>
-              <dt>Entries total</dt>
-              <dd className={`insp-amt${neg(entryTotal)}`}>{formatAmount(entryTotal)}</dd>
-            </>
-          )}
-        </dl>
-        {hasEntries ? (
-          <ul className="insp-list">
-            {entries.map((entry, index) => {
-              const editable = isAmountEditable(entry);
-              return (
-                <li key={`${entry?.Account}-${entry?.Year}-${index}`} className="insp-item">
-                  <div className="insp-item__top">
-                    <span className="insp-item__desc">
-                      {entry?.Module ? (
-                        <button
-                          type="button"
-                          className="insp-link"
-                          onClick={() => handleModuleClick(entry.Module)}
-                          disabled={!moduleClickEnabled}
-                          title="Open this module's audit trail"
-                        >
-                          {entry.Module}
-                        </button>
-                      ) : (
-                        entry?.Account || "—"
-                      )}
-                    </span>
-                    {editable ? (
+  const neg = (v) => (Number(v) < 0 ? " insp-amt--neg" : "");
+  return (
+    <div className="insp-drill">
+      <dl className="insp-facts">
+        <dt>Amount</dt>
+        <dd className={`insp-amt${neg(amount)}`}>{formatAmount(amount)}</dd>
+        {hasEntries && (
+          <>
+            <dt>Entries total</dt>
+            <dd className={`insp-amt${neg(entryTotal)}`}>{formatAmount(entryTotal)}</dd>
+          </>
+        )}
+      </dl>
+      {hasEntries ? (
+        <ul className="insp-list">
+          {entries.map((entry, index) => {
+            const editable = isAmountEditable(entry);
+            return (
+              <li key={`${entry?.Account}-${entry?.Year}-${index}`} className="insp-item">
+                <div className="insp-item__top">
+                  <span className="insp-item__desc">
+                    {entry?.Module ? (
                       <button
                         type="button"
-                        className={`insp-link insp-amt${neg(entry?.Amount)}`}
-                        onClick={() => handleAmountClick(entry)}
-                        title="Modify this transfer"
+                        className="insp-link"
+                        onClick={() => handleModuleClick(entry.Module)}
+                        disabled={!moduleClickEnabled}
+                        title="Open this module's audit trail"
                       >
-                        {formatAmount(entry?.Amount)}
+                        {entry.Module}
                       </button>
                     ) : (
-                      <span className={`insp-amt${neg(entry?.Amount)}`}>{formatAmount(entry?.Amount)}</span>
+                      entry?.Account || "—"
                     )}
-                  </div>
-                  <div className="insp-item__meta">
-                    {entry?.Account || "—"} · {entry?.Year ?? "—"}
-                    {entry?.Comment ? ` · ${entry.Comment}` : ""}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <p className="insp-muted">No forecast entries found for this cell.</p>
-        )}
-        {childModals}
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <Modal
-        open={Boolean(breakdownModal?.isOpen)}
-        onClose={onClose}
-        bare
-        closeOnOutside={false}
-        ariaLabel="Forecast entry breakdown"
-      >
-        <div
-          className="trans-budget-edit-modal"
-          style={{
-            width: "min(760px, 95vw)",
-            maxHeight: "75vh",
-            overflowY: "auto",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              gap: "1rem",
-            }}
-          >
-            <div>
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: "0.85rem",
-                  color: "var(--muted)",
-                  letterSpacing: "0.05em",
-                  textTransform: "uppercase",
-                  fontWeight: 700,
-                }}
-              >
-                Entry Breakdown
-              </p>
-              <h3 style={{ margin: "0.25rem 0 0", color: "var(--ink)" }}>
-                {title}
-              </h3>
-              <p
-                style={{
-                  margin: "0.35rem 0 0",
-                  color: "var(--muted)",
-                  fontWeight: 600,
-                }}
-              >
-                Amount:{" "}
-                <span
-                  style={{
-                    color: Number(amount) < 0 ? "var(--danger)" : "var(--ink)",
-                  }}
-                >
-                  {formatAmount(amount)}
-                </span>
-                {hasEntries ? (
-                  <>
-                    {" "}
-                    • Entries total:{" "}
-                    <span
-                      style={{
-                        color:
-                          Number(entryTotal) < 0
-                            ? "var(--danger)"
-                            : "var(--ink)",
-                      }}
+                  </span>
+                  {editable ? (
+                    <button
+                      type="button"
+                      className={`insp-link insp-amt${neg(entry?.Amount)}`}
+                      onClick={() => handleAmountClick(entry)}
+                      title="Modify this transfer"
                     >
-                      {formatAmount(entryTotal)}
-                    </span>
-                  </>
-                ) : null}
-              </p>
-            </div>
-            <button
-              type="button"
-              className="generate-report-button"
-              onClick={onClose}
-            >
-              Close
-            </button>
-          </div>
-          {hasEntries ? (
-            <div style={{ overflowX: "auto" }}>
-              <table className="trans-budget-table">
-                <thead>
-                  <tr>
-                    <th style={{ textAlign: "left" }}>Account</th>
-                    <th style={{ textAlign: "left", minWidth: "120px" }}>
-                      Module
-                    </th>
-                    <th style={{ textAlign: "left", minWidth: "90px" }}>
-                      Year
-                    </th>
-                    <th style={{ textAlign: "left", minWidth: "160px" }}>
-                      Comment
-                    </th>
-                    <th
-                      className="trans-budget-table__value--numeric"
-                      style={{ minWidth: "140px" }}
-                    >
-                      Amount
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {entries.map((entry, index) => (
-                    <tr key={`${entry?.Account}-${entry?.Year}-${index}`}>
-                      <td>{entry?.Account || "-"}</td>
-                      <td>
-                        {entry?.Module ? (
-                          <button
-                            type="button"
-                            onClick={() => handleModuleClick(entry?.Module)}
-                            style={{
-                              background: "none",
-                              border: "none",
-                              padding: 0,
-                              color: moduleClickEnabled
-                                ? "var(--primary)"
-                                : "var(--ink)",
-                              textDecoration: moduleClickEnabled
-                                ? "underline"
-                                : "none",
-                              cursor: moduleClickEnabled
-                                ? "pointer"
-                                : "default",
-                              fontWeight: 600,
-                            }}
-                          >
-                            {entry.Module}
-                          </button>
-                        ) : (
-                          "-"
-                        )}
-                      </td>
-                      <td>{entry?.Year ?? "-"}</td>
-                      <td style={{ whiteSpace: "pre-wrap" }}>
-                        {entry?.Comment || "-"}
-                      </td>
-                      <td
-                        className="trans-budget-table__value--numeric"
-                        style={{
-                          color:
-                            Number(entry?.Amount) < 0
-                              ? "var(--danger)"
-                              : undefined,
-                          ...(isAmountEditable(entry) && {
-                            cursor: "pointer",
-                            textDecoration: "underline dotted",
-                            textDecorationColor: "var(--primary)",
-                            textUnderlineOffset: "3px",
-                          }),
-                        }}
-                        onDoubleClick={
-                          isAmountEditable(entry)
-                            ? () => handleAmountClick(entry)
-                            : undefined
-                        }
-                        onMouseEnter={
-                          isAmountEditable(entry)
-                            ? (e) => {
-                                e.currentTarget.style.backgroundColor =
-                                  "var(--surface-muted)";
-                              }
-                            : undefined
-                        }
-                        onMouseLeave={
-                          isAmountEditable(entry)
-                            ? (e) => {
-                                e.currentTarget.style.backgroundColor = "";
-                              }
-                            : undefined
-                        }
-                        title={
-                          isAmountEditable(entry)
-                            ? "Double-click to modify"
-                            : isSyntheticModule(entry?.Module)
-                              ? "Generated by the engine — click the module name for its audit trail"
-                              : undefined
-                        }
-                      >
-                        {formatAmount(entry?.Amount)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p
-              style={{
-                margin: 0,
-                color: "var(--muted)",
-                fontWeight: 600,
-              }}
-            >
-              No forecast entries found for this cell.
-            </p>
-          )}
-        </div>
-      </Modal>
+                      {formatAmount(entry?.Amount)}
+                    </button>
+                  ) : (
+                    <span className={`insp-amt${neg(entry?.Amount)}`}>{formatAmount(entry?.Amount)}</span>
+                  )}
+                </div>
+                <div className="insp-item__meta">
+                  {entry?.Account || "—"} · {entry?.Year ?? "—"}
+                  {entry?.Comment ? ` · ${entry.Comment}` : ""}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="insp-muted">No forecast entries found for this cell.</p>
+      )}
       {childModals}
-    </>
+    </div>
   );
+
 }

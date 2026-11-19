@@ -51,22 +51,16 @@ import FCStepNav from "../features/Forecast/FCStepNav.jsx";
 import FCAnchorBadge from "../features/Forecast/FCAnchorBadge.jsx"; // CR064 §3.3
 import "./PageLayout.css";
 import { useInspector } from "../contexts/inspector.js";
+import { useChartTheme } from "../utils/chartTheme.jsx";
 import "./FCReview.css";   // CR079 — the real-terms control and banner
 
-const GRAPH_COLORS = [
-  "#6B8E6B",
-  "#5B9E9E",
-  "#C4923A",
-  "#C0504D",
-  "#8B7BB5",
-  "#5B7B9A",
-];
-
-const BAR_CHART_COLORS = [
-  "#6B8E6B", "#5B9E9E", "#C4923A", "#C0504D", "#8B7BB5",
-  "#5B7B9A", "#9B7B9B", "#D4A74E", "#5B8C5B", "#B5637B",
-  "#6B7BB5", "#8BAF5B", "#5BA5B5", "#9B7BB5", "#C07B8B",
-  "#7FA37F", "#C06363", "#7B9EB5", "#B5A03A", "#6BBFBF",
+// Chart colours come from the theme (useChartTheme resolves the --chart-* tokens
+// per theme; Recharts writes SVG attributes, which cannot read a CSS variable).
+// A stacked breakdown can have more accounts than the 7 tokens, so these extra
+// mid-tone hues follow them; they read on both grounds.
+const BAR_EXTRA_COLORS = [
+  "#9B7B9B", "#D4A74E", "#B5637B", "#6B7BB5", "#8BAF5B", "#5BA5B5",
+  "#9B7BB5", "#C07B8B", "#7FA37F", "#C06363", "#7B9EB5", "#B5A03A", "#6BBFBF",
 ];
 
 /**
@@ -110,6 +104,9 @@ export default function FCReview() {
     entriesError,
     reload: reloadForecastData,
   } = useForecastData(selectedScenario);
+
+  const chartTheme = useChartTheme();
+  const barPalette = useMemo(() => [...chartTheme.series, ...BAR_EXTRA_COLORS], [chartTheme]);
 
   // CR053: auto-adjust (solve a uniform spend cut that funds the plan)
   const [autoAdjustOpen, setAutoAdjustOpen] = useState(false);
@@ -320,13 +317,6 @@ export default function FCReview() {
   const [generateLoading, setGenerateLoading] = useState(false);
   const [generateError, setGenerateError] = useState("");
   const [generateResult, setGenerateResult] = useState(null);
-  const [breakdownModal, setBreakdownModal] = useState({
-    isOpen: false,
-    title: "",
-    amount: null,
-    entryTotal: 0,
-    entries: [],
-  });
   const [cashTransferModal, setCashTransferModal] = useState({
     isOpen: false,
     title: "",
@@ -1252,7 +1242,7 @@ export default function FCReview() {
         entryTotal,
         entries: sortedList,
       };
-      // CR105 S4 — the Workbench layout shows the line in the side inspector.
+      // The line's entries open in the Workbench's side inspector (CR105 S4).
       if (inspOpen) {
         inspOpen({
           key: `fc:${selectedScenario}:${row.label}:${year}:${isCashSection ? "c" : "b"}`,
@@ -1260,7 +1250,6 @@ export default function FCReview() {
           content: (
             <FCReviewBreakdownModal
               breakdownModal={next}
-              variant="inspector"
               scenarioName={selectedScenario}
               onTransferComplete={() => {
                 transferCompleteRef.current?.();
@@ -1269,9 +1258,7 @@ export default function FCReview() {
             />
           ),
         });
-        return;
       }
-      setBreakdownModal(next);
     },
     [
       inspOpen,
@@ -1284,10 +1271,6 @@ export default function FCReview() {
       balanceDisplayValues,
     ]
   );
-
-  const closeBreakdownModal = useCallback(() => {
-    setBreakdownModal((prev) => ({ ...prev, isOpen: false }));
-  }, []);
 
   const handleCashTransferClick = useCallback((row, year) => {
     setCashTransferModal({
@@ -1302,8 +1285,7 @@ export default function FCReview() {
   }, []);
 
   const handleTransferComplete = useCallback(() => {
-    // Close all modals
-    setBreakdownModal((prev) => ({ ...prev, isOpen: false }));
+    // Close the transfer modal (the inspector closes itself)
     setCashTransferModal((prev) => ({ ...prev, isOpen: false }));
     // Reload forecast data after transfer
     reloadForecastData();
@@ -1385,7 +1367,7 @@ export default function FCReview() {
         // Balance side only: the P&L's actuals and budget have no module attribution, so
         // there is nothing honest to put under a level-2 P&L row's leaves.
         baseLeafValues: isCash ? undefined : baseLeafValuesByYear,
-        palette: BAR_CHART_COLORS,
+        palette: barPalette,
         // The Expense row is displayed net of Transfers (getCellValue subtracts them, and
         // Transfers gets its own row), so its breakdown must drop them too — otherwise the
         // stack totals to a number the row above it doesn't show.
@@ -1417,6 +1399,7 @@ export default function FCReview() {
       leafValuesByAccount,
       baseLeafValuesByYear,
       cashValueCtx,
+      barPalette,
     ]
   );
 
@@ -1425,13 +1408,13 @@ export default function FCReview() {
       id: `net-assets-${acct.label}`,
       label: acct.label,
       values: acct.values,
-      color: BAR_CHART_COLORS[idx % BAR_CHART_COLORS.length],
+      color: barPalette[idx % barPalette.length],
     }));
     setSelectedSeries(barSeries);
     setBreakdownLabel("Net Assets");
     setGraphMode("bar");
     setGraphModalOpen(true);
-  }, [netAssetsAccountBreakdown]);
+  }, [netAssetsAccountBreakdown, barPalette]);
 
   const handleCloseGraph = useCallback(() => {
     setGraphModalOpen(false);
@@ -1667,11 +1650,11 @@ export default function FCReview() {
       selectedSeries.map((series, index) => ({
         ...series,
         // Keep a series' own color when it has one (stacked breakdowns pick from
-        // BAR_CHART_COLORS); only line series fall back to the 6-color line palette.
-        color: series.color ?? GRAPH_COLORS[index % GRAPH_COLORS.length],
+        // the bar palette); line series take the theme's series colours.
+        color: series.color ?? chartTheme.seriesAt(index),
         hasModule: fcExpByLabel.has(series.label) || fcModulesByLabel.has(series.label),
       })),
-    [selectedSeries, fcExpByLabel, fcModulesByLabel]
+    [selectedSeries, fcExpByLabel, fcModulesByLabel, chartTheme]
   );
 
   return (
@@ -1843,12 +1826,6 @@ export default function FCReview() {
           onZoomOut={handleZoomOut}
         />
       </main>
-      <FCReviewBreakdownModal
-        breakdownModal={breakdownModal}
-        onClose={closeBreakdownModal}
-        scenarioName={selectedScenario}
-        onTransferComplete={handleTransferComplete}
-      />
       <FCCashTransferModal
         isOpen={cashTransferModal.isOpen}
         onClose={closeCashTransferModal}

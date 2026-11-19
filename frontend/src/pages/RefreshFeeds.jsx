@@ -25,6 +25,7 @@ import "./PageLayout.css";
 import EmptyState from "../components/EmptyState.jsx";
 import "./RefreshFeeds.css";
 import useReviewInbox from "../features/Transaction/hooks/useReviewInbox.js";
+import { feedStatusItems } from "../utils/feedStatus.js";
 
 const reviewConfig = REVIEW_CONFIG;
 
@@ -71,40 +72,8 @@ export default function RefreshFeeds() {
    **************************/
 
   const fetchFeedStatus = useCallback(async () => {
-    const ago = (hours) =>
-      hours < 1 ? "less than an hour ago" : hours < 48 ? `${hours}h ago` : `${Math.floor(hours / 24)} days ago`;
     try {
-      const s = await Rest.fetchJson("/api/v2/util/attention-summary");
-      const items = [];
-      const svc = s?.feedService;
-      if (!svc) {
-        items.push({ type: "warning", message: "Feed service status unavailable — bank-feed could not be asked." });
-      } else if (svc.stalled) {
-        items.push({
-          type: "error",
-          message: `Feeds stalled: last successful sync ${ago(svc.hoursSinceSync)}${svc.lastError ? ` — ${svc.lastError}` : ""}`,
-        });
-      } else {
-        items.push({
-          type: "info",
-          message: `Feeds last synced ${ago(svc.hoursSinceSync)} (${new Date(svc.lastSyncAt).toLocaleString()})`,
-        });
-      }
-      const stale = s?.staleFeeds?.count ?? 0;
-      if (stale > 0) {
-        items.push({
-          type: "warning",
-          message: `${stale} account${stale === 1 ? "" : "s"} not synced by the bank in 3+ days (oldest ${s.staleFeeds.worstDays} days)`,
-        });
-      }
-      const reconnect = s?.needsReconnect?.count ?? 0;
-      if (reconnect > 0) {
-        items.push({
-          type: "error",
-          message: `${reconnect} bank connection${reconnect === 1 ? " needs" : "s need"} reconnecting (consent expired)`,
-        });
-      }
-      setFeedStatus(items);
+      setFeedStatus(feedStatusItems(await Rest.fetchJson("/api/v2/util/attention-summary")));
     } catch (error) {
       setFeedStatus([{ type: "error", message: error?.message ?? "Unable to load feed status." }]);
     }

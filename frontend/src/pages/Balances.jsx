@@ -1,6 +1,5 @@
 import { lazy } from "react";
 import ReportTabs from "../components/ReportTabs/ReportTabs.jsx";
-import { useHeaderPeriod } from "../contexts/headerPeriod.js";
 
 /**
  * Balances (CR042 U5) — the consolidated balance-sheet report.
@@ -11,13 +10,7 @@ import { useHeaderPeriod } from "../contexts/headerPeriod.js";
  * Each tab renders the existing page component unchanged — pure IA/routing.
  */
 
-const SummaryClassic = lazy(() => import("./BalanceV2"));
-const SummaryWorkbench = lazy(() => import("./BalanceWorkbench"));
-
-/** CR105 S3 — the Workbench layout gets Proposal B's Summary; classic keeps BalanceV2. */
-function Summary() {
-  return useHeaderPeriod() ? <SummaryWorkbench /> : <SummaryClassic />;
-}
+const Summary = lazy(() => import("./BalanceWorkbench")); // CR105 S3; the only Summary since S6c
 const Periods = lazy(() => import("./BalanceSheetPeriods"));
 const Trends = lazy(() => import("./BalanceTrends"));
 const Chart = lazy(() => import("./BalanceChart"));

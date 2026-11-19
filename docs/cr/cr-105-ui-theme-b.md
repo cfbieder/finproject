@@ -208,3 +208,18 @@ The owner asked to finish both now rather than after the 2026-12-10 publish (D4'
   raced the re-render — and now uses retrying assertions.
 - **Left in place, deliberately:** each page's "no Workbench" fallback (its old modal, `BalanceV2` for the Summary).
   They are now unreachable on desktop; removing them is a cleanup, not part of the cut-over (roadmap §2).
+
+### Tails closed (v3.101.0, 2026-11-19)
+
+- **Classic fallbacks removed:** `BalanceV2`, the cash-flow `TransactionModal`, and the overlay variants of
+  `BudgetDetailModal` / `FCReviewBreakdownModal`. The overlay `TransactionEditModal` stays (TransBudget, Ledger).
+- **Chart and category colours on the theme:** the Budget Analysis KPI mini-charts (`useChartTheme`), Forecast
+  Review's line and bar series (the 7 `--chart-*` tokens, then 13 fixed mid-tones for long stacks), the line-mapping
+  type stripes and the audit dialogs' shortfall/deposit colours.
+- **`--muted-light` lifted to AA** (light `#5F6D82`, dark `#828B99`). On these grounds AA leaves no room for a third
+  text grey below `--muted`, so it now sits beside it; hierarchy comes from size and weight. Measured with the P1 rig
+  over the same 15 routes (8,890 text elements): below AA **light 61 → 1, dark 62 → 2**. The three left are the
+  Forecast Compare palette's pinned series colours used as label text (`fcSeriesPalette.js`, test-pinned) — a page
+  decision, not this pass.
+- **The phone's Refresh Feeds** shows the real feed status, from `utils/feedStatus.js` shared with the desktop page
+  (the phone also gained the warning/error pill styles its existing error pill had always lacked).

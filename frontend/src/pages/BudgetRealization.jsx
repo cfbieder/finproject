@@ -671,19 +671,15 @@ export default function BudgetRealization() {
   // Storing the deviations instead means the default ("everything collapsed") is derived,
   // not re-imposed, and your expansions survive a reload.
   const [expandedPaths, setExpandedPaths] = useState(new Set());
-  const [entryDetail, setEntryDetail] = useState(null);
-  // CR105 S4 — in the Workbench layout a figure's entries open in the side inspector.
+  // A figure's entries open in the Workbench's side inspector (CR105 S4).
   const inspOpen = useInspector()?.open;
   const showEntryDetail = useCallback((d) => {
-    if (!inspOpen) {
-      setEntryDetail(d);
-      return;
-    }
+    if (!inspOpen) return;
     const range = [d.period?.start, d.period?.end].map((x) => (x instanceof Date ? x.toDateString() : String(x)));
     inspOpen({
       key: `bd:${d.type}:${(d.categories || [d.name]).join("|")}:${range.join("-")}`,
       title: `${d.type === "actual" ? "Actual" : "Budget"} · ${d.pathLabel || d.name || "Category"}`,
-      content: <BudgetDetailModal detail={d} variant="inspector" />,
+      content: <BudgetDetailModal detail={d} />,
     });
   }, [inspOpen]);
 
@@ -1095,10 +1091,7 @@ export default function BudgetRealization() {
   };
 
   const handleBudgetCellDoubleClick = (detail) => {
-    if (!detail) {
-      setEntryDetail(null);
-      return;
-    }
+    if (!detail) return;
     const categories =
       Array.isArray(detail.categories) && detail.categories.length
         ? detail.categories
@@ -1113,10 +1106,7 @@ export default function BudgetRealization() {
   };
 
   const handleActualCellDoubleClick = (detail) => {
-    if (!detail) {
-      setEntryDetail(null);
-      return;
-    }
+    if (!detail) return;
     const categories =
       Array.isArray(detail.categories) && detail.categories.length
         ? detail.categories
@@ -1130,9 +1120,6 @@ export default function BudgetRealization() {
     });
   };
 
-  const handleBudgetDetailClose = () => {
-    setEntryDetail(null);
-  };
 
   // ========== Event Handlers: Period ==========
   const handlePeriodChange = useCallback(
@@ -1158,7 +1145,7 @@ export default function BudgetRealization() {
       onChange: handlePeriodChange,
       defaultPreset: "this-month",
     }),
-    [fromMonth, toMonth, actualYear, budgetYear, handlePeriodChange]
+    [fromMonth, toMonth, actualYear, budgetYear, budgetYearOptions, handlePeriodChange]
   );
 
   const toggleProps = useMemo(
@@ -1286,10 +1273,6 @@ export default function BudgetRealization() {
           fyLanding={fyLanding}
         />
       </main>
-      <BudgetDetailModal
-        detail={entryDetail}
-        onClose={handleBudgetDetailClose}
-      />
     </>
   );
 }

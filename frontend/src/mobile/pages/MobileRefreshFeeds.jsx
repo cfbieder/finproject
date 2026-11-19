@@ -2,14 +2,16 @@
  * MobileRefreshFeeds — phone-friendly bank-feed refresh AND review.
  *
  * Scope: trigger a bank-feed pull, show what landed (new / linked / staged /
- * ignored) and the last refresh/ingest times, then work the review queue the
+ * ignored) and the real feed status, then work the review queue the
  * way the desktop "Refresh Feeds" page does — group by account, suggest
  * categories from history, set a row's category, and accept (one row, or all).
  *
  * The review actions are the desktop page's, on the desktop endpoints:
  *  - POST  /api/v2/ingest-bank-feed/refresh { sinceDays }
  *      → { ingest: { staged }, sync: { inserted, linked, ignoredAccounts } }
- *  - GET   /api/v2/util/appdata → records carrying lastIngest / lastRefresh
+ *  - GET   /api/v2/util/attention-summary → feed status (utils/feedStatus.js, shared
+ *          with the desktop page; the PocketSmith-era lastRefresh/lastIngest it
+ *          replaced only the retired CSV upload ever wrote, so they read months old)
  *  - POST  /api/v2/ingest-ps/review-new-transactions → { data: [...] }
  *  - POST  /api/v2/transactions/category-suggestions { ids } → { data: [...] }
  *  - PATCH /api/v2/transactions/:id  { Category } | { accepted: true }
@@ -40,6 +42,7 @@ import MobileCategoryPicker, {
   pushRecentCategory,
 } from "../MobileCategoryPicker.jsx";
 import MobileSheet from "../MobileSheet.jsx";
+import { feedStatusItems } from "../../utils/feedStatus.js";
 
 const DAYS_OPTIONS = [7, 14, 30, 60, 90];
 const PENDING_PREVIEW_COUNT = 15;
@@ -73,17 +76,6 @@ const fmtDate = (iso) => {
     return iso;
   }
 };
-
-/** Latest valid Date across all records for a given field, or null. */
-function latestDate(records, field) {
-  const dates = records
-    .map((item) => item?.[field])
-    .map((d) => (d ? new Date(d) : null))
-    .filter((d) => d instanceof Date && !Number.isNaN(d.getTime()));
-  return dates.length
-    ? dates.reduce((a, b) => (b > a ? b : a), dates[0])
-    : null;
-}
 
 /**
  * Raw review row → the shape this page renders. The server returns snake_case
@@ -129,8 +121,7 @@ export default function MobileRefreshFeeds() {
   const [result, setResult] = useState(null); // { inserted, linked, staged, ignored }
   const [status, setStatus] = useState(null); // { type, message }
 
-  const [lastRefresh, setLastRefresh] = useState(null);
-  const [lastIngest, setLastIngest] = useState(null);
+  const [feedStatus, setFeedStatus] = useState([]); // feedStatusItems()
   const [rows, setRows] = useState(null); // review-queue rows (null = unavailable)
   const [showAllPending, setShowAllPending] = useState(false);
   const [isLoadingMeta, setIsLoadingMeta] = useState(true);
@@ -168,13 +159,11 @@ export default function MobileRefreshFeeds() {
   const loadMeta = useCallback(async () => {
     setIsLoadingMeta(true);
     try {
-      const [appdata] = await Promise.all([
-        Rest.fetchJson("/api/v2/util/appdata").catch(() => null),
+      const [summary] = await Promise.all([
+        Rest.fetchJson("/api/v2/util/attention-summary").catch(() => null),
         loadReview(),
       ]);
-      const records = Array.isArray(appdata) ? appdata : [];
-      setLastRefresh(latestDate(records, "lastRefresh"));
-      setLastIngest(latestDate(records, "lastIngest"));
+      setFeedStatus(feedStatusItems(summary));
     } finally {
       setIsLoadingMeta(false);
     }
@@ -512,14 +501,21 @@ export default function MobileRefreshFeeds() {
 
   return (
     <div>
-      <div className="m-page-meta">
-        <span className="m-pill">
-          {isLoadingMeta
-            ? "Loading status…"
-            : lastRefresh
-            ? `Last refresh: ${lastRefresh.toLocaleString()}`
-            : "No refresh recorded yet"}
-        </span>
+      <div className="m-page-meta m-page-meta--status">
+        {isLoadingMeta ? (
+          <span className="m-pill">Loading status…</span>
+        ) : (
+          feedStatus.map((item) => (
+            <span
+              key={item.message}
+              className={
+                "m-pill" + (item.type === "error" ? " m-pill--error" : item.type === "warning" ? " m-pill--warn" : "")
+              }
+            >
+              {item.message}
+            </span>
+          ))
+        )}
       </div>
 
       <div className="m-refresh-bar">
@@ -682,12 +678,6 @@ export default function MobileRefreshFeeds() {
             </button>
           )}
         </>
-      )}
-
-      {lastIngest && (
-        <p style={{ marginTop: 18, fontSize: 12, color: "var(--muted)" }}>
-          Last ingest: {lastIngest.toLocaleString()}
-        </p>
       )}
 
       {toast && <div className="m-toast">{toast}</div>}

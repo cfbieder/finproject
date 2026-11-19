@@ -13,10 +13,10 @@ const formatDateParam = (value) => {
 };
 
 /**
- * `variant="inspector"` (CR105 S4) renders the same entries as a compact list
- * for the Workbench side panel — same fetch, same sort — with no overlay.
+ * A budget or actual figure's entries, as a compact list in the Workbench side
+ * inspector (CR105 S4). The overlay version went with the classic layout (S6c).
  */
-const BudgetDetailModal = ({ detail, onClose, variant = "modal" }) => {
+const BudgetDetailModal = ({ detail }) => {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -200,195 +200,68 @@ const BudgetDetailModal = ({ detail, onClose, variant = "modal" }) => {
     return copy;
   }, [entries, sortState]);
 
-  const handleSort = (key) => {
-    setSortState((prev) => {
-      if (prev.key === key) {
-        return { key, direction: prev.direction === "asc" ? "desc" : "asc" };
-      }
-      return { key, direction: "asc" };
-    });
-  };
-
-  const handleOverlayClick = (event) => {
-    if (event.target === event.currentTarget && typeof onClose === "function") {
-      onClose();
-    }
-  };
-
-  const handleCloseClick = () => {
-    if (typeof onClose === "function") {
-      onClose();
-    }
-  };
-
   if (!detail) {
     return null;
   }
 
-  if (variant === "inspector") {
-    return (
-      <div className="insp-drill">
-        <dl className="insp-facts">
-          <dt>{type === "actual" ? "Actual" : "Budget"}</dt>
-          <dd>{categoryPath}</dd>
-          <dt>Period</dt>
-          <dd>{periodLabel}</dd>
-        </dl>
-        {loading && <p className="insp-muted">Loading transactions…</p>}
-        {!loading && error && <p className="insp-error">{error}</p>}
-        {!loading && !error && entries.length === 0 && (
-          <EmptyState variant="wallet" message="No transactions found for this selection." />
-        )}
-        {!loading && !error && entries.length > 0 && (
-          <>
-            <div className="insp-summary">
-              <span>
-                {entries.length} entr{entries.length === 1 ? "y" : "ies"}
-              </span>
-            </div>
-            <div className="insp-tools">
-              <select
-                value={`${sortState.key}:${sortState.direction}`}
-                onChange={(e) => {
-                  const [key, direction] = e.target.value.split(":");
-                  setSortState({ key, direction });
-                }}
-                aria-label="Sort entries"
-              >
-                <option value="Date:desc">Newest first</option>
-                <option value="Date:asc">Oldest first</option>
-                <option value="Amount:asc">Largest outflow first</option>
-                <option value="Amount:desc">Largest inflow first</option>
-              </select>
-            </div>
-            <ul className="insp-list">
-              {sortedEntries.map((entry, index) => {
-                const amt = formatEntryAmount(entry.Amount, entry.Currency);
-                return (
-                  <li key={entry._id ?? `${index}-${entry.Date ?? "row"}`} className="insp-item">
-                    <div className="insp-item__top">
-                      <span className="insp-item__desc">
-                        {entry.Description1 || entry.Description2 || entry.Note || "—"}
-                      </span>
-                      <span className={`insp-amt${amt.negative ? " insp-amt--neg" : ""}`}>{amt.text}</span>
-                    </div>
-                    <div className="insp-item__meta">
-                      {entry.Date ? entry.Date.split("T")[0] : "—"} · {entry.Account || "—"} · {entry.Category || "—"}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </>
-        )}
-      </div>
-    );
-  }
-
   return (
-    <div className="fc-scenarios-modal-overlay" onClick={handleOverlayClick}>
-      <div
-        className="fc-scenarios-modal budget-detail-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Balance details for ${name || categoryPath}`}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="fc-scenarios-modal__header">
-          <h3 className="fc-scenarios-modal__title">
-            {type === "actual" ? "Actual Details" : "Budget Details"}
-          </h3>
-          <p className="fc-scenarios-modal__description">
-            Underlying transactions that make up this balance.
-          </p>
-        </div>
-        <div className="fc-scenarios-modal__body">
-          <div className="fc-scenarios-modal__field">
-            <span>Category</span>
-            <strong>{categoryPath}</strong>
+    <div className="insp-drill">
+      <dl className="insp-facts">
+        <dt>{type === "actual" ? "Actual" : "Budget"}</dt>
+        <dd>{categoryPath}</dd>
+        <dt>Period</dt>
+        <dd>{periodLabel}</dd>
+      </dl>
+      {loading && <p className="insp-muted">Loading transactions…</p>}
+      {!loading && error && <p className="insp-error">{error}</p>}
+      {!loading && !error && entries.length === 0 && (
+        <EmptyState variant="wallet" message="No transactions found for this selection." />
+      )}
+      {!loading && !error && entries.length > 0 && (
+        <>
+          <div className="insp-summary">
+            <span>
+              {entries.length} entr{entries.length === 1 ? "y" : "ies"}
+            </span>
           </div>
-          <div className="fc-scenarios-modal__field">
-            <span>Period</span>
-            <strong>{periodLabel}</strong>
+          <div className="insp-tools">
+            <select
+              value={`${sortState.key}:${sortState.direction}`}
+              onChange={(e) => {
+                const [key, direction] = e.target.value.split(":");
+                setSortState({ key, direction });
+              }}
+              aria-label="Sort entries"
+            >
+              <option value="Date:desc">Newest first</option>
+              <option value="Date:asc">Oldest first</option>
+              <option value="Amount:asc">Largest outflow first</option>
+              <option value="Amount:desc">Largest inflow first</option>
+            </select>
           </div>
-          {loading && (
-            <p className="fc-scenarios-modal__description">
-              Loading transactions…
-            </p>
-          )}
-          {!loading && error && (
-            <p className="fc-scenarios-modal__description">{error}</p>
-          )}
-          {!loading && !error && entries.length === 0 && (
-            <EmptyState variant="wallet" message="No transactions found for this selection." />
-          )}
-          {!loading && !error && entries.length > 0 && (
-            <div className="balance-report__table-wrapper">
-              <table className="balance-report-table">
-                <thead>
-                  <tr>
-                    <th scope="col" onClick={() => handleSort("Date")}>
-                      Date
-                    </th>
-                    <th scope="col" onClick={() => handleSort("Description")}>
-                      Description
-                    </th>
-                    <th scope="col" onClick={() => handleSort("Account")}>
-                      Account
-                    </th>
-                    <th scope="col" onClick={() => handleSort("Category")}>
-                      Category
-                    </th>
-                    <th scope="col" onClick={() => handleSort("Amount")}>
-                      Amount
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedEntries.map((entry, index) => (
-                    <tr key={entry._id ?? `${index}-${entry.Date ?? "row"}`}>
-                      <td>{entry.Date ? entry.Date.split("T")[0] : "—"}</td>
-                      <td>
-                        {entry.Description1 ||
-                          entry.Description2 ||
-                          entry.Note ||
-                          "—"}
-                      </td>
-                      <td>{entry.Account || "—"}</td>
-                      <td>{entry.Category || "—"}</td>
-                      {(() => {
-                        const formattedAmount = formatEntryAmount(
-                          entry.Amount,
-                          entry.Currency
-                        );
-                        const amountClass = formattedAmount.negative
-                          ? "balance-report-table__value balance-report-table__value--negative"
-                          : "balance-report-table__value";
-                        return (
-                          <td className={amountClass}>
-                            {formattedAmount.text}
-                          </td>
-                        );
-                      })()}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-        <div className="fc-scenarios-modal__actions">
-          <button
-            type="button"
-            className="generate-report-button"
-            onClick={handleCloseClick}
-          >
-            Close
-          </button>
-        </div>
-      </div>
+          <ul className="insp-list">
+            {sortedEntries.map((entry, index) => {
+              const amt = formatEntryAmount(entry.Amount, entry.Currency);
+              return (
+                <li key={entry._id ?? `${index}-${entry.Date ?? "row"}`} className="insp-item">
+                  <div className="insp-item__top">
+                    <span className="insp-item__desc">
+                      {entry.Description1 || entry.Description2 || entry.Note || "—"}
+                    </span>
+                    <span className={`insp-amt${amt.negative ? " insp-amt--neg" : ""}`}>{amt.text}</span>
+                  </div>
+                  <div className="insp-item__meta">
+                    {entry.Date ? entry.Date.split("T")[0] : "—"} · {entry.Account || "—"} · {entry.Category || "—"}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
     </div>
   );
+
 };
 
 export default BudgetDetailModal;
