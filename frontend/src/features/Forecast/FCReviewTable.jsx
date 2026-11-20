@@ -431,7 +431,8 @@ export default function FCReviewTable({
     if (row.level === 1) {
       let total = 0; let found = false;
       for (const [ln, mp] of cashAccountMap?.entries() ?? []) {
-        if (mp.level1 === row.label && leReference.values?.[ln] != null) {
+        // An Expense row tagged with one-off lines leaves them out: they sit below the line.
+        if (mp.level1 === row.label && leReference.values?.[ln] != null && !row.oneOffLabels?.includes(ln)) {
           total += leReference.values[ln]; found = true;
         }
       }
@@ -802,7 +803,7 @@ export default function FCReviewTable({
                   {cashRowsWithNet.map((row, index) => {
                     const isTransfers = row.label === "Transfers";
                     // The two one-off summary rows read like Cash Flow: derived, bold, not drillable.
-                    const isCashFlow = row.isCashFlow || row.isBeforeOneOffs || row.isOneOffs;
+                    const isCashFlow = row.isCashFlow || row.isBeforeOneOffs;
                     const isFirstCashRow = index === 0;
                     const isLastCashRow =
                       index === cashRowsWithNet.length - 1;

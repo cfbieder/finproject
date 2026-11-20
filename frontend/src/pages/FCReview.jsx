@@ -485,16 +485,29 @@ export default function FCReview() {
    */
   const cashRowsWithNet = useMemo(() => {
     const rows = [];
-    // One-offs below the line (owner, 2026-11-20): Cash Flow before one-offs, the one-offs, then
-    // Cash Flow. The one-off line also stays in its place under Expense.
+    // One-offs below the line (owner, 2026-11-20): Expense's one-off line(s) — with any rows beneath
+    // them — leave Expense, whose total then reads before one-offs. After the expense lines come
+    // Cash Flow before one-offs, the one-off line(s), then Cash Flow.
     const oneOffLabels = cashAccounts
       .filter((r) => r.level === 2 && cashAccountMap.get(r.label)?.level1 === "Expense" && isOneOffName(r.label))
       .map((r) => r.label);
+    const oneOffRows = [];
+    let movingOneOff = false;
     for (const row of cashAccounts) {
+      if (row.level === 2 && oneOffLabels.includes(row.label)) {
+        movingOneOff = true;
+        oneOffRows.push(row);
+        continue;
+      }
+      if (movingOneOff && row.level > 2) {
+        oneOffRows.push(row);
+        continue;
+      }
+      movingOneOff = false;
       if (row.label === "Transfers") {
         if (oneOffLabels.length) {
           rows.push({ label: "Cash Flow before one-offs", level: 1, isBeforeOneOffs: true, oneOffLabels });
-          rows.push({ label: "One-offs", level: 1, isOneOffs: true, oneOffLabels });
+          rows.push(...oneOffRows);
         }
         rows.push({
           label: "Cash Flow",
@@ -507,6 +520,8 @@ export default function FCReview() {
           level: 1,
           isNet: true,
         });
+      } else if (row.level === 1 && row.label === "Expense" && oneOffLabels.length) {
+        rows.push({ ...row, oneOffLabels }); // its total leaves the one-offs out
       } else {
         rows.push(row);
       }
@@ -1171,6 +1186,8 @@ export default function FCReview() {
           }
 
           if (row.level === 1) {
+            // Expense's one-off lines sit below the line, so its drill-down leaves them out too.
+            if (row.oneOffLabels?.includes(level2)) return false;
             return level1 === row.label && entryYear === targetYear;
           }
 
@@ -1381,7 +1398,10 @@ export default function FCReview() {
         // The Expense row is displayed net of Transfers (getCellValue subtracts them, and
         // Transfers gets its own row), so its breakdown must drop them too — otherwise the
         // stack totals to a number the row above it doesn't show.
-        excludeChildren: isCash && series.label === "Expense" ? ["Transfers"] : [],
+        // Its one-off lines sit below the line (owner, 2026-11-20), so they leave the stack too.
+        excludeChildren: isCash && series.label === "Expense"
+          ? ["Transfers", ...(cashRowsWithNet.find((r) => r.level === 1 && r.label === "Expense")?.oneOffLabels || [])]
+          : [],
       });
 
       if (breakdown.length > 0) {
@@ -1409,6 +1429,7 @@ export default function FCReview() {
       leafValuesByAccount,
       baseLeafValuesByYear,
       cashValueCtx,
+      cashRowsWithNet,
       barPalette,
     ]
   );
@@ -1624,7 +1645,7 @@ export default function FCReview() {
             // Rebuild cash row to match getCellValue
             const isNet = label === "Net Cash Flow";
             const isCashFlow = label === "Cash Flow";
-            const oneOffRow = cashRowsWithNet.find((r) => r.label === label && (r.isOneOffs || r.isBeforeOneOffs));
+            const oneOffRow = cashRowsWithNet.find((r) => r.label === label && r.oneOffLabels);
             if (oneOffRow) {
               const v = Number(resolveOneOffRow(oneOffRow, year, (r, y) => getCellValue(r, y, true)));
               return Number.isFinite(v) ? v : 0;

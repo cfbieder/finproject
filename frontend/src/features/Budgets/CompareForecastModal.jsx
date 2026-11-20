@@ -11,17 +11,27 @@ const fmt = (v, digits = 0) =>
 const neg = (v) => (v != null && Number(Number(v).toFixed(0)) < 0 ? "bb-neg" : undefined);
 const day = (iso) => (iso ? String(iso).slice(0, 10) : "—");
 
-/** One figure row: label, Budget, Forecast, Δ, Δ%, LE. */
+/** Δ and Δ% of the budget against one other figure (the forecast, or the LE). */
+function Diff({ budget, other }) {
+  const d = delta(budget, other);
+  const p = deltaPct(budget, other);
+  return (
+    <>
+      <td className={`num ${neg(d) || ""}`}>{fmt(d)}</td>
+      <td className={`num ${neg(p) || ""}`}>{p == null ? "" : `${fmt(p, 0)}%`}</td>
+    </>
+  );
+}
+
+/** One figure row: label, Budget, Forecast, Δ, Δ%, LE, Δ LE, Δ% LE. */
 function Figures({ budget, forecast, le, budgetNote }) {
-  const d = delta(budget, forecast);
-  const p = deltaPct(budget, forecast);
   return (
     <>
       <td className={`num ${neg(budget) || ""}`} title={budgetNote}>{budgetNote && budget == null ? <span className="bb-muted">—</span> : fmt(budget)}</td>
       <td className={`num ${neg(forecast) || ""}`}>{fmt(forecast)}</td>
-      <td className={`num ${neg(d) || ""}`}>{fmt(d)}</td>
-      <td className={`num ${neg(p) || ""}`}>{p == null ? "" : `${fmt(p, 0)}%`}</td>
+      <Diff budget={budget} other={forecast} />
       <td className={`num ${neg(le) || ""}`}>{fmt(le)}</td>
+      <Diff budget={budget} other={le} />
     </>
   );
 }
@@ -74,6 +84,7 @@ export default function CompareForecastModal({ buildId, buildLabel, onClose }) {
             <td className={`num ${neg(c.budget) || ""}`}>{fmt(c.budget)}</td>
             <td /><td /><td />
             <td className={`num ${neg(c.le) || ""}`}>{fmt(c.le)}</td>
+            <Diff budget={c.budget} other={c.le} />
           </tr>
         ))}
       </Fragment>
@@ -134,13 +145,14 @@ export default function CompareForecastModal({ buildId, buildLabel, onClose }) {
                     <th>Forecast line</th>
                     <th className="num">Budget</th><th className="num">Forecast</th>
                     <th className="num">Δ</th><th className="num">Δ%</th><th className="num">LE</th>
+                    <th className="num">Δ LE</th><th className="num">Δ% LE</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr className="cf-section"><th colSpan={6}>Income</th></tr>
+                  <tr className="cf-section"><th colSpan={8}>Income</th></tr>
                   {lineRows(data.income)}
                   {subtotal("Total income", data.totals.income)}
-                  <tr className="cf-section"><th colSpan={6}>Expenses</th></tr>
+                  <tr className="cf-section"><th colSpan={8}>Expenses</th></tr>
                   {lineRows(data.expense)}
                   {subtotal(data.oneOff?.length ? "Total expenses before one-offs" : "Total expenses", data.totals.expense)}
                   {nif && nif.categories.length > 0 && (
@@ -160,6 +172,7 @@ export default function CompareForecastModal({ buildId, buildLabel, onClose }) {
                           <td className={`num ${neg(c.budget) || ""}`}>{fmt(c.budget)}</td>
                           <td /><td /><td />
                           <td className={`num ${neg(c.le) || ""}`}>{fmt(c.le)}</td>
+                          <Diff budget={c.budget} other={c.le} />
                         </tr>
                       ))}
                     </>
@@ -168,7 +181,7 @@ export default function CompareForecastModal({ buildId, buildLabel, onClose }) {
                   {data.oneOff?.length > 0 && (
                     <>
                       {subtotal("P&L net before one-offs", data.totals.beforeOneOffs)}
-                      <tr className="cf-section"><th colSpan={6}>One-offs</th></tr>
+                      <tr className="cf-section"><th colSpan={8}>One-offs</th></tr>
                       {lineRows(data.oneOff)}
                     </>
                   )}
@@ -177,7 +190,8 @@ export default function CompareForecastModal({ buildId, buildLabel, onClose }) {
               </table>
             </div>
             <p className="bb-muted cf-note">
-              Δ is budget − forecast; Δ% is over the forecast&apos;s size, so spending over plan reads negative. On lines the engine
+              Δ is budget − forecast; Δ% is over the forecast&apos;s size, so spending over plan reads negative. Δ LE and
+              Δ% LE are the same against this year&apos;s Latest Estimate: budget − LE, over the LE&apos;s size. On lines the engine
               computes (taxes, property costs, interest, dividends), the forecast figure is the engine&apos;s own calculation — a
               difference there is a modelling difference, not overspending.
             </p>

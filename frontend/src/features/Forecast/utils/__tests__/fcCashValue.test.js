@@ -113,3 +113,16 @@ describe("resolveOneOffRow — one-offs below the line", () => {
     expect(resolveCashValue(row("isBeforeOneOffs"), 2030, { getCellValue })).toBe(1300);
   });
 });
+
+describe("Expense with its one-off lines moved below the line", () => {
+  const getCellValue = (r) => (r.level === 1 && r.label === "Expense" ? -1000 : r.label === "One-Off Items" ? -300 : null);
+
+  it("reads its own total less the one-off lines", () => {
+    const expense = { label: "Expense", level: 1, oneOffLabels: ["One-Off Items"] };
+    expect(resolveCashValue(expense, 2030, { getCellValue })).toBe(-700);
+  });
+
+  it("an untagged Expense row still reads the whole total", () => {
+    expect(resolveCashValue({ label: "Expense", level: 1 }, 2030, { getCellValue })).toBe(-1000);
+  });
+});

@@ -32,7 +32,7 @@
  * @returns {number|null}
  */
 export function resolveCashValue(row, year, ctx = {}) {
-  if (row.isBeforeOneOffs || row.isOneOffs) {
+  if (row.oneOffLabels) {
     return resolveOneOffRow(row, year, (r, y) => resolveCashValue(r, y, ctx));
   }
   const {
@@ -102,13 +102,15 @@ export function resolveCashValue(row, year, ctx = {}) {
 }
 
 /**
- * One-offs below the line (owner, 2026-11-20): the two synthetic rows above Cash Flow —
- * `isOneOffs` (the one-off lines summed) and `isBeforeOneOffs` (Cash Flow less them). Both are
- * derived from rows that already resolve, through `resolve(row, year)`, so every base (actuals,
- * budget, forecast) gives the same split. A one-off line with no value counts 0; an unknown
- * Cash Flow stays unknown.
+ * One-offs below the line (owner, 2026-11-20). A row carrying `oneOffLabels` is one of:
+ *   - `isOneOffs`: the one-off lines summed (Forecast Compare's row);
+ *   - `isBeforeOneOffs`: Cash Flow less them;
+ *   - a level-1 row (Expense): its own total less them, since the one-off lines moved out of it.
+ * All derive from rows that already resolve, through `resolve(row, year)`, so every base
+ * (actuals, budget, forecast) gives the same split. A one-off line with no value counts 0; an
+ * unknown total stays unknown.
  *
- * @param {Object} row - { isOneOffs | isBeforeOneOffs, oneOffLabels: string[] }
+ * @param {Object} row - { isOneOffs | isBeforeOneOffs | label+level 1, oneOffLabels: string[] }
  */
 export function resolveOneOffRow(row, year, resolve) {
   let oneOffs = 0;
@@ -117,6 +119,8 @@ export function resolveOneOffRow(row, year, resolve) {
     if (Number.isFinite(v)) oneOffs += v;
   }
   if (row.isOneOffs) return oneOffs;
-  const cashFlow = resolve({ label: "Cash Flow", level: 1, isCashFlow: true }, year);
-  return cashFlow == null ? null : Number(cashFlow) - oneOffs;
+  const total = row.isBeforeOneOffs
+    ? resolve({ label: "Cash Flow", level: 1, isCashFlow: true }, year)
+    : resolve({ label: row.label, level: row.level }, year);
+  return total == null ? null : Number(total) - oneOffs;
 }

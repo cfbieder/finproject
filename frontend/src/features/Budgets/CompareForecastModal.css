@@ -2,7 +2,7 @@
 .cf { display: grid; gap: 0.5rem; }
 .cf-head { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: baseline; }
 .cf-scroll { overflow-x: auto; }
-.cf-table { width: 100%; min-width: 760px; }
+.cf-table { width: 100%; min-width: 920px; }
 .cf-table td, .cf-table th { padding: 0.3rem 0.5rem; }
 .cf-table .num { text-align: right; white-space: nowrap; }
 .cf-section th { text-align: left; font-weight: 700; padding-top: 0.6rem; border-bottom: 1px solid var(--border); }
