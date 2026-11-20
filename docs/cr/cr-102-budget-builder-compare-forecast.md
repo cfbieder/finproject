@@ -223,6 +223,8 @@ synthetic Taxes row is added only if no forecast line is named Taxes; prod has o
 
 **Freeze gate:** V3's preview hash and USD total were identical before and after the prod deploy.
 
+**Later changes (roadmap §2, not this CR):** v3.103.0 splits the One-Off Items line out (*Total expenses before one-offs*, *P&L net before one-offs*, *One-offs*, then *P&L net*; server `oneOff`, `totals.beforeOneOffs` / `totals.oneOff`); v3.104.0 adds Δ LE = budget − LE and Δ% LE over |LE| (client-side, `CompareForecastModal.jsx`).
+
 ## 8. Review log
 
 **Pass 1 — `cr-technical-reviewer`, rev 1 (2026-11-06): REVISE.** All findings are addressed in rev 2:

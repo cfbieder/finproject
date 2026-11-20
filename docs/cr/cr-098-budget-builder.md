@@ -696,3 +696,7 @@ is asserted by the DB test on seeded builds.
   workaround, so it moved to a roadmap bullet; (2) dates for §10.7; (3) the closing condition (header);
   (4) status, roadmap and index synced with the hold. Taken from its recommendations: V5 ahead of V6, staged
   phases (§6), the named slip order and the pre-publish steps.
+
+## 11. Follow-ups after close
+
+- **Roll a line into another currency line** — v3.93.0 (migration 092, USD only) → v3.101.0 (migration 093, any currency, one level): roadmap §2.

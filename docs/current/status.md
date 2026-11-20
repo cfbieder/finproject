@@ -43,27 +43,17 @@ Two things from it are worth carrying into every session:
 ## Next
 Statuses are canonical in the [CR index](../cr/README.md), the running version in `VERSION`; the release log is [the roadmap](project-roadmap.md).
 
-- ⚠️ **Publish the 2027 budget by 2026-12-10** (owner; builder code freeze 2026-12-03) — draft *V3* (2027 v6, from LE-11-26) is the open build: plan its *Cash flow* moves and confirm them so [CR104](../cr/cr-104-budget-builder-cash-by-currency.md) can close, run Compare Forecast against `2026 Base`, manual prod backup, publish. Steps in [roadmap §2](project-roadmap.md#2-open-backlog-non-cr-items); use the builder's *roll…* picker (v3.101.0: into USD **or** another currency, e.g. PLN → EUR) where a category should be budgeted once; what v3.91–v3.93 and v3.101 added to the builder is in [§1.2](project-roadmap.md#12-completed-chronological-latest-first).
-- **v3.94–v3.100: UI theme B + the Workbench — [CR105](../cr/cr-105-ui-theme-b.md) COMPLETED 2026-11-19.** The Workbench (icon rail, section tabs, one header period, the side inspector, the keyboard — `?` lists it) is the only desktop layout; the sidebar is retired. Its tails closed in v3.102.0 (colours on tokens, muted text to AA, classic fallbacks removed, the phone's feed status); v3.102.2 reordered the Budget and Transactions tabs. November's negative income is correct (owner, 2026-11-19), not a defect.
-- **January 2027: run *Annual close…*** on `2026 Base` → `2027 Base` ([CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md), the annual roll to a new base year); the [CR099](../cr/cr-099-forecast-module-return-path.md) annual-close check (per-year return paths on a module) is due before it — roadmap §2. `2026 Base` and `2026 Market Crash` were regenerated 2026-11-03 with the 2027 rates.
+- ⚠️ **Publish the 2027 budget by 2026-12-10** (owner; builder code freeze 2026-12-03) — two drafts are open on prod: 2027 **v7** (*V1*, from LE-10-26) and **v8** (from LE-11-26, started from v7). Pick one; plan and confirm its *Cash flow* moves so [CR104](../cr/cr-104-budget-builder-cash-by-currency.md) can close, run Compare Forecast against `2026 Base`, manual prod backup, publish. Steps in [roadmap §2](project-roadmap.md#2-open-backlog-non-cr-items); the builder's *roll…* picker budgets a category once, in USD or another currency line; what was added to the builder is in [§1.2](project-roadmap.md#12-completed-chronological-latest-first).
+- **January 2027: run *Annual close…*** on `2026 Base` → `2027 Base` ([CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md), the annual roll to a new base year); the [CR099](../cr/cr-099-forecast-module-return-path.md) annual-close check is due before it — roadmap §2.
 - **[CR097](../cr/cr-097-manual-holdings-register.md)** (holdings register for manually valued accounts): the 2026-10-31 valuation is ⚠️ blocked by its cost gap until the owner says what two October transfers bought — [roadmap entry](project-roadmap.md#cr097).
-- Builder follow-ups (P3c hand-edit warning, CR101 report/picker/planning follow-ups) and [CR095](../cr/cr-095-forecast-spend-currency-share.md) (forecast spend that moves with the złoty): [roadmap §2](project-roadmap.md#2-open-backlog-non-cr-items) / [CR index](../cr/README.md).
-- **Two forecast judgements for the owner** — re-examine SRQ, and `Retirement Home` double-counting
-  `Living Expenses`: both in [current-phase.md](current-phase.md#owner-judgements-carried-from-statusmd).
-- **Backlog from the close-out** (roadmap §2): idle-cash interest, loss carry-forward, CR083's P1
-  warnings and P2 seed. CR059 is done; its only tail is the owner's Google Cloud cleanup (Known issues).
-- **With the owner, do not start unasked:** "2026 Downside" (being redone) · [CR058 §12.8–12.9](../cr/cr-058-quicken-valuation-anchors.md) ·
-  [CR059](../cr/cr-059-fintable-api-ingestion.md)'s Chase date basis. **`House Morgage` is
-  deliberately `setup_status='new'`** (owner, 2026-08-05) — parked, not broken.
+- Builder follow-ups (P3c hand-edit warning, CR101 report/picker/planning follow-ups), [CR095](../cr/cr-095-forecast-spend-currency-share.md) (forecast spend that moves with the złoty) and the close-out backlog (idle-cash interest, loss carry-forward, CR083's P1 warnings and P2 seed; CR059's only tail is the owner's Google Cloud cleanup): [roadmap §2](project-roadmap.md#2-open-backlog-non-cr-items) / [CR index](../cr/README.md).
+- **Two forecast judgements for the owner** — re-examine SRQ, and `Retirement Home` double-counting `Living Expenses`: both in [current-phase.md](current-phase.md#owner-judgements-carried-from-statusmd).
+- **With the owner, do not start unasked:** "2026 Downside" (being redone) · [CR058 §12.8–12.9](../cr/cr-058-quicken-valuation-anchors.md) · [CR059](../cr/cr-059-fintable-api-ingestion.md)'s Chase date basis. **`House Morgage` is deliberately `setup_status='new'`** (owner, 2026-08-05) — parked, not broken.
 - Full plan: [project-roadmap.md](project-roadmap.md).
 
 ## Conventions & drills
-[Documentation standard](../documentation-standard.md) · rules auto-load from `.claude/rules/` ·
-`/close`, `/question`, `/brief`, `/next-steps`, `/cr-open`, `/update-docs` · **No new transactions? [feed-stall-runbook](../guides/feed-stall-runbook.md)** · Operator brief: https://claude.ai/code/artifact/a058677e-3138-43e7-a076-a5f67d6d02ef · [month-end reconcile](../guides/month-end-reconcile.md) ·
-[dev-workflow](../guides/dev-workflow.md) · [permissions](../guides/claude-code-permissions.md).
-Last restore drill **2026-11-02 — PASSED** ([runbook](../guides/restore.md)): a fresh prod dump
-restored in 6 s / 0 errors, all 68 tables checksum-identical; the encrypted PBS leg was not exercised.
-Secrets: [secrets-inventory.md](secrets-inventory.md) (⚠️ two exposed 2026-09-08, rotation declined) — verify an
-`.env` edit with `grep -c` / `cut -d= -f1` / `git diff --stat`, never by printing the region you changed.
-ocr-llm handoffs are PULLED by a `SessionStart` hook ([guide](../guides/ocr-llm-integration.md)); silence means
-the inbox was empty *and* their checkout current.
+[Documentation standard](../documentation-standard.md) · rules auto-load from `.claude/rules/` · `/close`, `/question`, `/brief`, `/next-steps`, `/cr-open`, `/update-docs` · **No new transactions? [feed-stall-runbook](../guides/feed-stall-runbook.md)** · [month-end reconcile](../guides/month-end-reconcile.md) · [dev-workflow](../guides/dev-workflow.md) · [permissions](../guides/claude-code-permissions.md).
+Operator brief: https://claude.ai/code/artifact/a058677e-3138-43e7-a076-a5f67d6d02ef
+Last restore drill **2026-11-02 — PASSED** ([runbook](../guides/restore.md)): a fresh prod dump restored in 6 s / 0 errors, all 68 tables checksum-identical; the encrypted PBS leg was not exercised.
+Secrets: [secrets-inventory.md](secrets-inventory.md) (⚠️ two exposed 2026-09-08, rotation declined) — verify an `.env` edit with `grep -c` / `cut -d= -f1` / `git diff --stat`, never by printing the region you changed.
+ocr-llm handoffs are PULLED by a `SessionStart` hook ([guide](../guides/ocr-llm-integration.md)); silence means the inbox was empty *and* their checkout current.
