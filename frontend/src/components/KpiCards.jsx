@@ -7,6 +7,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { deltaPercent } from "../utils/deltaPercent.js";
 import "./KpiCards.css";
 
 /**
@@ -82,6 +83,8 @@ function KpiCard({
 }) {
   const hasChart = Array.isArray(chartData) && chartData.length > 1;
   const hasChange = Number.isFinite(changeValue);
+  // Every caller passes change = value − base (budget, prior year, scenario A).
+  const changePct = hasChange ? deltaPercent(value, changeValue) : null;
 
   return (
     <div className="kpi-card">
@@ -111,6 +114,7 @@ function KpiCard({
                 >
                   {formatKpiValue(changeValue)}
                 </span>
+                {changePct && <span className="kpi-card__change-pct">· {changePct}</span>}
                 {changeLabel && (
                   <span className="kpi-card__change-label">{changeLabel}</span>
                 )}

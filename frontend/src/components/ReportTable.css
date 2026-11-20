@@ -445,3 +445,45 @@
   .report-table .balance-report-table tr { page-break-inside: avoid; }
   .report-table .balance-report-table thead { display: table-header-group; }
 }
+
+/* ---- print: wide reports ----------------------------------------------------
+
+   A multi-period report (Cash Flow → By Period, a 12-month year) is wider than
+   the paper and its right-hand months fell off the page — it read as a shorter
+   year, not as missing data (CR082's FBAR defect). Only a report with eight or
+   more columns is touched: a 2–3 column report already fits portrait and keeps
+   its normal print size.
+
+   Two parts. (1) A landscape sheet, set on <body> rather than the table: a
+   named page forces a break on entry, so naming the table alone printed the
+   page heading on its own portrait sheet (and `.page-main`, a flex item, is
+   ignored). ⚠️ `:has()` cannot nest — `body:has(.report-table:has(…))` is
+   dropped whole, silently. Named pages: Chrome 85+, Firefox 110+; elsewhere it
+   prints portrait. (2) A step below DataTable's 0.7rem — a year is
+   13 columns. The headers and the total rows set their own size at high
+   specificity, and at screen size they alone held the year's table ~1120px wide. */
+@page report-wide {
+  size: landscape;
+}
+
+@media print {
+  body:has(.report-table thead th:nth-child(8)) {
+    page: report-wide;
+  }
+
+  .report-table:has(thead th:nth-child(8)) .balance-report-table { font-size: 0.6rem; }
+  .report-table:has(thead th:nth-child(8)) .balance-report-table thead th { font-size: 0.55rem; letter-spacing: 0; }
+  .report-table:has(thead th:nth-child(8)) .balance-report-table thead th,
+  .report-table:has(thead th:nth-child(8)) .balance-report-table tbody td,
+  .report-table:has(thead th:nth-child(8)) .balance-report-table tfoot td,
+  .report-table:has(thead th:nth-child(8)) .balance-report-table tfoot th { padding: 0.15rem 0.3rem; }
+  .report-table:has(thead th:nth-child(8)) .balance-report-table tbody .balance-report-table__totals-row td,
+  .report-table:has(thead th:nth-child(8)) .balance-report-table tbody .balance-report-table__totals-row td:first-child,
+  .report-table:has(thead th:nth-child(8)) .balance-report-table tfoot .balance-report-table__net-cash-flow td,
+  .report-table:has(thead th:nth-child(8)) .balance-report-table tfoot .balance-report-table__net-cash-flow td:first-child,
+  .report-table:has(thead th:nth-child(8)) .balance-report-table tfoot .balance-report-table__net-worth td,
+  .report-table:has(thead th:nth-child(8)) .balance-report-table tfoot .balance-report-table__net-worth td:first-child {
+    font-size: inherit;
+    padding: 0.15rem 0.3rem;
+  }
+}

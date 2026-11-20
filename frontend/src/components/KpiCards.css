@@ -87,6 +87,12 @@
   font-size: 0.7rem;
 }
 
+.kpi-card__change-pct {
+  color: var(--ink-secondary);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .kpi-card__subtitle {
   color: var(--ink-tertiary);
   font-size: 0.72rem;

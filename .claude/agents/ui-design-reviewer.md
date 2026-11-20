@@ -57,8 +57,8 @@ marketing surfaces, onboarding flows, or multi-user affordances — that's out o
 - **Never native `confirm()` / `alert()` / `prompt()`** — unstyleable, main-thread-blocking, and
   suppressed in some installed-PWA contexts, where a suppressed `confirm()` returns `false` and
   the guarded action silently does nothing (Fin ships a PWA, CR007). Use
-  `components/ConfirmModal` / `components/Modal`. **Two remain** (`pages/TaxFbar.jsx`, measured
-  2026-09-14): flag any new one as Blocking — the count may shrink, never grow.
+  `components/ConfirmModal` / `components/Modal`. **None remain** (FBAR's last two moved to
+  `ConfirmModal`, 2026-11-20): flag any new one as Blocking.
 - **Uploads & async results.** Statement / Quicken / CSV uploads: `accept=` is a convenience, not
   a guard (drag-and-drop bypasses it), so the server rejects and the UI renders that rejection
   naming what was expected. Batch operations report **per item** with a retry for the failed

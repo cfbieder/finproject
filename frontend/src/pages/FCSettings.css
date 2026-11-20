@@ -1,10 +1,10 @@
 /**
- * FX Options Page Styles
- * Modern, clean layout for FX rate management
+ * FC Settings page styles
+ * Layout for the forecast settings page (/fc-settings)
  */
 
 /* Main container */
-.fx-options-container {
+.fc-settings-container {
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;
@@ -12,12 +12,12 @@
 }
 
 /* Header section */
-.fx-options-header {
+.fc-settings-header {
   margin-bottom: 2rem;
   text-align: center;
 }
 
-.fx-options-header__title {
+.fc-settings-header__title {
   margin: 0 0 0.5rem;
   font-size: 2rem;
   font-weight: 700;
@@ -25,7 +25,7 @@
   letter-spacing: -0.02em;
 }
 
-.fx-options-header__subtitle {
+.fc-settings-header__subtitle {
   margin: 0;
   font-size: 1rem;
   color: var(--muted);
@@ -33,7 +33,7 @@
 }
 
 /* Exchange rates section */
-.fx-options-section {
+.fc-settings-section {
   background: var(--surface);
   border: 1px solid color-mix(in srgb, var(--primary) 12%, transparent);
   border-radius: 1rem;
@@ -43,7 +43,7 @@
               0 4px 16px -6px color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
-.fx-options-section__title {
+.fc-settings-section__title {
   margin: 0 0 1.25rem 0;
   font-size: 1.25rem;
   font-weight: 700;
@@ -52,7 +52,7 @@
   border-bottom: 2px solid color-mix(in srgb, var(--primary) 15%, transparent);
 }
 
-.fx-options-section__description {
+.fc-settings-section__description {
   margin: 0 0 1rem 0;
   font-size: 0.9rem;
   color: var(--muted);
@@ -61,11 +61,11 @@
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-  .fx-options-container {
+  .fc-settings-container {
     padding: 0 1rem 1.5rem;
   }
 
-  .fx-options-header__title {
+  .fc-settings-header__title {
     font-size: 1.5rem;
   }
 }

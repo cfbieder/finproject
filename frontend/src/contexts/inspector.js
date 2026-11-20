@@ -4,12 +4,10 @@
  * leaving the page.
  *
  * Only WorkbenchLayout mounts the provider (InspectorContext.jsx). Outside it
- * useInspector() returns null, and a page opens its existing modal instead —
- * so the classic layout is unchanged:
+ * (tests, a page rendered bare) useInspector() returns null and the drill-down
+ * does nothing — the classic modal fallbacks were removed in v3.102.0:
  *
- *   const insp = useInspector();
- *   if (insp) insp.open({ key, title, content: <Body … /> });
- *   else setModalOpen(true);
+ *   useInspector()?.open({ key, title, content: <Body … /> });
  *
  * `key` identifies what is shown: opening the same key again closes it (a
  * second click on the same figure), a different key replaces it.

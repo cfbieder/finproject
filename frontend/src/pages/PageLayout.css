@@ -4286,3 +4286,23 @@
 /* TransferToAccountModal (CR096): the row being moved, and cross-currency/loading notes. */
 .transfer-modal__source { margin: 0 0 0.75rem; font-size: 0.85rem; color: var(--ink); }
 .transfer-modal__note { margin: 0.6rem 0 0; font-size: 0.8rem; line-height: 1.5; color: var(--muted); }
+
+/* ---- print ---------------------------------------------------------------- */
+
+/* A report's scroll container is overflow:auto with a viewport-based max-height,
+   and printing kept both: rows below the first screenful and the right-hand
+   months were cut off, which reads as a shorter report, not as missing data
+   (CR082's FBAR defect; roadmap §3). Let the table run onto the paper, and keep
+   the grid column from widening to the table's min-content. */
+@media print {
+  .report-scroll-container,
+  .budget-realization-scroll,
+  .balance-report__table-wrapper {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  .balance-layout-wrapper {
+    min-width: 0;
+  }
+}

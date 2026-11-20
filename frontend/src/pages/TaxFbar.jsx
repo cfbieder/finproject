@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import Rest from "../js/rest";
 import DataTable from "../components/DataTable/DataTable";
 import Modal from "../components/Modal/Modal";
+import ConfirmModal from "../components/ConfirmModal/ConfirmModal";
 import { exportFbarWorkbook, fbarExportBlockers } from "../utils/fbarWorkbook";
 import "./TaxFbar.css";
 
@@ -69,6 +70,9 @@ export default function TaxFbar() {
   const [freezing, setFreezing] = useState(false);
   const [diff, setDiff] = useState(null);
   const [fileMsg, setFileMsg] = useState("");
+  // { title, message, confirmLabel, run } — an in-app confirm, not the browser dialog
+  // (a suppressed confirm() returns false in some installed-PWA contexts).
+  const [confirm, setConfirm] = useState(null);
   const [filer, setFiler] = useState(null);
   const [editingFiler, setEditingFiler] = useState(false);
 
@@ -143,14 +147,19 @@ export default function TaxFbar() {
    * (a historical year reconstructed from a paper return); it is not a thing to
    * click past on the year you are about to send.
    */
-  const freeze = async () => {
-    if (!window.confirm(
-      `Mark tax year ${year} as FILED?\n\n`
-      + `Every figure, account number and institution name is copied into the filing `
+  const freeze = () => setConfirm({
+    title: `Mark tax year ${year} as filed?`,
+    confirmLabel: "Mark filed",
+    danger: true,
+    run: doFreeze,
+    message:
+      `Every figure, account number and institution name is copied into the filing `
       + `as it stands right now, and the year stops accepting edits. This is what makes `
       + `the filed numbers survive a later calibrate() — but it is not reversible: a `
-      + `correction is a second filing (an amendment), not an edit to this one.`
-    )) return;
+      + `correction is a second filing (an amendment), not an edit to this one.`,
+  });
+
+  const doFreeze = async () => {
     setFreezing(true);
     setFileMsg("");
     try {
@@ -168,12 +177,16 @@ export default function TaxFbar() {
     }
   };
 
-  const amend = async () => {
-    if (!window.confirm(
-      `Open an amendment for ${year}?\n\n`
-      + `The filed figures stay exactly as they are and stay readable — this starts a `
-      + `SECOND filing for the same year, which is what an amended FBAR is.`
-    )) return;
+  const amend = () => setConfirm({
+    title: `Open an amendment for ${year}?`,
+    confirmLabel: "Open amendment",
+    run: doAmend,
+    message:
+      `The filed figures stay exactly as they are and stay readable — this starts a `
+      + `SECOND filing for the same year, which is what an amended FBAR is.`,
+  });
+
+  const doAmend = async () => {
     setFreezing(true);
     setFileMsg("");
     try {
@@ -690,6 +703,16 @@ export default function TaxFbar() {
           }}
         />
       )}
+
+      <ConfirmModal
+        state={confirm}
+        busy={freezing}
+        onCancel={() => setConfirm(null)}
+        onConfirm={async () => {
+          await confirm.run();
+          setConfirm(null);
+        }}
+      />
     </div>
   );
 }

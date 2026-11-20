@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import ForecastFXAssumptions from "../features/BudgetEntry/ForecastFXAssumptions.jsx";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
-import "./FXOptions.css";
+import "./FCSettings.css";
 
 const DEFAULT_MODULE_TYPES = ["Asset", "Liability", "Loan", "Deposit", "Fixed Income", "Bond", "Real Estate", "Private Equity", "Business"];
 
@@ -37,16 +37,16 @@ export default function FCSettings() {
 
   return (
     <main className="page-main">
-      <div className="fx-options-container">
-        <header className="fx-options-header">
-          <h1 className="fx-options-header__title">FC Settings</h1>
-          <p className="fx-options-header__subtitle">
+      <div className="fc-settings-container">
+        <header className="fc-settings-header">
+          <h1 className="fc-settings-header__title">FC Settings</h1>
+          <p className="fc-settings-header__subtitle">
             Forecast configuration, module types, and exchange rate assumptions
           </p>
         </header>
 
         {/* General Settings */}
-        <section className="fx-options-section">
+        <section className="fc-settings-section">
           <div style={{ display: "flex", gap: "2.5rem", flexWrap: "wrap", padding: "0.5rem 0" }}>
             {/* Birth Year */}
             <div>
@@ -145,7 +145,7 @@ export default function FCSettings() {
         </section>
 
         {/* AI Review Settings */}
-        <section className="fx-options-section">
+        <section className="fc-settings-section">
           <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "1rem" }}>AI Review</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             <div>
@@ -177,7 +177,7 @@ export default function FCSettings() {
         </section>
 
         {/* FX Assumptions */}
-        <section className="fx-options-section">
+        <section className="fc-settings-section">
           <ForecastFXAssumptions />
         </section>
       </div>

@@ -11,6 +11,7 @@ import { useState } from "react";
 import { TrendingUp, TrendingDown, HelpCircle, Eye, EyeOff } from "lucide-react";
 import { useChartTheme, ChartTooltip } from "../../utils/chartTheme.jsx";
 import NetWorthBridgeModal from "./NetWorthBridgeModal.jsx";
+import { deltaPercent } from "../../utils/deltaPercent.js";
 import "./NetWorthHero.css";
 
 /**
@@ -56,6 +57,8 @@ export default function NetWorthHero({ series, current, delta, isLoading }) {
   // the one the button sits beside.
   const fromDate = hasData ? series[0].date : null;
   const toDate = hasData ? series[series.length - 1].date : null;
+  // Of the window's first point, the same base the delta is measured from.
+  const deltaPct = hasData && delta != null ? deltaPercent(series[0].netWorth + delta, delta) : null;
 
   return (
     <section className="nw-hero panel" aria-label="Net worth over time">
@@ -82,6 +85,7 @@ export default function NetWorthHero({ series, current, delta, isLoading }) {
           <span className={"nw-hero__delta " + (up ? "is-up" : "is-down")}>
             {up ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
             {fullUSD.format(Math.abs(delta))}
+            {deltaPct && <span className="nw-hero__delta-note">· {deltaPct}</span>}
             <span className="nw-hero__delta-note">
               {up ? "up" : "down"} over {months} mo
             </span>

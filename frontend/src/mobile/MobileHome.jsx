@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useOverview, formatOverviewKpi } from "../hooks/useOverview.js";
+import { deltaPercent } from "../utils/deltaPercent.js";
 import NetWorthBridgeModal from "../components/NetWorthHero/NetWorthBridgeModal.jsx";
 import { setForceDesktop, isCoarsePointer } from "./useIsMobile";
 
@@ -48,6 +49,7 @@ export default function MobileHome() {
   };
 
   const up = (data?.delta ?? 0) >= 0;
+  const deltaPct = deltaPercent(data?.netWorth, data?.delta);
 
   return (
     <div>
@@ -89,7 +91,8 @@ export default function MobileHome() {
               {revealed && (
               <span className={"m-kpi__sub m-kpi__sub--" + (up ? "up" : "down")}>
                 {up ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-                {formatKpi(Math.abs(data.delta))} vs last month
+                {formatKpi(Math.abs(data.delta))}
+                {deltaPct && ` · ${deltaPct}`} vs last month
               </span>
               )}
               {/* CR092. Mobile's delta is month-over-month, NOT the desktop
