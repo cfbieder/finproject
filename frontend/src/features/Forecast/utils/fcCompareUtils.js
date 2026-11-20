@@ -14,6 +14,7 @@
  */
 
 import { toRealTerms } from "./fcRealTerms.js";
+import { isOneOffName } from "../../../utils/oneOff.js";
 
 const toNum = (v) => {
   const n = Number(v);
@@ -397,10 +398,32 @@ export function compareMatrices(matA, matB, { cashRows, balanceRows }) {
 
   const rows = [];
 
+  // One-offs below the line (owner, 2026-11-20): the Expense lines named as one-offs, summed, and
+  // Cash Flow less them — derived from rows the matrices already hold, as FCReview does.
+  const oneOffLabels = [];
+  let level1 = null;
+  for (const row of cashRows) {
+    if (row.level === 1) level1 = row.label;
+    else if (row.level === 2 && level1 === "Expense" && isOneOffName(row.label)) oneOffLabels.push(row.label);
+  }
+  const oneOffRows = () => {
+    const cashFlow = makeRow("cash", "Cash Flow", 1);
+    const lines = oneOffLabels.map((l) => makeRow("cash", l, 2));
+    // A year where every one-off line is unknown stays unknown (outside a scenario's range).
+    const sum = (k) => years.map((_, i) => lines.reduce((acc, r) => (r[k][i] == null ? acc : (acc ?? 0) + r[k][i]), null));
+    const less = (k, one) => cashFlow[k].map((v, i) => (v == null ? null : v - (one[i] ?? 0)));
+    const one = { a: sum("a"), b: sum("b"), delta: sum("delta") };
+    const before = { a: less("a", one.a), b: less("b", one.b), delta: less("delta", one.delta) };
+    const row = (label, v) => ({ section: "cash", label, level: 1, ...v,
+      hasData: v.a.some((x) => x) || v.b.some((x) => x), derived: true });
+    return [row("Cash Flow before one-offs", before), row("One-offs", one)];
+  };
+
   // Cash section: Review row order with Cash Flow / Net Cash Flow inserted
   // around Transfers (mirrors FCReview's cashRowsWithNet).
   for (const row of cashRows) {
     if (row.label === "Transfers") {
+      if (oneOffLabels.length) rows.push(...oneOffRows());
       rows.push(makeRow("cash", "Cash Flow", 1, { derived: true }));
       rows.push(makeRow("cash", "Transfers", row.level));
       rows.push(makeRow("cash", "Net Cash Flow", 1, { derived: true }));

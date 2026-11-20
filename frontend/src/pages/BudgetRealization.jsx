@@ -11,6 +11,7 @@ import Rest from "../js/rest.js";
 import { useCoa } from "../hooks/useCoa.js";
 import { exportBudgetRealization } from "../utils/excelExporter.js";
 import { useLatestEstimate } from "../features/Budgets/latestEstimate.js";
+import { isOneOffName, liftOneOffs, oneOffTotal } from "../utils/oneOff.js";
 import "./PageLayout.css";
 import { useHeaderPeriod, useOnHeaderPeriodChange } from "../contexts/headerPeriod.js";
 
@@ -223,6 +224,7 @@ const computeIncomeExpenseTotal = (nodes, resolver) => {
   const expenseValue = resolveTopLevelNodeValue(nodes, "Expense", resolver);
   return safeNumber(incomeValue) + safeNumber(expenseValue);
 };
+
 
 // ============================================================================
 // UTILITY FUNCTIONS - Category Tree Operations
@@ -749,12 +751,13 @@ export default function BudgetRealization() {
 
   const filteredCategoryTree = useMemo(
     () =>
-      filterCategoryTree(categoryTree, {
+      liftOneOffs(filterCategoryTree(categoryTree, {
         includeUnrealized,
         includeTransfers,
-      }),
+      })),
     [categoryTree, includeUnrealized, includeTransfers]
   );
+  const hasOneOffs = filteredCategoryTree.some((n) => n && isOneOffName(n.name));
 
   const collapsiblePaths = useMemo(
     () => collectCollapsiblePaths(filteredCategoryTree),
@@ -774,15 +777,20 @@ export default function BudgetRealization() {
   const hasActualData = leafActualTotals !== null;
   const hasBudgetData = leafBudgetTotals !== null;
 
-  const netActualValue =
+  // Income + Expense is the net BEFORE one-offs (they were lifted out of Expense); the net adds them.
+  const beforeActualValue =
     hasActualData && actualValueResolver
       ? computeIncomeExpenseTotal(filteredCategoryTree, actualValueResolver)
       : null;
+  const oneOffActualValue = hasActualData ? oneOffTotal(filteredCategoryTree, actualValueResolver) : null;
+  const netActualValue = beforeActualValue == null ? null : beforeActualValue + oneOffActualValue;
 
-  const netBudgetValue =
+  const beforeBudgetValue =
     hasBudgetData && budgetValueResolver
       ? computeIncomeExpenseTotal(filteredCategoryTree, budgetValueResolver)
       : null;
+  const oneOffBudgetValue = hasBudgetData ? oneOffTotal(filteredCategoryTree, budgetValueResolver) : null;
+  const netBudgetValue = beforeBudgetValue == null ? null : beforeBudgetValue + oneOffBudgetValue;
 
   const showNetRow = hasActualData || hasBudgetData;
 
@@ -810,13 +818,14 @@ export default function BudgetRealization() {
     hasBudgetData && budgetValueResolver
       ? resolveTopLevelNodeValue(filteredCategoryTree, "Income", budgetValueResolver)
       : null;
+  // The Expenses card keeps one-offs in (the card's net is the full net).
   const expenseActual =
     hasActualData && actualValueResolver
-      ? resolveTopLevelNodeValue(filteredCategoryTree, "Expense", actualValueResolver)
+      ? safeNumber(resolveTopLevelNodeValue(filteredCategoryTree, "Expense", actualValueResolver)) + oneOffActualValue
       : null;
   const expenseBudget =
     hasBudgetData && budgetValueResolver
-      ? resolveTopLevelNodeValue(filteredCategoryTree, "Expense", budgetValueResolver)
+      ? safeNumber(resolveTopLevelNodeValue(filteredCategoryTree, "Expense", budgetValueResolver)) + oneOffBudgetValue
       : null;
 
   const kpiData = useMemo(() => {
@@ -893,10 +902,12 @@ export default function BudgetRealization() {
 
   const hasLeData = showLe && leafLeTotals !== null;
 
-  const netLeValue =
+  const beforeLeValue =
     hasLeData && leValueResolver
       ? computeIncomeExpenseTotal(filteredCategoryTree, leValueResolver)
       : null;
+  const netLeValue =
+    beforeLeValue == null ? null : beforeLeValue + oneOffTotal(filteredCategoryTree, leValueResolver);
   const netLeDisplay = hasLeData ? formatCurrencyValue(netLeValue) : "—";
 
   const netLeBudVarianceValue =
@@ -924,6 +935,30 @@ export default function BudgetRealization() {
     hasLeData && hasActualData,
     "balance-report-table__value--bold budget-va__var-cell"
   );
+
+  // The net before one-offs — the same cells as the net row, from the before-one-offs values.
+  const beforeOneOffsRow = useMemo(() => {
+    if (!hasOneOffs) return null;
+    const bold = "balance-report-table__value--bold";
+    const varCls = `${bold} budget-va__var-cell`;
+    const actBud = (hasActualData ? beforeActualValue : 0) - (hasBudgetData ? beforeBudgetValue : 0);
+    const leBud = (hasLeData ? beforeLeValue : 0) - (hasBudgetData ? beforeBudgetValue : 0);
+    const actLe = (hasActualData ? beforeActualValue : 0) - (hasLeData ? beforeLeValue : 0);
+    return {
+      budgetDisplay: hasBudgetData ? formatCurrencyValue(beforeBudgetValue) : "—",
+      actualDisplay: hasActualData ? formatCurrencyValue(beforeActualValue) : "—",
+      varianceDisplay: hasBudgetData || hasActualData ? formatCurrencyValue(actBud) : "—",
+      leDisplay: hasLeData ? formatCurrencyValue(beforeLeValue) : "—",
+      leBudVarianceDisplay: hasLeData && hasBudgetData ? formatCurrencyValue(leBud) : "—",
+      actLeVarianceDisplay: hasLeData && hasActualData ? formatCurrencyValue(actLe) : "—",
+      budgetCellClass: getValueCellClassName(beforeBudgetValue ?? 0, beforeBudgetValue != null, bold),
+      actualCellClass: getValueCellClassName(beforeActualValue ?? 0, beforeActualValue != null, bold),
+      varianceCellClass: getValueCellClassName(actBud, hasBudgetData || hasActualData, bold),
+      leCellClass: getValueCellClassName(beforeLeValue ?? 0, hasLeData, bold),
+      leBudVarianceCellClass: getValueCellClassName(leBud, hasLeData && hasBudgetData, varCls),
+      actLeVarianceCellClass: getValueCellClassName(actLe, hasLeData && hasActualData, varCls),
+    };
+  }, [hasOneOffs, hasActualData, hasBudgetData, hasLeData, beforeActualValue, beforeBudgetValue, beforeLeValue]);
 
   // ========== Effects: Initialization ==========
 
@@ -1263,6 +1298,7 @@ export default function BudgetRealization() {
           netLeCellClass={netLeCellClass}
           netLeBudVarianceCellClass={netLeBudVarianceCellClass}
           netActLeVarianceCellClass={netActLeVarianceCellClass}
+          beforeOneOffsRow={beforeOneOffsRow}
           renderCategoryRows={renderCategoryRows}
           periodProps={periodProps}
           toggleProps={toggleProps}

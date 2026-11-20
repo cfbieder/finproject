@@ -55,7 +55,7 @@ dbDescribe('Compare Forecast (DB)', () => {
   const entry = (scenarioId, account, amount) => db.query(
     'INSERT INTO forecast_entries (scenario_id, forecast_year, account, amount) VALUES ($1, $2, $3, $4)', [scenarioId, TARGET, account, amount]
   );
-  const line = (r, name) => [...r.income, ...r.expense].find((l) => l.name === `${P} ${name}`);
+  const line = (r, name) => [...r.income, ...r.expense, ...r.oneOff].find((l) => l.name === `${P} ${name}`);
 
   beforeAll(async () => {
     await cleanup();
@@ -70,6 +70,9 @@ dbDescribe('Compare Forecast (DB)', () => {
     await map(ids.lTravel, ids.travel);
     await map(ids.lFood, ids.food);
     await map(ids.lFees, ids.fees);
+    ids.car = await account('Car sale');
+    ids.lOneOff = await fcLine('One-Off Items', 'forecast_expense', 9007);
+    await map(ids.lOneOff, ids.car);
 
     ids.le = (await db.query(
       `INSERT INTO budget_le (budget_year, actual_through, name, status, finalized_at)
@@ -80,6 +83,7 @@ dbDescribe('Compare Forecast (DB)', () => {
     await leLine(ids.food, 'USD', -2000);
     await leLine(ids.fees, 'USD', 300);
     await leLine(ids.stray, 'USD', -100);     // on no forecast line
+    await leLine(ids.car, 'USD', -700);       // a one-off
 
     ids.scen = (await db.query(
       'INSERT INTO forecast_scenarios (name, is_active, cash_sweep_low, cash_sweep_high) VALUES ($1, TRUE, 0, 0) RETURNING id', [SCEN]
@@ -98,6 +102,7 @@ dbDescribe('Compare Forecast (DB)', () => {
     await entry(ids.scen, `${P} Travel`, -100);
     await entry(ids.scen, `${P} Fees`, 250);
     await entry(ids.scen, `${P} Engine`, 77);
+    await entry(ids.scen, `${P} One-Off Items`, -600);
     await entry(ids.scen, 'Transfer - Bank', -999);
     await entry(ids.var, `${P} Travel`, -3000);
 
@@ -130,6 +135,18 @@ dbDescribe('Compare Forecast (DB)', () => {
     const view = await builder.getBuild(ids.build);
     // The build's own total equals what the modal accounts for; the transfer leg is not P&L.
     expect(r.totals.net.budget).toBe(view.usdTotal);
+  });
+
+  test('one-offs sit below the line: the net before them, them, then the net', async () => {
+    const r = await svc.compareForecast(ids.build);
+    expect(r.expense.map((l) => l.name)).not.toContain(`${P} One-Off Items`);
+    expect(r.oneOff.map((l) => l.name)).toContain(`${P} One-Off Items`);
+    expect(r.totals.oneOff).toMatchObject({ budget: -700, le: -700, forecast: -600 });
+    for (const k of ['budget', 'le', 'forecast']) {
+      expect(r.totals.beforeOneOffs[k] + r.totals.oneOff[k]).toBeCloseTo(r.totals.net[k], 2);
+    }
+    // Before one-offs: income + the regular expenses + the categories on no forecast line.
+    expect(r.totals.beforeOneOffs.budget).toBe(300 - 1500 - 2000 - 100);
   });
 
   test('a variant reads its own entries and its own rates', async () => {

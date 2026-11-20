@@ -423,6 +423,11 @@ export default function FCReviewTable({
     if (!leReference) return {};
     if (row.isCashFlow) return { show: true, value: leReference.total };
     if (row.isNet) return {};
+    if (row.isOneOffs || row.isBeforeOneOffs) {
+      const oneOffs = (row.oneOffLabels || []).reduce((sum, l) => sum + (Number(leReference.values?.[l]) || 0), 0);
+      if (row.isOneOffs) return { show: true, value: oneOffs };
+      return leReference.total == null ? {} : { show: true, value: leReference.total - oneOffs };
+    }
     if (row.level === 1) {
       let total = 0; let found = false;
       for (const [ln, mp] of cashAccountMap?.entries() ?? []) {
@@ -796,7 +801,8 @@ export default function FCReviewTable({
                   {/* ========== CASH FLOW SECTION ========== */}
                   {cashRowsWithNet.map((row, index) => {
                     const isTransfers = row.label === "Transfers";
-                    const isCashFlow = row.isCashFlow;
+                    // The two one-off summary rows read like Cash Flow: derived, bold, not drillable.
+                    const isCashFlow = row.isCashFlow || row.isBeforeOneOffs || row.isOneOffs;
                     const isFirstCashRow = index === 0;
                     const isLastCashRow =
                       index === cashRowsWithNet.length - 1;
@@ -856,7 +862,7 @@ export default function FCReviewTable({
                           onDoubleClick={() =>
                             onAccountDoubleClick?.({
                               id: rowId,
-                              label: row.isNet ? "Net Cash Flow" : isCashFlow ? "Cash Flow" : row.label,
+                              label: row.isNet ? "Net Cash Flow" : row.isCashFlow ? "Cash Flow" : row.label,
                               values: rowValues,
                               // CR046: the graph expands a row into the accounts beneath
                               // it, so it needs to know where the row sits in the tree.
@@ -868,7 +874,7 @@ export default function FCReviewTable({
                         >
                           {row.isNet
                             ? "Net Cash Flow"
-                            : isCashFlow
+                            : row.isCashFlow
                             ? "Cash Flow"
                             : row.label}
                         </td>
@@ -905,7 +911,7 @@ export default function FCReviewTable({
                                 ...cashSectionBorders,
                               }}
                               onDoubleClick={() =>
-                                !isBaseYear &&
+                                !isBaseYear && !row.isBeforeOneOffs && !row.isOneOffs &&
                                 onCellDoubleClick?.(row, year, true)
                               }
                             >

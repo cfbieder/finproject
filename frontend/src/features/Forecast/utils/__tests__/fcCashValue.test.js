@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveCashValue } from "../fcCashValue.js";
+import { resolveCashValue, resolveOneOffRow } from "../fcCashValue.js";
 
 // PeriodStart 2027 ⇒ 2025 is the actuals year, 2026 the budget year.
 const BASE_YEARS = new Set([2026]);
@@ -91,5 +91,25 @@ describe("resolveCashValue", () => {
       ]),
     };
     expect(resolveCashValue({ label: "Income", level: 1 }, 2027, overlapping)).toBe(520000);
+  });
+});
+
+describe("resolveOneOffRow — one-offs below the line", () => {
+  const values = { "Cash Flow": 1000, "One-Off Items": -300, "Car": null };
+  const resolve = (row) => (row.isCashFlow ? values["Cash Flow"] : values[row.label]);
+  const row = (flag) => ({ [flag]: true, oneOffLabels: ["One-Off Items", "Car"] });
+
+  it("sums the one-off lines (an unknown one counts 0) and takes them off Cash Flow", () => {
+    expect(resolveOneOffRow(row("isOneOffs"), 2027, resolve)).toBe(-300);
+    expect(resolveOneOffRow(row("isBeforeOneOffs"), 2027, resolve)).toBe(1300);
+  });
+
+  it("leaves Cash Flow before one-offs unknown when Cash Flow is", () => {
+    expect(resolveOneOffRow(row("isBeforeOneOffs"), 2027, () => null)).toBeNull();
+  });
+
+  it("is what resolveCashValue returns for the synthetic rows", () => {
+    const getCellValue = (r) => (r.isCashFlow ? 1000 : r.label === "One-Off Items" ? -300 : null);
+    expect(resolveCashValue(row("isBeforeOneOffs"), 2030, { getCellValue })).toBe(1300);
   });
 });

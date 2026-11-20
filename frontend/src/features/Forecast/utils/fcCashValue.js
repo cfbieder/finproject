@@ -32,6 +32,9 @@
  * @returns {number|null}
  */
 export function resolveCashValue(row, year, ctx = {}) {
+  if (row.isBeforeOneOffs || row.isOneOffs) {
+    return resolveOneOffRow(row, year, (r, y) => resolveCashValue(r, y, ctx));
+  }
   const {
     getCellValue,
     baseYears,
@@ -96,4 +99,24 @@ export function resolveCashValue(row, year, ctx = {}) {
   }
 
   return value;
+}
+
+/**
+ * One-offs below the line (owner, 2026-11-20): the two synthetic rows above Cash Flow —
+ * `isOneOffs` (the one-off lines summed) and `isBeforeOneOffs` (Cash Flow less them). Both are
+ * derived from rows that already resolve, through `resolve(row, year)`, so every base (actuals,
+ * budget, forecast) gives the same split. A one-off line with no value counts 0; an unknown
+ * Cash Flow stays unknown.
+ *
+ * @param {Object} row - { isOneOffs | isBeforeOneOffs, oneOffLabels: string[] }
+ */
+export function resolveOneOffRow(row, year, resolve) {
+  let oneOffs = 0;
+  for (const label of row.oneOffLabels || []) {
+    const v = Number(resolve({ label, level: 2 }, year));
+    if (Number.isFinite(v)) oneOffs += v;
+  }
+  if (row.isOneOffs) return oneOffs;
+  const cashFlow = resolve({ label: "Cash Flow", level: 1, isCashFlow: true }, year);
+  return cashFlow == null ? null : Number(cashFlow) - oneOffs;
 }

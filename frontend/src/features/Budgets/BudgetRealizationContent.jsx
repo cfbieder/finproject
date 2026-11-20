@@ -4,6 +4,7 @@ import PeriodSelector from "../../components/PeriodSelector/PeriodSelector.jsx";
 import { KpiCard, KpiCardRow } from "../../components/KpiCards.jsx";
 import { useChartTheme } from "../../utils/chartTheme.jsx";
 import FyLandingStrip from "./FyLandingStrip.jsx";
+import { isOneOffName } from "../../utils/oneOff.js";
 import { LeCompareControl, LeCompareNotes } from "./LeCompare.jsx";
 import "../../components/ReportTable.css";
 import "./BudgetVaTable.css";
@@ -24,6 +25,7 @@ function BudgetRealizationContent({
   netLeCellClass,
   netLeBudVarianceCellClass,
   netActLeVarianceCellClass,
+  beforeOneOffsRow = null,
   renderCategoryRows,
   periodProps,
   toggleProps,
@@ -41,6 +43,19 @@ function BudgetRealizationContent({
   // comes first — see the note in BudgetVaTable.css for why this is not CSS.
   const firstVar = varActBud ? "actbud" : varLeBud ? "lebud" : varActLe ? "actle" : null;
   const seam = (key) => (firstVar === key ? " budget-va__var-first" : "");
+  const netRow = (label, r, key) => (
+    <tr key={key} className="balance-report-table__totals-row">
+      <td className="balance-report-table__name">
+        <span className="balance-report-table__name-text balance-report-table__name-text--bold">{label}</span>
+      </td>
+      {showBudget && <td className={r.budgetCellClass}>{r.budgetDisplay}</td>}
+      {showActual && <td className={r.actualCellClass}>{r.actualDisplay}</td>}
+      {showLe && <td className={`${r.leCellClass} budget-va__le-cell`}>{r.leDisplay}</td>}
+      {varActBud && <td className={`${r.varianceCellClass} budget-va__var-cell${seam("actbud")}`}>{r.varianceDisplay}</td>}
+      {varLeBud && <td className={`${r.leBudVarianceCellClass}${seam("lebud")}`}>{r.leBudVarianceDisplay}</td>}
+      {varActLe && <td className={`${r.actLeVarianceCellClass}${seam("actle")}`}>{r.actLeVarianceDisplay}</td>}
+    </tr>
+  );
 
   return (
     <div className="budget-realization-content">
@@ -200,42 +215,27 @@ function BudgetRealizationContent({
                   </tr>
                 </thead>
                 <tbody>
-                  {renderCategoryRows(filteredCategoryTree, rowContext)}
-                  {showNetRow && (
-                    <tr className="balance-report-table__totals-row">
-                      <td className="balance-report-table__name">
-                        <span className="balance-report-table__name-text balance-report-table__name-text--bold">
-                          Net Cash Flow
-                        </span>
-                      </td>
-                      {showBudget && (
-                        <td className={netBudgetCellClass}>{netBudgetDisplay}</td>
-                      )}
-                      {showActual && (
-                        <td className={netActualCellClass}>{netActualDisplay}</td>
-                      )}
-                      {showLe && (
-                        <td className={`${netLeCellClass} budget-va__le-cell`}>
-                          {netLeDisplay}
-                        </td>
-                      )}
-                      {varActBud && (
-                        <td className={`${netVarianceCellClass} budget-va__var-cell${seam("actbud")}`}>
-                          {netVarianceDisplay}
-                        </td>
-                      )}
-                      {varLeBud && (
-                        <td className={`${netLeBudVarianceCellClass}${seam("lebud")}`}>
-                          {netLeBudVarianceDisplay}
-                        </td>
-                      )}
-                      {varActLe && (
-                        <td className={`${netActLeVarianceCellClass}${seam("actle")}`}>
-                          {netActLeVarianceDisplay}
-                        </td>
-                      )}
-                    </tr>
-                  )}
+                  {(() => {
+                    const tree = filteredCategoryTree || [];
+                    // One-offs below the line (owner, 2026-11-20): the tree up to them, the net before
+                    // them, the one-off sections, then whatever follows (Transfers), then the net.
+                    const at = beforeOneOffsRow ? tree.findIndex((n) => isOneOffName(n?.name)) : -1;
+                    if (at < 0) return renderCategoryRows(tree, rowContext);
+                    let end = at;
+                    while (end < tree.length && isOneOffName(tree[end]?.name)) end += 1;
+                    return [
+                      ...renderCategoryRows(tree.slice(0, at), rowContext),
+                      showNetRow && netRow("Net before one-offs", beforeOneOffsRow, "before-one-offs"),
+                      ...renderCategoryRows(tree.slice(at, end), rowContext),
+                      ...renderCategoryRows(tree.slice(end), rowContext),
+                    ];
+                  })()}
+                  {showNetRow && netRow("Net Cash Flow", {
+                    budgetDisplay: netBudgetDisplay, actualDisplay: netActualDisplay, varianceDisplay: netVarianceDisplay,
+                    leDisplay: netLeDisplay, leBudVarianceDisplay: netLeBudVarianceDisplay, actLeVarianceDisplay: netActLeVarianceDisplay,
+                    budgetCellClass: netBudgetCellClass, actualCellClass: netActualCellClass, varianceCellClass: netVarianceCellClass,
+                    leCellClass: netLeCellClass, leBudVarianceCellClass: netLeBudVarianceCellClass, actLeVarianceCellClass: netActLeVarianceCellClass,
+                  }, "net")}
                 </tbody>
               </table>
             </div>

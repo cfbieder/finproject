@@ -142,7 +142,7 @@ export default function CompareForecastModal({ buildId, buildLabel, onClose }) {
                   {subtotal("Total income", data.totals.income)}
                   <tr className="cf-section"><th colSpan={6}>Expenses</th></tr>
                   {lineRows(data.expense)}
-                  {subtotal("Total expenses", data.totals.expense)}
+                  {subtotal(data.oneOff?.length ? "Total expenses before one-offs" : "Total expenses", data.totals.expense)}
                   {nif && nif.categories.length > 0 && (
                     <>
                       <tr className="cf-line">
@@ -162,6 +162,14 @@ export default function CompareForecastModal({ buildId, buildLabel, onClose }) {
                           <td className={`num ${neg(c.le) || ""}`}>{fmt(c.le)}</td>
                         </tr>
                       ))}
+                    </>
+                  )}
+                  {/* One-offs below the line (owner, 2026-11-20): the net before them, them, then the net. */}
+                  {data.oneOff?.length > 0 && (
+                    <>
+                      {subtotal("P&L net before one-offs", data.totals.beforeOneOffs)}
+                      <tr className="cf-section"><th colSpan={6}>One-offs</th></tr>
+                      {lineRows(data.oneOff)}
                     </>
                   )}
                   {subtotal("P&L net (excludes transfers)", data.totals.net)}

@@ -19,6 +19,7 @@ const db = require('../v2/db');
 const builder = require('./budgetBuilder');
 const fcLinesRepo = require('../v2/repositories/fcLines');
 const { FC_LINE_LEAVES_CTE } = require('./forecast/crud');
+const { isOneOffName } = require('../utils/oneOff');
 
 const err = (status, message) => Object.assign(new Error(message), { status });
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
@@ -126,12 +127,22 @@ async function compareForecast(buildId, { scenario } = {}) {
 
   const sum = (rows, k) => rows.reduce((s, r) => (r.noMapping && k !== 'forecast' ? s : add(s, r[k])), 0);
   const section = (rows) => ({ budget: sum(rows, 'budget'), le: sum(rows, 'le'), forecast: generated ? sum(rows, 'forecast') : null });
+  // One-offs (the `One-Off Items` line) sit below the line: the P&L is shown before them, then them,
+  // then the net (owner, 2026-11-20), so a car purchase does not hide how the year runs.
+  const oneOff = expense.filter((r) => isOneOffName(r.name));
+  const regular = expense.filter((r) => !isOneOffName(r.name));
   const inc = section(income);
-  const exp = section(expense);
-  const net = {
+  const exp = section(regular);
+  const one = section(oneOff);
+  const beforeOneOffs = {
     budget: add(add(inc.budget, exp.budget), notInForecast.budget),
     le: add(add(inc.le, exp.le), notInForecast.le),
     forecast: generated ? add(inc.forecast, exp.forecast) : null,
+  };
+  const net = {
+    budget: add(beforeOneOffs.budget, one.budget),
+    le: add(beforeOneOffs.le, one.le),
+    forecast: generated ? add(beforeOneOffs.forecast, one.forecast) : null,
   };
   const residual = {
     budget: budgetTotal == null || net.budget == null ? null : round2(budgetTotal - net.budget),
@@ -152,8 +163,8 @@ async function compareForecast(buildId, { scenario } = {}) {
       forecast: { PLN: rateOf(theirs, 'PLN'), EUR: rateOf(theirs, 'EUR') },
       differ: ratesDiffer,
     },
-    income, expense, notInForecast,
-    totals: { income: inc, expense: exp, net },
+    income, expense: regular, oneOff, notInForecast,
+    totals: { income: inc, expense: exp, beforeOneOffs, oneOff: one, net },
     residual,
   };
 }

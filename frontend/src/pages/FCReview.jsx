@@ -43,7 +43,8 @@ import FCAutoAdjustModal from "../features/Forecast/FCAutoAdjustModal.jsx";
 import { computeForecastWarnings } from "../features/Forecast/utils/fcWarnings.js";
 import { buildDeflators, toRealTerms } from "../features/Forecast/utils/fcRealTerms.js";
 import { buildBreakdownSeries } from "../features/Forecast/utils/fcBreakdown.js";
-import { resolveCashValue } from "../features/Forecast/utils/fcCashValue.js";
+import { resolveCashValue, resolveOneOffRow } from "../features/Forecast/utils/fcCashValue.js";
+import { isOneOffName } from "../utils/oneOff.js";
 import { exportForecastReview } from "../features/Forecast/utils/fcReviewWorkbook.js";
 import { TrendingUp, TrendingDown, DollarSign, Landmark } from "lucide-react";
 import Rest from "../js/rest.js";
@@ -484,8 +485,17 @@ export default function FCReview() {
    */
   const cashRowsWithNet = useMemo(() => {
     const rows = [];
+    // One-offs below the line (owner, 2026-11-20): Cash Flow before one-offs, the one-offs, then
+    // Cash Flow. The one-off line also stays in its place under Expense.
+    const oneOffLabels = cashAccounts
+      .filter((r) => r.level === 2 && cashAccountMap.get(r.label)?.level1 === "Expense" && isOneOffName(r.label))
+      .map((r) => r.label);
     for (const row of cashAccounts) {
       if (row.label === "Transfers") {
+        if (oneOffLabels.length) {
+          rows.push({ label: "Cash Flow before one-offs", level: 1, isBeforeOneOffs: true, oneOffLabels });
+          rows.push({ label: "One-offs", level: 1, isOneOffs: true, oneOffLabels });
+        }
         rows.push({
           label: "Cash Flow",
           level: 1,
@@ -502,7 +512,7 @@ export default function FCReview() {
       }
     }
     return rows;
-  }, [cashAccounts]);
+  }, [cashAccounts, cashAccountMap]);
 
   /**
    * Per-source detail rows for the Transfers line in the Cash Flow Summary.
@@ -1614,6 +1624,11 @@ export default function FCReview() {
             // Rebuild cash row to match getCellValue
             const isNet = label === "Net Cash Flow";
             const isCashFlow = label === "Cash Flow";
+            const oneOffRow = cashRowsWithNet.find((r) => r.label === label && (r.isOneOffs || r.isBeforeOneOffs));
+            if (oneOffRow) {
+              const v = Number(resolveOneOffRow(oneOffRow, year, (r, y) => getCellValue(r, y, true)));
+              return Number.isFinite(v) ? v : 0;
+            }
             const row = isNet
               ? { label, isNet: true }
               : isCashFlow

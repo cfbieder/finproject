@@ -271,3 +271,32 @@ describe("buildCommentary", () => {
     expect(crossover.text).toContain("2028");
   });
 });
+
+describe("compareMatrices — one-offs below the line", () => {
+  const oneOffMap = new Map([...cashAccountMap, ["One-Off Items", { level1: "Expense", level2: "One-Off Items" }]]);
+  const oneOffRows = [...cashRows.slice(0, 5), { label: "One-Off Items", level: 2 }, ...cashRows.slice(5)];
+  const build = (amount) => buildA({
+    cashAccountMap: oneOffMap,
+    entries: [...entriesA, { Year: 2027, Account: "One-Off Items", Amount: amount }],
+  });
+
+  it("shows Cash Flow before one-offs, the one-offs, then Cash Flow — and they reconcile", () => {
+    const cmp = compareMatrices(build(-25), build(-40), { cashRows: oneOffRows, balanceRows });
+    const labels = cmp.rows.filter((r) => r.section === "cash").map((r) => r.label);
+    expect(labels.slice(-5)).toEqual(["Cash Flow before one-offs", "One-offs", "Cash Flow", "Transfers", "Net Cash Flow"]);
+    expect(labels).toContain("One-Off Items"); // still in its place under Expense
+    const row = (l) => cmp.rows.find((r) => r.label === l);
+    expect(row("One-offs").a[0]).toBe(-25);
+    expect(row("One-offs").delta[0]).toBe(-15);
+    for (const k of ["a", "b", "delta"]) {
+      cmp.years.forEach((_, i) => {
+        expect(row("Cash Flow before one-offs")[k][i] + (row("One-offs")[k][i] ?? 0)).toBeCloseTo(row("Cash Flow")[k][i], 6);
+      });
+    }
+  });
+
+  it("adds nothing when no Expense line is a one-off", () => {
+    const cmp = compareMatrices(buildA(), buildA(), { cashRows, balanceRows });
+    expect(cmp.rows.map((r) => r.label)).not.toContain("One-offs");
+  });
+});
