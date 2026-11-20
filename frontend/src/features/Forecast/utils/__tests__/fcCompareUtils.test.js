@@ -280,23 +280,26 @@ describe("compareMatrices — one-offs below the line", () => {
     entries: [...entriesA, { Year: 2027, Account: "One-Off Items", Amount: amount }],
   });
 
-  it("shows Cash Flow before one-offs, the one-offs, then Cash Flow — and they reconcile", () => {
+  it("moves the one-off line out of Expense to between Cash Flow before one-offs and Cash Flow", () => {
     const cmp = compareMatrices(build(-25), build(-40), { cashRows: oneOffRows, balanceRows });
     const labels = cmp.rows.filter((r) => r.section === "cash").map((r) => r.label);
-    expect(labels.slice(-5)).toEqual(["Cash Flow before one-offs", "One-offs", "Cash Flow", "Transfers", "Net Cash Flow"]);
-    expect(labels).toContain("One-Off Items"); // still in its place under Expense
+    expect(labels.slice(-5)).toEqual(["Cash Flow before one-offs", "One-Off Items", "Cash Flow", "Transfers", "Net Cash Flow"]);
+    expect(labels.filter((l) => l === "One-Off Items")).toHaveLength(1); // moved, not copied
     const row = (l) => cmp.rows.find((r) => r.label === l);
-    expect(row("One-offs").a[0]).toBe(-25);
-    expect(row("One-offs").delta[0]).toBe(-15);
+    expect(row("One-Off Items").a[0]).toBe(-25);
+    expect(row("One-Off Items").delta[0]).toBe(-15);
+    const whole = cmp.totals.expense; // the KPI total keeps one-offs in
     for (const k of ["a", "b", "delta"]) {
       cmp.years.forEach((_, i) => {
-        expect(row("Cash Flow before one-offs")[k][i] + (row("One-offs")[k][i] ?? 0)).toBeCloseTo(row("Cash Flow")[k][i], 6);
+        const one = row("One-Off Items")[k][i] ?? 0;
+        expect(row("Cash Flow before one-offs")[k][i] + one).toBeCloseTo(row("Cash Flow")[k][i], 6);
+        if (whole[k][i] != null) expect(row("Expense")[k][i] + one).toBeCloseTo(whole[k][i], 6);
       });
     }
   });
 
   it("adds nothing when no Expense line is a one-off", () => {
     const cmp = compareMatrices(buildA(), buildA(), { cashRows, balanceRows });
-    expect(cmp.rows.map((r) => r.label)).not.toContain("One-offs");
+    expect(cmp.rows.map((r) => r.label)).not.toContain("Cash Flow before one-offs");
   });
 });

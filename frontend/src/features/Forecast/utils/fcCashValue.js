@@ -103,14 +103,13 @@ export function resolveCashValue(row, year, ctx = {}) {
 
 /**
  * One-offs below the line (owner, 2026-11-20). A row carrying `oneOffLabels` is one of:
- *   - `isOneOffs`: the one-off lines summed (Forecast Compare's row);
  *   - `isBeforeOneOffs`: Cash Flow less them;
  *   - a level-1 row (Expense): its own total less them, since the one-off lines moved out of it.
  * All derive from rows that already resolve, through `resolve(row, year)`, so every base
  * (actuals, budget, forecast) gives the same split. A one-off line with no value counts 0; an
  * unknown total stays unknown.
  *
- * @param {Object} row - { isOneOffs | isBeforeOneOffs | label+level 1, oneOffLabels: string[] }
+ * @param {Object} row - { isBeforeOneOffs | label+level 1, oneOffLabels: string[] }
  */
 export function resolveOneOffRow(row, year, resolve) {
   let oneOffs = 0;
@@ -118,7 +117,6 @@ export function resolveOneOffRow(row, year, resolve) {
     const v = Number(resolve({ label, level: 2 }, year));
     if (Number.isFinite(v)) oneOffs += v;
   }
-  if (row.isOneOffs) return oneOffs;
   const total = row.isBeforeOneOffs
     ? resolve({ label: "Cash Flow", level: 1, isCashFlow: true }, year)
     : resolve({ label: row.label, level: row.level }, year);

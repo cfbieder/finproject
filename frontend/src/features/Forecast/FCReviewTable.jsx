@@ -423,9 +423,8 @@ export default function FCReviewTable({
     if (!leReference) return {};
     if (row.isCashFlow) return { show: true, value: leReference.total };
     if (row.isNet) return {};
-    if (row.isOneOffs || row.isBeforeOneOffs) {
+    if (row.isBeforeOneOffs) {
       const oneOffs = (row.oneOffLabels || []).reduce((sum, l) => sum + (Number(leReference.values?.[l]) || 0), 0);
-      if (row.isOneOffs) return { show: true, value: oneOffs };
       return leReference.total == null ? {} : { show: true, value: leReference.total - oneOffs };
     }
     if (row.level === 1) {
@@ -912,7 +911,7 @@ export default function FCReviewTable({
                                 ...cashSectionBorders,
                               }}
                               onDoubleClick={() =>
-                                !isBaseYear && !row.isBeforeOneOffs && !row.isOneOffs &&
+                                !isBaseYear && !row.isBeforeOneOffs &&
                                 onCellDoubleClick?.(row, year, true)
                               }
                             >

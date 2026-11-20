@@ -99,8 +99,7 @@ describe("resolveOneOffRow — one-offs below the line", () => {
   const resolve = (row) => (row.isCashFlow ? values["Cash Flow"] : values[row.label]);
   const row = (flag) => ({ [flag]: true, oneOffLabels: ["One-Off Items", "Car"] });
 
-  it("sums the one-off lines (an unknown one counts 0) and takes them off Cash Flow", () => {
-    expect(resolveOneOffRow(row("isOneOffs"), 2027, resolve)).toBe(-300);
+  it("takes the one-off lines (an unknown one counts 0) off Cash Flow", () => {
     expect(resolveOneOffRow(row("isBeforeOneOffs"), 2027, resolve)).toBe(1300);
   });
 

@@ -398,35 +398,54 @@ export function compareMatrices(matA, matB, { cashRows, balanceRows }) {
 
   const rows = [];
 
-  // One-offs below the line (owner, 2026-11-20): the Expense lines named as one-offs, summed, and
-  // Cash Flow less them — derived from rows the matrices already hold, as FCReview does.
+  // One-offs below the line (owner, 2026-11-20), as FCReview lays them out: Expense's one-off
+  // line(s) — with any rows beneath — leave Expense, whose total then reads before one-offs; after
+  // the expense lines come Cash Flow before one-offs, the one-off line(s), then Cash Flow. Derived
+  // from rows the matrices already hold.
   const oneOffLabels = [];
   let level1 = null;
   for (const row of cashRows) {
     if (row.level === 1) level1 = row.label;
     else if (row.level === 2 && level1 === "Expense" && isOneOffName(row.label)) oneOffLabels.push(row.label);
   }
-  const oneOffRows = () => {
-    const cashFlow = makeRow("cash", "Cash Flow", 1);
-    const lines = oneOffLabels.map((l) => makeRow("cash", l, 2));
-    // A year where every one-off line is unknown stays unknown (outside a scenario's range).
-    const sum = (k) => years.map((_, i) => lines.reduce((acc, r) => (r[k][i] == null ? acc : (acc ?? 0) + r[k][i]), null));
-    const less = (k, one) => cashFlow[k].map((v, i) => (v == null ? null : v - (one[i] ?? 0)));
-    const one = { a: sum("a"), b: sum("b"), delta: sum("delta") };
-    const before = { a: less("a", one.a), b: less("b", one.b), delta: less("delta", one.delta) };
-    const row = (label, v) => ({ section: "cash", label, level: 1, ...v,
-      hasData: v.a.some((x) => x) || v.b.some((x) => x), derived: true });
-    return [row("Cash Flow before one-offs", before), row("One-offs", one)];
+  const oneOffLines = oneOffLabels.map((l) => makeRow("cash", l, 2));
+  // A year where every one-off line is unknown stays unknown (outside a scenario's range).
+  const oneOffSum = (k) =>
+    years.map((_, i) => oneOffLines.reduce((acc, r) => (r[k][i] == null ? acc : (acc ?? 0) + r[k][i]), null));
+  const oneOff = { a: oneOffSum("a"), b: oneOffSum("b"), delta: oneOffSum("delta") };
+  /** A row less the one-offs, keeping its own unknowns. */
+  const lessOneOffs = (row, extra = {}) => {
+    const less = (k) => row[k].map((v, i) => (v == null ? null : v - (oneOff[k][i] ?? 0)));
+    const v = { a: less("a"), b: less("b"), delta: less("delta") };
+    return { ...row, ...v, hasData: v.a.some((x) => x) || v.b.some((x) => x), ...extra };
   };
 
   // Cash section: Review row order with Cash Flow / Net Cash Flow inserted
   // around Transfers (mirrors FCReview's cashRowsWithNet).
+  const movedRows = [];
+  let moving = false;
   for (const row of cashRows) {
+    if (row.level === 2 && oneOffLabels.includes(row.label)) {
+      moving = true;
+      movedRows.push(makeRow("cash", row.label, row.level));
+      continue;
+    }
+    if (moving && row.level > 2) {
+      movedRows.push(makeRow("cash", row.label, row.level));
+      continue;
+    }
+    moving = false;
     if (row.label === "Transfers") {
-      if (oneOffLabels.length) rows.push(...oneOffRows());
-      rows.push(makeRow("cash", "Cash Flow", 1, { derived: true }));
+      const cashFlow = makeRow("cash", "Cash Flow", 1, { derived: true });
+      if (oneOffLabels.length) {
+        rows.push(lessOneOffs(cashFlow, { label: "Cash Flow before one-offs" }));
+        rows.push(...movedRows);
+      }
+      rows.push(cashFlow);
       rows.push(makeRow("cash", "Transfers", row.level));
       rows.push(makeRow("cash", "Net Cash Flow", 1, { derived: true }));
+    } else if (row.level === 1 && row.label === "Expense" && oneOffLabels.length) {
+      rows.push(lessOneOffs(makeRow("cash", "Expense", 1)));
     } else {
       rows.push(makeRow("cash", row.label, row.level));
     }
