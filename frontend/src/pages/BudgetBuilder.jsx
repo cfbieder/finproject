@@ -634,7 +634,7 @@ function BudgetBuilder() {
                           {l.inactive && <span className="bb-muted"> · inactive from {String(l.inactiveFrom).slice(0, 7)} — publishes nothing</span>}
                           {l.policy !== "itemised" && itemisedOn.has(l.categoryId) && (l.policy === "one_off"
                             ? <span className="bb-muted"> · itemised on the {itemisedOn.get(l.categoryId)} line</span>
-                            : <span className="bb-flag"> ⚠ also itemised on the {itemisedOn.get(l.categoryId)} line — counted twice</span>)}
+                            : <span className="bb-flag"> ⚠ the itemised {itemisedOn.get(l.categoryId)} line also budgets this category — both count</span>)}
                           {l.rolledInto && <span className="bb-muted"> · rolled into the {l.rolledInto} line</span>}
                           {l.rolledIn != null && <span className="bb-muted"> · includes {fmt(l.rolledIn)} rolled in</span>}
                         </td>

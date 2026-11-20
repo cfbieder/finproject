@@ -187,7 +187,7 @@ an Itemised branch: *Travel – Flights has an item in GBP and the scenario has 
   - The Fixed cell shows the derived annual, read-only, and the Months cell shows **Items (N)**.
   - On a parent-category line, Itemised is left out of the dropdown.
 - **A sibling set to One-off by D2** shows a muted note, *itemised on the PLN line*. If it is switched back,
-  the note becomes the flag *⚠ also itemised on the PLN line: counted twice*.
+  the note becomes the flag *⚠ also itemised on the PLN line: counted twice* (reworded v3.102.4 to *⚠ the itemised PLN line also budgets this category — both count*: the old text read like a roll into PLN).
 - **Modal** (the shared `Modal`):
   1. Header: category, line currency, and the build rates used.
   2. Reference: **Actual {LE year}** and **Budget {LE year}** by month for every currency line of the
