@@ -1,5 +1,3 @@
 {
-  "python.analysis.typeCheckingMode": "basic",
-  "python.analysis.autoImportCompletions": false,
-  "chatgpt.commentCodeLensEnabled": true
+  "window.title": "FINANCE — ${activeEditorShort}"
 }

@@ -9,11 +9,29 @@
       "Grep",
       "WebFetch",
       "WebSearch",
-      "NotebookEdit"
+      "NotebookEdit",
+      "Bash(git merge *)",
+      "Read(//home/cfbieder/psproject-cr098/server/src/v2/repositories/**)",
+      "Read(//home/cfbieder/psproject-cr098-build/server/src/services/**)",
+      "Read(//home/cfbieder/psproject-cr098-build/server/db/migrations/**)",
+      "Read(//home/cfbieder/psproject-cr098-build/docs/cr/**)",
+      "Read(//home/cfbieder/psproject-cr098-build/frontend/src/pages/**)",
+      "Bash(docker rm *)"
     ],
     "ask": [
       "Bash(rm:*)",
       "Bash(sudo rm:*)"
+    ],
+    "additionalDirectories": [
+      "/home/cfbieder/psproject-cr064p2/server/src/v2/routes",
+      "/home/cfbieder/psproject-cr064p2/server/src/v2/services/__tests__",
+      "/home/cfbieder/psproject-cr064p2/frontend/src/features/Forecast",
+      "/home/cfbieder/psproject-cr064p2/frontend/src/pages",
+      "/home/cfbieder/psproject-cr098-build/server/src/v2/routes",
+      "/home/cfbieder/psproject-cr098-build/server/src/services/__tests__",
+      "/home/cfbieder/psproject-cr098-build/server/src/services",
+      "/home/cfbieder/psproject-cr098-build/frontend/src/pages",
+      "/home/cfbieder/psproject-cr098-build/server/db/migrations"
     ]
   },
   "hooks": {
