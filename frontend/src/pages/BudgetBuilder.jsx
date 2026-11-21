@@ -247,12 +247,19 @@ function BudgetBuilder() {
   const editAsDraft = () => run(async () => {
     const b = sources.builds.find((x) => x.id === selectedId);
     if (!b) return;
+    // The build's own estimate may since have been superseded by a re-finalised one of the same
+    // year (only a final LE can seed a build) — then start from the newest final LE for that year,
+    // which is the same choice the New draft row would make, and say so.
+    const own = sources.les.find((l) => l.id === b.source_le_id);
+    const le = own || sources.les.find((l) => l.budget_year === b.target_year - 1);
+    if (!le) throw new Error(`No finalised ${b.target_year - 1} estimate to start a ${b.target_year} draft from — finalise one on Latest Estimate first.`);
     const res = Rest.unwrap(await Rest.post("/budget-builder", {
-      sourceLeId: b.source_le_id, scenarioName: b.scenario_name, parentBuildId: b.id, note: null,
+      sourceLeId: le.id, scenarioName: b.scenario_name, parentBuildId: b.id, note: null,
     }));
     await loadSources();
     setSelectedId(res.build.id);
     setNotice([`Draft v${res.build.build_no} started from v${b.build_no} — edit it, then publish it to replace the ${b.target_year} budget.`,
+      ...(own ? [] : [`v${b.build_no}'s estimate has since been re-finalised, so the draft uses the current ${le.name}; Recurring lines are recomputed from it.`]),
       ...(res.dropped?.length ? [`${res.dropped.length} line(s) of v${b.build_no} are not in its estimate and were not carried.`] : []),
       ...(res.notices || [])].join(" "));
   });

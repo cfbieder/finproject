@@ -242,7 +242,9 @@ async function createBuild({ targetYear, sourceLeId, scenarioName, parentBuildId
   return db.transaction(async (client) => {
     const le = (await client.query('SELECT * FROM budget_le WHERE id = $1', [sourceLeId])).rows[0];
     if (!le) throw err(404, 'Latest Estimate not found');
-    if (le.status !== 'final') throw err(400, `${le.name} is a draft — only a finalised LE can seed a budget`);
+    if (le.status !== 'final') {
+      throw err(400, `${le.name} is ${le.status === 'superseded' ? 'superseded by a newer finalised version' : 'a draft'} — only a finalised LE can seed a budget`);
+    }
     const year = Number(targetYear || le.budget_year + 1);
     if (year !== le.budget_year + 1) throw err(400, `${le.name} is for ${le.budget_year}; it seeds ${le.budget_year + 1}, not ${year}`);
     const scen = (await client.query(
