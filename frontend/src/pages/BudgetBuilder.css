@@ -67,9 +67,76 @@
 .bb-table--grid > thead > tr > th.num { width: 7.5rem; white-space: normal; } /* beats `.bb-table .num` nowrap */
 .bb-table--grid > thead > tr > th.bb-col-cur { width: 5.5rem; }
 .bb-table--grid > thead > tr > th.bb-col-policy { width: 7.5rem; }
-.bb-table--grid > thead > tr > th.bb-col-months { width: 10rem; }
-/* A month-split line shows two selects; let them stack rather than spill past the table edge. */
-.bb-table--grid .bb-split { flex-wrap: wrap; }
+.bb-table--grid > thead > tr > th.bb-col-months { width: 12.5rem; }
+/* A one-month line shows its two pickers side by side; wrap only as a last resort. */
+.bb-table--grid .bb-split { flex-wrap: wrap; align-items: center; }
+
+/* ---- grid controls: one size, quiet until wanted --------------------------------------------
+   Every control in a line is one height, radius and font, and draws no border until its row is
+   hovered or it has focus — so the grid reads as a table of figures, and the edit affordance
+   appears where the pointer is. Number fields fill their cell and right-align, so a typed figure
+   sits on the same edge as the computed ones beside it. */
+.bb-table--grid > tbody > tr > td select,
+.bb-table--grid > tbody > tr > td .bb-num-input,
+.bb-table--grid > tbody > tr > td .btn--sm {
+  box-sizing: border-box;
+  height: 1.85rem;
+  padding: 0 0.45rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background-color: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.85rem;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+.bb-table--grid > tbody > tr > td .btn--sm { border-color: var(--border); line-height: 1; }
+.bb-table--grid > tbody > tr:hover > td select,
+.bb-table--grid > tbody > tr:hover > td .bb-num-input {
+  border-color: var(--border);
+  background-color: var(--surface);
+}
+.bb-table--grid > tbody > tr > td select:focus-visible,
+.bb-table--grid > tbody > tr > td .bb-num-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  background-color: var(--surface);
+  box-shadow: var(--shadow-focus);
+}
+.bb-table--grid > tbody > tr > td > .bb-num-input {
+  width: 100%;
+  text-align: right;
+  -moz-appearance: textfield;
+}
+.bb-table--grid .bb-num-input::-webkit-outer-spin-button,
+.bb-table--grid .bb-num-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+/* Policy and month-split pickers take their column's width, so they line up row to row. */
+.bb-table--grid > tbody > tr > td > select { width: 100%; }
+.bb-table--grid .bb-split > select:first-child { width: 7.5rem; }
+.bb-table--grid .bb-split > select + select { width: 3.6rem; }
+
+/* The roll picker sits on the currency's line as a small icon, not a second line under it. */
+.bb-table--grid td.bb-cur { white-space: nowrap; }
+.bb-table--grid td.bb-cur .bb-roll {
+  display: inline-block;
+  width: auto;
+  height: auto;
+  margin: 0 0 0 0.3rem;
+  padding: 0 0.2rem;
+  border: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.bb-table--grid td.bb-cur .bb-roll:hover,
+.bb-table--grid td.bb-cur .bb-roll:focus-visible { color: var(--primary); }
+.bb-table--grid td.bb-cur .bb-roll.bb-rolled { color: var(--ink); }
+
+/* An itemised line's Fixed cell is the items' sum, not a typed figure. */
+.bb-table--grid .bb-sum { font-style: italic; }
 /* A note under a figure inherits the number cell's nowrap; at a fixed width it must wrap instead. */
 .bb-table--grid td .bb-flag { white-space: normal; }
 .bb-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; font-variant-numeric: tabular-nums; color: var(--ink); }

@@ -38,6 +38,14 @@ const commitOnEnter = (e) => { if (e.key === "Enter") e.currentTarget.blur(); };
 // A focused number field changes under the mouse wheel — drop focus instead of the amount.
 const blurOnWheel = (e) => e.currentTarget.blur();
 const neg = (v) => (Number(v) < 0 ? "bb-neg" : undefined);
+// The Fixed field shows its amount grouped ("500,000") like the figures beside it and the raw
+// number while it is being typed in. en-US on both sides, so the commas it adds are the ones
+// it strips — a locale that groups with "." would otherwise read 500.000 back as 500.
+const groupAmount = (v) => (v == null || v === "" ? "" : Number(v).toLocaleString("en-US", { maximumFractionDigits: 2 }));
+const parseAmount = (text) => {
+  const t = String(text).replace(/,/g, "").trim();
+  return t === "" ? null : Number(t);
+};
 const STATUS = { draft: "draft", published: "live", superseded: "superseded", unpublished: "un-published" };
 const buildLabel = (b) =>
   `${b.target_year ?? b.targetYear} v${b.build_no ?? b.buildNo} · ${STATUS[b.status] || b.status}` +
@@ -673,7 +681,7 @@ function BudgetBuilder() {
                           {l.rolledInto && <span className="bb-muted"> · rolled into the {l.rolledInto} line</span>}
                           {l.rolledIn != null && <span className="bb-muted"> · includes {fmt(l.rolledIn)} rolled in</span>}
                         </td>
-                        <td>
+                        <td className="bb-cur">
                           {l.currency}
                           {/* Roll a line into another currency line of its category: budgeted once, in that currency.
                               A line that takes rolls in cannot itself roll. */}
@@ -683,7 +691,7 @@ function BudgetBuilder() {
                               aria-label={`${l.category} (${l.currency}) roll into`}
                               title="Roll into another currency line of this category: its estimate joins that line's, at the build's rates"
                               onChange={(e) => patchLine(l.id, { rolledInto: e.target.value || null })}>
-                              <option value="">{l.rolledInto ? "↩ unroll" : "roll…"}</option>
+                              <option value="">{l.rolledInto ? "↩ unroll" : "↪"}</option>
                               {[...new Set([...(l.rolledInto ? [l.rolledInto] : []), ...rollTargets(l)])]
                                 .map((c) => <option key={c} value={c}>→ {c}</option>)}
                             </select>
@@ -725,15 +733,18 @@ function BudgetBuilder() {
                         </td>
                         <td className="num">
                           {l.rolledInto ? "" : l.policy === "fixed" && isDraft ? (
-                            <input key={`f${l.id}-${l.fixedAmount}-${rev}`} type="number" step="1" className="bb-num-input"
-                              aria-label={`${l.category} fixed amount, ${l.currency}, signed`} defaultValue={l.fixedAmount ?? ""}
-                              disabled={busy} onKeyDown={commitOnEnter} onWheel={blurOnWheel}
+                            <input key={`f${l.id}-${l.fixedAmount}-${rev}`} type="text" inputMode="decimal" className="bb-num-input"
+                              aria-label={`${l.category} fixed amount, ${l.currency}, signed`} defaultValue={groupAmount(l.fixedAmount)}
+                              disabled={busy} onKeyDown={commitOnEnter}
+                              onFocus={(e) => { e.target.value = l.fixedAmount ?? ""; e.target.select(); }}
                               onBlur={(e) => {
-                                const v = e.target.value === "" ? null : Number(e.target.value);
-                                if (v !== l.fixedAmount) patchLine(l.id, { fixedAmount: v });
+                                const v = parseAmount(e.target.value);
+                                if (v !== null && !Number.isFinite(v)) { e.target.value = groupAmount(l.fixedAmount); return; }
+                                if (v !== (l.fixedAmount == null ? null : Number(l.fixedAmount))) patchLine(l.id, { fixedAmount: v });
+                                else e.target.value = groupAmount(l.fixedAmount);
                               }} />
                           ) : l.policy === "fixed" ? fmt(l.fixedAmount) : l.policy === "itemised" ? (
-                            <span className="bb-muted">{fmt(l.annual)}</span>
+                            <span className="bb-muted bb-sum" title="Sum of the line's items">Σ {fmt(l.annual)}</span>
                           ) : ""}
                           {signFlipped && <div className="bb-flag">⚠ opposite sign to the estimate</div>}
                         </td>
