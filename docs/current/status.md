@@ -7,7 +7,7 @@
 > Every budget cut has come from MOVING what changes on a different clock, never deleting what is true
 > (history in the 2026-11-03 log).
 
-**Last updated:** 2026-11-21 · **Live version:** **v3.104.3** (see `VERSION` / git tags) — release log: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
+**Last updated:** 2026-11-21 · **Live version:** **v3.104.4** (see `VERSION` / git tags) — release log: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
 
 ## Current phase
 **Moved to [current-phase.md](current-phase.md)** — it changes on a regenerate, not on a release.
@@ -43,7 +43,7 @@ Two things from it are worth carrying into every session:
 ## Next
 Statuses are canonical in the [CR index](../cr/README.md), the running version in `VERSION`; the release log is [the roadmap](project-roadmap.md).
 
-- ⚠️ **2027 has no live budget — publish by 2026-12-10** (owner). Build **v8** was published 2026-11-20, then un-published 2026-11-21 (both publish events undone, read from prod `budget_build_publishes`); 2027 is back to its 12 pre-builder rows, so Budget Analysis for 2027 reads near-empty. Next: copy v8 into a draft (*Edit as a new draft*, or the New draft row with Start from v8), edit, publish. [CR104](../cr/cr-104-budget-builder-cash-by-currency.md) closes on the owner's check of the *Cash flow* moves; builder follow-ups in [roadmap §2](project-roadmap.md#2-open-backlog-non-cr-items).
+- ⚠️ **2027 has no live budget — publish by 2026-12-10** (owner). Build **v8** was published 2026-11-20, then un-published 2026-11-21 (both publish events undone, read from prod `budget_build_publishes`); 2027 is back to its 12 pre-builder rows, so Budget Analysis for 2027 reads near-empty. Draft **v9** (copied from v8, 2026-11-21) is open on prod: finish it and publish. [CR104](../cr/cr-104-budget-builder-cash-by-currency.md) closes on the owner's check of the *Cash flow* moves; builder follow-ups in [roadmap §2](project-roadmap.md#2-open-backlog-non-cr-items).
 - **January 2027: run *Annual close…*** on `2026 Base` → `2027 Base` ([CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md), the annual roll to a new base year); the [CR099](../cr/cr-099-forecast-module-return-path.md) annual-close check is due before it — roadmap §2.
 - **[CR097](../cr/cr-097-manual-holdings-register.md)** (holdings register for manually valued accounts): the 2026-10-31 valuation is ⚠️ blocked by its cost gap until the owner says what two October transfers bought — [roadmap entry](project-roadmap.md#cr097).
 - Builder follow-ups (P3c hand-edit warning, CR101 report/picker/planning follow-ups), [CR095](../cr/cr-095-forecast-spend-currency-share.md) (forecast spend that moves with the złoty) and the close-out backlog (idle-cash interest, loss carry-forward, CR083's P1 warnings and P2 seed; CR059's only tail is the owner's Google Cloud cleanup): [roadmap §2](project-roadmap.md#2-open-backlog-non-cr-items) / [CR index](../cr/README.md).
