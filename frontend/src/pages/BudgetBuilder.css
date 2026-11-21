@@ -46,7 +46,32 @@
 .bb-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1.25rem; margin: 0 0 0.75rem; font-size: 0.85rem; color: var(--ink); }
 .bb-filters select { margin-left: 0.35rem; padding: 0.2rem 0.4rem; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--ink); font-size: 0.85rem; }
 
-.bb-table-wrap { overflow-x: auto; }
+/* The grid scrolls inside its own box so the header row can stay frozen: a sticky header sticks to
+   its nearest scroll container, and with overflow-x alone that box never scrolls vertically, so the
+   header scrolled away with the page. Tall enough to fill the screen once scrolled into view.
+   Everything below is scoped to `--grid`: `.bb-table` / `.bb-table-wrap` are shared with the Cash
+   flow, Compare forecast and Compare builds tables, which must not inherit widths or stickiness. */
+.bb-table-wrap--grid { overflow: auto; max-height: calc(100vh - 6rem); }
+/* `>` keeps these off the month tables nested inside an open line. */
+.bb-table--grid > thead > tr > th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface);
+  box-shadow: inset 0 -1px 0 var(--border); /* border-collapse drops a sticky cell's own border */
+  vertical-align: bottom;
+  white-space: normal;
+  line-height: 1.25;
+}
+.bb-table--grid { table-layout: fixed; min-width: 90rem; }
+.bb-table--grid > thead > tr > th.num { width: 7.5rem; white-space: normal; } /* beats `.bb-table .num` nowrap */
+.bb-table--grid > thead > tr > th.bb-col-cur { width: 5.5rem; }
+.bb-table--grid > thead > tr > th.bb-col-policy { width: 7.5rem; }
+.bb-table--grid > thead > tr > th.bb-col-months { width: 10rem; }
+/* A month-split line shows two selects; let them stack rather than spill past the table edge. */
+.bb-table--grid .bb-split { flex-wrap: wrap; }
+/* A note under a figure inherits the number cell's nowrap; at a fixed width it must wrap instead. */
+.bb-table--grid td .bb-flag { white-space: normal; }
 .bb-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; font-variant-numeric: tabular-nums; color: var(--ink); }
 .bb-table th,
 .bb-table td { padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }

@@ -185,6 +185,10 @@ one is ever live (§4: a second live version would be summed with the first).
 - **Restore build…** — re-publishes an earlier build **exactly as it was published**, from its stored
   cells (§3.5), through the same preview, checksum and snapshot as any publish (§3.4). Restoring is
   a publish, so it can itself be un-published.
+  *(2026-11-21: the button reads **Publish again…** (outline, not primary). A non-draft build — live,
+  superseded or un-published — stays read-only; **Edit as a new draft** starts a draft from it on its own
+  estimate and rates. The owner un-published v8 expecting it to unlock, then re-published it with the
+  old primary-styled Restore button 12 s later.)*
 
 Un-publish undoes the most recent publish and hands *live* back to the build before it; repeating it walks further back. *Restore* jumps to any build directly.
 

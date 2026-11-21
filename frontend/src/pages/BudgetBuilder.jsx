@@ -241,6 +241,22 @@ function BudgetBuilder() {
     });
   };
 
+  // Only a draft is editable (the server refuses the rest), so a published, superseded or
+  // un-published build is changed through a copy: a new draft started from it, on its own
+  // estimate and rates. Un-publishing does not unlock a build — this is the way in.
+  const editAsDraft = () => run(async () => {
+    const b = sources.builds.find((x) => x.id === selectedId);
+    if (!b) return;
+    const res = Rest.unwrap(await Rest.post("/budget-builder", {
+      sourceLeId: b.source_le_id, scenarioName: b.scenario_name, parentBuildId: b.id, note: null,
+    }));
+    await loadSources();
+    setSelectedId(res.build.id);
+    setNotice([`Draft v${res.build.build_no} started from v${b.build_no} — edit it, then publish it to replace the ${b.target_year} budget.`,
+      ...(res.dropped?.length ? [`${res.dropped.length} line(s) of v${b.build_no} are not in its estimate and were not carried.`] : []),
+      ...(res.notices || [])].join(" "));
+  });
+
   const saveName = (note) => run(async () => {
     try {
       setView(Rest.unwrap(await Rest.patch(`/budget-builder/${selectedId}`, { note })));
@@ -429,13 +445,19 @@ function BudgetBuilder() {
         )}
         <div className="bb-actions">
           {canPublish && (
-            <button type="button" className="btn btn--primary" onClick={() => openDialog("publish")} disabled={busy}>
-              {isDraft ? "Publish…" : "Restore this build…"}
+            <button type="button" className={isDraft ? "btn btn--primary" : "btn btn--outline"}
+              onClick={() => openDialog("publish")} disabled={busy}>
+              {isDraft ? "Publish…" : "Publish again…"}
             </button>
           )}
           {shown?.build.status === "published" && (
             <button type="button" className="btn btn--outline" onClick={() => openDialog("unpublish")} disabled={busy}>
               Un-publish…
+            </button>
+          )}
+          {shown && !isDraft && (
+            <button type="button" className="btn btn--outline" onClick={editAsDraft} disabled={busy}>
+              Edit as a new draft
             </button>
           )}
           {isDraft && (
@@ -535,6 +557,12 @@ function BudgetBuilder() {
                 </button>
               </span>
             )}
+            {!isDraft && (
+              <span className="bb-muted">
+                Read-only — only a draft can be edited{shown.build.status === "unpublished" ? "; un-publishing does not unlock a build" : ""}.
+                Use <strong>Edit as a new draft</strong> to change it.
+              </span>
+            )}
             {isDraft && [shown.rates.inflation, shown.rates.fx.PLN, shown.rates.fx.EUR].some((r) => r && r.fromYear < targetYear) && (
               <span className="bb-muted">
                 Rates for {targetYear} are not set in {shown.build.scenario}; set them on Forecast Scenarios
@@ -579,21 +607,21 @@ function BudgetBuilder() {
             )}
           </section>
 
-          <div className="bb-table-wrap">
-            <table className="bb-table">
+          <div className="bb-table-wrap bb-table-wrap--grid">
+            <table className="bb-table bb-table--grid">
               <thead>
                 <tr>
                   <th>Category</th>
-                  <th>Cur</th>
+                  <th className="bb-col-cur">Cur</th>
                   <th className="num">{shown.build.le.name}</th>
-                  <th>Policy</th>
+                  <th className="bb-col-policy">Policy</th>
                   <th className="num">Inflation %</th>
                   <th className="num">Fixed (local, signed)</th>
                   <th className="num">Budget {targetYear}</th>
                   <th className="num">In USD</th>
                   <th className="num">vs estimate</th>
                   <th className="num">Budget {shown.build.le.year}</th>
-                  <th>Months</th>
+                  <th className="bb-col-months">Months</th>
                 </tr>
               </thead>
               <tbody>
@@ -856,7 +884,7 @@ function BudgetBuilder() {
         dismissable={!busy}
         size="wide"
         title={
-          dialog?.kind === "publish" ? (isDraft ? `Publish ${targetYear} v${shown?.build.buildNo}?` : `Restore ${targetYear} v${shown?.build.buildNo}?`)
+          dialog?.kind === "publish" ? (isDraft ? `Publish ${targetYear} v${shown?.build.buildNo}?` : `Publish ${targetYear} v${shown?.build.buildNo} again?`)
             : dialog?.kind === "unpublish" ? `Un-publish ${targetYear} v${shown?.build.buildNo}?`
             : `Delete ${targetYear} v${shown?.build.buildNo}?`
         }
@@ -865,7 +893,7 @@ function BudgetBuilder() {
             <button type="button" className="btn btn--outline" onClick={() => setDialog(null)} disabled={busy}>Cancel</button>
             <button type="button" className="btn btn--primary" onClick={confirmDialog}
               disabled={busy || (dialog.kind === "publish" && dialog.preview?.blockers.length > 0)}>
-              {busy ? "Working…" : dialog.kind === "publish" ? (isDraft ? "Publish" : "Restore") : dialog.kind === "unpublish" ? "Un-publish" : "Delete"}
+              {busy ? "Working…" : dialog.kind === "publish" ? (isDraft ? "Publish" : "Publish again") : dialog.kind === "unpublish" ? "Un-publish" : "Delete"}
             </button>
           </>
         )}
