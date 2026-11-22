@@ -29,7 +29,7 @@ Two things from it are worth carrying into every session:
   [CR094](../cr/cr-094-promote-divergence-gate.md) was closed 2026-09-28 as not warranted (0 cases since
   the 08-10 cutover); its three checks are now a step in the [month-end runbook](../guides/month-end-reconcile.md).
 - **PKO is on Enable Banking since 2026-11-22** (GoCardless retired its connector); the overlap is held out by the mapping
-  cutoffs alone. Open: `PKO OCME` not reconnected, `Erste Bank Polska (2408)` unmapped — [roadmap §3](project-roadmap.md#3-known-issues).
+  cutoffs alone. Open: `Erste Bank Polska (2408)` unmapped (OCME is retired, not reconnected) — [roadmap §3](project-roadmap.md#3-known-issues).
 - **#29 FIXED v3.61.7** — the feed FLIPS two FDIC sweeps between a ticker and a numeric id; migration
   081 merged them. ⚠️ A **third** label for the same deposit would still mint a new twin.
 - ⚠️ **Owner:** revoke the retired Sheet share and delete its service-account key in Google Cloud
