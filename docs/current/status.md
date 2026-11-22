@@ -7,7 +7,7 @@
 > Every budget cut has come from MOVING what changes on a different clock, never deleting what is true
 > (history in the 2026-11-03 log).
 
-**Last updated:** 2026-11-21 · **Live version:** **v3.104.4** (see `VERSION` / git tags) — release log: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
+**Last updated:** 2026-11-22 · **Live version:** **v3.104.4** (see `VERSION` / git tags) — release log: [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first).
 
 ## Current phase
 **Moved to [current-phase.md](current-phase.md)** — it changes on a regenerate, not on a release.
@@ -28,6 +28,8 @@ Two things from it are worth carrying into every session:
   (PKO), **zero amount instances — but that path is permanent drift no re-run clears**.
   [CR094](../cr/cr-094-promote-divergence-gate.md) was closed 2026-09-28 as not warranted (0 cases since
   the 08-10 cutover); its three checks are now a step in the [month-end runbook](../guides/month-end-reconcile.md).
+- **PKO is on Enable Banking since 2026-11-22** (GoCardless retired its connector). The overlap is held out by
+  the mapping cutoffs alone, and `PKO OCME` is not reconnected yet — [roadmap §3](project-roadmap.md#3-known-issues).
 - **#29 FIXED v3.61.7** — the feed FLIPS two FDIC sweeps between a ticker and a numeric id; migration
   081 merged them. ⚠️ A **third** label for the same deposit would still mint a new twin.
 - ⚠️ **Owner:** revoke the retired Sheet share and delete its service-account key in Google Cloud
