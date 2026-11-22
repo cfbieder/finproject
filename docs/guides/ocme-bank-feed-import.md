@@ -1,5 +1,7 @@
 # Bank Transaction Import for OCME — Build Guide
 
+> ⚠️ **Written for the Sheet era (2026-06).** Since CR059 (cutover 2026-08-10; Sheet path removed 2026-09-15) bank-feed reads the fintable API, and `POST /v1/sync` triggers an API sync, not a Sheet read. PKO moved to Enable Banking on 2026-11-22 and `PKO OCME` is not on the new consent — see [roadmap §3](../current/project-roadmap.md#3-known-issues).
+
 **Purpose:** Add bank-transaction import to OCME, fed from the **same fintable.io Google Sheet** fin uses.
 **Chosen architecture:** OCME consumes the existing **`bank-feed` microservice** (CR021) over its `/v1/*` REST contract — the same service fin consumes. OCME writes **no** Google API code and never touches the Sheet directly. (Direct-Sheet read is kept as a fallback in the Appendix, for the case where OCME can't reach the service.)
 **Distilled from:** the `bank-feed` service (`~/Programs/fin/bank-feed/`), fin's `bankFeedClient.js`, and CR022 (`docs/cr/cr-022-bank-feed-parallel-import.md`).

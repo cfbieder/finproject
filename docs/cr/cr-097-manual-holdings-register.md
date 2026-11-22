@@ -107,9 +107,9 @@ The ledger keeps **one** Unrealized G/L number per valuation. The register expla
 | `note` | |
 
 **Manual `securities` rows are kept out of the feed and quote paths:** `ticker = NULL` (an exchange
-symbol goes in `exchange` / a note — `ticker` is UNIQUE, and `ingestHoldings.js:110-121` inserts
-any `^[A-Z]{1,5}$` feed symbol as a ticker, so a manual `ATH` would one day fail the feed's
-ingest), `price_basis = NULL` (quote eligibility is gated on `price_basis = 'per_share'`,
+symbol goes in `exchange` / a note — `ticker` is UNIQUE, and since v3.104.5 the feed ingest ADOPTS any
+existing security whose ticker equals a `^[A-Z]{1,5}$` feed symbol (`ingestHoldings.js` `resolveSecurity`),
+so a manual `ATH` would have the feed's positions filed onto the manual row), `price_basis = NULL` (quote eligibility is gated on `price_basis = 'per_share'`,
 `marketPrices.js:117-131`, not on `asset_class`), `classification_source = 'manual'`.
 `asset_class` gains **`private`** as a display bucket for private-company shares and unconverted
 subscriptions; it drives labels and exposure buckets only.

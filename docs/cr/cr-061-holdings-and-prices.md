@@ -402,6 +402,7 @@ Add to `securities`: `price_basis` (`per_share · per_1_face · par`), `quantity
 created it with `UNIQUE(source, external_name)` for exactly this; use `source = 'fintable'`.
 Resolving on `ticker` would mint duplicate `securities` rows for the same instrument once CR019's
 Quicken promote runs, since that routes via `quicken_security_master_staging.promoted_security_id`.
+*As built since v3.104.5: on a mapping miss, an existing security with the same listed ticker is adopted and mapped rather than duplicated (`securities.ticker` is UNIQUE, so the insert used to throw — roadmap §3, 2026-11-22).*
 
 **Shape decides only what is safe to probe, never what is quotable.** rev 2's rules could not produce
 the classification its own tests asserted:

@@ -1,4 +1,4 @@
-# CR104 — Budget builder: Cash Flow by currency (monthly roll-forward, with what-if transfers) — DRAFT
+# CR104 — Budget builder: Cash Flow by currency (monthly roll-forward, with what-if transfers) — IN-PROGRESS
 
 **Status:** IN-PROGRESS 2026-11-15 — **P1 + P2 live v3.91.0** (§9); **§10 (what-is-this + item moves) live v3.92.0**; closes on the owner's check. **rev 3**. Pass 1 (`cr-technical-reviewer`) REVISE on rev 1 → rev 2;
 pass 2 (`cr-signoff-pm`) **GO** on rev 2, on four conditions, applied in rev 3 (§6, §8).
