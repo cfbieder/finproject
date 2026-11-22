@@ -86,12 +86,12 @@ async function buildAccountMap() {
  * once CR019's Quicken promote runs, since that routes through its own staging
  * id rather than the ticker.
  */
-async function resolveSecurity(position, cache) {
+async function resolveSecurity(position, cache, q = db) {
   const symbol = String(position.symbol || '').trim();
   if (!symbol) return null;
   if (cache.has(symbol)) return cache.get(symbol);
 
-  const existing = await db.query(`
+  const existing = await q.query(`
     SELECT s.id
       FROM security_source_mappings m
       JOIN securities s ON s.id = m.security_id
@@ -108,7 +108,29 @@ async function resolveSecurity(position, cache) {
   // CUSIP is not a ticker, and the column is UNIQUE, so putting one there would
   // both lie and eventually collide.
   const isTicker = /^[A-Z]{1,5}$/.test(symbol.toUpperCase());
-  const { rows } = await db.query(`
+
+  // A listed ticker another path already created (the statement importer, a
+  // manual holding) is the SAME instrument: adopt it and add our mapping. Minting
+  // a second row is impossible anyway — `securities.ticker` is UNIQUE — and
+  // before this lookup the collision threw. Found 2026-11-22: NVDA (security 218,
+  // `statement:NVDA` only) entered Fidelity Stocks on 11-14 and every holdings
+  // ingest failed from then on.
+  if (isTicker) {
+    const byTicker = await q.query(
+      `SELECT id FROM securities WHERE ticker = $1`, [symbol.toUpperCase()]);
+    if (byTicker.rows.length) {
+      const securityId = byTicker.rows[0].id;
+      await q.query(`
+        INSERT INTO security_source_mappings (security_id, source, external_name)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (source, external_name) DO NOTHING
+      `, [securityId, MAPPING_SOURCE, symbol]);
+      cache.set(symbol, securityId);
+      return securityId;
+    }
+  }
+
+  const { rows } = await q.query(`
     INSERT INTO securities
       (ticker, name, asset_class, currency, price_basis, quantity_unit, classification_source)
     VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -124,7 +146,7 @@ async function resolveSecurity(position, cache) {
   ]);
   const securityId = rows[0].id;
 
-  await db.query(`
+  await q.query(`
     INSERT INTO security_source_mappings (security_id, source, external_name)
     VALUES ($1, $2, $3)
     ON CONFLICT (source, external_name) DO NOTHING
@@ -141,10 +163,10 @@ async function resolveSecurity(position, cache) {
  * named no date, so there is no row to key and re-asking is cheap. The absence
  * of a header IS the record.
  */
-async function ingestAccountSnapshot(entry, finAccountId, securityCache) {
+async function ingestAccountSnapshot(entry, finAccountId, securityCache, q = db) {
   if (!entry.polled_on) return { header: 0, positions: 0 };
 
-  const { rows } = await db.query(`
+  const { rows } = await q.query(`
     INSERT INTO security_position_snapshots
       (account_id, feed_account_id, polled_on, source, status,
        custodian_balance, positions_count, sum_market_value, raw)
@@ -178,14 +200,14 @@ async function ingestAccountSnapshot(entry, finAccountId, securityCache) {
   // absorb as "not reported by the feed", the one number it exists to make
   // legible. Re-fetching the same poll date is expected and its quantities can
   // legitimately differ, so the later fetch wins wholesale.
-  await db.query(`DELETE FROM security_positions WHERE snapshot_id = $1`, [snapshotId]);
+  await q.query(`DELETE FROM security_positions WHERE snapshot_id = $1`, [snapshotId]);
 
   let written = 0;
   for (const p of positions) {
-    const securityId = await resolveSecurity(p, securityCache);
+    const securityId = await resolveSecurity(p, securityCache, q);
     if (!securityId) continue;
-    const { rows: secRows } = await db.query(`SELECT price_basis FROM securities WHERE id = $1`, [securityId]);
-    await db.query(`
+    const { rows: secRows } = await q.query(`SELECT price_basis FROM securities WHERE id = $1`, [securityId]);
+    await q.query(`
       INSERT INTO security_positions
         (snapshot_id, account_id, security_id, quantity, price, price_basis,
          price_source, market_value, cost_basis, currency, raw)
@@ -219,6 +241,7 @@ async function ingestHoldings({ asOf } = {}) {
   const summary = {
     accounts: 0, headers: 0, positions: 0,
     unmapped: [], securities_created: 0, statuses: {}, error: null,
+    failed: [],
   };
 
   let resp;
@@ -248,9 +271,26 @@ async function ingestHoldings({ asOf } = {}) {
     }
     summary.accounts += 1;
     summary.statuses[entry.status] = (summary.statuses[entry.status] || 0) + 1;
-    const r = await ingestAccountSnapshot({ ...entry, feed_account_id: feedUuid }, finAccountId, securityCache);
-    summary.headers += r.header;
-    summary.positions += r.positions;
+    // ONE TRANSACTION PER ACCOUNT, and one account's failure does not stop the
+    // next. Before 2026-11-22 neither held: the header was written before its
+    // positions with nothing to roll it back, so a failure mid-account left a
+    // snapshot CLAIMING 31 positions over 23 (Fidelity Stocks, 11-14..11-21,
+    // $84-98k short), and the throw skipped every account after it (Bond and
+    // Options: no snapshot for 8 days). A failed account now keeps its previous
+    // snapshot intact and is reported in `failed`.
+    // The cache is copied in and merged back only on COMMIT: a security created
+    // inside a rolled-back transaction does not exist, and a later account must
+    // not be handed its id.
+    const local = new Map(securityCache);
+    try {
+      const r = await db.transaction((client) => ingestAccountSnapshot(
+        { ...entry, feed_account_id: feedUuid }, finAccountId, local, client));
+      for (const [k, v] of local) securityCache.set(k, v);
+      summary.headers += r.header;
+      summary.positions += r.positions;
+    } catch (err) {
+      summary.failed.push({ feed_account_id: entry.account_id, account_id: finAccountId, error: err.message });
+    }
   }
 
   summary.securities_created =

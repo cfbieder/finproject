@@ -284,4 +284,91 @@ dbDescribe('CR061 ingestHoldings (DB)', () => {
     expect(s.error).toMatch(/503/);
     expect(s.headers).toBe(0);
   });
+
+  // ---- 2026-11-22: a ticker another path created, and failure isolation ----
+  // NVDA existed as a `statement:` security; when the feed first carried it,
+  // the INSERT hit securities.ticker UNIQUE, the throw skipped every later
+  // account, and the failing account kept a header over a partial set of rows.
+
+  test('a ticker another source already created is ADOPTED, not duplicated', async () => {
+    const pre = await db.query(
+      `INSERT INTO securities (ticker, name, asset_class, currency)
+       VALUES ('QQZEQ','QQZEQ','equity','USD') RETURNING id`);
+    await db.query(
+      `INSERT INTO security_source_mappings (security_id, source, external_name)
+       VALUES ($1,'statement','QQZEQ')`, [pre.rows[0].id]);
+    try {
+      stub([entry({ positions: [{ symbol: 'QQZEQ', name: 'QQZEQ', quantity: '100',
+        price: '150', value: '15000', cost_basis: '15871', currency: 'USD' }] })]);
+      const s = await ingestHoldings();
+      expect(s.failed).toEqual([]);
+      expect(s.securities_created).toBe(0);
+      expect(s.positions).toBe(1);
+      const m = await db.query(
+        `SELECT security_id FROM security_source_mappings WHERE source='fintable' AND external_name='QQZEQ'`);
+      expect(m.rows[0].security_id).toBe(pre.rows[0].id);
+    } finally {
+      await db.query(`DELETE FROM security_positions WHERE security_id = $1`, [pre.rows[0].id]);
+      await db.query(`DELETE FROM security_source_mappings WHERE security_id = $1`, [pre.rows[0].id]);
+      await db.query(`DELETE FROM securities WHERE id = $1`, [pre.rows[0].id]);
+    }
+  });
+
+  test('🔴 one account failing does not skip the next, and leaves no partial snapshot', async () => {
+    const OTHER_UUID = 'uuid-cr061-test-2';
+    const OTHER_INTERNAL_ID = 9903;
+    const b = await db.query(
+      `INSERT INTO accounts (name, account_type, section, currency, opening_balance)
+       VALUES ('CR061 Ingest Test 2','asset','balance_sheet','USD',0) RETURNING id`);
+    const otherId = b.rows[0].id;
+    await db.query(
+      `INSERT INTO account_source_mappings (account_id, source, external_name) VALUES ($1,'bank-feed',$2)`,
+      [otherId, OTHER_UUID]);
+    bankFeedClient.accounts = () => Promise.resolve({ accounts: [
+      { id: FEED_INTERNAL_ID, external_id: FEED_UUID },
+      { id: OTHER_INTERNAL_ID, external_id: OTHER_UUID },
+    ] });
+    try {
+      // Day 1 lands cleanly for the first account.
+      stub([entry()]);
+      await ingestHoldings();
+      // Day 1 re-fetched: the first account now carries a position that cannot
+      // be written (a quantity no NUMERIC accepts) AFTER a good one; the second
+      // account is fine.
+      stub([
+        entry({ positions_count: 2, positions: [
+          { symbol: 'YYT', name: 'Yotta Corp', quantity: '5', price: '10', value: '50', currency: 'USD' },
+          { symbol: 'ZZT', name: 'Zeta Industries', quantity: 'not-a-number', price: '1', value: '1', currency: 'USD' },
+        ] }),
+        entry({ account_id: OTHER_INTERNAL_ID }),
+      ]);
+      const s = await ingestHoldings();
+      expect(s.failed).toHaveLength(1);
+      expect(s.failed[0].account_id).toBe(acctId);
+      expect(s.headers).toBe(1); // the second account still landed
+
+      // The failed account keeps its PREVIOUS snapshot whole: one ZZT row, not
+      // the half-replaced YYT-only set, and a header that still says 1.
+      const kept = await db.query(
+        `SELECT h.positions_count, array_agg(m.external_name) AS syms
+           FROM security_position_snapshots h
+           JOIN security_positions p ON p.snapshot_id = h.id
+           JOIN security_source_mappings m ON m.security_id = p.security_id AND m.source = 'fintable'
+          WHERE h.account_id = $1 GROUP BY h.positions_count`, [acctId]);
+      expect(kept.rows).toEqual([{ positions_count: 1, syms: ['ZZT'] }]);
+      // YYT was created inside the rolled-back transaction, so it does not exist.
+      const yyt = await db.query(
+        `SELECT 1 FROM security_source_mappings WHERE source='fintable' AND external_name='YYT'`);
+      expect(yyt.rows).toHaveLength(0);
+      const other = await db.query(
+        `SELECT count(*)::int AS n FROM security_positions WHERE account_id = $1`, [otherId]);
+      expect(other.rows[0].n).toBe(1);
+    } finally {
+      bankFeedClient.accounts = feedAccounts;
+      await db.query(`DELETE FROM security_positions WHERE account_id = $1`, [otherId]);
+      await db.query(`DELETE FROM security_position_snapshots WHERE account_id = $1`, [otherId]);
+      await db.query(`DELETE FROM account_source_mappings WHERE external_name = $1`, [OTHER_UUID]);
+      await db.query(`DELETE FROM accounts WHERE id = $1`, [otherId]);
+    }
+  });
 });

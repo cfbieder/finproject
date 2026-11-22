@@ -266,6 +266,10 @@ async function ingest({ sinceDays = DEFAULT_SINCE_DAYS, since, syncMaxAgeMin } =
       console.warn(`[refreshBankFeedV2] ${holdings.unmapped.length} feed account(s) hold positions `
         + `but map to no tracked fin account: ${holdings.unmapped.map((u) => u.uuid || u.feed_account_id).join(', ')}`);
     }
+    if (holdings.failed && holdings.failed.length) {
+      console.warn(`[refreshBankFeedV2] holdings ingest failed for ${holdings.failed.length} account(s), `
+        + `previous snapshot kept: ${holdings.failed.map((f) => `${f.account_id}: ${f.error}`).join('; ')}`);
+    }
   } catch (err) {
     console.warn('[refreshBankFeedV2] holdings ingest failed (non-fatal):', err.message);
     holdings = { error: err.message };
